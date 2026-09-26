@@ -3021,6 +3021,260 @@ void variant_profile_update_cache_for_nwide_list(int *ids, int count)
   }
 }
 
+/* multiplayer_settings_select_list_update_item (0xf4210)
+ * "player settings select" 3-wide spinner list update. Evidence: reference
+ * disassembly 0xf4210-0xf46d5 (TU proven by the __FILE__ assert strings; the
+ * function is reached only through the data reference at 0x31e538).
+ *
+ * FUN_000f3690(indices@<eax>, widget@<ecx>) fills the 3 visible list-item
+ * indices (pre-set to -1). Each live index is mapped through the widget's
+ * item-id array (widget+0x40) and the resulting ids are cached into the
+ * profile record table at 0x5aa3c0 (3 records, stride 0x34; see the layout
+ * comment on player_profile_1wide_list_update below). Then, per visible item
+ * (stops at the first -1 index), the child widget chain is validated and the
+ * item is filled from its cached record or blanked. As in the 1-wide update,
+ * rec points at record+4 (the name), so record offsets are 4 less. */
+void multiplayer_settings_select_list_update_item(int *widget)
+{
+  int indices[3]; /* [EBP-0x34] */
+  int ids[3]; /* [EBP-0x40] */
+  short *list_tag;
+  int i;
+  int j;
+  int container;
+  int name_box;
+  int color_pic;
+  int fields;
+  int empty_label;
+  int level_label;
+  int level_text;
+  int skill_label;
+  int skill_text;
+  int controls_label;
+  int controls_text;
+  int item_id;
+  int *entry;
+  int entry_index;
+  wchar_t *rec;
+  wchar_t *name_buf;
+  wchar_t *src;
+  unsigned short flags;
+  int tag_index;
+  int clamped;
+  short last_level; /* [EBP-0x14] */
+  short skill_level; /* [EBP-0x4] */
+
+  indices[0] = -1;
+  indices[1] = -1;
+  indices[2] = -1;
+  list_tag = (short *)tag_get(0x44654c61 /* 'DeLa' */, *widget);
+  if (*list_tag != 2) {
+    display_assert(
+      "expected a spinner list for 'player settings select' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x78a, 1);
+    system_exit(-1);
+  }
+  if (*(int *)((char *)list_tag + 0x3e0) != 3) {
+    display_assert(
+      "expected 3 children (list items) for 'player settings select' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x78b, 1);
+    system_exit(-1);
+  }
+  FUN_000f3690(indices, widget);
+  for (j = 0; j < 3; j++) {
+    if (indices[j] == -1) {
+      ids[j] = -1;
+    } else {
+      ids[j] = ((int *)widget[0x10])[indices[j]];
+    }
+  }
+  player_profile_update_cache_for_nwide_list(ids, 3);
+
+  for (i = 0; i < 3; i++) {
+    if (indices[i] == -1) {
+      return;
+    }
+    container = (int)widget_instance_get_nth_child(widget, i);
+    if (container == 0 || *(short *)(container + 0xe) != 0) {
+      display_assert(
+        "expected profile item description container widget",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7af, 1);
+      system_exit(-1);
+    }
+    name_box = *(int *)(container + 0x34);
+    if (name_box == 0 || *(short *)(name_box + 0xe) != 1) {
+      display_assert(
+        "expected a text box widget for profile name",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7b2, 1);
+      system_exit(-1);
+    }
+    color_pic = *(int *)(name_box + 0x2c);
+    if (color_pic == 0 || *(short *)(color_pic + 0xe) != 0) {
+      display_assert(
+        "expected a container widget for the profile color picture",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7b5, 1);
+      system_exit(-1);
+    }
+    fields = *(int *)(color_pic + 0x2c);
+    if (fields == 0 || *(short *)(fields + 0xe) != 0) {
+      display_assert(
+        "expected a container widget for the profile description fields",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7b8, 1);
+      system_exit(-1);
+    }
+    empty_label = *(int *)(fields + 0x34);
+    if (empty_label == 0 || *(short *)(empty_label + 0xe) != 1) {
+      display_assert(
+        "expected a text box widget for the 'empty profile' label",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7bb, 1);
+      system_exit(-1);
+    }
+    level_label = *(int *)(empty_label + 0x2c);
+    if (level_label == 0 || *(short *)(level_label + 0xe) != 1) {
+      display_assert(
+        "expected a text box widget for the current level label",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7be, 1);
+      system_exit(-1);
+    }
+    level_text = *(int *)(level_label + 0x2c);
+    if (level_text == 0 || *(short *)(level_text + 0xe) != 1) {
+      display_assert(
+        "expected a text box widget for the current level text field",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7c1, 1);
+      system_exit(-1);
+    }
+    skill_label = *(int *)(level_text + 0x2c);
+    if (skill_label == 0 || *(short *)(skill_label + 0xe) != 1) {
+      display_assert(
+        "expected a text box widget for the current skill level label",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7c4, 1);
+      system_exit(-1);
+    }
+    skill_text = *(int *)(skill_label + 0x2c);
+    if (skill_text == 0 || *(short *)(skill_text + 0xe) != 1) {
+      display_assert(
+        "expected a text box widget for the profile's current skill level "
+        "text field",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7c7, 1);
+      system_exit(-1);
+    }
+    controls_label = *(int *)(skill_text + 0x2c);
+    if (controls_label == 0 || *(short *)(controls_label + 0xe) != 1) {
+      display_assert(
+        "expected a text box widget for the controls label",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7ca, 1);
+      system_exit(-1);
+    }
+    controls_text = *(int *)(controls_label + 0x2c);
+    if (controls_text == 0 || *(short *)(controls_text + 0xe) != 1) {
+      display_assert(
+        "expected a text box widget for the controls text field",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x7cd, 1);
+      system_exit(-1);
+    }
+
+    item_id = ((int *)widget[0x10])[indices[i]];
+    if (item_id != -1) {
+      entry_index = 0;
+      entry = (int *)0x5aa3c0;
+      do {
+        if (*entry == item_id) {
+          rec = (wchar_t *)(entry_index * 0x34 + 0x5aa3c4);
+          if (rec != NULL) {
+            *(char *)(name_box + 0x10) = 1;
+            *(char *)(empty_label + 0x10) = 0;
+            *(char *)(level_label + 0x10) = 1;
+            *(char *)(level_text + 0x10) = 1;
+            *(char *)(skill_label + 0x10) = 1;
+            *(char *)(skill_text + 0x10) = 1;
+            *(char *)(controls_label + 0x10) = 1;
+            *(char *)(controls_text + 0x10) = 1;
+            name_buf =
+              (wchar_t *)ui_widget_realloc(*(int *)(name_box + 0x3c), 0x18,
+                                           "c:\\halo\\SOURCE\\interface\\ui_"
+                                           "widget_game_data_input_functions.c",
+                                           0x7e7);
+            *(wchar_t **)(name_box + 0x3c) = name_buf;
+            if (name_buf != NULL) {
+              flags = *(unsigned short *)((char *)rec + 0x1a);
+              if ((flags & 1) != 0) {
+                tag_index = tag_loaded(
+                  0x75737472 /* 'ustr' */,
+                  "ui\\shell\\strings\\default_player_profile_names");
+                if (tag_index != -1) {
+                  src = (wchar_t *)FUN_0019d420(tag_index, flags >> 8);
+                } else {
+                  src = (wchar_t *)0x281c38; /* L"<unknown>" */
+                }
+                ustrncpy(*(wchar_t **)(name_box + 0x3c), src, 0xb);
+                *(short *)(*(int *)(name_box + 0x3c) + 0x16) = 0;
+              } else {
+                ustrncpy(name_buf, rec, 0xb);
+                *(short *)(*(int *)(name_box + 0x3c) + 0x16) = 0;
+              }
+            }
+
+            if (*(short *)((char *)rec + 0x18) < 0) {
+              clamped = 0;
+            } else {
+              clamped = *(short *)((char *)rec + 0x18);
+              if (clamped > (int)FUN_001c0ed0() - 1) {
+                clamped = (int)FUN_001c0ed0() - 1;
+              }
+            }
+            *(short *)(color_pic + 0x50) = (short)clamped;
+
+            if ((*(unsigned char *)((char *)rec + 0x1a) & 1) != 0) {
+              *(char *)(level_text + 0x10) = 0;
+              *(char *)(skill_text + 0x10) = 0;
+            } else {
+              player_profile_save_last_level_played(rec, &last_level,
+                                                    &skill_level);
+              if (last_level + 1 > 9) {
+                last_level = 9;
+              } else {
+                last_level = last_level + 1;
+              }
+              *(short *)(level_text + 0x40) = last_level;
+              *(short *)(skill_text + 0x40) = skill_level;
+              *(unsigned short *)(controls_text + 0x40) =
+                (unsigned short)(*(char *)((char *)rec + 0x2b) == 1);
+            }
+            goto next_item;
+          }
+          break;
+        }
+        entry = entry + 0xd; /* stride 0x34 bytes */
+        entry_index = entry_index + 1;
+      } while ((int)entry < 0x5aa45c);
+    }
+
+    *(char *)(name_box + 0x10) = 0;
+    *(short *)(color_pic + 0x50) = (short)FUN_001c0ed0();
+    *(char *)(empty_label + 0x10) = 1;
+    *(char *)(level_label + 0x10) = 0;
+    *(char *)(level_text + 0x10) = 0;
+    *(char *)(skill_label + 0x10) = 0;
+    *(char *)(skill_text + 0x10) = 0;
+    *(char *)(controls_label + 0x10) = 0;
+    *(char *)(controls_text + 0x10) = 0;
+  next_item:;
+  }
+}
+
 /* player_profile_1wide_list_update (0xf46e0)
  * "mp player settings select" quarter-screen profile list widget update.
  *

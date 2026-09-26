@@ -14508,10 +14508,6 @@
    ],
    "functions": [
     {
-     "addr": "0xf4210",
-     "decl": "void multiplayer_settings_select_list_update_item(void);"
-    },
-    {
      "addr": "0xf4b60",
      "decl": "void FUN_000f4b60(void *widget);",
      "ported": true
@@ -29621,6 +29617,12 @@
      "addr": "0xf3c80",
      "decl": "void mutliplayer_settings_select_list_update_displayed_items(void);",
      "name": "mutliplayer_settings_select_list_update_displayed_items"
+    },
+    {
+     "addr": "0xf4210",
+     "decl": "void multiplayer_settings_select_list_update_item(int *widget);",
+     "name": "multiplayer_settings_select_list_update_item",
+     "ported": true
     },
     {
      "addr": "0xf46e0",

@@ -76588,6 +76588,21 @@
       "score": 97.0,
       "source": "src/halo/interface/ui_widget.c"
     },
+    "multiplayer_settings_select_list_update_item": {
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 3,
+      "abi_modeled_mnemonic_pct": 93.9,
+      "addr": "0xf4210",
+      "end": "0xf46d6",
+      "kind": "auto",
+      "n_r": 379,
+      "opnd_percent": 81.2,
+      "raw_mnemonic_pct": 92.8,
+      "ref": "synth",
+      "ref_sha": "a04cf57bbc19a7b0",
+      "score": 93.9,
+      "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
+    },
     "multiplayer_type_menu_update_extended_description": {
       "abi_model": "raw",
       "abi_model_items": 0,
