@@ -41868,7 +41868,8 @@
     },
     {
      "addr": "0x5e9b0",
-     "decl": "char path_state_approach_point(void *path_state, float *fp_results, int fp_count, char *out_byte, char *out_dest);"
+     "decl": "char path_state_approach_point(void *path_state, float *fp_results, int fp_count, char *out_byte, char *out_dest);",
+     "ported": true
     },
     {
      "addr": "0x5eae0",

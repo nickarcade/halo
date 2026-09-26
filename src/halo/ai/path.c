@@ -535,6 +535,64 @@ char path_3d_build_path(int param_1, int *param_2, int param_3, int *param_4,
   return *param_5;
 }
 
+/* 0x005e9b0 — path_state_approach_point
+ * Looks up the node keyed by fp_count, then walks its +0x02 parent chain.
+ * For each parent node, FUN_000639e0(state+0x64, state byte +0x04,
+ * fp_results, fp_count, &parent[+0x0c], parent[+0x08], local 0x1c buffer)
+ * is queried; the walk stops on a nonzero AL result or at a NONE link.
+ * Asserts (display_assert + system_exit(-1)): line 0x12d
+ * "approach_point_reference" (out_dest), line 0x12e
+ * "straight_line_reference" (out_byte).
+ * If the stopping node has no parent: *out_byte = 1 and out_dest receives the
+ * three dwords at state+0x14..0x1c; otherwise *out_byte = 0 and out_dest
+ * receives the three dwords at node+0x0c..0x14. Returns 1 (0 when the hash
+ * lookup yields NONE).
+ */
+char path_state_approach_point(void *path_state, float *fp_results,
+                               int fp_count, char *out_byte, char *out_dest)
+{
+  short node_index;
+  char *node;
+  char *parent;
+  char result_buf[0x1c];
+
+  node_index = path_node_from_hash_table((char *)path_state, fp_count);
+  if (node_index == -1) {
+    return 0;
+  }
+  node = path_get_node((char *)path_state, node_index);
+  node_index = *(short *)(node + 0x2);
+  while (node_index != -1) {
+    parent = path_get_node((char *)path_state, node_index);
+    if ((char)FUN_000639e0(*(int *)((char *)path_state + 0x64),
+                           *(unsigned char *)((char *)path_state + 0x4),
+                           fp_results, fp_count, (float *)(parent + 0xc),
+                           *(int *)(parent + 0x8), result_buf) != 0) {
+      break;
+    }
+    node = path_get_node((char *)path_state, *(short *)(node + 0x2));
+    node_index = *(short *)(node + 0x2);
+  }
+  if (out_dest == NULL) {
+    display_assert("approach_point_reference", "c:\\halo\\SOURCE\\ai\\path.c",
+                   0x12d, 1);
+    system_exit(-1);
+  }
+  if (out_byte == NULL) {
+    display_assert("straight_line_reference", "c:\\halo\\SOURCE\\ai\\path.c",
+                   0x12e, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(node + 0x2) == -1) {
+    *out_byte = 1;
+    *(real_point3d *)out_dest = *(real_point3d *)((char *)path_state + 0x14);
+    return 1;
+  }
+  *out_byte = 0;
+  *(real_point3d *)out_dest = *(real_point3d *)(node + 0xc);
+  return 1;
+}
+
 /* 0x005eae0 — path_build_steps
  * Builds the step list for a path from the traversal node graph.
  *
