@@ -55753,6 +55753,21 @@
       "score": 87.5,
       "source": "src/halo/sound/sound_manager.c"
     },
+    "dsound_virtual_set_location": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 97.8,
+      "addr": "0x1cb1d0",
+      "end": "0x1cb201",
+      "kind": "auto",
+      "n_r": 22,
+      "opnd_percent": 88.9,
+      "raw_mnemonic_pct": 97.8,
+      "ref": "synth",
+      "ref_sha": "b617017c8fcdf325",
+      "score": 97.8,
+      "source": "src/halo/sound/sound_manager.c"
+    },
     "dump_network_game_data": {
       "abi_model": "regparam_stripped_saves",
       "abi_model_items": 3,

@@ -1082,6 +1082,27 @@ void dsound_virtual_queue(int channel_index, void *sound)
   }
 }
 
+/* dsound_virtual_set_location (0x1cb1d0)
+ *
+ * Binary: resolves [EBP+8] via sound_dsound_channel_resolve (EBX); when
+ * AX != 0xffff, loads EBX = [EBP+0x10] and pushes [EBP+0x1c], [EBP+0x18],
+ * [EBP+0x14], [EBP+0xc], EAX before calling dsound_channel_set_location
+ * (0x1cadd0, cleanup 0x14).  The callee reads EBX as float* (offsets
+ * 0x00..0x20), [EBP+0xc]/[EBP+0x18] as bytes and [EBP+0x10]/[EBP+0x14] as
+ * floats.  Parameter meanings beyond those widths are UNKNOWN. */
+void dsound_virtual_set_location(int channel_index, char flag_0c,
+                                 float *location, float value_10,
+                                 float value_14, char flag_18)
+{
+  short channel;
+
+  channel = sound_dsound_channel_resolve(channel_index);
+  if (channel != -1) {
+    dsound_channel_set_location(channel, flag_0c, location, value_10, value_14,
+                                flag_18);
+  }
+}
+
 /* dsound_initialize (0x1cb4c0)
  *
  * Binary: [EBP+8] is a pointer asserted non-NULL as "preferences"

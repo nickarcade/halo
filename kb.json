@@ -26074,7 +26074,7 @@
     },
     {
      "addr": "0x1cadd0",
-     "decl": "void dsound_channel_set_location(void);",
+     "decl": "void dsound_channel_set_location(short channel_index, char flag_0c, float *location@<ebx>, float value_10, float value_14, char flag_18);",
      "comment": "[NAME: dsound_channel_set_location \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -26421,8 +26421,9 @@
     },
     {
      "addr": "0x1cb1d0",
-     "decl": "void dsound_virtual_set_location(void);",
-     "comment": "[NAME: dsound_virtual_set_location \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void dsound_virtual_set_location(int channel_index, char flag_0c, float *location, float value_10, float value_14, char flag_18);",
+     "comment": "[NAME: dsound_virtual_set_location \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1cb210",

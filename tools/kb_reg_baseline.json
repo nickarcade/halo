@@ -4849,7 +4849,7 @@
   "0x1ca2b0": "void FUN_001ca2b0(const float *params);",
   "0x1ca970": "void FUN_001ca970(void);",
   "0x1caab0": "void FUN_001caab0(char paused);",
-  "0x1cadd0": "void FUN_001cadd0(void);",
+  "0x1cadd0": "void dsound_channel_set_location(short channel_index, char flag_0c, float *location@<ebx>, float value_10, float value_14, char flag_18);",
   "0x1ac2f0": "void sound_object_apply_pitch_delta(int object_handle, float pitch);",
   "0x1be090": "void sound_cache_sound_finished(int permutation_ptr);",
   "0x1c7b00": "void sound_pitch_push_sample(int object_handle, float pitch);",
@@ -4893,7 +4893,7 @@
   "0x1c88a0": "void sound_is_active(void);",
   "0x1c8ee0": "void FUN_001c8ee0(void);",
   "0x1cb1a0": "void FUN_001cb1a0(void);",
-  "0x1cb1d0": "void FUN_001cb1d0(void);",
+  "0x1cb1d0": "void dsound_virtual_set_location(int channel_index, char flag_0c, float *location, float value_10, float value_14, char flag_18);",
   "0x1cb210": "boolean dsound_initialize_channel(short type_flags@<ax>, short channel_index);",
   "0x1cb4c0": "void FUN_001cb4c0(void);",
   "0x1cb820": "void FUN_001cb820(void);",
@@ -10162,7 +10162,8 @@
     "0x22e360": "unsigned long high1secrate(unsigned long frames, unsigned long runtime_frames, unsigned long *highest_frame, unsigned long *all_keyframes, unsigned long *frameoffsets@<ebx>);",
     "0x22f180": "void endframe(BINK *bink@<eax>, unsigned long now@<ecx>);",
     "0x2302d0": "void GotoFrame(BINK *bink@<esi>, unsigned long frame@<eax>);",
-    "0x1cb210": "boolean dsound_initialize_channel(short type_flags@<ax>, short channel_index);"
+    "0x1cb210": "boolean dsound_initialize_channel(short type_flags@<ax>, short channel_index);",
+    "0x1cadd0": "void dsound_channel_set_location(short channel_index, char flag_0c, float *location@<ebx>, float value_10, float value_14, char flag_18);"
   },
   "0x57330": "short ai_scripting_command_list_status_internal(int16_t scenario_index@<eax>, void *record@<esi>, int field_1a8_val, int child_handle, int reserved);",
   "0x1631d0": "void FUN_001631d0(int light_index@<eax>);",
