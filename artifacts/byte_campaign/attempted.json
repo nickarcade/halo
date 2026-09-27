@@ -206,10 +206,10 @@
   "after": 100
  },
  "network_game_server_idle_pregame_tasks": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 81.3,
-  "after": 88.3
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.8827,
+  "after": 0.8827
  },
  "network_game_server_update_ticks": {
   "ts": "2026-09-26T21:30:36+02:00",
@@ -218,16 +218,16 @@
   "after": 100
  },
  "network_game_server_update_countdown": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 82.4,
-  "after": 89.2
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.9416,
+  "after": 0.9416
  },
  "network_game_server_handle_client_machines": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 80.2,
-  "after": 94.4
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.9441,
+  "after": 0.9441
  },
  "network_game_server_add_new_client": {
   "ts": "2026-09-26T21:30:36+02:00",
@@ -380,10 +380,10 @@
   "after": 89.3
  },
  "network_game_server_dispose": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 90.1,
-  "after": 92.0
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.9202,
+  "after": 0.9202
  },
  "network_game_server_open_game": {
   "ts": "2026-09-26T22:22:21+02:00",
@@ -422,16 +422,16 @@
   "after": 98.4
  },
  "network_game_server_create": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 72.6,
-  "after": 92.4
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.9237,
+  "after": 0.9237
  },
  "network_game_server_accept_client_machine_into_game": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 74.4,
-  "after": 90.2
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.9018,
+  "after": 0.9018
  },
  "network_game_server_add_player_to_game": {
   "ts": "2026-09-26T22:22:21+02:00",
@@ -1632,5 +1632,113 @@
   "result": "no_gain",
   "before": 0.875,
   "after": 0.875
+ },
+ "datastore_read": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.7772,
+  "after": 0.7772
+ },
+ "file_references_equal": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "improved",
+  "before": 0.7581,
+  "after": 1.0
+ },
+ "file_printf": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "reverted",
+  "before": 0.8219,
+  "after": 0.8219
+ },
+ "file_reference_set_name": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "reverted",
+  "before": 0.8734,
+  "after": 0.8734
+ },
+ "file_exists": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "improved",
+  "before": 0.7692,
+  "after": 0.8291
+ },
+ "file_rename": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "improved",
+  "before": 0.896,
+  "after": 0.9941
+ },
+ "file_close": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "improved",
+  "before": 0.7654,
+  "after": 1.0
+ },
+ "file_get_size": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.8639,
+  "after": 0.8639
+ },
+ "dump_network_game_data": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.8976,
+  "after": 0.8976
+ },
+ "network_game_server_remove_client_machine_from_game": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.9595,
+  "after": 0.9595
+ },
+ "player_profile_1wide_list_update": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.7772,
+  "after": 0.7772
+ },
+ "multiplayer_game_set_text_box_for_map_name": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.83,
+  "after": 0.83
+ },
+ "settings_menu_update_extended_description": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.7867,
+  "after": 0.7867
+ },
+ "difficulty_select_menu_update_extended_description": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.7867,
+  "after": 0.7867
+ },
+ "solo_game_objective_text": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.8687,
+  "after": 0.8687
+ },
+ "get_active_player_profile_display_name": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.7656,
+  "after": 0.7656
+ },
+ "close_calling_widget_if_not_editing_profile": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.8077,
+  "after": 0.8077
+ },
+ "set_textbox_to_build_number": {
+  "ts": "2026-09-27T16:04:30+02:00",
+  "result": "no_gain",
+  "before": 0.7664,
+  "after": 0.7664
  }
 }
