@@ -298,6 +298,30 @@ static __inline double x87_sqrtd(double val) {
 #endif
 }
 
+/* VC71 exp() intrinsic: FLDL2E; FMUL; FLD ST0; FRNDINT; FXCH; FSUB ST0,ST1;
+ * F2XM1; FLD1; FADDP; FSCALE; FSTP ST1 (e.g. 0x32e26). */
+static __inline double x87_exp(double val) {
+#if defined(_MSC_VER) && !defined(__clang__)
+  return exp(val);
+#else
+  double r;
+  __asm__ __volatile__("fldl2e\n\t"
+                       "fmulp\n\t"
+                       "fld %%st(0)\n\t"
+                       "frndint\n\t"
+                       "fxch\n\t"
+                       "fsub %%st(1), %%st\n\t"
+                       "f2xm1\n\t"
+                       "fld1\n\t"
+                       "faddp\n\t"
+                       "fscale\n\t"
+                       "fstp %%st(1)"
+                       : "=t"(r)
+                       : "0"(val));
+  return r;
+#endif
+}
+
 /* Address-named global aliases.  Each body preserves the exact original
  * dereference spelling so source recovery does not change emitted code. */
 #define halo_actor_data_global (*(data_t **)0x6325a4)
