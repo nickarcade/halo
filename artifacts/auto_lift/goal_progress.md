@@ -9049,3 +9049,79 @@ Coverage must reach moderate or high. [cohort=control] |
 | actor_situation_update | 0x303f0 | actor_perception.obj | 94.3 | committed | mechanical gate: 94.3% clean (pass1) [cohort=retrieval] |
 | arctangent | 0x2fb60 | actor_perception.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
 | actor_perception_friend_prop_is_attacking | 0x309d0 | actor_perception.obj | 94.6 | committed | mechanical gate: 94.6% clean (pass1) [cohort=retrieval] |
+
+## Goal-lift run — 10/12 committed (queue_exhausted)
+
+| function | addr | obj | vc71 | action | reason |
+|---|---|---|---|---|---|
+| virtual_keyboard_get_character | 0xf5800 | items.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| column_list_update | 0xe5380 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_scripting_command_list_status_internal | 0x57330 | ai_script.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_0006c5e0 | 0x6c5e0 | tif_open.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_0006ca50 | 0x6ca50 | tif_open.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| RGBToColor | 0x705b0 | tif_write.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_00069200 | 0x69200 | tif_flush.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_tab_to_next_valid_widget | 0xe53e0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_tab_to_previous_valid_widget | 0xe5440 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_go_back_to_previous | 0xe68e0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| push_widget | 0xe46f0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_get_cumulative_alpha_modifier | 0xe4960 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| string_has_icons_to_draw | 0xe4ce0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_debug_lineofsight_storeray | 0x498d0 | ai_debug.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_debug_render_all_actors | 0x52b60 | ai_debug.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| putspan | 0x69310 | tif_flush.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| firing_position_post_evaluate | 0x24890 | actor_firing_position.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| XapiCallThreadNotifyRoutines | 0x1cf944 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| GetThreadPriority | 0x1cf9eb | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| CloseHandle | 0x1cf900 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| SetThreadPriority | 0x1cf999 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=retrieval] |
+| actor_berserk | 0x31440 | actor_perception.obj | 98.2 | committed | mechanical gate: 98.2% clean (pass1) [cohort=control] |
+| actor_emotion_unopposable_retreat | 0x30f50 | actor_perception.obj | 96.1 | committed | mechanical gate: 96.1% clean (pass1) [cohort=control] |
+| actor_expected_acknowledgement | 0x32940 | actor_perception.obj | 99.1 | committed | mechanical gate: 99.1% clean (pass1) [cohort=retrieval] |
+| actor_emotion_update | 0x32cb0 | actor_perception.obj | 96 | committed | mechanical gate: 96% clean (pass1) [cohort=control] |
+| actor_perception_refresh | 0x34c80 | actor_perception.obj | 94.4 | parked | REJECT: I checked the body of actor_perception_refresh (0x34c80) instruction by instruction against the bundle disassembly. The C logic matches: frame and list layout (enemies at EBP-0x6c0, friends at EBP-0xcc4, 12-byte entries after a 4-byte header), every branch of the visibility decision, the cluster bit test, the marking loops, append/overflow/assert, and both sort-and-trim loops including the break-then-delete-from-i shape. Build passes, ABI audit is clean, VC71 is 94.4%. The lift is still rejected because it depends on wrong callee declarations, worked around with function-pointer casts: (1) cluster_get_first_noncollideable_object (0x13d570) and cluster_get_next_noncollideable_object (0x13d590) are declared void in kb.json and are PORTED as void wrappers in src/halo/objects/objects.c:7233/7241. Those wrappers throw away the int that cluster_partition_iter_first/next return. The original caller tests their EAX (CMP EAX,-1 at 0x352d3 and 0x35301). The new lift casts them to int-returning pointers and uses whatever is left in EAX from a void function. That is undefined behavior that only works if clang happens not to touch EAX, and the void_eax detector does not see it through the cast. It is a concrete loop-termination risk for the noncollideable-object walk. (2) actor_perception_refresh_test_object (0x342a0) is declared void(void) but takes 4 cdecl args (4 pushes, caller cleans up via a folded ADD ESP,0x14). It is unported, so the cast call is ABI-compatible with the original. Its declaration should still be fixed and the cast removed. With 0x13d570/0x13d590 declared (and implemented) as int returns, and 0x342a0 declared with its 4 args, this lift would be acceptable without casts. No equivalence or runtime evidence was provided. [cohort=control] |
+| playlist_profile_initialize_slayer_rules | 0xed470 | ui_widget_game_data_input_functions.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=none] |
+| playlist_profile_initialize_oddball_rules | 0xed7c0 | ui_widget_game_data_input_functions.obj | 98.2 | committed | mechanical gate: 98.2% clean (pass1) [cohort=control] |
+| playlist_profile_initialize_racing_rules | 0xedcd0 | ui_widget_game_data_input_functions.obj | 99.3 | committed | mechanical gate: 99.3% clean (pass1) [cohort=retrieval] |
+| playlist_profile_initialize_player_options | 0xedfb0 | ui_widget_game_data_input_functions.obj | 97.7 | committed | mechanical gate: 97.7% clean (pass1) [cohort=control] |
+| playlist_profile_initialize_item_options | 0xee500 | ui_widget_game_data_input_functions.obj | 95.9 | committed | mechanical gate: 95.9% clean (pass1) [cohort=control] |
+| multiplayer_game_set_text_box_for_game_ruleset | 0xf2d50 | ui_widget_game_data_input_functions.obj | 88.8 | parked | NEEDS_RUNTIME: I found no defect in the lift of multiplayer_game_set_text_box_for_game_ruleset (0xf2d50). I checked every path against the bundle disassembly (0xf2d50-0xf2e46, bundle fingerprint valid, Ghidra not queried) and each one computes the same value: Widget type check: word at +0xe != 1 leads to display_assert(0x28932c "expected text box widget for mp game settings text", 0x288938 "...ui_widget_game_data_input_functions.c", 0xa59, 1) and then system_exit(-1). The game pointer comes from network_game_get_game (0x12a0a0). If it is NULL, the function calls error(2, 0x28931c "no network game"), matching PUSH/PUSH/CALL/ADD ESP,8. Jump table at 0xf2e48, index = [game+0xbc]-1, JA to the default. The case mapping is confirmed by the bundle decompile. Case 1: byte [+0xf0] == 1 gives 0x1d-([+0xf4]!=0) (NEG/SBB/ADD 0x1d). Otherwise it gives [+0xf4]!=0 ? 0x1e : 3 (NEG/SBB/AND 0x1b/ADD 3). Case 2 gives 4. Case 3: dword [+0x100] 1 gives 0x1f, 2 gives 0x20, anything else gives 5. Case 4 gives 6. Case 5: dword [+0xf0] == 2 gives 0x21, otherwise 7. Default gives 8. Every result is a word store to widget+0x40. Gates: VC71 (fresh MSVC compile of this TU): 88.8% (90/88 insns). This meets the pipeline's 88% MSVC criterion. Every diff hunk is an idiom difference with the same meaning: SETNE vs NEG/SBB in case 1, and SETNE/DEC/AND 0x1a/ADD 7 vs SUB 2/JE in case 5, which works out to 7 or 0x21. ABI audit (audit_reg_abi.py --target 0xf2d50): regs=none, no hazards. Hazard scan (check_lift_hazards.py --files <TU>): clean, rc=0. Clang: the TU object compiles cleanly under -Werror. Why this is not AUTO_ACCEPT: (1) The fresh full Halo build fails. The cause is unrelated to this lift: the committed HEAD 19944f3e0 calls x87_exp in src/halo/ai/actor_perception.c:1857, and nothing declares it (implicit-declaration error). So no linked or patched XBE exists, and the build gate is not met. (2) Runtime evidence is weak. The equivalence run covered only 17.4% (43/247 bytes) and never reached the switch cases. The claim that the infection_swarm pass is accepted runtime evidence is agent prose, and I did not count it. Structurally the lift is complete and correct. It can be accepted once HEAD builds and the patched build links, ideally together with a synthetic snapshot that drives [game+0xbc] through 1-5 and the default. Separate from the target: the same TU diff and the kb.json diff also include an unrelated new lift, playlist_profile_initialize_item_options (0xee500), with its decl change and ported:true. It must not ride along in this target's commit. Housekeeping: I ran `touch` on the source file to force a TU rebuild. That changed only its mtime. [cohort=control] |
+| solo_level_select_list_update_displayed_items | 0xf39c0 | ui_widget_game_data_input_functions.obj | 91.4 | committed | mechanical gate: 91.4% clean (pass1) [cohort=retrieval] |
+
+## Goal-lift run — 0/12 committed (queue_exhausted)
+
+| function | addr | obj | vc71 | action | reason |
+|---|---|---|---|---|---|
+| virtual_keyboard_get_character | 0xf5800 | items.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| column_list_update | 0xe5380 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_scripting_command_list_status_internal | 0x57330 | ai_script.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_0006c5e0 | 0x6c5e0 | tif_open.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_0006ca50 | 0x6ca50 | tif_open.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| RGBToColor | 0x705b0 | tif_write.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_00069200 | 0x69200 | tif_flush.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_tab_to_next_valid_widget | 0xe53e0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_tab_to_previous_valid_widget | 0xe5440 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_go_back_to_previous | 0xe68e0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| push_widget | 0xe46f0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_get_cumulative_alpha_modifier | 0xe4960 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| string_has_icons_to_draw | 0xe4ce0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_debug_lineofsight_storeray | 0x498d0 | ai_debug.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_debug_render_all_actors | 0x52b60 | ai_debug.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| putspan | 0x69310 | tif_flush.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| playlist_profile_initialize_slayer_rules | 0xed470 | ui_widget_game_data_input_functions.obj | - | skipped | skip_excluded_prior_batch (attempted earlier this session) [cohort=none] |
+| playlist_profile_initialize_oddball_rules | 0xed7c0 | ui_widget_game_data_input_functions.obj | - | skipped | skip_excluded_prior_batch (attempted earlier this session) [cohort=none] |
+| playlist_profile_initialize_racing_rules | 0xedcd0 | ui_widget_game_data_input_functions.obj | - | skipped | skip_excluded_prior_batch (attempted earlier this session) [cohort=none] |
+| playlist_profile_initialize_player_options | 0xedfb0 | ui_widget_game_data_input_functions.obj | - | skipped | skip_excluded_prior_batch (attempted earlier this session) [cohort=none] |
+| playlist_profile_initialize_item_options | 0xee500 | ui_widget_game_data_input_functions.obj | - | skipped | skip_excluded_prior_batch (attempted earlier this session) [cohort=none] |
+| firing_position_post_evaluate | 0x24890 | actor_firing_position.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| firing_positions_get_post_evaluation_bound | 0x24900 | actor_firing_position.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| prop_add | 0x64170 | props.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| weapon_trigger_recover | 0xfcec0 | weapons.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| weapon_trigger_overcharged | 0xfe890 | weapons.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| prop_setup_orphan | 0x647c0 | props.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_0006c780 | 0x6c780 | tif_open.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| XapiCallThreadNotifyRoutines | 0x1cf944 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| GetThreadPriority | 0x1cf9eb | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| CloseHandle | 0x1cf900 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| SetThreadPriority | 0x1cf999 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=retrieval] |
+| actor_perception_desire_prop | 0x2f6e0 | actor_perception.obj | 0 | build_failed | I wrote the lift from the artifact disassembly, because the decompile shows a void return but the function actually returns BL. The function sits just before 0x2f910. The kb declaration is unchanged. The binary reads param_2, param_9 and param_12 as signed words and param_10 as a float (FLD [EBP+0x2c]); the code spells these as casts and keeps the dword slots the caller sees. Call order follows the disassembly: datum_get(actor), optional datum_get(param_4), datum_get(0x5ab270 encounter), object_get_and_verify_type(param_3,3), then actor_get_action_priority_flag. In kb.json, ported is now true for 0x2f6e0, and no new @<reg> annotations were added. maintain.py did not change any other file under src/; ui_widget_game_data_input_functions.c was already modified before I started. The hazard scan reported no HIGH-RISK hazards. The build fails with one error that my change did not cause: actor_perception.c line 1968 (line 1857 at HEAD) calls x87_emp, which is not declared anywhere. That call belongs to actor_emotion_update and came in with HEAD commit 19944f3e0, and x87_exp is defined neither in this tree's src/x87_math.h nor in the main checkout. So HEAD does not build on this branch, and nothing in the TU can be scored until that is fixed. [cohort=retrieval] |

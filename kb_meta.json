@@ -1273,6 +1273,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2f6e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2f910": {
       "kind": "function",
       "status": "ported"
@@ -14231,6 +14235,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xedcd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xedfb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xee810": {
       "kind": "function",
       "status": "ported"
@@ -14468,6 +14480,10 @@
       "status": "ported"
     },
     "0xf3960": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf39c0": {
       "kind": "function",
       "status": "ported"
     },

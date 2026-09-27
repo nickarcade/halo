@@ -29187,33 +29187,38 @@
     },
     {
      "addr": "0xed470",
-     "decl": "void playlist_profile_initialize_slayer_rules(void);",
+     "decl": "bool playlist_profile_initialize_slayer_rules(void *widget);",
      "comment": "[NAME: playlist_profile_initialize_slayer_rules \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "playlist_profile_initialize_slayer_rules"
+     "name": "playlist_profile_initialize_slayer_rules",
+     "ported": true
     },
     {
      "addr": "0xed7c0",
-     "decl": "void playlist_profile_initialize_oddball_rules(void);",
+     "decl": "bool playlist_profile_initialize_oddball_rules(void *widget);",
      "comment": "[NAME: playlist_profile_initialize_oddball_rules \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "playlist_profile_initialize_oddball_rules"
+     "name": "playlist_profile_initialize_oddball_rules",
+     "ported": true
     },
     {
      "addr": "0xedcd0",
-     "decl": "void playlist_profile_initialize_racing_rules(void);",
+     "decl": "bool playlist_profile_initialize_racing_rules(void *widget);",
      "comment": "[NAME: playlist_profile_initialize_racing_rules \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "playlist_profile_initialize_racing_rules"
+     "name": "playlist_profile_initialize_racing_rules",
+     "ported": true
     },
     {
      "addr": "0xedfb0",
-     "decl": "void playlist_profile_initialize_player_options(void);",
+     "decl": "bool playlist_profile_initialize_player_options(void *widget);",
      "comment": "[NAME: playlist_profile_initialize_player_options \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "playlist_profile_initialize_player_options"
+     "name": "playlist_profile_initialize_player_options",
+     "ported": true
     },
     {
      "addr": "0xee500",
-     "decl": "void playlist_profile_initialize_item_options(void);",
+     "decl": "bool playlist_profile_initialize_item_options(void *widget);",
      "comment": "[NAME: playlist_profile_change_item_options \u2014 CEA PDB line-containment (probable), cea-deferred 2026-09-03]",
-     "name": "playlist_profile_initialize_item_options"
+     "name": "playlist_profile_initialize_item_options",
+     "ported": true
     },
     {
      "addr": "0xee810",
@@ -29537,8 +29542,10 @@
     },
     {
      "addr": "0xf2d50",
-     "decl": "void multiplayer_game_set_text_box_for_game_ruleset(void);",
-     "name": "multiplayer_game_set_text_box_for_game_ruleset"
+     "decl": "void multiplayer_game_set_text_box_for_game_ruleset(void *widget);",
+     "name": "multiplayer_game_set_text_box_for_game_ruleset",
+     "ported": true,
+     "src": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     {
      "addr": "0xf2e60",
@@ -29633,9 +29640,10 @@
     },
     {
      "addr": "0xf39c0",
-     "decl": "void solo_level_select_list_update_displayed_items(void);",
+     "decl": "void solo_level_select_list_update_displayed_items(int *widget);",
      "comment": "[NAME: solo_level_select_list_update_displayed_items \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "solo_level_select_list_update_displayed_items"
+     "name": "solo_level_select_list_update_displayed_items",
+     "ported": true
     },
     {
      "addr": "0xf3c80",
@@ -36110,7 +36118,8 @@
     },
     {
      "addr": "0x2f6e0",
-     "decl": "bool actor_perception_desire_prop(int actor_handle, int param_2, int param_3, int param_4, unsigned char param_5, unsigned char param_6, unsigned char param_7, unsigned char param_8, unsigned short param_9, int param_10, float distance_squared, unsigned short param_12, bool *out_flag);"
+     "decl": "bool actor_perception_desire_prop(int actor_handle, int param_2, int param_3, int param_4, unsigned char param_5, unsigned char param_6, unsigned char param_7, unsigned char param_8, unsigned short param_9, int param_10, float distance_squared, unsigned short param_12, bool *out_flag);",
+     "ported": true
     },
     {
      "addr": "0x2f910",

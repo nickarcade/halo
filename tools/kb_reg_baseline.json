@@ -5330,7 +5330,7 @@
   "0xed7c0": "void FUN_000ed7c0(void);",
   "0xedcd0": "void FUN_000edcd0(void);",
   "0xedfb0": "void FUN_000edfb0(void);",
-  "0xee500": "void FUN_000ee500(void);",
+  "0xee500": "bool playlist_profile_initialize_item_options(void *widget);",
   "0xee810": "void FUN_000ee810(void);",
   "0xeea10": "bool ui_widget_multiplayer_profile_save_changes(void *widget, void *event_data, bool *widget_deleted);",
   "0xeead0": "bool ui_widget_color_picker_menu_initialize(void *widget, void *event_data, bool *widget_deleted);",

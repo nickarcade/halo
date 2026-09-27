@@ -242,6 +242,117 @@ bool actor_perception_assess_suicide_danger(int actor_handle /* @<eax> */,
   return result;
 }
 
+/* actor_perception_desire_prop (0x2f6e0)
+ * Caller: prop_new_unacknowledged (0x6466c, 13 stack args, ADD ESP,0x34).
+ * Returns the desire verdict in BL->AL; *out_flag (when non-NULL) receives the
+ * byte at [EBP+0x17].  Binary reads param_2/param_9/param_12 as signed words
+ * (CMP word + JL/JG/JLE) and param_10 as a float (FLD [EBP+0x2c]); the kb
+ * declaration keeps the caller-visible dword slots, so those reads are
+ * spelled as casts here.
+ *
+ * Unknown thresholds are left as raw constants:
+ *   0x255fe0 (max distance_squared), 0x255fdc, 0x255fd8, 0x254e74, 0x254df8,
+ *   0x2533c0 (param_10 upper bound). */
+bool actor_perception_desire_prop(int actor_handle, int param_2, int param_3,
+                                  int param_4, unsigned char param_5,
+                                  unsigned char param_6, unsigned char param_7,
+                                  unsigned char param_8, unsigned short param_9,
+                                  int param_10, float distance_squared,
+                                  unsigned short param_12, bool *out_flag)
+{
+  char *actor;
+  char *other;
+  char *encounter;
+  char *object;
+  int limit;
+  int object_value;
+  bool unflagged;
+  bool result;
+  bool out_value;
+  float threshold;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (param_4 == -1) {
+    other = NULL;
+  } else {
+    other = (char *)datum_get(actor_data, param_4);
+  }
+  out_value = 0;
+  if ((!param_7 || param_8) && (short)param_2 >= 4 && (short)param_2 <= 5) {
+    result = 0;
+  } else if (param_6) {
+    result = 1;
+  } else if (other != NULL &&
+             (*(char *)(other + 8) == 0 || *(char *)(other + 0x13) != 0)) {
+    result = 0;
+  } else if ((short)param_2 == -1 && (param_5 || (short)param_12 > 0)) {
+    result = 1;
+  } else if (distance_squared > *(float *)0x255fe0) {
+    result = 0;
+  } else if (param_8) {
+    result = 1;
+    if (*(int *)(actor + 0x34) != -1) {
+      encounter =
+        (char *)datum_get(*(data_t **)0x5ab270, *(int *)(actor + 0x34));
+      object = (char *)object_get_and_verify_type(param_3, 3);
+      limit = *(int *)(encounter + 0x58);
+      if (limit <= *(int *)(actor + 0x3a0)) {
+        limit = *(int *)(actor + 0x3a0);
+      }
+      if (limit != -1) {
+        object_value = *(int *)(object + 0x3cc);
+        if (object_value == -1 || object_value < limit) {
+          result = 0;
+        }
+      }
+      if (*(char *)(encounter + 0x45) == 0 &&
+          *(char *)(encounter + 0x44) == 0 &&
+          *(char *)(encounter + 0x42) == 0) {
+        unflagged = 1;
+      } else {
+        unflagged = 0;
+      }
+      if (!result) {
+        goto done;
+      }
+      if (unflagged) {
+        result = distance_squared < *(float *)0x255fdc;
+        goto done;
+      }
+    }
+    if (*(float *)&param_10 > *(float *)0x2533c0) {
+      result = 1;
+    } else if (param_7 && (short)param_9 > 0x96) {
+      result = 0;
+    } else if (actor_get_action_priority_flag(actor_handle) > 1) {
+      result = 0;
+    } else {
+      threshold = *(float *)0x254e74;
+      if (!param_7 && *(int16_t *)(actor + 0x6a) < 3) {
+        threshold = *(float *)0x254df8;
+      }
+      result = distance_squared < threshold;
+    }
+  } else if (param_7) {
+    result = 1;
+    out_value = distance_squared > *(float *)0x255fd8;
+  } else {
+    result = distance_squared < *(float *)0x255fdc;
+    if (*(int16_t *)(actor + 0x6e) >= 4) {
+      out_value = 1;
+    } else if (*(char *)(actor + 0x1cc) == 0) {
+      out_value = distance_squared > *(float *)0x254e74;
+    } else {
+      out_value = 0;
+    }
+  }
+done:
+  if (out_flag != NULL) {
+    *out_flag = out_value;
+  }
+  return result;
+}
+
 /* actor_perception_find_prop_pathfinding_location (0x2f910)
  * Fills prop->pathfinding_surface_index (+0xec) if not already set.
  * If prop has a vehicle handle (+0x110), uses vehicle_get_estimated_position;

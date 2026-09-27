@@ -37012,9 +37012,12 @@
     "call_count": 17
   },
   "0xf2d50": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "weak",
+    "coverage_pct": 17.4,
+    "oracle": "xbe"
   },
   "0xf2e60": {
     "class": "stubbable",
