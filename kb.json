@@ -21112,7 +21112,17 @@
     }
    ],
    "name": "point_physics.obj",
-   "source": "physics/point_physics.c"
+   "source": "physics/point_physics.c",
+   "data": [
+    {
+     "addr": "0x4761fc",
+     "decl": "real global_water_mass_over_radius_cubed;"
+    },
+    {
+     "addr": "0x476200",
+     "decl": "real global_air_mass_over_radius_cubed;"
+    }
+   ]
   },
   {
    "functions": [

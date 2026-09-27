@@ -2675,8 +2675,8 @@ char FUN_001547d0(float *out_pos, float *out_vel, void *point_phys,
 
 void point_physics_initialize_for_new_map(void)
 {
-  *(float *)0x476200 = *(float *)0x325134 * *(float *)0x29d954;
-  *(float *)0x4761fc = *(float *)0x325130 * *(float *)0x29d954;
+  *(float *)0x476200 = *(float *)0x325134 * *(float *)0x29d954; /* global_air_mass_over_radius_cubed */
+  *(float *)0x4761fc = *(float *)0x325130 * *(float *)0x29d954; /* global_water_mass_over_radius_cubed */
 }
 
 void point_physics_dispose_from_old_map(void)
@@ -2834,12 +2834,12 @@ int point_physics_update(int flags, int physics_tag_data,
     }
 
     if (underwater) {
-      mass += *(float *)0x4761fc; /* global_water_mass_over_radius_cubed */
+      mass += global_water_mass_over_radius_cubed;
       buoyancy_scale = ((const struct point_physics_definition *)physics_tag_data)->runtime_water_buoyancy_scale;
       friction = ((const struct point_physics_definition *)physics_tag_data)->water_friction * radius_squared;
       SET_FLAG(result, _point_physics_in_water_bit, true);
     } else {
-      mass += *(float *)0x476200; /* global_air_mass_over_radius_cubed */
+      mass += global_air_mass_over_radius_cubed;
       buoyancy_scale = ((const struct point_physics_definition *)physics_tag_data)->runtime_air_buoyancy_scale;
       friction = ((const struct point_physics_definition *)physics_tag_data)->air_friction * radius_squared;
       SET_FLAG(result, _point_physics_in_air_bit, true);

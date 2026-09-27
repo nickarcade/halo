@@ -87631,16 +87631,16 @@
     "point_physics_update": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 97.0,
+      "abi_modeled_mnemonic_pct": 97.9,
       "addr": "0x154a50",
       "end": "0x154fb3",
       "kind": "auto",
       "n_r": 434,
-      "opnd_percent": 96.6,
-      "raw_mnemonic_pct": 97.0,
+      "opnd_percent": 97.5,
+      "raw_mnemonic_pct": 97.9,
       "ref": "synth",
       "ref_sha": "e3db7b7e9bc5503a",
-      "score": 97.0,
+      "score": 97.9,
       "source": "src/halo/physics/point_physics.c"
     },
     "point_to_line_distance3d": {
