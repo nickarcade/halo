@@ -34,7 +34,8 @@ bool playlist_profile_initialize_indicator_options(void *widget)
     }
 
     option_spinner = *(void **)((char *)list_item + 0x34);
-    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2) {
+    while (option_spinner != NULL &&
+           *(int16_t *)((char *)option_spinner + 0xe) != 2) {
       option_spinner = *(void **)((char *)option_spinner + 0x2c);
     }
     if (option_spinner == NULL) {
@@ -70,7 +71,8 @@ bool playlist_profile_initialize_indicator_options(void *widget)
     }
 
     option_spinner = *(void **)((char *)list_item + 0x34);
-    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2) {
+    while (option_spinner != NULL &&
+           *(int16_t *)((char *)option_spinner + 0xe) != 2) {
       option_spinner = *(void **)((char *)option_spinner + 0x2c);
     }
     if (option_spinner == NULL) {
@@ -103,7 +105,8 @@ bool playlist_profile_initialize_indicator_options(void *widget)
     }
 
     option_spinner = *(void **)((char *)list_item + 0x34);
-    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2) {
+    while (option_spinner != NULL &&
+           *(int16_t *)((char *)option_spinner + 0xe) != 2) {
       option_spinner = *(void **)((char *)option_spinner + 0x2c);
     }
     if (option_spinner == NULL) {
@@ -273,7 +276,8 @@ bool player_profile_color_picker_menu_dispose(void *widget, void *event_data,
 bool player_profile_color_picker_select_color(void *widget, void *event_data,
                                               bool *widget_deleted)
 {
-  int *color_select_screen; /* name: PAL 2342 ui_widget_event_handler_functions.c:2836 */
+  int *color_select_screen; /* name: PAL 2342
+                               ui_widget_event_handler_functions.c:2836 */
   void *profile;
   short *list_tag;
 
@@ -283,7 +287,8 @@ bool player_profile_color_picker_select_color(void *widget, void *event_data,
   color_select_screen = *(int **)((char *)widget + 0x38);
   profile = player_ui_get_edit_player_profile();
 
-  if (color_select_screen == NULL || *(short *)((char *)color_select_screen + 0xe) != 2) {
+  if (color_select_screen == NULL ||
+      *(short *)((char *)color_select_screen + 0xe) != 2) {
     display_assert(
       "expected the color select screen to contain a spinner list for the "
       "color picker",
@@ -310,7 +315,8 @@ bool player_profile_color_picker_select_color(void *widget, void *event_data,
   }
 
   if (*(short *)((char *)color_select_screen + 0x3c) < 0 ||
-      (int)*(short *)((char *)color_select_screen + 0x3c) >= (int)FUN_001c0ed0()) {
+      (int)*(short *)((char *)color_select_screen + 0x3c) >=
+        (int)FUN_001c0ed0()) {
     display_assert(
       "invalid player profile color index specified",
       "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xe3c,
@@ -323,9 +329,8 @@ bool player_profile_color_picker_select_color(void *widget, void *event_data,
       *(short *)((char *)color_select_screen + 0x3c);
     return true;
   }
-  error(2,
-        "failed to set player profile color because no profile is currently "
-        "being edited");
+  error(2, "failed to set player profile color because no profile is currently "
+           "being edited");
   return false;
 }
 
@@ -441,6 +446,187 @@ bool player_profile_save_changes(void *widget, void *event_data,
   }
 
   return result;
+}
+
+/* advanced controller settings initializer (0x0ef110, table xref 0x31e26c) —
+ * validates the column-list widget, walks its five list items and each item's
+ * type-2 spinner child, then mirrors the editable profile's advanced control
+ * bytes (+0x2a..+0x2e) into each spinner's selected index (+0x3c). */
+bool player_profile_initialize_advanced_controller_settings(void *widget)
+{
+  char *profile;
+  char *list_item;
+  char *option_spinner;
+  unsigned char look_sensitivity;
+
+  profile = (char *)player_ui_get_edit_player_profile();
+
+  if (*(short *)((char *)widget + 0xe) != 3) {
+    display_assert(
+      "expected column list for advanced controller settings widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xf04,
+      1);
+    system_exit(-1);
+  }
+
+  if (profile != NULL) {
+    list_item = *(char **)((char *)widget + 0x34);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'invert joystick' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf0c, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'invert joystick' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf0e, 1);
+      system_exit(-1);
+    }
+
+    switch (profile[0x2b]) {
+    case 0:
+      *(short *)(option_spinner + 0x3c) = 1;
+      break;
+    default:
+      *(short *)(option_spinner + 0x3c) = 0;
+      break;
+    }
+
+    list_item = *(char **)(list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'look sensitivity' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf17, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'look sensitivity' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf19, 1);
+      system_exit(-1);
+    }
+
+    look_sensitivity = (unsigned char)profile[0x2a];
+    if (look_sensitivity > 0 && look_sensitivity <= 10) {
+      *(short *)(option_spinner + 0x3c) = (short)(look_sensitivity - 1);
+    } else {
+      *(short *)(option_spinner + 0x3c) = 0;
+    }
+
+    list_item = *(char **)(list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'controller vibration' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf2c, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'controller vibration' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf2e, 1);
+      system_exit(-1);
+    }
+
+    switch (profile[0x2c]) {
+    case 0:
+      *(short *)(option_spinner + 0x3c) = 0;
+      break;
+    case 1:
+      *(short *)(option_spinner + 0x3c) = 1;
+      break;
+    default:
+      *(short *)(option_spinner + 0x3c) = 0;
+      break;
+    }
+
+    list_item = *(char **)(list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'flight stick controls' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf37, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'flight stick controls' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf39, 1);
+      system_exit(-1);
+    }
+
+    switch (profile[0x2d]) {
+    case 0:
+      *(short *)(option_spinner + 0x3c) = 1;
+      break;
+    default:
+      *(short *)(option_spinner + 0x3c) = 0;
+      break;
+    }
+
+    list_item = *(char **)(list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'autocenter' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf42, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'autocenter' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf44, 1);
+      system_exit(-1);
+    }
+
+    switch (profile[0x2e]) {
+    case 0:
+      *(short *)(option_spinner + 0x3c) = 1;
+      return true;
+    case 1:
+      *(short *)(option_spinner + 0x3c) = 0;
+      return true;
+    default:
+      *(short *)(option_spinner + 0x3c) = 0;
+      return true;
+    }
+  }
+
+  error(2, "failed to retrieve editable player profile");
+  return false;
 }
 
 /* change controller settings (0x0ef3f0, table xref 0x31e270) — walks the
@@ -561,6 +747,209 @@ bool player_profile_change_controller_settings(void *widget, void *event_data,
   return false;
 }
 
+/* change advanced controller settings (0x0ef5c0) — walks the advanced
+ * controller settings column list (widget+0xe must be type 3) through its
+ * 'invert joystick', 'look sensitivity', 'controller vibration', 'flight
+ * stick controls' and 'autocenter' list items (+0x34 first, +0x2c next),
+ * finds the spinner sub-widget (type 2) inside each child chain, and stores
+ * the selected option index (+0x3c) into the edited player profile bytes
+ * +0x2b, +0x2a (index+1, index in [0,9]), +0x2c, +0x2d and +0x2e. An
+ * unavailable editable profile reports an error and returns false; a
+ * malformed widget hierarchy halts. Unknown option indices are reported and
+ * leave the profile byte unchanged. */
+bool player_profile_change_advanced_controller_settings(void *widget,
+                                                        void *event_data,
+                                                        bool *widget_deleted)
+{
+  char *profile;
+  char *list_item;
+  char *option_spinner;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  profile = (char *)player_ui_get_edit_player_profile();
+
+  if (*(short *)((char *)widget + 0xe) != 3) {
+    display_assert(
+      "expected column list for advanced controller settings widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xf90,
+      1);
+    system_exit(-1);
+  }
+
+  if (profile != NULL) {
+    list_item = *(char **)((char *)widget + 0x34);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'invert joystick' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf98, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'invert joystick' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xf9a, 1);
+      system_exit(-1);
+    }
+
+    switch (*(short *)(option_spinner + 0x3c)) {
+    case 0:
+      profile[0x2b] = 1;
+      break;
+    case 1:
+      profile[0x2b] = 0;
+      break;
+    default:
+      error(2, "unknown option selected for invert joystick");
+      break;
+    }
+
+    list_item = *(char **)(list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'look sensitivity' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xfa3, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'look sensitivity' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xfa5, 1);
+      system_exit(-1);
+    }
+
+    if (*(short *)(option_spinner + 0x3c) >= 0 &&
+        *(short *)(option_spinner + 0x3c) <= 9) {
+      profile[0x2a] = (char)(*(char *)(option_spinner + 0x3c) + 1);
+    } else {
+      error(2, "unknown option selected for look sensitivity");
+    }
+
+    list_item = *(char **)(list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'controller vibration' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xfb8, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'controller vibration' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xfba, 1);
+      system_exit(-1);
+    }
+
+    switch (*(short *)(option_spinner + 0x3c)) {
+    case 0:
+      profile[0x2c] = 0;
+      break;
+    case 1:
+      profile[0x2c] = 1;
+      break;
+    default:
+      error(2, "unknown option selected for controller vibration");
+      break;
+    }
+
+    list_item = *(char **)(list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'flight stick controls' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xfc3, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'flight stick controls' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xfc5, 1);
+      system_exit(-1);
+    }
+
+    switch (*(short *)(option_spinner + 0x3c)) {
+    case 0:
+      profile[0x2d] = 1;
+      break;
+    case 1:
+      profile[0x2d] = 0;
+      break;
+    default:
+      error(2, "unknown option selected for controller "
+               "flight_stick_aircraft_controls");
+      break;
+    }
+
+    list_item = *(char **)(list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert(
+        "expected 'autocenter' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xfce, 1);
+      system_exit(-1);
+    }
+
+    option_spinner = *(char **)(list_item + 0x34);
+    while (option_spinner != NULL && *(short *)(option_spinner + 0xe) != 2) {
+      option_spinner = *(char **)(option_spinner + 0x2c);
+    }
+
+    if (option_spinner == NULL) {
+      display_assert(
+        "expected 'autocenter' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xfd0, 1);
+      system_exit(-1);
+    }
+
+    switch (*(short *)(option_spinner + 0x3c)) {
+    case 0:
+      profile[0x2e] = 1;
+      return true;
+    case 1:
+      profile[0x2e] = 0;
+      return true;
+    default:
+      error(2, "unknown option selected for controller autocenter");
+      return true;
+    }
+  }
+
+  error(2, "failed to retrieve editable player profile");
+  return false;
+}
+
 /* remove local player from network game (0x0ef900, table xref 0x31e278) —
  * validates that the event's controller index (event_data+0x2) is in [0,4)
  * and, if so, quits that local player from the current network game. A NULL
@@ -643,8 +1032,8 @@ bool delete_player_profile_request(void *widget, void *event_data,
     system_exit(-1);
   }
 
-  profile_handle = (*(int **)((char *)widget + 0x40))
-    [*(short *)((char *)widget + 0x3c)];
+  profile_handle =
+    (*(int **)((char *)widget + 0x40))[*(short *)((char *)widget + 0x3c)];
   *(int *)0x31e494 = profile_handle; /* DAT_0031e494 — unknown purpose */
 
   if (profile_handle != -1) {
@@ -729,10 +1118,6 @@ bool create_and_begin_editing_new_gametype_profile(void *widget,
 
   return result;
 }
-
-
-
-
 
 
 /* create and edit a new player profile (0x0efde0, table xref 0x31e298) —
@@ -834,13 +1219,6 @@ bool network_game_start_faster(void *widget, void *event_data,
 }
 
 
-
-
-
-
-
-
-
 /* request start-time change (0x0eff70, table xref 0x31e2a0) — scans up to 16
  * player-record slots (client's machine-index base +0x242, stride 0x20) for
  * a valid player whose record bytes at +0x1c/+0x1d match this machine's
@@ -877,13 +1255,6 @@ bool network_game_start_slower(void *widget, void *event_data,
   }
   return true;
 }
-
-
-
-
-
-
-
 
 
 /* disable if no xdemos (event handler table index 86, 0x0f0070) — marks the
@@ -1018,8 +1389,8 @@ bool start_network_game_if_no_advertised_servers(void *widget, void *event_data,
   if (*(short *)((char *)widget + 0x44) == 0) {
     client = global_network_game_client_get();
     if (client != NULL && network_game_client_get_state(client, &state) == 0) {
-      result = network_game_start_new_server(widget, event_data,
-                                             widget_deleted);
+      result =
+        network_game_start_new_server(widget, event_data, widget_deleted);
     }
   } else {
     error(2, "not attempting to start a new server; there are other servers "
@@ -1028,10 +1399,6 @@ bool start_network_game_if_no_advertised_servers(void *widget, void *event_data,
 
   return result;
 }
-
-
-
-
 
 
 /* unjoin network-game player (0x0f0250) — scans the local client's 16
@@ -1246,7 +1613,8 @@ bool go_back_twice_next_time(void *widget, void *event_data,
  * spinner list. */
 bool difficulty_menu_initialize(void *widget)
 {
-  void *difficulty_widget; /* name: PAL 2342 ui_widget_event_handler_functions.c:3291 */
+  void *difficulty_widget; /* name: PAL 2342
+                              ui_widget_event_handler_functions.c:3291 */
 
   if (*(short *)((char *)widget + 0xe) != 3) {
     display_assert(
@@ -1259,7 +1627,8 @@ bool difficulty_menu_initialize(void *widget)
   if (*(unsigned char *)0x46ce3b == 1 &&
       crt_stricmp((const char *)0x46cd38, main_get_map_name()) == 0) {
     /* DAT_0046ce38 */
-    difficulty_widget = widget_instance_get_nth_child(widget, *(short *)0x46ce38);
+    difficulty_widget =
+      widget_instance_get_nth_child(widget, *(short *)0x46ce38);
     if (difficulty_widget == NULL) {
       display_assert(
         "failed to find 'difficulty' menu item",
@@ -1286,9 +1655,6 @@ bool difficulty_menu_initialize(void *widget)
 }
 
 
-
-
-
 /* new campaign if no custom player profiles exist (0xf0740) — calls the
  * saved-game profile enumerator at 0x1c0d50 with the same argument shape as
  * FUN_000e5590 (index -1, two out-param locals with local_4 pre-set to 1,
@@ -1312,6 +1678,134 @@ bool new_campaign_if_no_custom_player_profiles_exist(void *widget,
 
   new_campaign_chosen(widget, event_data, widget_deleted);
   return false;
+}
+
+/* solo level initialize list (single player) (0xf0790, event handler
+ * registered via data table 0x31e16c) — reads widget/event_data/
+ * widget_deleted at [EBP+8/0xc/0x10] and returns AL=1 on every exit.
+ * When the signed 16-bit global at 0x31fa94 is >= 2 it clears the 0x106-byte
+ * persistent-storage scratch at 0x46cd38 and forwards to
+ * ui_widget_initialize_single_player_level_list (result discarded).
+ * Otherwise it rebuilds the 10 x 8-byte level list at 0x46cce8 from player 0's
+ * profile only, re-probing persistent storage when the active profile index
+ * differs from the cached index at 0x31e4c0, asserts the spinner-list widget
+ * shape (lines 0x25b/0x25c), publishes the list at widget +0x40/+0x44 and
+ * clamps the selected index at +0x3c to [0, 9].  Finally either matches the
+ * persisted map name at 0x46cd38 against the level table (0x31e498) or
+ * toggles the deferred error-0x27 latch at 0x31e4c4. */
+bool solo_level_initialize_list_single_player(void *widget, void *event_data,
+                                              bool *widget_deleted)
+{
+  uint8_t profile[0x30];
+  int16_t last_level;
+  int16_t last_level_unused;
+  int profile_index;
+  int i;
+  signed char level_flags;
+  unsigned int flags;
+  int16_t *list_tag;
+  int16_t selected;
+  int16_t stored_index;
+
+  if (*(int16_t *)0x31fa94 >= 2) {
+    csmemset((void *)0x46cd38, 0, 0x106);
+    ui_widget_initialize_single_player_level_list(widget, event_data,
+                                                  widget_deleted);
+    return true;
+  }
+
+  profile_index = player_ui_get_active_player_profile_index(0);
+  csmemset((void *)0x46cce8, 0, 0x50);
+  if (profile_index != *(int *)0x31e4c0) {
+    csmemset((void *)0x46cd38, 0, 0x106);
+    *(uint8_t *)0x46ce3b = (uint8_t)game_state_test_persistent_storage(
+      (char *)0x46cd38, (int16_t *)0x46ce38, 0x46ce3c);
+    *(int *)0x31e4c0 = profile_index;
+  }
+
+  player_ui_get_active_player_profile(0, profile);
+  player_profile_save_last_level_played(profile, &last_level,
+                                        &last_level_unused);
+
+  /* Bottom-tested rolled loop in the reference (INC EAX / CMP EAX,0xa / JL). */
+  i = 0;
+  do {
+    *(const char **)(0x46cce8 + i * 8) = ((const char **)0x31e498)[i];
+    level_flags = (signed char)profile[0x1c + i];
+    if ((level_flags != 0) || (i == (int)last_level + 1) || (i == 0)) {
+      flags = (unsigned int)(int)level_flags;
+      *(uint8_t *)(0x46cce8 + i * 8 + 5) = (uint8_t)((flags >> 1) & 1);
+      *(uint8_t *)(0x46cce8 + i * 8 + 4) = 1;
+      *(uint8_t *)(0x46cce8 + i * 8 + 6) = (uint8_t)((flags >> 2) & 1);
+      *(uint8_t *)(0x46cce8 + i * 8 + 7) = (uint8_t)((flags >> 3) & 1);
+    }
+    i++;
+  } while (i < 10);
+
+  list_tag = (int16_t *)tag_get(0x44654c61, *(int *)widget);
+  if (*list_tag != 2) {
+    display_assert(
+      "expected a spinner list widget for 'solo level list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x25b,
+      true);
+    system_exit(-1);
+  }
+  if (*(int *)((char *)list_tag + 0x3e0) != 3) {
+    display_assert(
+      "expected 3 list items for 'solo level list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x25c,
+      true);
+    system_exit(-1);
+  }
+
+  *(int *)((char *)widget + 0x40) = 0x46cce8;
+  *(int16_t *)((char *)widget + 0x44) = 10;
+
+  if (player_ui_get_last_single_player_level_played(0) < 0) {
+    selected = 0;
+  } else if (player_ui_get_last_single_player_level_played(0) > 9) {
+    selected = 9;
+  } else {
+    selected = player_ui_get_last_single_player_level_played(0);
+  }
+  *(int16_t *)((char *)widget + 0x3c) = selected;
+
+  if (*(uint8_t *)0x46ce3b == 1) {
+    *(uint8_t *)0x46ce37 = 0;
+    i = 0;
+    do {
+      if (crt_stricmp((const char *)0x46cd38, ((const char **)0x31e498)[i]) ==
+          0) {
+        stored_index = *(int16_t *)0x46ce38;
+        *(uint8_t *)0x46ce3a = (uint8_t)i;
+        if (stored_index < 0) {
+          *(int16_t *)0x46ce38 = 0;
+        } else {
+          *(int16_t *)0x46ce38 = 3;
+          if (stored_index <= 3) {
+            *(int16_t *)0x46ce38 = stored_index;
+          }
+        }
+        break;
+      }
+      i++;
+    } while (i < 10);
+    if (i == 10) {
+      *(uint8_t *)0x46ce3b = 0;
+      return true;
+    }
+  } else if (*(uint8_t *)0x46ce3c == 1) {
+    profile_index = player_ui_get_active_player_profile_index(0);
+    if (profile_index != -1) {
+      if (*(int *)0x31e4c4 == -1) {
+        display_error_deferred(0x27, -1, true, false);
+        *(int *)0x31e4c4 = profile_index;
+        return true;
+      }
+      *(int *)0x31e4c4 = -1;
+    }
+  }
+  return true;
 }
 
 void ui_widget_game_data_function_invoke(
@@ -1696,6 +2190,929 @@ void set_textbox_to_build_number(int widget)
   if (v2) {
     ustrncpy(v2, ui_widget_game_data_build_version_wide_str, 0x3Fu);
     *(wchar_t *)(*(uint32_t *)(widget + 60) + 126) = 0;
+  }
+}
+
+/* server_list_menu_update (0xf0f30)
+ * Rebuilds the 9-entry advertised-server pointer list at 0x46ce40 (open
+ * games with +0xe0 != 0 first, then +0xe0 == 0; both require
+ * advertised_game_is_valid and +0xde == 0), stores it into the list widget
+ * (+0x40 list, +0x44 count), clamps the selected index (+0x3c), writes each
+ * child's text, then fills the extended-description textboxes hanging off
+ * widget+0x48 from the selected advertised game (0xe4-byte records).
+ * Textbox roles come from the binary's assert strings. unknown_widget is the
+ * second sibling of the map-name container's next sibling; its role is
+ * unproven. */
+void server_list_menu_update(void *widget)
+{
+  void *client;
+  void *widget_def;
+  char *game;
+  char *child;
+  char *text;
+  char *map_name;
+  char *description_container;
+  char *map_container;
+  char *unknown_widget;
+  char *open_text;
+  char *map_text;
+  char *ruleset_text;
+  char *teams_text;
+  char *players_text;
+  char *score_limit_text;
+  char *score_limit_type_text;
+  unsigned int elapsed;
+  int count;
+  int remaining;
+  int selected;
+  int i;
+
+  client = global_network_game_client_get();
+  count = 0;
+  csmemset((void *)0x46ce40, 0, 0x24);
+  if (client == NULL) {
+    return;
+  }
+
+  widget_def = tag_get(0x44654c61 /* 'DeLa' */, *(int *)widget);
+  game = (char *)network_game_client_get_available_games(client);
+  if ((*(short *)widget_def != 3) ||
+      (*(int *)((char *)widget_def + 0x3e0) != 9)) {
+    display_assert(
+      "this doesn't look like the net game server list widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x297, 1);
+    system_exit(-1);
+  }
+
+  child = game;
+  remaining = 9;
+  do {
+    if (network_game_client_advertised_game_is_valid(child) &&
+        *(short *)(child + 0xde) == 0 && *(char *)(child + 0xe0) != 0) {
+      ((char **)0x46ce40)[count] = child;
+      count++;
+    }
+    child += 0xe4;
+    remaining--;
+  } while (remaining != 0);
+
+  remaining = 9;
+  do {
+    if (network_game_client_advertised_game_is_valid(game) &&
+        *(short *)(game + 0xde) == 0 && *(char *)(game + 0xe0) == 0) {
+      ((char **)0x46ce40)[count] = game;
+      count++;
+    }
+    game += 0xe4;
+    remaining--;
+  } while (remaining != 0);
+
+  *(int *)((char *)widget + 0x40) = 0x46ce40;
+  *(short *)((char *)widget + 0x44) = (short)count;
+  selected = *(short *)((char *)widget + 0x3c);
+  if (selected > count - 1) {
+    selected = count - 1;
+  }
+  child = *(char **)((char *)widget + 0x34);
+  *(short *)((char *)widget + 0x3c) = (short)selected;
+
+  for (i = 0; child != NULL && i < count; i++) {
+    text = (char *)ui_widget_realloc(
+      *(int *)(child + 0x3c), 0x40,
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x2c5);
+    *(char **)(child + 0x3c) = text;
+    if (text != NULL) {
+      if (*(char *)(((char **)0x46ce40)[i] + 0xe0) == 1) {
+        ustrncpy((wchar_t *)text, (wchar_t *)(((char **)0x46ce40)[i] + 0x30),
+                 0x1f);
+      } else {
+        unicode_sprintf(
+          *(wchar_t **)(child + 0x3c), 0x1f, L"%s %s",
+          (wchar_t *)FUN_0019d420(
+            tag_loaded(0x75737472 /* 'ustr' */, "ui\\multiplayer_game_text"),
+            0x13),
+          (wchar_t *)(((char **)0x46ce40)[i] + 0x30));
+      }
+      *(short *)(*(char **)(child + 0x3c) + 0x3e) = 0;
+    }
+    child = *(char **)(child + 0x2c);
+  }
+
+  if (count > 0 && *(short *)((char *)widget + 0x3c) < 0) {
+    *(short *)((char *)widget + 0x3c) = 0;
+  }
+
+  elapsed = system_milliseconds() - *(unsigned int *)((char *)widget + 0x18);
+  widget_def =
+    tag_get(0x44654c61 /* 'DeLa' */, **(int **)((char *)widget + 0x48));
+  if (*(int *)((char *)widget_def + 0x3e0) != 5) {
+    display_assert(
+      "this doesn't look like the server list extended description widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x2f7, 1);
+    system_exit(-1);
+  }
+
+  description_container = *(char **)(*(char **)((char *)widget + 0x48) + 0x34);
+  map_container = *(char **)(description_container + 0x2c);
+  open_text = *(char **)(*(char **)(map_container + 0x2c) + 0x34);
+  unknown_widget = *(char **)(*(char **)(map_container + 0x2c) + 0x2c);
+  if (open_text == NULL || *(short *)(open_text + 0xe) != 1) {
+    display_assert(
+      "expected 'open/closed game' textbox",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x2ff, 1);
+    system_exit(-1);
+  }
+  map_text = *(char **)(open_text + 0x2c);
+  if (map_text == NULL || *(short *)(map_text + 0xe) != 1) {
+    display_assert(
+      "expected 'map name' textbox",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x301, 1);
+    system_exit(-1);
+  }
+  ruleset_text = *(char **)(map_text + 0x2c);
+  if (ruleset_text == NULL || *(short *)(ruleset_text + 0xe) != 1) {
+    display_assert(
+      "expected 'ruleset' textbox",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x303, 1);
+    system_exit(-1);
+  }
+  teams_text = *(char **)(ruleset_text + 0x2c);
+  if (teams_text == NULL || *(short *)(teams_text + 0xe) != 1) {
+    display_assert(
+      "expected 'teams on/off' textbox",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x305, 1);
+    system_exit(-1);
+  }
+  players_text = *(char **)(teams_text + 0x2c);
+  if (players_text == NULL || *(short *)(players_text + 0xe) != 1) {
+    display_assert(
+      "expected 'number of players' textbox",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x307, 1);
+    system_exit(-1);
+  }
+  score_limit_text = *(char **)(players_text + 0x2c);
+  if (score_limit_text == NULL || *(short *)(score_limit_text + 0xe) != 1) {
+    display_assert(
+      "expected 'score limit' textbox",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x309, 1);
+    system_exit(-1);
+  }
+  score_limit_type_text = *(char **)(score_limit_text + 0x2c);
+  if (score_limit_type_text == NULL ||
+      *(short *)(score_limit_type_text + 0xe) != 1) {
+    display_assert(
+      "expected 'score limit type' textbox",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x30b, 1);
+    system_exit(-1);
+  }
+
+  if (*(short *)((char *)widget + 0x3c) >= 0) {
+    game = ((char **)0x46ce40)[*(short *)((char *)widget + 0x3c)];
+    switch (*(short *)(game + 0xd4)) {
+    case 1:
+      *(short *)(description_container + 0x50) = 0;
+      break;
+    case 2:
+      *(short *)(description_container + 0x50) = 2;
+      break;
+    case 3:
+      *(short *)(description_container + 0x50) = 3;
+      break;
+    case 4:
+      *(short *)(description_container + 0x50) = 1;
+      break;
+    case 5:
+      *(short *)(description_container + 0x50) = 4;
+      break;
+    default:
+      *(short *)(description_container + 0x50) = 5;
+      break;
+    }
+
+    map_name = game + 0x54;
+    if (crt_strstr(map_name, "beavercreek") != NULL) {
+      *(short *)(map_container + 0x50) = 0;
+    } else if (crt_strstr(map_name, "sidewinder") != NULL) {
+      *(short *)(map_container + 0x50) = 1;
+    } else if (crt_strstr(map_name, "damnation") != NULL) {
+      *(short *)(map_container + 0x50) = 2;
+    } else if (crt_strstr(map_name, "ratrace") != NULL) {
+      *(short *)(map_container + 0x50) = 3;
+    } else if (crt_strstr(map_name, "prisoner") != NULL) {
+      *(short *)(map_container + 0x50) = 4;
+    } else if (crt_strstr(map_name, "hangemhigh") != NULL) {
+      *(short *)(map_container + 0x50) = 5;
+    } else if (crt_strstr(map_name, "chillout") != NULL) {
+      *(short *)(map_container + 0x50) = 6;
+    } else if (crt_strstr(map_name, "carousel") != NULL) {
+      *(short *)(map_container + 0x50) = 7;
+    } else if (crt_strstr(map_name, "boardingaction") != NULL) {
+      *(short *)(map_container + 0x50) = 8;
+    } else if (crt_strstr(map_name, "bloodgulch") != NULL) {
+      *(short *)(map_container + 0x50) = 9;
+    } else if (crt_strstr(map_name, "wizard") != NULL) {
+      *(short *)(map_container + 0x50) = 10;
+    } else if (crt_strstr(map_name, "putput") != NULL) {
+      *(short *)(map_container + 0x50) = 0xb;
+    } else if (crt_strstr(map_name, "longest") != NULL) {
+      *(short *)(map_container + 0x50) = 0xc;
+    } else {
+      *(short *)(map_container + 0x50) = 0xd;
+    }
+
+    *(short *)(open_text + 0x40) =
+      (short)((*(char *)(game + 0xe0) != 1) + 0x14);
+    *(short *)(map_text + 0x40) = *(short *)(map_container + 0x50);
+
+    switch (*(short *)(game + 0xd4)) {
+    case 1:
+      *(short *)(ruleset_text + 0x40) = 3;
+      break;
+    case 2:
+      *(short *)(ruleset_text + 0x40) = 4;
+      break;
+    case 3:
+      *(short *)(ruleset_text + 0x40) = 5;
+      break;
+    case 4:
+      *(short *)(ruleset_text + 0x40) = 6;
+      break;
+    case 5:
+      *(short *)(ruleset_text + 0x40) = 7;
+      break;
+    default:
+      *(short *)(ruleset_text + 0x40) = 8;
+      break;
+    }
+
+    *(short *)(teams_text + 0x40) =
+      (short)((*(char *)(game + 0xe2) != 1) + 0xc);
+
+    text = (char *)ui_widget_realloc(
+      *(int *)(players_text + 0x3c), 8,
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x364);
+    *(char **)(players_text + 0x3c) = text;
+    if (text != NULL) {
+      unicode_sprintf((wchar_t *)text, 3, L"%d",
+                      (unsigned int)*(unsigned short *)(game + 0xd8));
+      *(short *)(*(char **)(players_text + 0x3c) + 6) = 0;
+    }
+
+    text = (char *)ui_widget_realloc(
+      *(int *)(score_limit_text + 0x3c), 8,
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x369);
+    *(char **)(score_limit_text + 0x3c) = text;
+    if (text != NULL) {
+      unicode_sprintf((wchar_t *)text, 3, L"%d", (int)*(short *)(game + 0xdc));
+      *(short *)(*(char **)(score_limit_text + 0x3c) + 6) = 0;
+    }
+
+    switch (*(short *)(game + 0xd4)) {
+    case 1:
+      *(short *)(score_limit_type_text + 0x40) = 0x16;
+      break;
+    case 2:
+      *(short *)(score_limit_type_text + 0x40) = 0x18;
+      break;
+    case 3:
+      *(short *)(score_limit_type_text + 0x40) =
+        (short)(0x18 - (*(char *)(game + 0xe3) != 1));
+      break;
+    case 4:
+      *(short *)(score_limit_type_text + 0x40) = 0x17;
+      break;
+    case 5:
+      *(short *)(score_limit_type_text + 0x40) = 0x19;
+      break;
+    default:
+      *(short *)(score_limit_type_text + 0x40) = 1;
+      break;
+    }
+
+    *(short *)(unknown_widget + 0x40) = 2;
+    *(char *)(unknown_widget + 0x10) = 0;
+    if (*(int *)((char *)widget + 0x38) == 0) {
+      *(short *)((char *)widget + 0x3c) = 0;
+      *(int *)((char *)widget + 0x38) = *(int *)((char *)widget + 0x34);
+    }
+  } else {
+    *(short *)(description_container + 0x50) = 5;
+    *(short *)(map_container + 0x50) = 0xd;
+    *(short *)(open_text + 0x40) = 1;
+    *(short *)(map_text + 0x40) = 0xe;
+    *(short *)(ruleset_text + 0x40) = 1;
+    *(short *)(teams_text + 0x40) = 1;
+
+    text = (char *)ui_widget_realloc(
+      *(int *)(players_text + 0x3c), 8,
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x3a3);
+    *(char **)(players_text + 0x3c) = text;
+    if (text != NULL) {
+      *(short *)text = 0;
+    }
+
+    text = (char *)ui_widget_realloc(
+      *(int *)(score_limit_text + 0x3c), 8,
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x3a7);
+    *(char **)(score_limit_text + 0x3c) = text;
+    if (text != NULL) {
+      *(short *)text = 0;
+    }
+
+    *(short *)(score_limit_type_text + 0x40) = 1;
+    *(short *)(unknown_widget + 0x40) = (short)(elapsed >= 1000);
+    *(char *)(unknown_widget + 0x10) = 1;
+  }
+}
+
+/* network_pregame_status_screen_update (0xf1710, update-function table data
+ * xref 0x31e528). Reads the widget argument from [esp+4] (cdecl). Asserts the
+ * widget definition's +0x3e0 type is 6, then (when a network game exists):
+ * writes the game-start countdown ("-:--", "0:%02d", "%02d:%02d" or
+ * "%d:%02d:%02d") into the fifth sibling after the first child, fills the
+ * local machine name (machine records: 4 x 0x44 bytes at game+0x114, machine
+ * index byte at +0x40) and the four local-player rows (player records:
+ * 16 x 0x20 bytes at game+0x226, machine byte +0x1c, local index byte +0x1d,
+ * team byte +0x1e), then the three remote-machine rows. The 4x3 byte table
+ * at 0x2888f4 supplies the container +0x50 values; its meaning is unproven.
+ * Widget roles come from the binary's assert strings. */
+void network_pregame_status_screen_update(void *widget)
+{
+  char *game;
+  void *widget_def;
+  char *status_widget;
+  char *sibling_1;
+  char *sibling_2;
+  char *sibling_3;
+  char *sibling_4;
+  char *countdown_text;
+  char *local_status;
+  char *local_name_container;
+  char *machine;
+  char *player;
+  char *container;
+  char *name_text;
+  char *team_spinner;
+  char *child;
+  wchar_t *local_name;
+  wchar_t *name;
+  void *text;
+  int player_indices[4];
+  int length;
+  int count;
+  int index;
+  int i;
+  int j;
+  short machine_index;
+  short seconds;
+  int hours;
+  int minutes;
+  char flag;
+  char team;
+  unsigned short value;
+  const unsigned char *bitmap_table;
+
+  bitmap_table = (const unsigned char *)0x2888f4;
+  game = (char *)network_game_get_game();
+  widget_def = tag_get(0x44654c61 /* 'DeLa' */, *(int *)widget);
+  if (*(int *)((char *)widget_def + 0x3e0) != 6) {
+    display_assert(
+      "this doesn't look like the net pregame status screen to me",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x3fc, 1);
+    system_exit(-1);
+  }
+  if (game == NULL) {
+    return;
+  }
+
+  machine_index = (short)network_game_client_get_machine_index(
+    global_network_game_client_get());
+  status_widget = *(char **)((char *)widget + 0x34);
+  sibling_1 = *(char **)(status_widget + 0x2c);
+  sibling_2 = *(char **)(sibling_1 + 0x2c);
+  sibling_3 = *(char **)(sibling_2 + 0x2c);
+  sibling_4 = *(char **)(sibling_3 + 0x2c);
+  countdown_text = *(char **)(sibling_4 + 0x2c);
+  text = ui_widget_realloc(
+    *(int *)(countdown_text + 0x3c), 0x20,
+    "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+    0x40b);
+  *(void **)(countdown_text + 0x3c) = text;
+  if (text != NULL) {
+    seconds = network_game_client_get_seconds_to_game_start(
+      global_network_game_client_get());
+    if (global_network_game_server_get() != NULL &&
+        *(short *)(game + 0x112) < 2) {
+      flag = 1;
+    } else {
+      flag = 0;
+    }
+    ustrncpy(*(wchar_t **)(countdown_text + 0x3c), L"-:--", 0xf);
+    *(char *)(sibling_4 + 0x10) = 1;
+    *(short *)(sibling_4 + 0x40) = 0;
+    *(char *)(countdown_text + 0x10) = 1;
+    if (seconds == 0) {
+      *(short *)(sibling_4 + 0x40) = 1;
+      *(char *)(countdown_text + 0x10) = 0;
+    } else if (seconds > 0) {
+      if (seconds < 60) {
+        unicode_sprintf(*(wchar_t **)(countdown_text + 0x3c), 0xf, L"0:%02d",
+                        (int)seconds);
+      } else if (seconds < 3600) {
+        unicode_sprintf(*(wchar_t **)(countdown_text + 0x3c), 0xf, L"%02d:%02d",
+                        seconds / 60, seconds % 60);
+      } else {
+        hours = seconds / 3600;
+        minutes = (seconds % 3600) / 60;
+        unicode_sprintf(*(wchar_t **)(countdown_text + 0x3c), 0xf,
+                        L"%d:%02d:%02d", hours, minutes,
+                        seconds - (hours * 60 + minutes) * 60);
+      }
+    } else if (flag || *(char *)(game + 0xc0) == 1) {
+      *(char *)(sibling_4 + 0x10) = 0;
+      *(char *)(countdown_text + 0x10) = 0;
+    }
+    *(short *)(*(char **)(countdown_text + 0x3c) + 0x1e) = 0;
+  }
+
+  widget_def = tag_get(0x44654c61 /* 'DeLa' */, *(int *)status_widget);
+  if (*(int *)((char *)widget_def + 0x3e0) != 6) {
+    display_assert(
+      "this doesn't look like the net pregame status screen to me",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x44c, 1);
+    system_exit(-1);
+  }
+
+  {
+    char *local_widgets[4];
+
+    local_name_container = *(char **)(status_widget + 0x34);
+    local_status = *(char **)(local_name_container + 0x2c);
+    local_widgets[0] = *(char **)(local_status + 0x2c);
+    local_widgets[1] = *(char **)(local_widgets[0] + 0x2c);
+    local_widgets[2] = *(char **)(local_widgets[1] + 0x2c);
+    local_widgets[3] = *(char **)(local_widgets[2] + 0x2c);
+
+    flag = 0;
+    local_name = L"?";
+    for (i = 0; i < 4; i++) {
+      machine = game + 0x114 + i * 0x44;
+      if (machine != NULL && *(char *)(machine + 0x40) >= 0 &&
+          *(char *)(machine + 0x40) < 4 &&
+          (short)*(char *)(machine + 0x40) == machine_index) {
+        name = (wchar_t *)network_game_client_get_machine(
+          global_network_game_client_get());
+        if (name != NULL && *name != 0) {
+          local_name = name;
+        }
+        flag = 1;
+      }
+    }
+
+    csmemset(player_indices, -1, 0x10);
+    count = 0;
+    for (i = 0; i < 0x10; i++) {
+      player = game + 0x226 + i * 0x20;
+      if (network_player_is_valid(player) &&
+          (short)*(char *)(player + 0x1c) == machine_index) {
+        count++;
+        player_indices[(int)*(char *)(player + 0x1d)] = i;
+        if (count == 4) {
+          break;
+        }
+      }
+    }
+
+    length = ustrlen((unsigned short *)local_name);
+    text = ui_widget_realloc(
+      *(int *)(local_name_container + 0x3c), (unsigned short)(length * 2 + 2),
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x47b);
+    *(void **)(local_name_container + 0x3c) = text;
+    if (text != NULL) {
+      ustrncpy((wchar_t *)text, local_name, length);
+      (*(wchar_t **)(local_name_container + 0x3c))[length] = 0;
+    }
+
+    *(short *)(local_status + 0x50) = (short)(flag != 0);
+    for (j = 0; j < 4; j++) {
+      widget_def = tag_get(0x44654c61 /* 'DeLa' */, *(int *)local_widgets[j]);
+      if (*(int *)((char *)widget_def + 0x3e0) != 3) {
+        display_assert(
+          "this doesn't look like the net pregame status screen to me",
+          "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+          0x485, 1);
+        system_exit(-1);
+      }
+      container = *(char **)(local_widgets[j] + 0x34);
+      if (container == NULL || *(short *)(container + 0xe) != 0) {
+        display_assert(
+          "expected container widget for local player controller bitmap",
+          "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+          0x48b, 1);
+        system_exit(-1);
+      }
+      name_text = *(char **)(container + 0x2c);
+      if (name_text == NULL || *(short *)(name_text + 0xe) != 1) {
+        display_assert(
+          "expected a text box for local player name field",
+          "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+          0x48d, 1);
+        system_exit(-1);
+      }
+      team_spinner = *(char **)(name_text + 0x2c);
+      if (team_spinner == NULL || *(short *)(team_spinner + 0xe) != 2) {
+        display_assert(
+          "expected a spinner list for local player team display",
+          "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+          0x48f, 1);
+        system_exit(-1);
+      }
+      widget_instance_set_visibility_recursive(team_spinner,
+                                               *(char *)(game + 0xc0) != 0);
+      if (player_indices[j] == -1) {
+        *(short *)(container + 0x50) = 0;
+        text = ui_widget_realloc(
+          *(int *)(name_text + 0x3c), 2,
+          "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+          0x49d);
+        *(void **)(name_text + 0x3c) = text;
+        if (text != NULL) {
+          *(wchar_t *)text = 0;
+        }
+        *(short *)(team_spinner + 0x3c) = 2;
+      } else {
+        length =
+          ustrlen((unsigned short *)(game + 0x226 + player_indices[j] * 0x20));
+        text = ui_widget_realloc(
+          *(int *)(name_text + 0x3c), (unsigned short)(length * 2 + 2),
+          "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+          0x4a6);
+        *(void **)(name_text + 0x3c) = text;
+        if (text != NULL) {
+          ustrncpy((wchar_t *)text,
+                   (wchar_t *)(game + 0x226 + player_indices[j] * 0x20),
+                   length);
+          (*(wchar_t **)(name_text + 0x3c))[length] = 0;
+        }
+        if (*(char *)(game + 0xc0) == 0) {
+          *(short *)(container + 0x50) = 1;
+        } else {
+          switch (*(char *)(game + 0x244 + player_indices[j] * 0x20)) {
+          case 0:
+            *(short *)(container + 0x50) = bitmap_table[j * 3 + 2];
+            *(short *)(team_spinner + 0x3c) = 0;
+            break;
+          case 1:
+            *(short *)(container + 0x50) = bitmap_table[j * 3 + 1];
+            *(short *)(team_spinner + 0x3c) = 1;
+            break;
+          default:
+            *(short *)(container + 0x50) = bitmap_table[j * 3 + 0];
+            *(short *)(team_spinner + 0x3c) = 2;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  {
+    char *remote_widgets[3];
+    int remote_machines[3];
+
+    remote_widgets[0] = sibling_1;
+    remote_widgets[1] = sibling_2;
+    remote_widgets[2] = sibling_3;
+    csmemset(remote_machines, -1, 0xc);
+    count = 0;
+    for (i = 0; i < 4; i++) {
+      machine = game + 0x114 + i * 0x44;
+      if (machine != NULL && *(char *)(machine + 0x40) >= 0 &&
+          *(char *)(machine + 0x40) < 4 &&
+          (short)*(char *)(machine + 0x40) != machine_index) {
+        if (!(count < 3)) {
+          display_assert("j<(MAXIMUM_NETWORK_MACHINE_COUNT-1)",
+                         "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_"
+                         "input_functions.c",
+                         0x4d4, 1);
+          system_exit(-1);
+        }
+        remote_machines[count] = i;
+        count++;
+      }
+    }
+
+    for (j = 0; j < 3; j++) {
+      widget_def = tag_get(0x44654c61 /* 'DeLa' */, *(int *)remote_widgets[j]);
+      if (*(int *)((char *)widget_def + 0x3e0) != 6) {
+        display_assert(
+          "this doesn't look like the net pregame status screen to me",
+          "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+          0x4dd, 1);
+        system_exit(-1);
+      }
+      container = *(char **)(remote_widgets[j] + 0x34);
+      name_text = *(char **)(container + 0x2c);
+      if (remote_machines[j] == -1) {
+        *(short *)(container + 0x50) = 0;
+        text = ui_widget_realloc(
+          *(int *)(name_text + 0x3c), 2,
+          "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+          0x4e7);
+        *(void **)(name_text + 0x3c) = text;
+        if (text != NULL) {
+          *(wchar_t *)text = 0;
+        }
+        child = *(char **)(name_text + 0x2c);
+        for (i = 0; child != NULL && i < 4; i++) {
+          *(short *)(child + 0x50) = 2;
+          child = *(char **)(child + 0x2c);
+        }
+      } else {
+        *(short *)(container + 0x50) = 1;
+        length =
+          ustrlen((unsigned short *)(game + 0x114 + remote_machines[j] * 0x44));
+        text = ui_widget_realloc(
+          *(int *)(name_text + 0x3c), (unsigned short)(length * 2 + 2),
+          "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+          0x4f4);
+        *(void **)(name_text + 0x3c) = text;
+        if (text != NULL) {
+          ustrncpy((wchar_t *)text,
+                   (wchar_t *)(game + 0x114 + remote_machines[j] * 0x44),
+                   length);
+          (*(wchar_t **)(name_text + 0x3c))[length] = 0;
+        }
+        csmemset(player_indices, -1, 0x10);
+        for (index = 0; index < 0x10; index++) {
+          player = game + 0x226 + index * 0x20;
+          if (network_player_is_valid(player) &&
+              *(char *)(player + 0x1c) ==
+                *(char *)(game + 0x114 + remote_machines[j] * 0x44 + 0x40)) {
+            player_indices[(int)*(char *)(player + 0x1d)] = index;
+          }
+        }
+        child = *(char **)(name_text + 0x2c);
+        for (i = 0; i < 4; i++) {
+          if (child == NULL) {
+            break;
+          }
+          if (player_indices[i] == -1) {
+            *(short *)(child + 0x50) = 2;
+          } else {
+            if (*(char *)(game + 0xc0) == 0) {
+              value = bitmap_table[i * 3 + 0];
+            } else {
+              team = *(char *)(game + 0x244 + player_indices[i] * 0x20);
+              switch (team) {
+              case 0:
+                value = bitmap_table[i * 3 + 2];
+                break;
+              case 1:
+                value = bitmap_table[i * 3 + 1];
+                break;
+              default:
+                value = bitmap_table[i * 3 + 0];
+                break;
+              }
+            }
+            *(short *)(child + 0x50) = (short)value;
+          }
+          child = *(char **)(child + 0x2c);
+        }
+      }
+    }
+  }
+}
+
+/* splitscreen_pregame_status_screen_update (0xf1ed0). Reads the widget
+ * argument from [ebp+8] (cdecl; no direct callers, update-function table
+ * entry like network_pregame_status_screen_update). Asserts the widget
+ * definition's +0x3e0 type is 3, then (when a network game exists): writes
+ * the game-start countdown into the second child after the first child, then
+ * (status widget type 6) fills the local machine name and the four local
+ * player rows. The 4x3 byte table at 0x288900 supplies the container +0x50
+ * values; its meaning is unproven. The assert strings are the binary's own
+ * ("net pregame status screen"). */
+void splitscreen_pregame_status_screen_update(void *widget)
+{
+  char *game;
+  void *widget_def;
+  char *status_widget;
+  char *sibling_1;
+  char *countdown_text;
+  char *local_name_container;
+  char *local_status;
+  char *machine;
+  char *player;
+  char *container;
+  char *name_text;
+  char *team_spinner;
+  wchar_t *local_name;
+  wchar_t *name;
+  void *text;
+  char *local_widgets[4];
+  int player_indices[4];
+  int length;
+  int count;
+  int i;
+  int j;
+  short machine_index;
+  short seconds;
+  int hours;
+  int minutes;
+  char flag;
+  const unsigned char *bitmap_table;
+
+  bitmap_table = (const unsigned char *)0x288900;
+  game = (char *)network_game_get_game();
+  widget_def = tag_get(0x44654c61 /* 'DeLa' */, *(int *)widget);
+  if (*(int *)((char *)widget_def + 0x3e0) != 3) {
+    display_assert(
+      "this doesn't look like the net pregame status screen to me",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x550, 1);
+    system_exit(-1);
+  }
+  if (game == NULL) {
+    return;
+  }
+
+  machine_index = (short)network_game_client_get_machine_index(
+    global_network_game_client_get());
+  status_widget = *(char **)((char *)widget + 0x34);
+  sibling_1 = *(char **)(status_widget + 0x2c);
+  countdown_text = *(char **)(sibling_1 + 0x2c);
+  text = ui_widget_realloc(
+    *(int *)(countdown_text + 0x3c), 0x20,
+    "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+    0x55c);
+  *(void **)(countdown_text + 0x3c) = text;
+  if (text != NULL) {
+    seconds = network_game_client_get_seconds_to_game_start(
+      global_network_game_client_get());
+    ustrncpy(*(wchar_t **)(countdown_text + 0x3c), L"-:--", 0xf);
+    *(char *)(sibling_1 + 0x10) = 1;
+    *(short *)(sibling_1 + 0x40) = 0;
+    *(char *)(countdown_text + 0x10) = 1;
+    if (seconds == 0) {
+      *(short *)(sibling_1 + 0x40) = 1;
+      *(char *)(countdown_text + 0x10) = 0;
+    } else if (seconds > 0) {
+      if (seconds < 60) {
+        unicode_sprintf(*(wchar_t **)(countdown_text + 0x3c), 0xf, L"0:%02d",
+                        (int)seconds);
+      } else if (seconds < 3600) {
+        unicode_sprintf(*(wchar_t **)(countdown_text + 0x3c), 0xf, L"%02d:%02d",
+                        seconds / 60, seconds % 60);
+      } else {
+        hours = seconds / 3600;
+        minutes = (seconds - hours * 3600) / 60;
+        unicode_sprintf(*(wchar_t **)(countdown_text + 0x3c), 0xf,
+                        L"%d:%02d:%02d", hours, minutes,
+                        seconds - (hours * 60 + minutes) * 60);
+      }
+    } else if (*(short *)(game + 0x224) < 2 || *(char *)(game + 0xc0) == 1) {
+      *(char *)(sibling_1 + 0x10) = 0;
+      *(char *)(countdown_text + 0x10) = 0;
+    }
+    *(short *)(*(char **)(countdown_text + 0x3c) + 0x1e) = 0;
+  }
+
+  widget_def = tag_get(0x44654c61 /* 'DeLa' */, *(int *)status_widget);
+  if (*(int *)((char *)widget_def + 0x3e0) != 6) {
+    display_assert(
+      "this doesn't look like the net pregame status screen to me",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x592, 1);
+    system_exit(-1);
+  }
+
+  local_name_container = *(char **)(status_widget + 0x34);
+  local_status = *(char **)(local_name_container + 0x2c);
+  local_widgets[0] = *(char **)(local_status + 0x2c);
+  local_widgets[1] = *(char **)(local_widgets[0] + 0x2c);
+  local_widgets[2] = *(char **)(local_widgets[1] + 0x2c);
+  local_widgets[3] = *(char **)(local_widgets[2] + 0x2c);
+
+  flag = 0;
+  local_name = L"?";
+  for (i = 0; i < 4; i++) {
+    machine = game + 0x114 + i * 0x44;
+    if (machine != NULL && *(char *)(machine + 0x40) >= 0 &&
+        *(char *)(machine + 0x40) < 4 &&
+        (short)*(char *)(machine + 0x40) == machine_index) {
+      name = (wchar_t *)network_game_client_get_machine(
+        global_network_game_client_get());
+      if (name != NULL && *name != 0) {
+        local_name = name;
+      }
+      flag = 1;
+      break;
+    }
+  }
+
+  csmemset(player_indices, -1, 0x10);
+  count = 0;
+  for (i = 0; i < 0x10; i++) {
+    player = game + 0x226 + i * 0x20;
+    if (network_player_is_valid(player) &&
+        (short)*(char *)(player + 0x1c) == machine_index) {
+      count++;
+      player_indices[(int)*(char *)(player + 0x1d)] = i;
+      if (count == 4) {
+        break;
+      }
+    }
+  }
+
+  length = ustrlen((unsigned short *)local_name);
+  text = ui_widget_realloc(
+    *(int *)(local_name_container + 0x3c), (unsigned short)(length * 2 + 2),
+    "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+    0x5c2);
+  *(void **)(local_name_container + 0x3c) = text;
+  if (text != NULL) {
+    ustrncpy((wchar_t *)text, local_name, length);
+    (*(wchar_t **)(local_name_container + 0x3c))[length] = 0;
+  }
+
+  *(short *)(local_status + 0x50) = (short)(flag != 0);
+  for (j = 0; j < 4; j++) {
+    widget_def = tag_get(0x44654c61 /* 'DeLa' */, *(int *)local_widgets[j]);
+    if (*(int *)((char *)widget_def + 0x3e0) != 3) {
+      display_assert(
+        "this doesn't look like the net pregame status screen to me",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x5cc, 1);
+      system_exit(-1);
+    }
+    container = *(char **)(local_widgets[j] + 0x34);
+    name_text = *(char **)(container + 0x2c);
+    team_spinner = *(char **)(name_text + 0x2c);
+    if (*(char *)(game + 0xc0) == 0) {
+      widget_instance_set_visibility_recursive(team_spinner, 0);
+    }
+    if (player_indices[j] == -1) {
+      *(short *)(container + 0x50) = 0;
+      text = ui_widget_realloc(
+        *(int *)(name_text + 0x3c), 2,
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x5db);
+      *(void **)(name_text + 0x3c) = text;
+      if (text != NULL) {
+        *(wchar_t *)text = 0;
+      }
+      *(short *)(team_spinner + 0x3c) = 0;
+    } else {
+      length =
+        ustrlen((unsigned short *)(game + 0x226 + player_indices[j] * 0x20));
+      text = ui_widget_realloc(
+        *(int *)(name_text + 0x3c), (unsigned short)(length * 2 + 2),
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x5e4);
+      *(void **)(name_text + 0x3c) = text;
+      if (text != NULL) {
+        ustrncpy((wchar_t *)text,
+                 (wchar_t *)(game + 0x226 + player_indices[j] * 0x20), length);
+        (*(wchar_t **)(name_text + 0x3c))[length] = 0;
+      }
+      if (*(char *)(game + 0xc0) == 0) {
+        *(short *)(container + 0x50) = 1;
+      } else {
+        switch (*(char *)(game + 0x244 + player_indices[j] * 0x20)) {
+        case 0:
+          *(short *)(container + 0x50) = bitmap_table[j * 3 + 1];
+          *(short *)(team_spinner + 0x3c) = 0;
+          break;
+        case 1:
+          *(short *)(container + 0x50) = bitmap_table[j * 3 + 2];
+          *(short *)(team_spinner + 0x3c) = 1;
+          break;
+        default:
+          *(short *)(container + 0x50) = bitmap_table[j * 3 + 0];
+          *(short *)(team_spinner + 0x3c) = 0;
+          break;
+        }
+      }
+    }
   }
 }
 
@@ -2152,6 +3569,54 @@ void get_editable_player_profile_display_name(void *widget)
       ustrncpy(new_buf, profile, 0xb);
       *(unsigned short *)((char *)new_buf + 0x16) = 0;
     }
+  }
+}
+
+/* get_editable_playlist_profile_display_name (0xf2a40)
+ * Playlist (game variant) sibling of get_editable_player_profile_display_name.
+ * Same widget-type (+0xe == 1) and local-player-index (+0x8, [0,4)) guards.
+ * A NULL player_ui_get_edit_playlist_profile (FUN_000e0ec0) return reports
+ * error(2, "not currently editing a game variant") instead of silently
+ * returning. The final terminator store re-reads widget+0x3c (reference
+ * MOV ECX,[ESI+0x3c] at 0xf2ad1). Evidence: reference disassembly at
+ * 0xf2a40-0xf2af3 (assert line immediates 0xa13/0xa15 at 0xf2a51/0xf2a80,
+ * realloc line 0xa19 at 0xf2aac, error string push at 0xf2ae1). */
+void get_editable_playlist_profile_display_name(void *widget)
+{
+  wchar_t *profile;
+  wchar_t *new_buf;
+  short local_player_index;
+
+  if (*(short *)((char *)widget + 0xe) != 1) {
+    display_assert(
+      "expected a text box widget for profile display name",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0xa13, 1);
+    system_exit(-1);
+  }
+
+  local_player_index = *(short *)((char *)widget + 8);
+  if (local_player_index < 0 || local_player_index >= 4) {
+    display_assert(
+      "profile display name requires a valid local player index",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0xa15, 1);
+    system_exit(-1);
+  }
+
+  profile = (wchar_t *)player_ui_get_edit_playlist_profile();
+  if (profile != NULL) {
+    new_buf = (wchar_t *)ui_widget_realloc(
+      *(int *)((char *)widget + 0x3c), 0x18,
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0xa19);
+    *(wchar_t **)((char *)widget + 0x3c) = new_buf;
+    if (new_buf != NULL) {
+      ustrncpy(new_buf, profile, 0xb);
+      *(unsigned short *)(*(char **)((char *)widget + 0x3c) + 0x16) = 0;
+    }
+  } else {
+    error(2, "not currently editing a game variant");
   }
 }
 

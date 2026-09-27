@@ -62638,6 +62638,21 @@
       "score": 94.4,
       "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
+    "get_editable_playlist_profile_display_name": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xf2a40",
+      "end": "0xf2af4",
+      "kind": "auto",
+      "n_r": 61,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "19f955c20a7fbca3",
+      "score": 100.0,
+      "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
+    },
     "get_flag_definition_index": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -79648,6 +79663,21 @@
       "score": 100.0,
       "source": "src/halo/networking/network_game_manager.c"
     },
+    "network_pregame_status_screen_update": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 95.7,
+      "addr": "0xf1710",
+      "end": "0xf1ecc",
+      "kind": "auto",
+      "n_r": 618,
+      "opnd_percent": 83.2,
+      "raw_mnemonic_pct": 95.7,
+      "ref": "synth",
+      "ref_sha": "6268b761788a1393",
+      "score": 95.7,
+      "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
+    },
     "network_server_allow_client_connections": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -85828,6 +85858,21 @@
       "score": 81.5,
       "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
+    "player_profile_change_advanced_controller_settings": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 98.9,
+      "addr": "0xef5c0",
+      "end": "0xef8f7",
+      "kind": "auto",
+      "n_r": 272,
+      "opnd_percent": 98.2,
+      "raw_mnemonic_pct": 98.9,
+      "ref": "synth",
+      "ref_sha": "5ac0e15ec93f9ac3",
+      "score": 98.9,
+      "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
+    },
     "player_profile_change_controller_settings": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -85932,6 +85977,21 @@
       "ref_sha": "80f6716741657410",
       "score": 100.0,
       "source": "src/halo/saved games/saved_game_files.c"
+    },
+    "player_profile_initialize_advanced_controller_settings": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 94.6,
+      "addr": "0xef110",
+      "end": "0xef3e4",
+      "kind": "auto",
+      "n_r": 232,
+      "opnd_percent": 89.3,
+      "raw_mnemonic_pct": 94.6,
+      "ref": "synth",
+      "ref_sha": "551658d5dcbde39d",
+      "score": 94.6,
+      "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     "player_profile_save_changes": {
       "abi_model": "raw",
@@ -95248,6 +95308,21 @@
       "score": 91.1,
       "source": "src/halo/networking/network_server_manager.c"
     },
+    "server_list_menu_update": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 97.1,
+      "addr": "0xf0f30",
+      "end": "0xf16d3",
+      "kind": "auto",
+      "n_r": 571,
+      "opnd_percent": 86.8,
+      "raw_mnemonic_pct": 97.1,
+      "ref": "synth",
+      "ref_sha": "7da5f47bdd80cac0",
+      "score": 97.1,
+      "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
+    },
     "server_needs_more_teams": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -95952,6 +96027,21 @@
       "ref_sha": "93f7a90908a78488",
       "score": 100.0,
       "source": "src/halo/interface/ui_widget.c"
+    },
+    "solo_level_initialize_list_single_player": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 90.5,
+      "addr": "0xf0790",
+      "end": "0xf0a29",
+      "kind": "auto",
+      "n_r": 202,
+      "opnd_percent": 83.6,
+      "raw_mnemonic_pct": 90.5,
+      "ref": "synth",
+      "ref_sha": "14d69252aa0ee3c4",
+      "score": 90.5,
+      "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     "sort_desired_local_player_controllers": {
       "abi_model": "raw",
@@ -97362,6 +97452,21 @@
       "ref_sha": "aea1c6c61ad2c14a",
       "score": 88.6,
       "source": "src/halo/interface/ui_widget.c"
+    },
+    "splitscreen_pregame_status_screen_update": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 97.6,
+      "addr": "0xf1ed0",
+      "end": "0xf2388",
+      "kind": "auto",
+      "n_r": 382,
+      "opnd_percent": 81.5,
+      "raw_mnemonic_pct": 97.6,
+      "ref": "synth",
+      "ref_sha": "f718fb9c85b91ddf",
+      "score": 97.6,
+      "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     "squad_get_actor_type": {
       "abi_model": "raw",

@@ -29267,9 +29267,10 @@
     },
     {
      "addr": "0xef110",
-     "decl": "void player_profile_initialize_advanced_controller_settings(void);",
+     "decl": "bool player_profile_initialize_advanced_controller_settings(void *widget);",
      "comment": "[NAME: player_profile_initialize_advanced_controller_settings \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "player_profile_initialize_advanced_controller_settings"
+     "name": "player_profile_initialize_advanced_controller_settings",
+     "ported": true
     },
     {
      "addr": "0xef3f0",
@@ -29281,7 +29282,8 @@
     {
      "addr": "0xef5c0",
      "decl": "bool player_profile_change_advanced_controller_settings(void *widget, void *event_data, bool *widget_deleted);",
-     "name": "player_profile_change_advanced_controller_settings"
+     "name": "player_profile_change_advanced_controller_settings",
+     "ported": true
     },
     {
      "addr": "0xef900",
@@ -29401,9 +29403,10 @@
     },
     {
      "addr": "0xf0790",
-     "decl": "void solo_level_initialize_list_single_player(void);",
+     "decl": "bool solo_level_initialize_list_single_player(void *widget, void *event_data, bool *widget_deleted);",
      "comment": "[NAME: solo_level_initialize_list_single_player \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "solo_level_initialize_list_single_player"
+     "name": "solo_level_initialize_list_single_player",
+     "ported": true
     },
     {
      "addr": "0xf0a30",
@@ -29448,18 +29451,21 @@
     },
     {
      "addr": "0xf0f30",
-     "decl": "void server_list_menu_update(void);",
-     "name": "server_list_menu_update"
+     "decl": "void server_list_menu_update(void *widget);",
+     "name": "server_list_menu_update",
+     "ported": true
     },
     {
      "addr": "0xf1710",
-     "decl": "void network_pregame_status_screen_update(void);",
-     "name": "network_pregame_status_screen_update"
+     "decl": "void network_pregame_status_screen_update(void *widget);",
+     "name": "network_pregame_status_screen_update",
+     "ported": true
     },
     {
      "addr": "0xf1ed0",
-     "decl": "void splitscreen_pregame_status_screen_update(void);",
-     "name": "splitscreen_pregame_status_screen_update"
+     "decl": "void splitscreen_pregame_status_screen_update(void *widget);",
+     "name": "splitscreen_pregame_status_screen_update",
+     "ported": true
     },
     {
      "addr": "0xf2390",
@@ -29512,7 +29518,8 @@
     },
     {
      "addr": "0xf2a40",
-     "decl": "void get_editable_playlist_profile_display_name(void);",
+     "decl": "void get_editable_playlist_profile_display_name(void *widget);",
+     "ported": true,
      "name": "get_editable_playlist_profile_display_name"
     },
     {
