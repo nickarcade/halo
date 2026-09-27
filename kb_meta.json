@@ -1285,6 +1285,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2fb60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2fb70": {
       "kind": "function",
       "status": "ported"
@@ -1326,7 +1330,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x303f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x308e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x309d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x30d10": {
       "kind": "function",
       "status": "ported"
     },

@@ -8973,3 +8973,79 @@ Coverage must reach moderate or high. [cohort=control] |
 | SetThreadPriority | 0x1cf999 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=retrieval] |
 | TIFFSetDirectory | 0x66200 | tif_dir.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
 | TIFFFetchStripThing | 0x66d40 | tif_dir.obj | 85.4 | parked | NEEDS_RUNTIME: I found no concrete defect in TIFFFetchStripThing (0x66d40) in /mnt/g/dev/halo-bugs/src/halo/bitmaps/libtiff/tif_dir.c. The build passes (tools/build/build.py -q --target halo, rc=0). The hazard scan is clean. The caller ABI and every call site, memory offset and string literal match the pristine disassembly. The function still does not meet the gates for AUTO_ACCEPT. VC71 is 85.4% (a fresh run against the current source, sha 7e0993...a6d, which matches the score-context candidate hash). That is below 90%, so the workflow needs behavioral evidence from live state or a golden test. The only behavioral evidence is the lift pipeline's built-in zero-fill unicorn run: 100/100 seeds and 0 divergences, but only 10.3% coverage. The acceptance-path text says there was a 0-divergence pass on the live 'infection_swarm' snapshot, but no artifact backs that claim. The detail text also says the run was the zero-fill harness, not the live-state snapshot, and that step 6d was not run. That snapshot (datum tables, actor handles) also has no bearing on TIFF directory parsing, so it could not have exercised this function. This function has 5 exits, and 10.3% coverage cannot have reached the SHORT-widening loop, the count==1 inline store, the TIFFFetchData arm and both allocation-failure arms. The decode looks correct, but none of these arms has been run. Unblock: a synthetic state-snapshot equivalence run (lift-synthetic-equivalence) that drives each arm: nstrips != tdir_count; *lpp NULL with malloc success and with malloc failure; *lpp non-NULL; tdir_type==SHORT with CheckMalloc success and failure and with TIFFFetchShortArray returning zero and nonzero; non-SHORT with count==1; non-SHORT with count>1. Scope note: the working tree also holds separate uncommitted lifts that this verdict does not cover (TIFFFreeDirectory 0x65f90, TIFFSetDirectory 0x66200 with new tiff_t fields 0x10/0xc8/0xd8, and a types.h split at +0x7c/+0x80). The tools/kb_reg_baseline.json row for 0x66d40 was also rewritten. That file is protected, so the change needs the usual review when it is committed. [cohort=control] |
+
+## Goal-lift run — 6/12 committed (queue_exhausted)
+
+| function | addr | obj | vc71 | action | reason |
+|---|---|---|---|---|---|
+| virtual_keyboard_get_character | 0xf5800 | items.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_scripting_command_list_status_internal | 0x57330 | ai_script.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| column_list_update | 0xe5380 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_0006c5e0 | 0x6c5e0 | tif_open.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_0006ca50 | 0x6ca50 | tif_open.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| RGBToColor | 0x705b0 | tif_write.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_00069200 | 0x69200 | tif_flush.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_tab_to_next_valid_widget | 0xe53e0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_tab_to_previous_valid_widget | 0xe5440 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_go_back_to_previous | 0xe68e0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| push_widget | 0xe46f0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_get_cumulative_alpha_modifier | 0xe4960 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| string_has_icons_to_draw | 0xe4ce0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_debug_lineofsight_storeray | 0x498d0 | ai_debug.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_debug_render_all_actors | 0x52b60 | ai_debug.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| putspan | 0x69310 | tif_flush.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| firing_position_post_evaluate | 0x24890 | actor_firing_position.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| firing_positions_get_post_evaluation_bound | 0x24900 | actor_firing_position.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| prop_add | 0x64170 | props.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| weapon_trigger_recover | 0xfcec0 | weapons.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| weapon_trigger_overcharged | 0xfe890 | weapons.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| prop_setup_orphan | 0x647c0 | props.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| XapiCallThreadNotifyRoutines | 0x1cf944 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| GetThreadPriority | 0x1cf9eb | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| CloseHandle | 0x1cf900 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| SetThreadPriority | 0x1cf999 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=retrieval] |
+| race_team_can_win_game | 0xb40f0 | game.obj | 93 | parked | REJECT: I'm rejecting this. The one call site this lift adds, a tail JMP to FUN_000b3b30, targets a callee whose kb.json ABI is wrong, and the lift passes arguments according to that wrong declaration. The immutable bundle's call_site_audit covers only datum_get, display_assert and system_exit. It has no evidence for the JMP at 0xb414a, so I checked Ghidra (check_ghidra_mcp.py returned 0). The callee reads the player handle from ECX (`0xb3b39 MOV ESI,ECX`) and the flag index from EAX (`0xb3b3b MOV EBX,EAX`). It never reads [EBP+8], so it takes no stack parameter. Its other original caller, race_update_team_score at 0xb46df, does the same: `MOV ECX,EBX`, the flag in EAX, no push, and no ADD ESP after the call. In the target, `MOV ECX,ESI` just before the JMP is the real argument setup, not a leftover. The true signature is `char FUN_000b3b30(int flag_index@<eax>, int player_handle@<ecx>)`. kb.json declares `char FUN_000b3b30(int flag_index@<eax>, int param_1)`, which puts param_1 on the stack. The lift's C call `FUN_000b3b30(goal_index, player_handle)` works today only because both lifted bodies use the same wrong declaration. If the callee is ever deactivated or reached through its thunk, the handle goes on the stack and ECX holds garbage. The ported callee body has the matching problem: when original code calls it, it reads param_1 from a stack slot the caller never wrote. That callee problem existed before this diff, but this lift adds a new dependency on it, so the call-argument risk is unresolved. The rest of the lift is faithful: The target's own ABI is correct: player_handle at [EBP+8], goal_index at [EBP+0xc], no registers. datum_get uses player_data (0x5aa6d4). The check is `race_globals.track_flags_bitmask` at offset 0x00 (0x456f10), and `1<<goal_index` matches the binary's SHL by CL. The assert string, file, line 0x426 and the system_exit(-1) path all match. Returning char from the callee's AL is right. The 93% VC71 gap is the tail JMP compiled as call+ret, plus the ECX setup the lift leaves out. The equivalence evidence in the task text contradicts itself. It says the run used zero-fill with no live-state snapshot, then cites a live infection_swarm snapshot that is not in the evidence. Either way it can't show a register-argument error that the lifted-to-lifted path hides. To fix: change the 0xb3b30 declaration in kb.json to take player_handle@<ecx> with no stack parameter, rebuild so the callee's redirect wrapper and this call site both follow it, then re-run VC71 and the ABI audit. Separately, the diff edits tools/kb_reg_baseline.json, which is a protected file, and adds formatting changes in unrelated functions (game_precache_new_map, game_load, update_speed_for_score). Both should be split out of this lift commit. [cohort=control] |
+| actor_emotion_flee_with_friends | 0x30d10 | actor_perception.obj | 98.3 | committed | mechanical gate: 98.3% clean (pass1) [cohort=retrieval] |
+| closest_available_point_on_surface | 0x5f1d0 | path.obj | 94.1 | committed | mechanical gate: 94.1% clean (pass1) [cohort=retrieval] |
+| FUN_000609e0 | 0x609e0 | path.obj | 98.1 | committed | mechanical gate: 98.1% clean (pass1) [cohort=retrieval] |
+| dispose_handle | 0x11f460 | stack_memory_pool.obj | 87.6 | committed | pass1+permute+equiv_moderate [equivalence detail: unicorn_diff ran with zero-fill (no --state-snapshot) because the params are raw pool/block pointers, not datum handles: 100 passed, 0 failed, 0 errors, 42.9% byte coverage. One stub callee was excused from the call-sequence compare because it is resolved internally on one side. There were no stub-arg mismatches. The z3 branch seeds exercised the assert paths and the unlink/size-subtract path. The lift_pipeline equivalence stage gave the same result, 100/100. — a 0-divergence pass on the live-state infection_swarm snapshot (populated datum tables, real actor handles) is accepted runtime behavioral evidence for the sub-90% band per the state-snapshot equivalence lane in CLAUDE.md] [cohort=control] |
+| lock_handle | 0x11f4e0 | stack_memory_pool.obj | 97.5 | committed | mechanical gate: 97.5% clean (pass1) [cohort=retrieval] |
+| TIFFFreeDirectory | 0x65f90 | tif_dir.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=retrieval] |
+
+## Goal-lift run — 5/12 committed (queue_exhausted)
+
+| function | addr | obj | vc71 | action | reason |
+|---|---|---|---|---|---|
+| virtual_keyboard_get_character | 0xf5800 | items.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| race_team_can_win_game | 0xb40f0 | game.obj | - | skipped | skip_excluded_prior_batch (attempted earlier this session) [cohort=none] |
+| ai_scripting_command_list_status_internal | 0x57330 | ai_script.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| column_list_update | 0xe5380 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_0006c5e0 | 0x6c5e0 | tif_open.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_0006ca50 | 0x6ca50 | tif_open.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| RGBToColor | 0x705b0 | tif_write.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| FUN_00069200 | 0x69200 | tif_flush.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_tab_to_next_valid_widget | 0xe53e0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_tab_to_previous_valid_widget | 0xe5440 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_go_back_to_previous | 0xe68e0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| push_widget | 0xe46f0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| widget_instance_get_cumulative_alpha_modifier | 0xe4960 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| string_has_icons_to_draw | 0xe4ce0 | ui_widget.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_debug_lineofsight_storeray | 0x498d0 | ai_debug.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| ai_debug_render_all_actors | 0x52b60 | ai_debug.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| putspan | 0x69310 | tif_flush.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| firing_position_post_evaluate | 0x24890 | actor_firing_position.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| firing_positions_get_post_evaluation_bound | 0x24900 | actor_firing_position.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| prop_add | 0x64170 | props.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| weapon_trigger_recover | 0xfcec0 | weapons.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| weapon_trigger_overcharged | 0xfe890 | weapons.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| prop_setup_orphan | 0x647c0 | props.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| memory_block_get_user_size | 0x11eac0 | stack_memory_pool.obj | - | skipped | skip_reg_args (selector: @reg-defined prologue → sub-bar) [cohort=none] |
+| XapiCallThreadNotifyRoutines | 0x1cf944 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| GetThreadPriority | 0x1cf9eb | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| CloseHandle | 0x1cf900 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=control] |
+| SetThreadPriority | 0x1cf999 | d3d_intimacy.obj | - | skipped | xbox_kernel_import [cohort=none] |
+| FUN_0011fd10 | 0x11fd10 | stack_memory_pool.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=retrieval] |
+| TIFFSetDirectory | 0x66200 | tif_dir.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
+| actor_situation_update | 0x303f0 | actor_perception.obj | 94.3 | committed | mechanical gate: 94.3% clean (pass1) [cohort=retrieval] |
+| arctangent | 0x2fb60 | actor_perception.obj | 100 | committed | mechanical gate: 100% clean (pass1) [cohort=control] |
+| actor_perception_friend_prop_is_attacking | 0x309d0 | actor_perception.obj | 94.6 | committed | mechanical gate: 94.6% clean (pass1) [cohort=retrieval] |

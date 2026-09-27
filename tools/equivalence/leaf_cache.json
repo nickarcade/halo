@@ -21512,7 +21512,10 @@
     "call_count": 7
   },
   "0x2fb60": {
-    "class": "leaf"
+    "class": "leaf",
+    "confidence": "moderate",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x2fb70": {
     "class": "stubbable",
