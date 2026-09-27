@@ -1501,8 +1501,9 @@ typedef struct {
   int16_t field_074;                                 /* +0x074  accessed 2x, meaning unproven */
   char pad_076[0x2];
   int32_t field_078;                                 /* +0x078  accessed 3x, meaning unproven */
-  char pad_07c[0x8];
-  int32_t field_084;                                 /* +0x084  accessed 1x, meaning unproven */
+  int32_t field_07c;                                 /* +0x07c  dword MOV/INC @0x30391/0x30396, meaning unproven */
+  int32_t field_080;                                 /* +0x080  dword MOV @0x3039e/0x303d8, meaning unproven */
+  int32_t field_084;                                /* +0x084  accessed 1x, meaning unproven */
   int32_t field_088;                                 /* +0x088  accessed 1x, meaning unproven */
   char field_08c;                                    /* +0x08c  accessed 1x, meaning unproven */
   char field_08d;                                    /* +0x08d  accessed 1x, meaning unproven */
