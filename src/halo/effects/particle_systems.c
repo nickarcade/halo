@@ -1345,7 +1345,7 @@ void particle_system_new_particle_explosion(void *definition, short block_index,
   char *st = (char *)state;
   char *org = (char *)origin;
   char *type_def;
-  void *scale_block;
+  char *system_def;
   float scale_a;
   float scale_b;
   float scale_c;
@@ -1353,13 +1353,13 @@ void particle_system_new_particle_explosion(void *definition, short block_index,
   float y;
   float z;
 
-  type_def = (char *)tag_block_get_element(
-    (char *)tag_get(0x7063746c, *(int *)(def + 8)) + 0x5c, (int)block_index,
-    0x80);
-  scale_block = type_def + 0x5c;
-  scale_a = *(float *)tag_block_get_element(scale_block, 0, 4);
-  scale_b = *(float *)tag_block_get_element(scale_block, 1, 4);
-  scale_c = *(float *)tag_block_get_element(scale_block, 2, 4);
+  system_def = (char *)tag_get(0x7063746c, *(int *)(def + 8));
+  type_def = (char *)tag_block_get_element(system_def + 0x5c, block_index, 0x80);
+  /* type_def+0x5c is the physics constants block, element size 4:
+   * 0 = xy spread, 1 = z spread, 2 = intensity (PAL 2342 names). */
+  scale_a = *(float *)tag_block_get_element(type_def + 0x5c, 0, 4);
+  scale_b = *(float *)tag_block_get_element(type_def + 0x5c, 1, 4);
+  scale_c = *(float *)tag_block_get_element(type_def + 0x5c, 2, 4);
 
   random_seed_get_direction3d(random_math_get_local_seed_address(),
                               (float *)(st + 0x28));
@@ -1376,8 +1376,8 @@ void particle_system_new_particle_explosion(void *definition, short block_index,
 
   *(float *)(st + 0x1c) = x + *(float *)(org + 0x60);
   *(float *)(st + 0x20) = y + *(float *)(org + 0x64);
-  *(int *)(st + 0x3c) = 0;
   *(float *)(st + 0x24) = *(float *)(org + 0x68) + *(float *)(st + 0x30);
+  *(int *)(st + 0x3c) = 0;
   *(float *)(st + 0x34) = x;
   *(float *)(st + 0x38) = y;
   *(float *)(st + 0x28) = x * scale_c + *(float *)(def + 0x2c);
@@ -1544,8 +1544,8 @@ char particle_system_initialize(int particle_handle)
         if (*(int *)(type_def + 0x68) > 0) {
           state_elem =
             (char *)tag_block_get_element((int *)(type_def + 0x68), 0, 0xc0);
-          bounds[0] = *(float *)(state_elem + 0x20);
           bounds[1] = *(float *)(state_elem + 0x24);
+          bounds[0] = *(float *)(state_elem + 0x20);
           duration = random_real_range(
             (int *)random_math_get_local_seed_address(), bounds[0], bounds[1]);
           *(float *)(instance + 0x04) = duration;
@@ -1607,8 +1607,10 @@ void particle_systems_render(void)
   char *entry;
 
   if (*(char *)0x32574c != 0) {
-    assert_halt(particle_system_header_data &&
-                particle_system_header_data->valid);
+    assert_halt_msg_at("particle_systems && particle_systems->valid",
+                       "c:\\halo\\SOURCE\\effects\\particle_systems.c", 0x3d0,
+                       particle_system_header_data &&
+                         particle_system_header_data->valid);
     for (particle_system_index =
            data_next_index(particle_system_header_data, NONE);
          particle_system_index != NONE;
