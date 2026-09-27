@@ -74,7 +74,7 @@ static __inline real_plane3d *plane3d_from_point_and_normal_inline(
   real_plane3d *plane, const vector3_t *point, const vector3_t *normal)
 {
   *(vector3_t *)plane->normal = *normal;
-  plane->d = dot_product3d_inline(point, (const vector3_t *)plane->normal);
+  plane->d = dot_product3d_inline(point, normal);
   return plane;
 }
 
@@ -845,6 +845,7 @@ int16_t render_frustum_sphere_visible(void *frustum, float *center,
   real distance3;
   real distance5;
   real negative_radius;
+  int16_t result;
 
   if (f->field_128[1] < center[0] - radius ||
       f->field_128[3] < center[1] - radius ||
@@ -871,10 +872,8 @@ int16_t render_frustum_sphere_visible(void *frustum, float *center,
     return 0;
   distance5 = plane3d_distance_to_point((float *)&f->field_78[5], center);
   if (distance5 > radius) {
-    return 0;
+    result = 0;
   } else {
-    int16_t result;
-
     negative_radius = -radius;
     if (distance0 < negative_radius && distance1 < negative_radius &&
         distance2 < negative_radius && distance3 < negative_radius &&
@@ -883,9 +882,9 @@ int16_t render_frustum_sphere_visible(void *frustum, float *center,
     } else {
       result = 1;
     }
-
-    return result;
   }
+
+  return result;
 }
 
 /* Project a world-space point into screen space.
@@ -922,7 +921,6 @@ char render_camera_world_to_screen(void *camera, float *frustum,
  */
 void render_camera_debug_frustum(camera_t *camera, void *frustum)
 {
-  render_frustum_t *f = (render_frustum_t *)frustum;
   vector3_t points[3][3];
   int16_t i;
   int16_t j;
@@ -947,7 +945,7 @@ void render_camera_debug_frustum(camera_t *camera, void *frustum)
                                  (camera->unk_52.y1 - camera->unk_52.y0);
         points[j + 1][i + 1].y = (real)i * tangent;
         points[j + 1][i + 1].z = -1.0f;
-        matrix_transform_point((float *)&f->field_44,
+        matrix_transform_point((float *)&((render_frustum_t *)frustum)->field_44,
                                (float *)&points[j + 1][i + 1],
                                (float *)&points[j + 1][i + 1]);
       }
@@ -1041,9 +1039,9 @@ void render_camera_mirror(camera_t *camera, render_mirror_t *mirror,
         adjusted_plane.normal[2] * mirror_scale + camera->field_00.z;
     }
     result->unk_36 = !camera->unk_36;
-    result->field_18.x = -result->field_18.x;
-    result->field_18.y = -result->field_18.y;
-    result->field_18.z = -result->field_18.z;
+    { /* negate_vector3d(&result->up, &result->up): PAL 2342 */
+      vector3_t *up = &result->field_18;
+      up->x = -up->x; up->y = -up->y; up->z = -up->z; }
   } else {
     vector3_t cross_product;
     real inverse_forward_magnitude =
@@ -1484,12 +1482,12 @@ typedef struct {
 } contrail_vertex_t;
 
 void render_contrail(void *contrail_datum, void *contrail_definition,
-                     int16_t point_index)
+                     int16_t instance_index)
 {
   contrail_datum_t *contrail = (contrail_datum_t *)contrail_datum;
   contrail_definition_t *definition =
     (contrail_definition_t *)contrail_definition;
-  int16_t instance_index = point_index;
+  /* instance_index: PAL 2342 render_contrails.c:125 */
   void *bitmap;
   int16_t segment_count;
   int16_t triangle_count;
@@ -1518,7 +1516,7 @@ void render_contrail(void *contrail_datum, void *contrail_definition,
       vector3_t average_position;
       contrail_point_datum_t *previous_point;
       real texture_u;
-      int point_datum_index;
+      int point_index; /* name: PAL 2342 render_contrails.c:160 */
 
       triangles = (int16_t *)rasterizer_dynamic_triangles_lock(triangle_buffer_index);
       vertices = (contrail_vertex_t *)rasterizer_dynamic_vertices_lock(
@@ -1543,10 +1541,10 @@ void render_contrail(void *contrail_datum, void *contrail_definition,
       }
       texture_v_far += texture_offset_v;
       previous_point = NULL;
-      point_datum_index =
+      point_index =
         contrail->first_contrail_point_indices[instance_index];
 
-      while (point_datum_index != -1) {
+      while (point_index != -1) {
         contrail_point_datum_t *point;
         contrail_point_state_t *state;
         real color_scale;
@@ -1557,7 +1555,7 @@ void render_contrail(void *contrail_datum, void *contrail_definition,
         vector3_t facing_normal;
 
         point = (contrail_point_datum_t *)datum_get(contrail_point_data,
-                                                    point_datum_index);
+                                                    point_index);
         state = (contrail_point_state_t *)tag_block_get_element(
           &definition->states, point->state_index, 0x68);
         color_scale = 1.0f;
@@ -1791,7 +1789,7 @@ void render_contrail(void *contrail_datum, void *contrail_definition,
         texture_u += texture_u_step;
         previous_point = point;
         vertices += 2;
-        point_datum_index = point->next_contrail_point_index;
+        point_index = point->next_contrail_point_index;
       }
 
       vertices -= vertex_count;
