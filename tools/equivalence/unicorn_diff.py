@@ -1236,6 +1236,11 @@ def _seed_dllimport_indirection(orc_slots: dict, lft_slots: dict,
 # Unicorn emulation
 # ---------------------------------------------------------------------------
 
+def _normalize_stub_name(name: str) -> str:
+    """`_WaitForSingleObject@8` and `WaitForSingleObject` -> `waitforsingleobject`."""
+    return name.lstrip("_").split("@", 1)[0].lower()
+
+
 def _run_function(code: bytes, abi: dict, arg_values: list,
                   verbose: bool = False, map_globals: bool = False,
                   stub_manager=None, globals_seeds: dict = None,
@@ -1250,7 +1255,8 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
                   image=None,
                   entry_va: int = None,
                   native_callee_ranges=None,
-                  intercept_vas: dict = None) -> "state.CPUState":
+                  intercept_vas: dict = None,
+                  stop_at_call: tuple = None) -> "state.CPUState":
     """Run a function in a fresh Unicorn instance.
 
     Returns a CPUState with captured registers and scratch memory.
@@ -1637,6 +1643,45 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
         from collections import deque
         _ring = deque(maxlen=48)
 
+    # --stop-at-call: a function that never returns (a `for (;;)` worker
+    # thread) always ran to max_insn and was skipped as INSN-LIMIT, so it had
+    # no evidence at all.  Instruction counts differ between oracle and
+    # candidate, so a cut at max_insn is not the same logical point on both
+    # sides.  Counting calls to a named callee is: stop right after its Nth
+    # call returns, and both sides have run the same number of loop iterations.
+    stop_calls = [0]
+    bounded_stop = [False]
+    stop_ret = [None]
+
+    def _check_stop_call(uc, address):
+        """Count stop-callee entries; stop when the Nth call has returned.
+
+        Counted at the sentinel's first instruction, which every dispatch
+        path passes through (execute_stub, a native trampoline, or a raw-XBE
+        interception JMP), and stopped at that call's return address, so the
+        Nth call itself runs to completion on both sides.
+        """
+        if stop_ret[0] is not None:
+            if address == stop_ret[0]:
+                bounded_stop[0] = True
+                uc.emu_stop()
+                return True
+            return False
+        if address not in stub_addrs or stub_manager is None:
+            return False
+        _name = _normalize_stub_name(stub_manager._stub_names.get(address, ""))
+        if _name in stub_manager.noreturn_names:
+            bounded_stop[0] = True
+            uc.emu_stop()
+            return True
+        if _name != stop_at_call[0]:
+            return False
+        stop_calls[0] += 1
+        if stop_calls[0] >= stop_at_call[1]:
+            _esp = uc.reg_read(UC_X86_REG_ESP)
+            stop_ret[0] = struct.unpack('<I', bytes(uc.mem_read(_esp, 4)))[0]
+        return False
+
     def hook_code(uc, address, size, user_data):
         insn_count[0] += 1
         if _ring is not None:
@@ -1644,6 +1689,8 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
             _ring.append((address, uc.reg_read(_ESP_T)))
         if address not in visited_pcs:
             visited_pcs[address] = size
+        if stop_at_call is not None and _check_stop_call(uc, address):
+            return
         if _eip_guard[0] and not (_eip_lo <= address < _eip_hi):
             if (not (_stub_lo <= address < _stub_hi)
                     and address not in _intercept_sites
@@ -1926,6 +1973,9 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
         # target's own calls from calls made by natively-executed callees.
         # Each side has its own layout, hence per-tracer rather than global.
         stub_arg_tracer.target_range = (entry_point, entry_point + len(code))
+        # Lifted C passes a callee's @<reg> params on the stack (the register
+        # thunk loads them after the CALL), so that side reads them there.
+        stub_arg_tracer.reg_params_on_stack = lifted
         stub_manager.set_tracer(stub_arg_tracer)
 
     err_msg = None
@@ -1993,6 +2043,7 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
             print(f"      0x{_pc:08x}  esp=0x{_sp:08x}")
     s.error = err_msg
     s.insn_count = insn_count[0]
+    s.bounded_stop = bounded_stop[0]
     s.visited_pcs = visited_pcs
     # Materialize the coalesced map back into the list[MemoryWrite] interface
     # that compare_mem_traces() and the debug fallbacks expect.
@@ -2755,7 +2806,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
              stub_conv_check: bool = True,
              value_corpus: Optional[Path] = None,
              oracle: str = "delinked",
-             oracle_native_callees: bool = False) -> int:
+             oracle_native_callees: bool = False,
+             stop_at_call: Optional[tuple] = None) -> int:
     """Run the differential test.  Returns 0 if all pass, 1 if any diverge.
 
     `oracle` selects the reference side:
@@ -3474,6 +3526,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             stub_mgr = StubManager(KB_JSON, DELINKED_DIR)
             stub_mgr.stub_return_overrides = snapshot_stub_returns
             stub_mgr.stub_write_overrides = snapshot_stub_writes
+            stub_mgr.trace_all_synthetic = stop_at_call is not None
             # Allocate callee globals slots past the caller's own oracle+lifted
             # slots so they never overlap.
             callee_globals_base = lft_globals_base + len(lft_data_slots) * 256
@@ -3776,6 +3829,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                          memory_overrides=snapshot_overrides,
                                          stub_arg_tracer=oracle_tracer,
                                          max_insn=_max_insn,
+                                         stop_at_call=stop_at_call,
                                          image=oracle_image,
                                          entry_va=oracle_entry_va,
                                          native_callee_ranges=oracle_native_ranges,
@@ -3798,6 +3852,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                          collect_mem_trace=enable_trace,
                                          memory_overrides=snapshot_overrides,
                                          max_insn=_max_insn,
+                                         stop_at_call=stop_at_call,
                                          stub_arg_tracer=cand_tracer,
                                          image=oracle_image,
                                          intercept_vas=oracle_intercept_map)
@@ -3829,7 +3884,19 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             continue
         # If either side hit the instruction limit, the register state is
         # garbage from an aborted loop — treat as error, not a divergence.
-        if oracle_state.insn_count >= _max_insn or lifted_state.insn_count >= _max_insn:
+        # --stop-at-call: both sides stopping after the same Nth call is a
+        # comparable point; only one side reaching it is a divergence.
+        if oracle_state.bounded_stop != lifted_state.bounded_stop:
+            msg = (f"{seed_label} BOUNDED-STOP-MISMATCH: oracle stopped="
+                   f"{oracle_state.bounded_stop} ({oracle_state.insn_count} insn) "
+                   f"lifted stopped={lifted_state.bounded_stop} "
+                   f"({lifted_state.insn_count} insn)")
+            log(f"  {msg}")
+            error_details.append(msg)
+            failed += 1
+            continue
+        if not oracle_state.bounded_stop and (
+                oracle_state.insn_count >= _max_insn or lifted_state.insn_count >= _max_insn):
             msg = f"{seed_label} INSN-LIMIT: oracle={oracle_state.insn_count} lifted={lifted_state.insn_count}"
             log(f"  {msg} (skipped — likely assert→stub loop)")
             error_details.append(msg)
@@ -3867,13 +3934,18 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         merged_auto_mapped_pages.update(oracle_state.auto_mapped_pages)
 
         # Memory-trace comparison (side-effect writes)
+        trace_failed = False
         if enable_trace and oracle_state.mem_writes and lifted_state.mem_writes:
             tdiff = state_mod.compare_mem_traces(
                 oracle_state, lifted_state,
                 float_tolerance_ulp=(float_tolerance_ulp if _heap_compare_on else 0))
             if tdiff.has_differences():
                 trace_diff_count += 1
-                if verbose:
+                # A never-returning function has no return value; its writes
+                # and calls are its only outputs, so under --stop-at-call a
+                # write divergence fails the seed instead of only being counted.
+                trace_failed = stop_at_call is not None
+                if verbose or trace_failed:
                     log(f"  {seed_label} TRACE-DIFF: {tdiff.summary()}")
                     _ovals = {w.address: w.value for w in oracle_state.mem_writes}
                     _lvals = {w.address: w.value for w in lifted_state.mem_writes}
@@ -3938,8 +4010,8 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                 if verbose:
                     log(f"  {seed_label} STUB-ARG-DIFF: {stub_arg_diff.summary()}")
 
-        if diff.has_differences() or (stub_arg_diff is not None
-                                      and stub_arg_diff.has_differences()):
+        if diff.has_differences() or trace_failed or (
+                stub_arg_diff is not None and stub_arg_diff.has_differences()):
             failed += 1
             if first_diff is None:
                 first_diff = (si, seed_vec, diff, oracle_state, lifted_state)
@@ -4092,6 +4164,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                     collect_mem_trace=enable_trace,
                                     memory_overrides=merged_overrides,
                                     max_insn=_max_insn,
+                                    stop_at_call=stop_at_call,
                                     image=oracle_image,
                                     entry_va=oracle_entry_va,
                                     native_callee_ranges=oracle_native_ranges,
@@ -4113,6 +4186,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                     collect_mem_trace=enable_trace,
                                     memory_overrides=merged_overrides,
                                     max_insn=_max_insn,
+                                    stop_at_call=stop_at_call,
                                     image=oracle_image,
                                     intercept_vas=oracle_intercept_map)
                             except Exception as exc:
@@ -4139,7 +4213,15 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                     error_details.append(msg)
                                 errors += 1
                                 continue
-                            if orc_s.insn_count >= MAX_INSN or lft_s.insn_count >= MAX_INSN:
+                            if orc_s.bounded_stop != lft_s.bounded_stop:
+                                msg = (f"{sl} BOUNDED-STOP-MISMATCH: oracle={orc_s.bounded_stop} "
+                                       f"lifted={lft_s.bounded_stop}")
+                                log(f"  {msg}")
+                                error_details.append(msg)
+                                failed += 1
+                                continue
+                            if not orc_s.bounded_stop and (
+                                    orc_s.insn_count >= MAX_INSN or lft_s.insn_count >= MAX_INSN):
                                 msg = f"{sl} INSN-LIMIT: oracle={orc_s.insn_count} lifted={lft_s.insn_count}"
                                 log(f"  {msg}")
                                 error_details.append(msg)
@@ -4179,7 +4261,18 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
                                 st_compare_as_f32=abi['ret_st0'] and not abi.get('ret_double', False),
                                 check_esp=False)
 
-                            if d.has_differences():
+                            # Same rule as Phase 1: under --stop-at-call the
+                            # writes are the function's output.
+                            c_trace_failed = False
+                            if (stop_at_call is not None and enable_trace
+                                    and (orc_s.mem_writes or lft_s.mem_writes)):
+                                c_tdiff = state_mod.compare_mem_traces(orc_s, lft_s)
+                                if c_tdiff.has_differences():
+                                    trace_diff_count += 1
+                                    c_trace_failed = True
+                                    log(f"  {sl} TRACE-DIFF: {c_tdiff.summary()}")
+
+                            if d.has_differences() or c_trace_failed:
                                 failed += 1
                                 if first_diff is None:
                                     first_diff = (sl, seed_vec, d, orc_s, lft_s)
@@ -4752,6 +4845,16 @@ def _run_batch_classify() -> int:
     return 0
 
 
+def _parse_stop_at_call(spec: Optional[str]) -> Optional[tuple]:
+    """`--stop-at-call WaitForSingleObject:3` -> ("waitforsingleobject", 3)."""
+    if not spec:
+        return None
+    name, sep, count = spec.rpartition(":")
+    if not sep or not name or not count.isdigit() or int(count) < 1:
+        raise SystemExit(f"--stop-at-call expects NAME:N with N >= 1, got {spec!r}")
+    return _normalize_stub_name(name), int(count)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Differential emulation tester: oracle .obj vs. lifted .obj"
@@ -4807,6 +4910,13 @@ def main():
                              "but the scratch page is not a real object, so a caller that calls "
                              "through a function pointer in it will crash. Coverage exploration "
                              "only — prefer --real-callees or --state-snapshot for verdicts.")
+    parser.add_argument("--stop-at-call", type=str, default=None, metavar="NAME:N",
+                        help="End each run right after the Nth call to stubbed callee "
+                             "NAME returns, and compare the traces up to there. For "
+                             "functions that never return (for(;;) worker threads), "
+                             "which otherwise all hit INSN-LIMIT and are skipped. "
+                             "Both sides must reach the stop; if only one does, the "
+                             "seed fails. Use with --mem-trace.")
     parser.add_argument("--max-insn", type=int, default=None, metavar="N",
                         help="Maximum instructions per emulation run (default: 1M with --allow-stubs, 100K otherwise)")
     parser.add_argument("--float-tolerance", type=int, default=0, metavar="ULP",
@@ -4960,6 +5070,7 @@ def main():
         value_corpus=args.value_corpus,
         oracle=args.oracle,
         oracle_native_callees=args.oracle_native_callees,
+        stop_at_call=_parse_stop_at_call(args.stop_at_call),
     ))
 
 
