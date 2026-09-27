@@ -960,9 +960,8 @@ short sound_select_permutation(void *sound_tag, short pitch_range_index,
  * FUN_001cb0c0.  No xrefs recorded in the artifact (likely an indirect
  * dispatch entry).  Parameter meanings beyond the callee decls are UNKNOWN.
  * The resolved channel is pushed as-is (PUSH EAX, no MOVSX), so
- * FUN_001cb0c0 takes a short, matching channel_queue_sound(short, ...) in
- * the PAL 2342 source.  The incoming index stays int: the original loads
- * it into EBX with a plain dword MOV. */
+ * FUN_001cb0c0 takes a short.  The incoming index stays int: the original
+ * loads it into EBX with a plain dword MOV. */
 void dsound_virtual_queue(int channel_index, void *sound)
 {
   short channel;
@@ -4321,10 +4320,9 @@ void sound_idle(void)
  *     stride 0x18), stopping the channel's previous sound first.
  * The callback compare uses the SYMBOL (as in sound_update_music) because
  * the store site passes our ported track_loop_impulse_sound.
- * Control flow follows prioritize_sounds in the PAL 2342 source: the
- * `playing != NONE || request` test and the NONE-channel else arm let the
- * compiler share one sound_stop tail with the discard case.  flags (+0x04)
- * is a word there; the original's ORB still comes from a 16-bit |=. */
+ * The `playing != NONE || request` test and the NONE-channel else arm let
+ * one sound_stop tail be shared with the discard case.  flags (+0x04) is a
+ * word field; the ORB still comes from a 16-bit |=. */
 void FUN_001cf360(void)
 {
   int sound_index;

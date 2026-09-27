@@ -1323,9 +1323,9 @@ void FUN_001caab0(char paused)
  *
  * Store offsets are taken from the disassembly (MOV [ESI+N]); the
  * decompiler's short-index arithmetic split the single dword store at
- * +0x64 into two int16 stores.  channel_index is short, as in the PAL 2342
- * channel_queue_sound(short index, ...): callers push it without MOVSX and
- * the tail call reloads it with a plain dword MOV into EAX. */
+ * +0x64 into two int16 stores.  channel_index is short: callers push it
+ * without MOVSX and the tail call reloads it with a plain dword MOV into
+ * EAX. */
 void FUN_001cb0c0(short channel_index, void *sound)
 {
   void *channel;
