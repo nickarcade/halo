@@ -1,874 +1,1264 @@
 {
- "object_compute_function_values": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 88.1,
-  "after": 88.1
- },
- "find_objects_from_point_vector": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 90.7,
-  "after": 100
- },
- "attachments_new": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 93.0,
-  "after": 93.0
- },
- "object_get_orientation": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "improved",
-  "before": 77.2,
-  "after": 100.0
- },
- "objects_get_activating_cluster_index": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 89.6,
-  "after": 93.3
- },
- "object_types_place_all": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "no_gain",
-  "before": 80.0,
-  "after": 80.0
- },
- "object_new_from_scenario": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "improved",
-  "before": 84.4,
-  "after": 94.8
- },
- "object_names_postprocess": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "improved",
-  "before": 80.3,
-  "after": 100.0
- },
- "network_game_client_leave_game": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 94.6,
-  "after": 94.6
- },
- "network_game_client_request_remove_player": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 93.4,
-  "after": 93.4
- },
- "network_game_client_add_player": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 93.6,
-  "after": 93.6
- },
- "network_game_client_handle_game_update": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "improved",
-  "before": 78.4,
-  "after": 100.0
- },
- "network_game_client_add_player_to_game": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "improved",
-  "before": 75.9,
-  "after": 100.0
- },
- "network_game_client_idle_ingame": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "regarg_ceiling",
-  "before": 83.7,
-  "after": 83.7
- },
- "network_game_client_idle_joining": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "regarg_ceiling",
-  "before": 84.7,
-  "after": 84.7
- },
- "network_game_client_handle_message_server_game_settings_update": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.8,
-  "after": 85.8
- },
- "playlist_profile_change_player_options": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "no_gain",
-  "before": 89.9,
-  "after": 89.9
- },
- "playlist_profile_change_item_options": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 88.4,
-  "after": 88.4
- },
- "playlist_profile_change_oddball_rules": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 93.8,
-  "after": 93.8
- },
- "playlist_profile_begin_editing": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 77.4,
-  "after": 100
- },
- "multiplayer_profile_set_for_game": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 89.4,
-  "after": 100
- },
- "playlist_profile_change_ctf_rules": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 92.4,
-  "after": 92.4
- },
- "multiplayer_level_list_initialize": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 81.4,
-  "after": 100
- },
- "playlist_profile_set_game_engine": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "no_gain",
-  "before": 84.9,
-  "after": 84.9
- },
- "network_game_client_handle_message_server_pregame_countdown": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 78.4,
-  "after": 78.4
- },
- "network_game_client_update_precache_status": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 78.7,
-  "after": 96.8
- },
- "network_game_client_idle_pregame": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 80.7,
-  "after": 80.7
- },
- "network_game_client_reset": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 85.1,
-  "after": 94.5
- },
- "network_game_client_idle_postgame": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 78.1,
-  "after": 78.1
- },
- "network_game_client_idle_searching": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 96.2,
-  "after": 98.1
- },
- "network_game_client_update_local_player_data": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 87.2,
-  "after": 93.5
- },
- "network_game_client_request_start_time_change": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 87.3,
-  "after": 92.9
- },
- "network_game_client_accepted_into_game": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 99.0,
-  "after": 100
- },
- "network_game_server_idle_pregame_tasks": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 81.3,
-  "after": 88.3
- },
- "network_game_server_update_ticks": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 76.1,
-  "after": 100
- },
- "network_game_server_update_countdown": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 82.4,
-  "after": 89.2
- },
- "network_game_server_handle_client_machines": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 80.2,
-  "after": 94.4
- },
- "network_game_server_add_new_client": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 82.0,
-  "after": 84.7
- },
- "network_game_server_remove_machine_from_game": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 79.1,
-  "after": 100
- },
- "network_game_server_handle_client_update_packet": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 85.8,
-  "after": 97.5
- },
- "network_game_server_get_client_machine_at_address": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 81.8,
-  "after": 100
- },
- "object_get_function_value": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 76.5,
-  "after": 100
- },
- "object_delete_recursive": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 92.2,
-  "after": 92.2
- },
- "object_types_initialize": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 84.7,
-  "after": 100
- },
- "object_pvs_set_camera_point": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 82.1,
-  "after": 100
- },
- "attachments_delete": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 86.1,
-  "after": 86.1
- },
- "network_game_server_idle": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 89.9,
-  "after": 89.9
- },
- "network_game_server_client_machine_game_loading_complete": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 83.4,
-  "after": 100
- },
- "server_has_a_player_on_each_machine": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 82.3,
-  "after": 100
- },
- "network_game_server_change_game_variant": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 78.6,
-  "after": 100
- },
- "network_game_server_get_machine_connection": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 82.0,
-  "after": 100
- },
- "network_game_server_send_rejection_message": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 81.1,
-  "after": 83.2
- },
- "network_game_server_invalidate_network_machine": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 78.4,
-  "after": 100
- },
- "network_game_server_get_connection": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 72.5,
-  "after": 100
- },
- "network_game_server_game_can_start": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 81.9,
-  "after": 100
- },
- "network_game_server_pause_countdown": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 84.1,
-  "after": 100
- },
- "countdown_timer_get_time_remaining": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 81.3,
-  "after": 100
- },
- "network_game_server_switch_machine_from_postgame_to_pregame": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "no_gain",
-  "before": 77.4,
-  "after": 77.4
- },
- "get_unique_random_name": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 85.4,
-  "after": 100
- },
- "get_unique_random_color": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 88.2,
-  "after": 100
- },
- "server_needs_more_teams": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 86.1,
-  "after": 100
- },
- "network_game_server_dump": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 89.3,
-  "after": 89.3
- },
- "network_game_server_dispose": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 90.1,
-  "after": 92.0
- },
- "network_game_server_open_game": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 82.4,
-  "after": 100
- },
- "network_game_server_close_game": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 82.4,
-  "after": 100
- },
- "server_ok_to_countdown": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 85.9,
-  "after": 100
- },
- "network_game_server_all_machines_have_loaded": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 89.9,
-  "after": 100
- },
- "network_game_server_reset_to_pregame": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 72.4,
-  "after": 73.2
- },
- "network_game_server_stalled_on_client": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 67.2,
-  "after": 98.4
- },
- "network_game_server_create": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 72.6,
-  "after": 92.4
- },
- "network_game_server_accept_client_machine_into_game": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 74.4,
-  "after": 90.2
- },
- "network_game_server_add_player_to_game": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 92.9,
-  "after": 92.9
- },
- "network_game_server_handle_public_endpoint": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 88.1,
-  "after": 88.1
- },
- "object_translate": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 83.5,
-  "after": 100
- },
- "object_determine_variant_number": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 83.2,
-  "after": 89.6
- },
- "object_type_postprocess_node_matrices": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 77.1,
-  "after": 91.3
- },
- "object_type_handle_region_destroyed": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 78.2,
-  "after": 89.3
- },
- "object_update": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 92.8,
-  "after": 96.5
- },
- "object_add_to_dump": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 88.7,
-  "after": 88.7
- },
- "recursive_object_adder": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "no_gain",
-  "before": 86.4,
-  "after": 86.4
- },
- "grunt_decide_action": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 77.8,
-  "after": 79.7
- },
- "elite_decide_action": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 79.4,
-  "after": 80.8
- },
- "marine_decide_action": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "no_gain",
-  "before": 75.3,
-  "after": 75.3
- },
- "actor_type_swarm_aim_jump": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 81.0,
-  "after": 81.0
- },
- "actor_type_initialize": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 77.5,
-  "after": 77.5
- },
- "actor_type_decide_action": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.2,
-  "after": 85.2
- },
- "actor_type_swarm_control": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 89.3,
-  "after": 89.3
- },
- "actor_type_get_race": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 76.5,
-  "after": 76.5
- },
- "inflate_codes": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 85.0,
-  "after": 89.7
- },
- "uncompress": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 75.9,
-  "after": 100
- },
- "inflate_trees_bits": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 77.3,
-  "after": 89.6
- },
- "inflateSync": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "no_gain",
-  "before": 87.7,
-  "after": 87.7
- },
- "circular_queue_new": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 82.9,
-  "after": 82.9
- },
- "inflate_set_dictionary": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 90.0,
-  "after": 100
- },
- "circular_queue_delete": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.7,
-  "after": 85.7
- },
- "network_game_client_get_state": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 83.8,
-  "after": 92.3
- },
- "network_game_client_handle_message_server_pregame_keep_alive": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.5,
-  "after": 85.5
- },
- "network_game_client_handle_message_server_machine_accepted": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.5,
-  "after": 85.5
- },
- "network_game_client_handle_message_server_machine_rejected": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.5,
-  "after": 85.5
- },
- "extract_pixels_from_mipmap": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 75.1,
-  "after": 75.1
- },
- "extract_plateless_cube_map": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 89.4,
-  "after": 97.4
- },
- "TIFFReadEncodedTile": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 76.6,
-  "after": 100
- },
- "TIFFReadEncodedStrip": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 78.1,
-  "after": 100
- },
- "TIFFReadRawTile1": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 75.4,
-  "after": 75.4
- },
- "TIFFStartStrip": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 81.7,
-  "after": 81.7
- },
- "TIFFStartTile": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 89.2,
-  "after": 89.2
- },
- "TIFFNumberOfStrips": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 80,
-  "after": 100
- },
- "create_network_game_message": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 85.5,
-  "after": 87.1
- },
- "data_packet_group_decode_packet": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 86.3,
-  "after": 97.9
- },
- "verify_lra_cache": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 75,
-  "after": 75
- },
- "data_encode_string": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 84.2,
-  "after": 100
- },
- "hashtable_get": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 85.6,
-  "after": 97.9
- },
- "default_hash_function": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 77.0,
-  "after": 77.0
- },
- "data_decode_short": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 90.8,
-  "after": 100
- },
- "data_decode_byte": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 90,
-  "after": 100
- },
- "object_type_reset": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 76.9,
-  "after": 100
- },
- "objects_reconnect_to_structure_bsp": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 93.5,
-  "after": 93.5
- },
- "object_type_handle_parent_destroyed": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 81.8,
-  "after": 100
- },
- "object_type_delete": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 81,
-  "after": 100
- },
- "object_type_export_function_values": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 81,
-  "after": 100
- },
- "object_type_disconnect_from_structure_bsp": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 81,
-  "after": 100
- },
- "object_type_new": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 69.3,
-  "after": 100
- },
- "object_type_update": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 88.6,
-  "after": 96.6
- },
- "point_physics_update": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 80.4,
-  "after": 91.3
- },
- "player_profile_set_for_game_3wide": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 90.7,
-  "after": 100
- },
- "player_profile_set_for_game_1wide": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 88.2,
-  "after": 94.8
- },
- "playlist_profile_change_racing_rules": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "no_gain",
-  "before": 94.5,
-  "after": 94.5
- },
- "playlist_profile_initialize_name": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 75.2,
-  "after": 89.9
- },
- "playlist_profile_change_slayer_rules": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "no_gain",
-  "before": 95.8,
-  "after": 95.8
- },
- "playlist_profile_initialize_game_engine": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 81.3,
-  "after": 83.3
- },
- "player_profile_change_controller_settings": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 77.8,
-  "after": 86.8
- },
- "delete_player_profile_request": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 83.7,
-  "after": 95.3
- },
- "create_and_begin_editing_new_gametype_profile": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 89.1,
-  "after": 100
- },
- "player_profile_color_picker_select_color": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 83.2,
-  "after": 100
- },
- "network_game_start_slower": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 80.5,
-  "after": 100
- },
- "network_game_start_faster": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 95.0,
-  "after": 100
- },
- "playlist_profile_initialize_indicator_options": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 96.1,
-  "after": 100
- },
- "difficulty_menu_initialize": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 91.1,
-  "after": 100
- },
- "start_network_game_if_no_advertised_servers": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 86.8,
-  "after": 100
- },
- "action_fight_perform": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 81.5,
-  "after": 95.5
- },
- "action_search_update": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 84.8,
-  "after": 100
- },
- "action_fight_control": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 84.0,
-  "after": 100
- },
- "action_search_setup_target": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 84.7,
-  "after": 90.7
- },
- "action_search_setup_undirected": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 83.2,
-  "after": 89.8
- }
+  "object_compute_function_values": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 88.1,
+    "after": 88.1
+  },
+  "find_objects_from_point_vector": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 90.7,
+    "after": 100
+  },
+  "attachments_new": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 93.0,
+    "after": 93.0
+  },
+  "object_get_orientation": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "improved",
+    "before": 77.2,
+    "after": 100.0
+  },
+  "objects_get_activating_cluster_index": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "infra_skipped",
+    "before": 93.26,
+    "after": 93.26
+  },
+  "object_types_place_all": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "no_gain",
+    "before": 80.0,
+    "after": 80.0
+  },
+  "object_new_from_scenario": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "improved",
+    "before": 84.4,
+    "after": 94.8
+  },
+  "object_names_postprocess": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "improved",
+    "before": 80.3,
+    "after": 100.0
+  },
+  "network_game_client_leave_game": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 94.6,
+    "after": 94.6
+  },
+  "network_game_client_request_remove_player": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 93.4,
+    "after": 93.4
+  },
+  "network_game_client_add_player": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 93.6,
+    "after": 93.6
+  },
+  "network_game_client_handle_game_update": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "improved",
+    "before": 78.4,
+    "after": 100.0
+  },
+  "network_game_client_add_player_to_game": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "improved",
+    "before": 75.9,
+    "after": 100.0
+  },
+  "network_game_client_idle_ingame": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "regarg_ceiling",
+    "before": 83.7,
+    "after": 83.7
+  },
+  "network_game_client_idle_joining": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "regarg_ceiling",
+    "before": 84.7,
+    "after": 84.7
+  },
+  "network_game_client_handle_message_server_game_settings_update": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.8,
+    "after": 85.8
+  },
+  "playlist_profile_change_player_options": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "no_gain",
+    "before": 89.9,
+    "after": 89.9
+  },
+  "playlist_profile_change_item_options": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 88.4,
+    "after": 88.4
+  },
+  "playlist_profile_change_oddball_rules": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 93.8,
+    "after": 93.8
+  },
+  "playlist_profile_begin_editing": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 77.4,
+    "after": 100
+  },
+  "multiplayer_profile_set_for_game": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 89.4,
+    "after": 100
+  },
+  "playlist_profile_change_ctf_rules": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 92.4,
+    "after": 92.4
+  },
+  "multiplayer_level_list_initialize": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 81.4,
+    "after": 100
+  },
+  "playlist_profile_set_game_engine": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "no_gain",
+    "before": 84.9,
+    "after": 84.9
+  },
+  "network_game_client_handle_message_server_pregame_countdown": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 78.4,
+    "after": 78.4
+  },
+  "network_game_client_update_precache_status": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 78.7,
+    "after": 96.8
+  },
+  "network_game_client_idle_pregame": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 80.7,
+    "after": 80.7
+  },
+  "network_game_client_reset": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 85.1,
+    "after": 94.5
+  },
+  "network_game_client_idle_postgame": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 78.1,
+    "after": 78.1
+  },
+  "network_game_client_idle_searching": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 96.2,
+    "after": 98.1
+  },
+  "network_game_client_update_local_player_data": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 87.2,
+    "after": 93.5
+  },
+  "network_game_client_request_start_time_change": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 87.3,
+    "after": 92.9
+  },
+  "network_game_client_accepted_into_game": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 99.0,
+    "after": 100
+  },
+  "network_game_server_idle_pregame_tasks": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 81.3,
+    "after": 88.3
+  },
+  "network_game_server_update_ticks": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 76.1,
+    "after": 100
+  },
+  "network_game_server_update_countdown": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 82.4,
+    "after": 89.2
+  },
+  "network_game_server_handle_client_machines": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 80.2,
+    "after": 94.4
+  },
+  "network_game_server_add_new_client": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 82.0,
+    "after": 84.7
+  },
+  "network_game_server_remove_machine_from_game": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 79.1,
+    "after": 100
+  },
+  "network_game_server_handle_client_update_packet": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 85.8,
+    "after": 97.5
+  },
+  "network_game_server_get_client_machine_at_address": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 81.8,
+    "after": 100
+  },
+  "object_get_function_value": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 76.5,
+    "after": 100
+  },
+  "object_delete_recursive": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 92.2,
+    "after": 92.2
+  },
+  "object_types_initialize": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 84.7,
+    "after": 100
+  },
+  "object_pvs_set_camera_point": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 82.1,
+    "after": 100
+  },
+  "attachments_delete": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 86.1,
+    "after": 86.1
+  },
+  "network_game_server_idle": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 89.9,
+    "after": 89.9
+  },
+  "network_game_server_client_machine_game_loading_complete": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 83.4,
+    "after": 100
+  },
+  "server_has_a_player_on_each_machine": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 82.3,
+    "after": 100
+  },
+  "network_game_server_change_game_variant": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 78.6,
+    "after": 100
+  },
+  "network_game_server_get_machine_connection": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 82.0,
+    "after": 100
+  },
+  "network_game_server_send_rejection_message": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 81.1,
+    "after": 83.2
+  },
+  "network_game_server_invalidate_network_machine": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 78.4,
+    "after": 100
+  },
+  "network_game_server_get_connection": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 72.5,
+    "after": 100
+  },
+  "network_game_server_game_can_start": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 81.9,
+    "after": 100
+  },
+  "network_game_server_pause_countdown": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 84.1,
+    "after": 100
+  },
+  "countdown_timer_get_time_remaining": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 81.3,
+    "after": 100
+  },
+  "network_game_server_switch_machine_from_postgame_to_pregame": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "no_gain",
+    "before": 77.4,
+    "after": 77.4
+  },
+  "get_unique_random_name": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 85.4,
+    "after": 100
+  },
+  "get_unique_random_color": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 88.2,
+    "after": 100
+  },
+  "server_needs_more_teams": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 86.1,
+    "after": 100
+  },
+  "network_game_server_dump": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 89.3,
+    "after": 89.3
+  },
+  "network_game_server_dispose": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 90.1,
+    "after": 92.0
+  },
+  "network_game_server_open_game": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 82.4,
+    "after": 100
+  },
+  "network_game_server_close_game": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 82.4,
+    "after": 100
+  },
+  "server_ok_to_countdown": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 85.9,
+    "after": 100
+  },
+  "network_game_server_all_machines_have_loaded": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 89.9,
+    "after": 100
+  },
+  "network_game_server_reset_to_pregame": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 72.4,
+    "after": 73.2
+  },
+  "network_game_server_stalled_on_client": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 67.2,
+    "after": 98.4
+  },
+  "network_game_server_create": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 72.6,
+    "after": 92.4
+  },
+  "network_game_server_accept_client_machine_into_game": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 74.4,
+    "after": 90.2
+  },
+  "network_game_server_add_player_to_game": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 92.9,
+    "after": 92.9
+  },
+  "network_game_server_handle_public_endpoint": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 88.1,
+    "after": 88.1
+  },
+  "object_translate": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 83.5,
+    "after": 100
+  },
+  "object_determine_variant_number": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 89.55,
+    "after": 89.55
+  },
+  "object_type_postprocess_node_matrices": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 77.1,
+    "after": 91.3
+  },
+  "object_type_handle_region_destroyed": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 78.2,
+    "after": 89.3
+  },
+  "object_update": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 92.8,
+    "after": 96.5
+  },
+  "object_add_to_dump": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 88.7,
+    "after": 88.7
+  },
+  "recursive_object_adder": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "no_gain",
+    "before": 86.4,
+    "after": 86.4
+  },
+  "grunt_decide_action": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 77.8,
+    "after": 79.7
+  },
+  "elite_decide_action": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 79.4,
+    "after": 80.8
+  },
+  "marine_decide_action": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "no_gain",
+    "before": 75.3,
+    "after": 75.3
+  },
+  "actor_type_swarm_aim_jump": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 81.0,
+    "after": 81.0
+  },
+  "actor_type_initialize": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 77.5,
+    "after": 77.5
+  },
+  "actor_type_decide_action": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.2,
+    "after": 85.2
+  },
+  "actor_type_swarm_control": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 89.3,
+    "after": 89.3
+  },
+  "actor_type_get_race": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 76.5,
+    "after": 76.5
+  },
+  "inflate_codes": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 85.0,
+    "after": 89.7
+  },
+  "uncompress": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 75.9,
+    "after": 100
+  },
+  "inflate_trees_bits": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 77.3,
+    "after": 89.6
+  },
+  "inflateSync": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "no_gain",
+    "before": 87.7,
+    "after": 87.7
+  },
+  "circular_queue_new": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 82.9,
+    "after": 82.9
+  },
+  "inflate_set_dictionary": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 90.0,
+    "after": 100
+  },
+  "circular_queue_delete": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.7,
+    "after": 85.7
+  },
+  "network_game_client_get_state": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 83.8,
+    "after": 92.3
+  },
+  "network_game_client_handle_message_server_pregame_keep_alive": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.5,
+    "after": 85.5
+  },
+  "network_game_client_handle_message_server_machine_accepted": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.5,
+    "after": 85.5
+  },
+  "network_game_client_handle_message_server_machine_rejected": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.5,
+    "after": 85.5
+  },
+  "extract_pixels_from_mipmap": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 75.1,
+    "after": 75.1
+  },
+  "extract_plateless_cube_map": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 97.36,
+    "after": 97.36
+  },
+  "TIFFReadEncodedTile": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 76.6,
+    "after": 100
+  },
+  "TIFFReadEncodedStrip": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 78.1,
+    "after": 100
+  },
+  "TIFFReadRawTile1": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 75.4,
+    "after": 75.4
+  },
+  "TIFFStartStrip": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 81.7,
+    "after": 81.7
+  },
+  "TIFFStartTile": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 89.2,
+    "after": 89.2
+  },
+  "TIFFNumberOfStrips": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 80,
+    "after": 100
+  },
+  "create_network_game_message": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 85.5,
+    "after": 87.1
+  },
+  "data_packet_group_decode_packet": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 86.3,
+    "after": 97.9
+  },
+  "verify_lra_cache": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 75,
+    "after": 75
+  },
+  "data_encode_string": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 84.2,
+    "after": 100
+  },
+  "hashtable_get": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 85.6,
+    "after": 97.9
+  },
+  "default_hash_function": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 77.0,
+    "after": 77.0
+  },
+  "data_decode_short": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 90.8,
+    "after": 100
+  },
+  "data_decode_byte": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 90,
+    "after": 100
+  },
+  "object_type_reset": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 76.9,
+    "after": 100
+  },
+  "objects_reconnect_to_structure_bsp": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 93.5,
+    "after": 93.5
+  },
+  "object_type_handle_parent_destroyed": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 81.8,
+    "after": 100
+  },
+  "object_type_delete": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 81,
+    "after": 100
+  },
+  "object_type_export_function_values": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 81,
+    "after": 100
+  },
+  "object_type_disconnect_from_structure_bsp": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 81,
+    "after": 100
+  },
+  "object_type_new": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 69.3,
+    "after": 100
+  },
+  "object_type_update": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 88.6,
+    "after": 96.6
+  },
+  "point_physics_update": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 80.4,
+    "after": 91.3
+  },
+  "player_profile_set_for_game_3wide": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 90.7,
+    "after": 100
+  },
+  "player_profile_set_for_game_1wide": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 88.2,
+    "after": 94.8
+  },
+  "playlist_profile_change_racing_rules": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "no_gain",
+    "before": 94.5,
+    "after": 94.5
+  },
+  "playlist_profile_initialize_name": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 75.2,
+    "after": 89.9
+  },
+  "playlist_profile_change_slayer_rules": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "no_gain",
+    "before": 95.8,
+    "after": 95.8
+  },
+  "playlist_profile_initialize_game_engine": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 81.3,
+    "after": 83.3
+  },
+  "player_profile_change_controller_settings": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 77.8,
+    "after": 86.8
+  },
+  "delete_player_profile_request": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 83.7,
+    "after": 95.3
+  },
+  "create_and_begin_editing_new_gametype_profile": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 89.1,
+    "after": 100
+  },
+  "player_profile_color_picker_select_color": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 83.2,
+    "after": 100
+  },
+  "network_game_start_slower": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 80.5,
+    "after": 100
+  },
+  "network_game_start_faster": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 95.0,
+    "after": 100
+  },
+  "playlist_profile_initialize_indicator_options": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 96.1,
+    "after": 100
+  },
+  "difficulty_menu_initialize": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 91.1,
+    "after": 100
+  },
+  "start_network_game_if_no_advertised_servers": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 86.8,
+    "after": 100
+  },
+  "action_fight_perform": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 96.5,
+    "after": 96.5
+  },
+  "action_search_update": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 84.8,
+    "after": 100
+  },
+  "action_fight_control": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 84.0,
+    "after": 100
+  },
+  "action_search_setup_target": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 84.7,
+    "after": 90.7
+  },
+  "action_search_setup_undirected": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 83.2,
+    "after": 89.8
+  },
+  "action_wait_perform": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "improved",
+    "before": 86.4,
+    "after": 93.3
+  },
+  "actor_action_handle_vehicle_entry": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "improved",
+    "before": 82.1,
+    "after": 86.2
+  },
+  "action_vehicle_setup_impromptu": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "improved",
+    "before": 77.5,
+    "after": 81.2
+  },
+  "actor_pursuit_find_nearby_actors": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "improved",
+    "before": 82.7,
+    "after": 86.8
+  },
+  "actor_action_handle_surprise": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "improved",
+    "before": 80.1,
+    "after": 83.9
+  },
+  "actor_new": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 75.75,
+    "after": 75.75
+  },
+  "jackal_decide_action": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 80.85,
+    "after": 80.85
+  },
+  "actor_died": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 78.19,
+    "after": 78.19
+  },
+  "unit_scripting_set_current_vitality": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "behavior_risk",
+    "before": 76.9,
+    "after": 76.9
+  },
+  "unit_impact_melee_damage": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 75.67,
+    "after": 75.67
+  },
+  "unit_exit_seat_end": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "behavior_risk",
+    "before": 85.38,
+    "after": 85.38
+  },
+  "choose_random_array_element": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 83.1,
+    "after": 83.1
+  },
+  "ai_profile_render_spray": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 87.97,
+    "after": 87.97
+  },
+  "encounter_get_actor_starting_location": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 85.05,
+    "after": 85.05
+  },
+  "encounter_test_rule": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "regarg_ceiling",
+    "before": 86.57,
+    "after": 86.57
+  },
+  "inflate_blocks": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 94.15,
+    "after": 94.15
+  },
+  "pill_intersects_triangle3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 81.35,
+    "after": 81.35
+  },
+  "vector_intersects_triangle3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 80.52,
+    "after": 80.52
+  },
+  "sphere_test_vector3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 79.07,
+    "after": 79.07
+  },
+  "point_in_triangle3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "improved",
+    "before": 85.35,
+    "after": 86.79
+  },
+  "point_to_line_distance_squared3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.81,
+    "after": 75.81
+  },
+  "fast_vector_intersects_sphere": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "improved",
+    "before": 83.4,
+    "after": 90.16
+  },
+  "accerate_to_position3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "reverted",
+    "before": 84.12,
+    "after": 84.12
+  },
+  "action_flee_perform": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.62,
+    "after": 75.62
+  },
+  "action_guard_setup_from_fleeing": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 78.99,
+    "after": 78.99
+  },
+  "action_guard_perform": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 80.3,
+    "after": 80.3
+  },
+  "action_guard_control": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 84.07,
+    "after": 84.07
+  },
+  "action_obey_individuals_iterate": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 76.49,
+    "after": 76.49
+  },
+  "action_uncover_setup_pursuit": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 76.47,
+    "after": 76.47
+  },
+  "actor_look_secondary": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 89.65,
+    "after": 89.65
+  },
+  "object_export_function_values": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 81.41,
+    "after": 81.41
+  },
+  "lights_illumination_at_point": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.28,
+    "after": 75.28
+  },
+  "glow_trailing_particle_new": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 80.85,
+    "after": 80.85
+  },
+  "render_debug_light": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 76.19,
+    "after": 76.19
+  },
+  "find_point_lights_for_object_in_cluster": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 86.96,
+    "after": 86.96
+  },
+  "light_volume_interpolate_frames": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 88.45,
+    "after": 88.45
+  },
+  "light_volume_submit": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 79.1,
+    "after": 79.1
+  },
+  "light_get_bounding_sphere": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.45,
+    "after": 75.45
+  },
+  "ai_scripting_migrate_internal": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.78,
+    "after": 75.78
+  },
+  "ai_scripting_count_internal": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "regarg_ceiling",
+    "before": 79.78,
+    "after": 79.78
+  },
+  "ai_scripting_attach_unit": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 79.72,
+    "after": 79.72
+  },
+  "ai_index_from_string": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 81.37,
+    "after": 81.37
+  },
+  "ai_index_squad_iterator_next": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.13,
+    "after": 75.13
+  },
+  "ai_index_platoon_iterator_new": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 86.06,
+    "after": 86.06
+  },
+  "ai_index_actor_iterator_new": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 82.45,
+    "after": 82.45
+  },
+  "ai_scripting_maneuver_enable": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 76.09,
+    "after": 76.09
+  },
+  "ai_conversation": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "behavior_risk",
+    "before": 77.95,
+    "after": 77.95
+  },
+  "ai_conversation_line_perform": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "reverted",
+    "before": 75.43,
+    "after": 75.43
+  },
+  "ai_conversation_line_begin": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "reverted",
+    "before": 78.54,
+    "after": 78.54
+  },
+  "extract_pixels_to_mipmap": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 80.08,
+    "after": 80.08
+  },
+  "bitmap_step_line": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 83.02,
+    "after": 83.02
+  },
+  "AllSame": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "reverted",
+    "before": 92.78,
+    "after": 92.78
+  },
+  "TIFFComputeTile": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 96.67,
+    "after": 96.67
+  },
+  "ColorToRGB": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 92.45,
+    "after": 92.45
+  },
+  "object_beautify": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 80.95,
+    "after": 80.95
+  },
+  "objects_paparazzi": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "infra_skipped",
+    "before": 86.32,
+    "after": 86.32
+  },
+  "glow_new": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "infra_skipped",
+    "before": 76.65,
+    "after": 76.65
+  },
+  "glow_particles_initialize": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "infra_skipped",
+    "before": 78.98,
+    "after": 78.98
+  },
+  "lightning_offset_marker_position": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "infra_skipped",
+    "before": 77.84,
+    "after": 77.84
+  },
+  "glow_normal_particle_new": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "infra_skipped",
+    "before": 92.18,
+    "after": 92.18
+  },
+  "encounter_update_platoons": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 78.1,
+    "after": 78.1
+  },
+  "ai_scripting_migrate_by_unit": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 77.12,
+    "after": 77.12
+  },
+  "encounter_find_pursuit": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 75.8,
+    "after": 75.8
+  },
+  "ai_scripting_go_to_vehicle_internal": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 85.39,
+    "after": 85.39
+  },
+  "encounter_post_combat_select_random_behavior": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 81.62,
+    "after": 81.62
+  }
 }

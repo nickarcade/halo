@@ -1902,8 +1902,7 @@ bool fast_vector_intersects_sphere(float *line_start, float *line_end,
     if (t_check < 0.0f)
       return true;
 
-    if (t_check * t_check < disc_narrow)
-      return true;
+    return t_check * t_check < disc_narrow;
   }
 
   return false;
@@ -2695,8 +2694,8 @@ char point_in_triangle3d(float *p1, float *p2, float *p3, float *p4, float *out_
   float v3[3], v1[3], v2[3];
   float n[3];
   float dot_n;
-  uint32_t basis;
-  uint8_t axis;
+  short basis;
+  bool axis;
   float p1_proj[2];
   float v1_proj[2];
   float v2_proj[2];
