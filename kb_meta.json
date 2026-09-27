@@ -2144,6 +2144,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x42cb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x42ce0": {
       "kind": "function",
       "status": "ported",
@@ -2294,6 +2298,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x43a20": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x43ce0": {
       "kind": "function",
       "status": "ported"
@@ -2342,6 +2350,10 @@
         "The semantic meaning of param_2 and scenario definition flag bit 0 remains uncertain beyond their observed control-flow roles."
       ]
     },
+    "0x447d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x45830": {
       "kind": "function",
       "status": "ported"
@@ -2354,7 +2366,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x460e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x46b60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x46cb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3541,7 +3561,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x5e9b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x5eae0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5f1d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3833,7 +3861,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x65f90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x66190": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66200": {
       "kind": "function",
       "status": "ported"
     },
@@ -3890,6 +3926,10 @@
       "status": "ported"
     },
     "0x66cc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66d40": {
       "kind": "function",
       "status": "ported"
     },
@@ -7065,6 +7105,14 @@
       "status": "ported"
     },
     "0xa2930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa2970": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa29c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14135,11 +14183,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xeba70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xebff0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xec2c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xec840": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xecd50": {
       "kind": "function",
       "status": "ported"
     },
     "0xece10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeceb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14384,6 +14452,10 @@
       "status": "ported"
     },
     "0xf3960": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf4210": {
       "kind": "function",
       "status": "ported"
     },
@@ -14784,6 +14856,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfb5a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfb6e0": {
       "kind": "function",
       "status": "ported"
@@ -14816,11 +14892,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfbcf0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfbd10": {
       "kind": "function",
       "status": "ported"
     },
     "0xfbea0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfbf00": {
       "kind": "function",
       "status": "ported"
     },
@@ -14841,6 +14925,14 @@
       "status": "ported"
     },
     "0xfc710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfc780": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfc8e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14872,7 +14964,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfcec0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfcf20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfd0b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14908,6 +15008,10 @@
       "status": "ported"
     },
     "0xfd520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfe450": {
       "kind": "function",
       "status": "ported"
     },
@@ -16997,6 +17101,10 @@
       "status": "ported"
     },
     "0x121940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x121c30": {
       "kind": "function",
       "status": "ported"
     },
@@ -24031,6 +24139,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c0f70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c1290": {
       "kind": "function",
       "status": "ported"
@@ -24521,6 +24633,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c8700": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c88a0": {
       "kind": "function",
       "status": "ported"
@@ -24798,7 +24914,15 @@
         "The two float parameters cached at channel+0x44 and channel+0x48 are named scalar_44/scalar_48 because their meaning is unproven; sound_dsound_channel_update_3d consumes both as 1.0-value gain sends, so they are plausibly obstruction and occlusion, but nothing in the binary names them."
       ]
     },
+    "0x1cb1a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1cb1d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cb4c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -24873,6 +24997,10 @@
       "uncertain": [
         "The MOVSX SI,SI and IMUL pattern suggests promotion_count is sign-extended from short to int before the multiplication with interval."
       ]
+    },
+    "0x1cbc20": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1cbd30": {
       "kind": "function",
