@@ -149,16 +149,17 @@ short FUN_00075380(void *bitmap /* @<eax> */)
  * FUN_00075630 -- 3D texture group extraction.
  *
  * Iterates over the pending bitmap array (base at DAT_00334134, count in
- * DAT_00334138). Groups consecutive entries with matching mip_count. For each
- * power-of-two group, creates a 3D bitmap, copies the slices into it via
- * bitmap_cube_map_face_extract, registers it with FUN_00075380, then frees
+ * DAT_00334138). Groups consecutive entries with matching sequence_index
+ * (entry +0x04). For each power-of-two group, creates a 3D bitmap, copies the
+ * slices into it via
+ * bitmap_3d_slice_insert, registers it with FUN_00075380, then frees
  * it. Logs warnings for incompatible-dimension or non-power-of-two groups.
  *
  * Returns 1 on success, 0 if a temporary bitmap allocation failed.
  */
 char FUN_00075630(void)
 {
-  short mip_count;
+  short sequence_index;
   short width;
   short height;
   int outer;
@@ -177,14 +178,14 @@ char FUN_00075630(void)
     if ((short)outer >= *(short *)0x334138)
       break;
     base = *(char **)0x334134;
-    mip_count = *(short *)(base + (short)outer * 0x10 + 4);
+    sequence_index = *(short *)(base + (short)outer * 0x10 + 4);
     width = *(short *)(*(char **)(base + (short)outer * 0x10) + 4);
     height = *(short *)(*(char **)(base + (short)outer * 0x10) + 6);
     slice_idx = 0;
     bvar4 = 0;
 
     while (*(short *)(base + ((short)outer + (short)slice_idx) * 0x10 + 4) ==
-           mip_count) {
+           sequence_index) {
       if (*(short *)(*(char **)(base +
                                 ((short)outer + (short)slice_idx) * 0x10) +
                      4) != width ||
@@ -216,15 +217,15 @@ char FUN_00075630(void)
       success = 0;
     } else {
       for (i = 0; (short)i < (short)slice_idx; i++) {
-        bitmap_cube_map_face_extract(
+        bitmap_3d_slice_insert(
           *(void **)(*(char **)0x334134 + ((short)outer + i) * 0x10),
           new_bitmap, 0, i);
       }
-      *(short *)0x33415c = mip_count;
+      *(short *)0x33415c = sequence_index;
       handle = FUN_00075380(new_bitmap);
       if (handle != (short)-1) {
         tag_element = tag_block_get_element(*(char **)0x33414c + 0x54,
-                                            (int)mip_count, 0x40);
+                                            (int)sequence_index, 0x40);
         if (*(short *)((char *)tag_element + 0x20) == (short)-1) {
           *(short *)((char *)tag_element + 0x20) = handle;
           *(short *)((char *)tag_element + 0x22) = 1;
@@ -1826,10 +1827,11 @@ void *FUN_000779b0(short scale /* @<eax> */, void *source_bitmap,
  *
  * Allocates a new ARGB (format 0xb) cube map whose faces are
  * (width / min(width, scale)) on a side, then walks the six faces: each source
- * face is extracted into a temporary 2D bitmap (FUN_0007ea60), downscaled with
- * the 2D box filter (FUN_00077720) and inserted into the new cube map. The
- * per-face scaled bitmap is released every iteration; the temporary extraction
- * bitmap is released after the loop.
+ * face is extracted into a temporary 2D bitmap
+ * (bitmap_cube_map_face_extract), downscaled with the 2D box filter
+ * (FUN_00077720) and inserted into the new cube map. The per-face scaled
+ * bitmap is released every iteration; the temporary extraction bitmap is
+ * released after the loop.
  *
  * brightness_adjust / alpha_weighted are forwarded verbatim to the 2D
  * downscaler. Returns the new cube map, which may be NULL or dataless when
@@ -1886,7 +1888,7 @@ void *FUN_00077cd0(void *source_bitmap, short scale, int brightness_adjust,
   }
 
   for (face = 0; face < 6; face++) {
-    FUN_0007ea60(source_bitmap, 0, face, temp_2d);
+    bitmap_cube_map_face_extract(source_bitmap, 0, face, temp_2d);
     scaled_face =
       FUN_00077720(scale, temp_2d, brightness_adjust, alpha_weighted);
     if (scaled_face != 0 && *(int *)((char *)scaled_face + 0x2c) != 0) {
@@ -2617,8 +2619,8 @@ void FUN_00079250(short passes /* @<eax> */, void *bitmap)
  *
  * Allocates one temporary 2D bitmap matching the 3D bitmap's width/height and
  * format, then walks every depth slice: read the slice into the temp
- * (bitmap_3d_slice_insert), run the 2D alpha-bleed over it (FUN_00079250),
- * write the temp back into the slice (bitmap_cube_map_face_extract).
+ * (bitmap_3d_slice_extract), run the 2D alpha-bleed over it (FUN_00079250),
+ * write the temp back into the slice (bitmap_3d_slice_insert).
  *
  * ABI: bitmap passed in EDI (@EDI). One stack param: passes (short).
  */
@@ -2654,9 +2656,9 @@ void FUN_00079480(short passes, void *bitmap /* @<edi> */)
 
   if (temp != 0 && *(int *)((char *)temp + 0x2c) != 0) {
     for (slice = 0; slice < *(short *)((char *)bitmap + 8); slice++) {
-      bitmap_3d_slice_insert(bitmap, 0, slice, temp);
+      bitmap_3d_slice_extract(bitmap, 0, slice, temp);
       FUN_00079250(passes, temp);
-      bitmap_cube_map_face_extract(temp, bitmap, 0, slice);
+      bitmap_3d_slice_insert(temp, bitmap, 0, slice);
     }
   } else {
     error(2, "### ERROR failed to allocate temporary bitmap");
@@ -2974,9 +2976,9 @@ void FUN_000798e0(void *source_bitmap, void *destination_bitmap,
   if (temp_source != 0 && *(int *)((char *)temp_source + 0x2c) != 0 &&
       temp_destination != 0 && *(int *)((char *)temp_destination + 0x2c) != 0) {
     for (slice = 0; slice < *(short *)((char *)source_bitmap + 8); slice++) {
-      bitmap_3d_slice_insert(source_bitmap, 0, slice, temp_source);
+      bitmap_3d_slice_extract(source_bitmap, 0, slice, temp_source);
       FUN_000796e0(temp_source, temp_destination, 0, param_4);
-      bitmap_cube_map_face_extract(temp_destination, destination_bitmap,
+      bitmap_3d_slice_insert(temp_destination, destination_bitmap,
                                    destination_mipmap_index, slice);
     }
   } else {
@@ -3114,7 +3116,7 @@ void FUN_00079bb0(void *source_bitmap, void *destination_bitmap,
   if (temp_source != 0 && *(int *)((char *)temp_source + 0x2c) != 0 &&
       temp_destination != 0 && *(int *)((char *)temp_destination + 0x2c) != 0) {
     for (face = 0; face < 6; face++) {
-      FUN_0007ea60(source_bitmap, 0, face, temp_source);
+      bitmap_cube_map_face_extract(source_bitmap, 0, face, temp_source);
       FUN_000796e0(temp_source, temp_destination, 0, param_4);
       bitmap_cube_map_face_insert(temp_destination, destination_bitmap,
                                   destination_mipmap_index, face);
@@ -3417,10 +3419,10 @@ void FUN_0007a1e0(void *source_bitmap, void *destination_bitmap,
   if (temp_source != 0 && *(int *)((char *)temp_source + 0x2c) != 0 &&
       temp_destination != 0 && *(int *)((char *)temp_destination + 0x2c) != 0) {
     for (slice = 0; slice < *(short *)((char *)source_bitmap + 8); slice++) {
-      bitmap_3d_slice_insert(source_bitmap, source_mipmap_index, slice,
+      bitmap_3d_slice_extract(source_bitmap, source_mipmap_index, slice,
                              temp_source);
       FUN_00079e70(temp_source, temp_destination, 0);
-      bitmap_cube_map_face_extract(temp_destination, destination_bitmap, 0,
+      bitmap_3d_slice_insert(temp_destination, destination_bitmap, 0,
                                    slice);
     }
   } else {
@@ -3545,7 +3547,8 @@ void bitmap_2d_uncompress_from_mipmap(void *source_bitmap,
   if (temp_source != 0 && *(int *)((char *)temp_source + 0x2c) != 0 &&
       temp_destination != 0 && *(int *)((char *)temp_destination + 0x2c) != 0) {
     for (face = 0; face < 6; face++) {
-      FUN_0007ea60(source_bitmap, source_mipmap_index, face, temp_source);
+      bitmap_cube_map_face_extract(source_bitmap, source_mipmap_index, face,
+                                   temp_source);
       FUN_00079e70(temp_source, temp_destination, 0);
       bitmap_cube_map_face_insert(temp_destination, destination_bitmap, 0,
                                   face);
@@ -4310,9 +4313,9 @@ void bitmap_alpha_bleed(void *bitmap, short passes)
  *
  * Allocates one temporary 2D bitmap matching the 3D bitmap's width/height and
  * format, then walks every depth slice: read the slice into the temp
- * (bitmap_3d_slice_insert), run the 2D height-to-bump conversion over it
+ * (bitmap_3d_slice_extract), run the 2D height-to-bump conversion over it
  * (FUN_0007b510), write the temp back into the slice
- * (bitmap_cube_map_face_extract).  Structurally identical to the 3D
+ * (bitmap_3d_slice_insert).  Structurally identical to the 3D
  * alpha_bleed at FUN_00079480, which shares this alloc/loop/dispose shape.
  *
  * Confirmed from disassembly at 0x7b940:
@@ -4368,10 +4371,10 @@ void FUN_0007b940(float bump_height, void *bitmap /* @<ebx> */)
    * mirrors the structurally identical 3D alpha_bleed at FUN_00079480. */
   if (temp != 0 && *(int *)((char *)temp + 0x2c) != 0) {
     for (slice = 0; slice < *(short *)((char *)bitmap + 8); slice++) {
-      bitmap_3d_slice_insert(bitmap, 0, slice, temp);
+      bitmap_3d_slice_extract(bitmap, 0, slice, temp);
       /* bitmap passed in ESI (register arg); only bump_height is pushed. */
       FUN_0007b510(bump_height, temp);
-      bitmap_cube_map_face_extract(temp, bitmap, 0, slice);
+      bitmap_3d_slice_insert(temp, bitmap, 0, slice);
     }
   } else {
     error(2, "### ERROR failed to allocate temporary bitmap");

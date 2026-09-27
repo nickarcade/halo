@@ -86,9 +86,9 @@ void FUN_0007bcb0(void *bitmap)
     error(2, "### ERROR failed to allocate temporary bitmap");
   } else {
     for (slice_index = 0; slice_index < *(short *)(b + 8); slice_index++) {
-      bitmap_3d_slice_insert(bitmap, 0, (short)slice_index, slice_bitmap);
+      bitmap_3d_slice_extract(bitmap, 0, (short)slice_index, slice_bitmap);
       FUN_0007ba50(slice_bitmap);
-      bitmap_cube_map_face_extract(slice_bitmap, bitmap, 0, slice_index);
+      bitmap_3d_slice_insert(slice_bitmap, bitmap, 0, slice_index);
     }
   }
   bitmap_delete(slice_bitmap);
@@ -117,7 +117,7 @@ void FUN_0007bd90(void *bitmap)
     error(2, "### ERROR failed to allocate temporary bitmap");
   } else {
     for (face_index = 0; face_index < 6; face_index++) {
-      FUN_0007ea60(bitmap, 0, face_index, face_bitmap);
+      bitmap_cube_map_face_extract(bitmap, 0, face_index, face_bitmap);
       FUN_0007ba50(face_bitmap);
       bitmap_cube_map_face_insert(face_bitmap, bitmap, 0, face_index);
     }
@@ -1818,8 +1818,8 @@ void *bitmap_cube_map_new(unsigned short width, unsigned short mipmap_count,
   return bitmap;
 }
 
-void bitmap_3d_slice_insert(void *source_bitmap, short source_mipmap_index,
-                            short source_slice_index, void *slice_bitmap)
+void bitmap_3d_slice_extract(void *source_bitmap, short source_mipmap_index,
+                             short source_slice_index, void *slice_bitmap)
 {
   char *source;
   char *slice;
@@ -1911,9 +1911,9 @@ void bitmap_3d_slice_insert(void *source_bitmap, short source_mipmap_index,
   csmemcpy(slice_address, source_address, size);
 }
 
-void bitmap_cube_map_face_extract(void *slice_bitmap, void *destination_bitmap,
-                                  int destination_mipmap_index,
-                                  int destination_slice_index)
+void bitmap_3d_slice_insert(void *slice_bitmap, void *destination_bitmap,
+                            int destination_mipmap_index,
+                            int destination_slice_index)
 {
   char *slice;
   char *destination;
@@ -2009,8 +2009,9 @@ void bitmap_cube_map_face_extract(void *slice_bitmap, void *destination_bitmap,
   csmemcpy(destination_address, source_address, size);
 }
 
-void FUN_0007ea60(void *source_bitmap, short source_mipmap_index,
-                  short source_face_index, void *face_bitmap)
+void bitmap_cube_map_face_extract(void *source_bitmap,
+                                  short source_mipmap_index,
+                                  short source_face_index, void *face_bitmap)
 {
   char *source;
   char *face;

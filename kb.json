@@ -4934,17 +4934,17 @@
     },
     {
      "addr": "0x7e560",
-     "decl": "void bitmap_3d_slice_insert(void *source_bitmap, short mipmap_index, short slice_index, void *destination_bitmap);",
+     "decl": "void bitmap_3d_slice_extract(void *source_bitmap, short mipmap_index, short slice_index, void *destination_bitmap);",
      "ported": true
     },
     {
      "addr": "0x7e7e0",
-     "decl": "void bitmap_cube_map_face_extract(void *src_bitmap, void *dst_bitmap, int face, int slice);",
+     "decl": "void bitmap_3d_slice_insert(void *slice_bitmap, void *destination_bitmap, int destination_mipmap_index, int destination_slice_index);",
      "ported": true
     },
     {
      "addr": "0x7ea60",
-     "decl": "void FUN_0007ea60(void *source_bitmap, short mipmap_index, short face_index, void *destination_bitmap);",
+     "decl": "void bitmap_cube_map_face_extract(void *source_bitmap, short mipmap_index, short face_index, void *destination_bitmap);",
      "ported": true
     },
     {

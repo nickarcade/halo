@@ -4747,7 +4747,7 @@
         "The NULL check on temp+0x2c is inferred to be the temporary bitmap's pixel-data pointer because failing it routes to the '### ERROR failed to allocate temporary bitmap' error call."
       ],
       "uncertain": [
-        "The kb names of the two slice-transfer callees read backwards for this call pair: 0x7e560 (bitmap_3d_slice_insert) reads a slice of the 3D bitmap into the temporary 2D bitmap, and 0x7e7e0 (bitmap_cube_map_face_extract) writes the temporary back into the 3D bitmap, so one or both names may be misattributed."
+        "RESOLVED: the slice-transfer callee names were rotated and are now corrected by assert line numbers matched against PAL 2342 bitmaps.c: 0x7e560 is bitmap_3d_slice_extract (asserts 0x2e3-), 0x7e7e0 is bitmap_3d_slice_insert (0x306-0x312), and 0x7ea60 is bitmap_cube_map_face_extract (0x329-). So this call pair is extract (3D -> temp), then insert (temp -> 3D)."
       ]
     },
     "0x79590": {
@@ -4780,7 +4780,7 @@
       "kind": "function",
       "status": "unknown",
       "inferred": [
-        "Callee 0x7e560 (kb name bitmap_3d_slice_insert) is used here as a slice EXTRACT (source -> temp) and 0x7e7e0 (kb name bitmap_cube_map_face_extract) as the slice WRITE-BACK (temp -> destination); the kb names appear swapped relative to the data flow, but they were left unchanged because no string evidence names either function.",
+        "Callee 0x7e560 (bitmap_3d_slice_extract) is the slice EXTRACT (source -> temp) and 0x7e7e0 (bitmap_3d_slice_insert) the slice WRITE-BACK (temp -> destination). The names were corrected from a rotated assignment using assert line numbers matched against PAL 2342 bitmaps.c (0x2e3- and 0x306-0x312).",
         "The widened decl for 0x7e560 uses short mipmap_index and short slice_index by analogy with the already-ported sibling call to 0x7ea60 at 0x7a6eb, which emits the same plain dword reload of the parameter slot rather than a MOVSX."
       ]
     },
