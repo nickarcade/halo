@@ -605,6 +605,63 @@ class RelocationIdentityResolverTest(unittest.TestCase):
         self.assertEqual(raw._data_decl_name("char player_ui_globals[0x230];"), "player_ui_globals")
         self.assertEqual(raw._data_decl_name("data_t *actor_data;"), "actor_data")
 
+    def test_exact_c_name_beats_lenient_underscore_fold(self):
+        # `_data_packet_decode` (0x11b2a0) and `data_packet_decode` (0x11b750)
+        # both fold to one lenient name; the exact C name must disambiguate.
+        bounds = {0x11b2a0: {"name": "_data_packet_decode"},
+                  0x11b750: {"name": "data_packet_decode"}}
+        with mock.patch.object(raw.xref, "_bounds", return_value=bounds):
+            self.assertEqual(raw._raw_addresses_for_name("__data_packet_decode"), [0x11b2a0])
+            self.assertEqual(raw._raw_addresses_for_name("_data_packet_decode"), [0x11b750])
+
+    def test_lenient_fallback_still_resolves(self):
+        bounds = {0x1dd620: {"name": "__allmul"}}
+        with mock.patch.object(raw.xref, "_bounds", return_value=bounds):
+            self.assertEqual(raw._raw_addresses_for_name("__allmul"), [0x1dd620])
+
+    @staticmethod
+    def _local(offset, local_offset):
+        return {"offset": offset, "type": raw.IMAGE_REL_I386_DIR32,
+                "local_offset": local_offset, "symbol": {"name": "$L1"}}
+
+    def test_inline_switch_table_is_cut_with_pad(self):
+        # jmp dword ptr [eax*4 + $L_table]; ret; nop; then two table entries.
+        code = (b"\xff\x24\x85" + struct.pack("<I", 0) + b"\xc3\x90" +
+                struct.pack("<I", 0) + struct.pack("<I", 0))
+        relocs = [self._local(3, 9),        # table base -> offset 9
+                  self._local(9, 7),        # entry -> case label (the ret)
+                  self._local(13, 7)]
+        cut, kept, table = raw._strip_inline_switch_tables(code, relocs)
+        self.assertEqual(cut, code[:8])
+        self.assertEqual([r["offset"] for r in kept], [3])
+        self.assertEqual(table, {"offset": 9, "table_bytes": 8, "pad_bytes": 1})
+
+    def test_case_label_reference_is_not_a_table_start(self):
+        # Only table entries point at the case label; with no code reference in
+        # front of a trailing table, nothing may be cut.
+        code = b"\xc3" * 4 + struct.pack("<I", 0)
+        relocs = [self._local(4, 1)]
+        self.assertIsNone(raw._strip_inline_switch_tables(code, relocs)[2])
+
+    def test_code_relocation_after_label_blocks_cut(self):
+        code = (b"\xff\x24\x85" + struct.pack("<I", 0) +
+                b"\xe8" + struct.pack("<i", 0) + b"\xc3")
+        relocs = [self._local(3, 7),
+                  {"offset": 8, "type": raw.IMAGE_REL_I386_REL32, "symbol": {"name": "_f"}}]
+        self.assertIsNone(raw._strip_inline_switch_tables(code, relocs)[2])
+
+    def test_pad_instruction_forms(self):
+        for mnemonic, op_str in (("nop", ""), ("int3", ""), ("mov", "edi, edi"),
+                                 ("lea", "ecx, [ecx]"), ("lea", "esp, [esp + 0]")):
+            self.assertTrue(raw._is_pad_instruction({"mnemonic": mnemonic, "op_str": op_str}))
+        self.assertFalse(raw._is_pad_instruction({"mnemonic": "lea", "op_str": "ecx, [eax]"}))
+        self.assertFalse(raw._is_pad_instruction({"mnemonic": "jmp", "op_str": "0x10"}))
+
+    def test_crt_helper_named_fun_in_bounds(self):
+        bounds = {0x1d90e0: {"name": "FUN_001d90e0"}}
+        with mock.patch.object(raw.xref, "_bounds", return_value=bounds):
+            self.assertEqual(raw._raw_addresses_for_name("__chkstk"), [0x1d90e0])
+
 
 if __name__ == "__main__":
     unittest.main()
