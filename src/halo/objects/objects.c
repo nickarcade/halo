@@ -6275,7 +6275,7 @@ void object_type_delete(int object_index)
  * Confirmed: returns bool in AL (MOV AL,BL at exit).
  * Confirmed: 16-bit loop index (MOVSX EAX,SI), stride 4, base +0x5c.
  */
-int object_type_update(int object_index)
+boolean object_type_update(int object_index)
 {
   typedef char (*type_update_callback_t)(int);
   char *obj;

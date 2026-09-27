@@ -442,7 +442,7 @@ typedef struct ui_widget_deferred_error {
  * player's slot is already occupied the request is dropped with a
  * priority-2 warning, same shape as display_error_when_main_menu_loaded(). */
 __declspec(noinline) void
-display_error_deferred(int error_code, int player_index, bool a3, bool a4)
+display_error_deferred(short error_code, short player_index, bool a3, bool a4)
 {
   ui_widget_deferred_error_t *deferred_errors;
   int index;

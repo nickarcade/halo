@@ -793,7 +793,7 @@ void hashtable_dispose(short *table)
 
 /* hashtable_hash — default hash function using small primes (0x11ba00).
  * Source: hashtable.c. */
-int default_hash_function(unsigned char *key, unsigned int key_size)
+short default_hash_function(unsigned char *key, unsigned int key_size)
 {
   int hash;
   short prime_index;
@@ -819,7 +819,7 @@ int default_hash_function(unsigned char *key, unsigned int key_size)
 
 /* hashtable_find_slot — probe for a key in the table (0x11ba50).
  * Source: hashtable.c. Takes table via @ESI register arg. */
-int hashtable_search(short *table_, void *key, unsigned short *slot_index_out)
+boolean hashtable_search(short *table_, void *key, unsigned short *slot_index_out)
 {
   hashtable_t *table;
   short hash_val;

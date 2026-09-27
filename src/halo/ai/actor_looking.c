@@ -632,7 +632,7 @@ void action_fight_control(int actor_handle)
  *   and actor_perception_unreachable at 0x14b27.
  * Confirmed: XOR AL,AL return at 0x14b31 (always returns 0). */
 /* local names: PAL 2342 source/ai/action_fight.c:126-309 */
-unsigned int action_fight_perform(int actor_handle)
+boolean action_fight_perform(int actor_handle)
 {
   char *actor;
   char *tag;
@@ -4819,7 +4819,7 @@ LAB_done:
  *
  * Confirmed: display_assert "state_data", action_search.c line 0x21.
  * Confirmed: csmemset(state_data, 0, 0x2c); actor+0x160 branch. */
-int action_search_setup_target(int actor_handle, char param_2, char *state_data)
+boolean action_search_setup_target(int actor_handle, char param_2, char *state_data)
 {
   char *actor;
   char success;
@@ -4900,8 +4900,8 @@ int action_search_setup_pursuit(int actor_handle, short param_2, char param_3,
  *
  * Confirmed: display_assert "state_data", action_search.c line 0x57.
  * Confirmed: csmemset(state_data, 0, 0x2c); actor+6 branch; type=2. */
-int action_search_setup_undirected(int actor_handle, int param_2,
-                                   char *state_data)
+boolean action_search_setup_undirected(int actor_handle, int param_2,
+                                       char *state_data)
 {
   char *actor;
   char success;

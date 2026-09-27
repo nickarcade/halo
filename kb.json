@@ -3614,7 +3614,7 @@
     },
     {
      "addr": "0x14770",
-     "decl": "unsigned int action_fight_perform(int actor_handle);",
+     "decl": "boolean action_fight_perform(int actor_handle);",
      "ported": true,
      "comment": "[NAME: action_fight_perform \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
      "name": "action_fight_perform"
@@ -4006,7 +4006,7 @@
     },
     {
      "addr": "0x19750",
-     "decl": "int action_search_setup_target(int actor_handle, char param_2, char *state_data);",
+     "decl": "boolean action_search_setup_target(int actor_handle, char param_2, char *state_data);",
      "ported": true,
      "src": "src/halo/ai/actor_looking.c",
      "comment": "[NAME: action_search_setup_target \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
@@ -4021,7 +4021,7 @@
     },
     {
      "addr": "0x198d0",
-     "decl": "int action_search_setup_undirected(int actor_handle, int param_2, char *state_data);",
+     "decl": "boolean action_search_setup_undirected(int actor_handle, int param_2, char *state_data);",
      "ported": true,
      "src": "src/halo/ai/actor_looking.c",
      "comment": "[NAME: action_search_setup_undirected \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
@@ -16064,13 +16064,13 @@
     },
     {
      "addr": "0x11ba00",
-     "decl": "int default_hash_function(unsigned char *key, unsigned int key_size);",
+     "decl": "short default_hash_function(unsigned char *key, unsigned int key_size);",
      "name": "default_hash_function",
      "ported": true
     },
     {
      "addr": "0x11ba50",
-     "decl": "int hashtable_search(short *table @<esi>, void *key, unsigned short *slot_index_out);",
+     "decl": "boolean hashtable_search(short *table @<esi>, void *key, unsigned short *slot_index_out);",
      "name": "hashtable_search",
      "ported": true
     },
@@ -17363,7 +17363,7 @@
     },
     {
      "addr": "0x13c5c0",
-     "decl": "int object_type_update(int param_1);",
+     "decl": "boolean object_type_update(int param_1);",
      "ported": true,
      "name": "object_type_update"
     },
@@ -28579,7 +28579,7 @@
     },
     {
      "addr": "0xe4500",
-     "decl": "void display_error_deferred(int error_code, int player_index, bool a3, bool a4);",
+     "decl": "void display_error_deferred(short error_code, short player_index, bool a3, bool a4);",
      "ported": true
     },
     {
