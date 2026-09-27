@@ -41921,7 +41921,8 @@
     },
     {
      "addr": "0x5f1d0",
-     "decl": "void closest_available_point_on_surface(void);",
+     "decl": "float closest_available_point_on_surface(void *structure_bsp @<eax>, float *point @<edi>, float *out_point @<esi>, int surface_index);",
+     "ported": true,
      "comment": "[NAME: closest_available_point_on_surface \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -42022,7 +42023,8 @@
     },
     {
      "addr": "0x609e0",
-     "decl": "void FUN_000609e0(void *path);"
+     "decl": "void FUN_000609e0(void *path);",
+     "ported": true
     }
    ],
    "name": "path.obj",

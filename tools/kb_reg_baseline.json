@@ -7304,7 +7304,7 @@
   "0x5e920": "char path_3d_build_path(int param_1, int *param_2, int param_3, int *param_4, char *param_5);",
   "0x5e9b0": "char path_state_approach_point(void *path_state, float *fp_results, int fp_count, char *out_byte, char *out_dest);",
   "0x5eae0": "char path_state_build_path(unsigned int path_buf, unsigned int *nav_state_out);",
-  "0x5f1d0": "void FUN_0005f1d0(void);",
+  "0x5f1d0": "float closest_available_point_on_surface(void *structure_bsp @<eax>, float *point @<edi>, float *out_point @<esi>, int surface_index);",
   "0x5f240": "short build_path_edges_for_surface(void *structure_bsp@<eax>, int surface_index, char *edges_out);",
   "0x5f3c0": "void closest_point_to_attractor(void);",
   "0x5f490": "void path_attractor_weight(void);",
@@ -10166,7 +10166,8 @@
     "0x22f180": "void endframe(BINK *bink@<eax>, unsigned long now@<ecx>);",
     "0x2302d0": "void GotoFrame(BINK *bink@<esi>, unsigned long frame@<eax>);",
     "0x1cb210": "boolean dsound_initialize_channel(short type_flags@<ax>, short channel_index);",
-    "0x1cadd0": "void dsound_channel_set_location(short channel_index, char flag_0c, float *location@<ebx>, float value_10, float value_14, char flag_18);"
+    "0x1cadd0": "void dsound_channel_set_location(short channel_index, char flag_0c, float *location@<ebx>, float value_10, float value_14, char flag_18);",
+    "0x5f1d0": "float closest_available_point_on_surface(void *structure_bsp@<eax>, float *point@<edi>, float *out_point@<esi>, int surface_index);"
   },
   "0x57330": "short ai_scripting_command_list_status_internal(int16_t scenario_index@<eax>, void *record@<esi>, int field_1a8_val, int child_handle, int reserved);",
   "0x1631d0": "void FUN_001631d0(int light_index@<eax>);",

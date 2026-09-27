@@ -3888,17 +3888,17 @@
     "FUN_000609e0": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 3.7,
+      "abi_modeled_mnemonic_pct": 98.1,
       "addr": "0x609e0",
       "end": "0x60c3c",
       "kind": "auto",
       "n_r": 209,
-      "opnd_percent": 2.8,
-      "raw_mnemonic_pct": 3.7,
+      "opnd_percent": 95.7,
+      "raw_mnemonic_pct": 98.1,
       "ref": "synth",
       "ref_sha": "fa2cf55fe8d65aaa",
-      "score": 3.7,
-      "source": "src/halo/unported_thunks.c"
+      "score": 98.1,
+      "source": "src/halo/ai/path.c"
     },
     "FUN_00061750": {
       "abi_model": "raw",
@@ -50457,6 +50457,21 @@
       "ref_sha": "fac43cf4ec0f09d2",
       "score": 100.0,
       "source": "src/halo/bungie_net/network/transport_endpoint_set_winsock.c"
+    },
+    "closest_available_point_on_surface": {
+      "abi_model": "regparam_stripped_saves_anyreg",
+      "abi_model_items": 7,
+      "abi_modeled_mnemonic_pct": 94.1,
+      "addr": "0x5f1d0",
+      "end": "0x5f23e",
+      "kind": "auto",
+      "n_r": 51,
+      "opnd_percent": 82.4,
+      "raw_mnemonic_pct": 88.1,
+      "ref": "synth",
+      "ref_sha": "a226467f2e4db6c0",
+      "score": 94.1,
+      "source": "src/halo/ai/path.c"
     },
     "cluster_get_first_light": {
       "abi_model": "raw",

@@ -853,6 +853,36 @@ LAB_0005ef13:
   return *(char *)nav_state_out;
 }
 
+/* 0x005f1d0 — closest_available_point_on_surface
+ * Register-args (read at entry with no prior definition): structure_bsp in
+ * EAX (`ADD EAX,0xb0` at 0x5f1d9), point in EDI (pushed at 0x5f1ed),
+ * out_point in ESI (pushed at 0x5f1fe, then read back at 0x5f20e).
+ * surface_index is [EBP+8]. The 8-byte local at [EBP-8] is the 2D closest
+ * point handed from the first callee to the second.
+ * Returns |out_point - point| in ST0: FLD [ESI]; FSUB [EDI] per axis, then
+ * the sum is formed as (dx*dx + dz*dz) + dy*dy (0x5f222-0x5f230) and FSQRT.
+ * Both callee return values are discarded.
+ */
+float closest_available_point_on_surface(void *structure_bsp, float *point,
+                                         float *out_point, int surface_index)
+{
+  int bsp;
+  float closest2d[2];
+  float dx;
+  float dy;
+  float dz;
+
+  bsp = (int)tag_block_get_element((char *)structure_bsp + 0xb0, 0, 0x60);
+  collision_surface_find_closest_point2d(bsp, surface_index, 2, 1, point,
+                                         closest2d);
+  collision_surface_project_point2d(bsp, surface_index, 2, 1, closest2d,
+                                    out_point);
+  dx = out_point[0] - point[0];
+  dy = out_point[1] - point[1];
+  dz = out_point[2] - point[2];
+  return sqrtf(dx * dx + dz * dz + dy * dy);
+}
+
 /* 0x005f240 — build_path_edges_for_surface
  * Walks the edge ring of one collision-BSP surface and fills an output array
  * of up to 0x40 edge records (0x20 bytes each). Returns the number written.
@@ -1605,4 +1635,107 @@ int16_t FUN_00060970(void *param_1)
     return front;
   }
   return (int16_t)-1;
+}
+
+/* 0x000609e0 — path-obstacle-avoidance debug render (no return value).
+ *
+ * Evidence: cached Ghidra artifact d5dfd8a8... (decompile + disassembly +
+ * call-site audit). Bounds asserts are the same inline step accessor check
+ * as FUN_000600f0 (path_obstacle_avoidance.c line 0x28, display_assert +
+ * system_exit(-1)).
+ *
+ * Offsets (all from the disassembly, owning struct not yet recovered):
+ *   path+0x0c  int, +0xb0 is the tag block passed to tag_block_get_element
+ *              (index 0, element size 0x60)
+ *   path+0x10  float point, surface index int at path+0x18
+ *   path+0x1e  int16 first step index of a linked chain (-1 = none)
+ *   path+0x2c  int16 step_count
+ *   path+0x30  step[0x80], 0x28 bytes each: float point at +0x00, surface
+ *              index int at +0x08, byte at +0x1a, int16 next index at +0x24
+ *
+ * Colors are the global pointers at 0x2ee6c4/0x2ee6d0/0x2ee6d4/0x2ee6e0,
+ * read as in ai_debug.c; 0.125f is the PUSH 0x3e000000 scale.
+ */
+void FUN_000609e0(void *path)
+{
+  char *base;
+  void *bsp;
+  void *color;
+  char *step;
+  char *next_step;
+  short step_index;
+  short next_index;
+  short i;
+  unsigned int chain_bits[4];
+  float point_b[3];
+  float point_a[3];
+
+  base = (char *)path;
+  if (0 < *(short *)(base + 0x2c)) {
+    bsp = tag_block_get_element((void *)(*(int *)(base + 0xc) + 0xb0), 0, 0x60);
+    collision_surface_project_point2d((int)bsp, *(int *)(base + 0x38), 2, 1,
+                                      (float *)(base + 0x30), point_a);
+    collision_surface_project_point2d((int)bsp, *(int *)(base + 0x18), 2, 1,
+                                      (float *)(base + 0x10), point_b);
+    color = *(void **)0x2ee6c4;
+    if (*(short *)(base + 0x1e) == -1) {
+      color = *(void **)0x2ee6e0;
+    }
+    FUN_00189150(1, point_a, 0.125f, color);
+    color = *(void **)0x2ee6c4;
+    if (*(short *)(base + 0x1e) == -1) {
+      color = *(void **)0x2ee6e0;
+    }
+    FUN_00189150(1, point_b, 0.125f, color);
+    step_index = *(short *)(base + 0x1e);
+    csmemset(chain_bits, 0, ((*(short *)(base + 0x2c) + 0x1f) >> 5) << 2);
+    while (step_index != -1) {
+      if (step_index < 0 || *(short *)(base + 0x2c) <= step_index ||
+          *(short *)(base + 0x2c) > 0x80) {
+        display_assert("step_index>=0 && step_index<path->step_count && "
+                       "path->step_count<=MAXIMUM_OBSTACLE_AVOIDANCE_STEPS",
+                       "c:\\halo\\SOURCE\\ai\\path_obstacle_avoidance.c", 0x28,
+                       1);
+        system_exit(-1);
+      }
+      chain_bits[step_index >> 5] |= 1 << (step_index & 0x1f);
+      step_index = *(short *)(base + 0x54 + step_index * 0x28);
+    }
+    for (i = 0; i < *(short *)(base + 0x2c); i++) {
+      if (i < 0 || *(short *)(base + 0x2c) <= i ||
+          *(short *)(base + 0x2c) > 0x80) {
+        display_assert("step_index>=0 && step_index<path->step_count && "
+                       "path->step_count<=MAXIMUM_OBSTACLE_AVOIDANCE_STEPS",
+                       "c:\\halo\\SOURCE\\ai\\path_obstacle_avoidance.c", 0x28,
+                       1);
+        system_exit(-1);
+      }
+      step = base + 0x30 + i * 0x28;
+      next_index = *(short *)(step + 0x24);
+      if (next_index != -1) {
+        if (next_index < 0 || *(short *)(base + 0x2c) <= next_index ||
+            *(short *)(base + 0x2c) > 0x80) {
+          display_assert("step_index>=0 && step_index<path->step_count && "
+                         "path->step_count<=MAXIMUM_OBSTACLE_AVOIDANCE_STEPS",
+                         "c:\\halo\\SOURCE\\ai\\path_obstacle_avoidance.c",
+                         0x28, 1);
+          system_exit(-1);
+        }
+        next_step = base + 0x30 + next_index * 0x28;
+        collision_surface_project_point2d((int)bsp, *(int *)(next_step + 8), 2,
+                                          1, (float *)next_step, point_a);
+        collision_surface_project_point2d((int)bsp, *(int *)(step + 8), 2, 1,
+                                          (float *)step, point_b);
+        if ((chain_bits[i >> 5] & (1 << (i & 0x1f))) != 0) {
+          color = *(void **)0x2ee6c4;
+        } else {
+          color = *(void **)0x2ee6d4;
+          if (*(char *)(step + 0x1a) == 0) {
+            color = *(void **)0x2ee6d0;
+          }
+        }
+        FUN_00189270(1, point_a, point_b, color);
+      }
+    }
+  }
 }
