@@ -43,8 +43,8 @@ void actor_move_halt(int actor_handle)
   actor_path_refresh(actor_handle, 1, NULL);
 }
 
-/* actor_move_halt_at_firing_position (0x2f230): refresh actor path or dispatch to move/firing
- * position.
+/* actor_move_halt_at_firing_position (0x2f230): refresh actor path or dispatch
+ * to move/firing position.
  *
  * If actor is NOT in move-to-point mode (field_15e != 4):
  *   copies 6-dword block from +0x400 to +0x46c (if not already done),
@@ -192,8 +192,10 @@ int actor_perception_qsort_compare_optional_props(int param_1, int param_2)
  * (lines using actor + 0x282 etc.); +0x282 is proven written here.
  *
  * No __FILE__ string. */
-bool actor_perception_assess_suicide_danger(int actor_handle /* @<eax> */, int object_handle /* @<edi> */,
-                  float param_3, float param_4, char param_5, char param_6)
+bool actor_perception_assess_suicide_danger(int actor_handle /* @<eax> */,
+                                            int object_handle /* @<edi> */,
+                                            float param_3, float param_4,
+                                            char param_5, char param_6)
 {
   char *actor;
   char *object;
@@ -262,9 +264,9 @@ void actor_perception_find_prop_pathfinding_location(int actor_handle,
 
 /* actor_perception_find_killer_prop_index (0x2f9b0)
  * Find the highest-scoring active damaging prop visible to the unit that owns
- * the given prop. Similar to actor_perception_find_recent_damaging_prop_index but uses the prop's
- * owning unit as the source of weapon slots.
- * flag: when non-zero, require prop visibility; when 0, accept any.
+ * the given prop. Similar to actor_perception_find_recent_damaging_prop_index
+ * but uses the prop's owning unit as the source of weapon slots. flag: when
+ * non-zero, require prop visibility; when 0, accept any.
  */
 int actor_perception_find_killer_prop_index(int actor_handle, int prop_handle,
                                             int flag)
@@ -324,7 +326,8 @@ int actor_perception_find_killer_prop_index(int actor_handle, int prop_handle,
  *
  * Returns the best damaging prop handle, or -1 if none found.
  * Asserts damaging_prop_index != 0 (handle 0 is reserved/invalid). */
-int actor_perception_find_recent_damaging_prop_index(int actor_handle, char prefer_visible)
+int actor_perception_find_recent_damaging_prop_index(int actor_handle,
+                                                     char prefer_visible)
 {
   char *unit;
   char *prop_rec;
@@ -588,7 +591,9 @@ done_vision:
       }
     } else {
       if (prop_type < 4 || prop_type > 5) {
-        assert_halt_msg_at("prop_orphaned(prop)", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x1086, 0);
+        assert_halt_msg_at("prop_orphaned(prop)",
+                           "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x1086,
+                           0);
       }
       if (*(char *)(prop + 0xb8) != 0) {
         awareness = 3;
@@ -732,6 +737,84 @@ void actor_situation_update_target_status(int actor_handle)
   }
 }
 
+/* actor_situation_combat_status_update (0x302b0)
+ * Folds the pending status at +0x34a/+0x34c into +0x74/+0x78, then derives
+ * the combat status +0x6e = max(+0x74, max(+0x72, table[target_type])),
+ * where the int16 table lives at 0x255f18 (indexed by MOVSX [ESI+0x268]).
+ * The inner max is evaluated twice in the binary (0x3034f and 0x3036b),
+ * i.e. a macro-style nested max.
+ * Counters: +0x7c counts ticks with +0x6a >= 3, +0x80 ticks with status != 0,
+ * +0x84 ticks with status >= 4 (which also zeroes +0x88); otherwise +0x88
+ * increments unless it is -1.  Status >= 7 latches byte +0x8c.
+ * Assertion: target_type range at line 0x1138. */
+void actor_situation_combat_status_update(int actor_handle)
+{
+  actor_t *actor;
+  short pending;
+  short status;
+
+  actor = (actor_t *)datum_get(actor_data, actor_handle);
+  pending = actor->field_34a;
+  if (pending > 0) {
+    if (actor->field_074 < pending) {
+      actor->field_074 = pending;
+      actor->field_078 = actor->field_34c;
+    } else if (actor->field_074 == pending) {
+      actor->field_078 = actor->field_078 > actor->field_34c ?
+                           actor->field_078 :
+                           actor->field_34c;
+    }
+    actor->field_34a = 0;
+  }
+
+  if (actor->target_target_type < 0 || actor->target_target_type >= 12) {
+    display_assert("(actor->target.target_type >= 0) && "
+                   "(actor->target.target_type < NUMBER_OF_ACTOR_TARGET_TYPES)",
+                   "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x1138, true);
+    system_exit(-1);
+  }
+
+  status =
+    actor->field_074 >
+        (actor->field_072 > ((short *)0x255f18)[actor->target_target_type] ?
+           actor->field_072 :
+           ((short *)0x255f18)[actor->target_target_type]) ?
+      actor->field_074 :
+      (actor->field_072 > ((short *)0x255f18)[actor->target_target_type] ?
+         actor->field_072 :
+         ((short *)0x255f18)[actor->target_target_type]);
+  actor->field_06e = status;
+  if (status > actor->field_074) {
+    actor->field_074 = 0;
+  }
+
+  if (actor->field_06a < 3) {
+    actor->field_07c = 0;
+  } else {
+    actor->field_07c++;
+  }
+
+  if (status == 0) {
+    actor->field_080 = 0;
+  } else {
+    actor->field_080++;
+  }
+
+  if (status < 4) {
+    actor->field_084 = 0;
+    if (actor->field_088 != -1) {
+      actor->field_088++;
+    }
+  } else {
+    actor->field_084++;
+    actor->field_088 = 0;
+  }
+
+  if (status >= 7) {
+    actor->field_08c = 1;
+  }
+}
+
 /* actor_situation_try_new_target (0x308e0)
  * Score prop `target` for `actor_handle` and adopt it as the actor's combat
  * target when it beats the currently-held target.
@@ -784,8 +867,8 @@ bool actor_situation_try_new_target(int actor_handle, int target)
   return true;
 }
 
-/* actor_emotion_get_unopposable_enemy (0x30e60): find-or-append a 0x1c-byte record in a caller-owned
- * array, keyed by the dword at record+0x8.
+/* actor_emotion_get_unopposable_enemy (0x30e60): find-or-append a 0x1c-byte
+ * record in a caller-owned array, keyed by the dword at record+0x8.
  *
  * @<eax> = array base, @<edi> = search key.  Stack: param_1 at [EBP+0x8] is
  * pushed by the caller (0x3102e) but NEVER read by this function — it is
@@ -806,8 +889,9 @@ bool actor_situation_try_new_target(int actor_handle, int target)
  * `if (index == -1)` rather than written as an early return.
  *
  * No __FILE__ string. */
-short actor_emotion_get_unopposable_enemy(void *records /* @<eax> */, int key /* @<edi> */,
-                   int param_1, short *p_count, short max_count)
+short actor_emotion_get_unopposable_enemy(void *records /* @<eax> */,
+                                          int key /* @<edi> */, int param_1,
+                                          short *p_count, short max_count)
 {
   char *base;
   short count;
@@ -1206,10 +1290,11 @@ void actor_perception_update(int actor_handle)
         } else {
           ((actor_t *)actor)->field_288 = 0;
         }
-        actor_stimulus_noticed_danger_zone(actor_handle, *(uint16_t *)(actor + 0x280),
-                     *(uint16_t *)(actor + 0x282),
-                     ((actor_t *)actor)->danger_zone_object_index,
-                     (float *)(actor + 0x2b0));
+        actor_stimulus_noticed_danger_zone(
+          actor_handle, *(uint16_t *)(actor + 0x280),
+          *(uint16_t *)(actor + 0x282),
+          ((actor_t *)actor)->danger_zone_object_index,
+          (float *)(actor + 0x2b0));
       }
     }
   }

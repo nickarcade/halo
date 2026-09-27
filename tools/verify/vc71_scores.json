@@ -40771,17 +40771,17 @@
     "actor_situation_combat_status_update": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 7.9,
+      "abi_modeled_mnemonic_pct": 90.6,
       "addr": "0x302b0",
       "end": "0x303e8",
       "kind": "auto",
       "n_r": 96,
-      "opnd_percent": 5.9,
-      "raw_mnemonic_pct": 7.9,
+      "opnd_percent": 89.6,
+      "raw_mnemonic_pct": 90.6,
       "ref": "synth",
       "ref_sha": "9a689063d0e94c0f",
-      "score": 7.9,
-      "source": "src/halo/unported_thunks.c"
+      "score": 90.6,
+      "source": "src/halo/ai/actor_perception.c"
     },
     "actor_situation_try_new_target": {
       "abi_model": "raw",

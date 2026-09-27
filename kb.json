@@ -371,10 +371,10 @@
   "ported": true
  },
  "0x302b0": {
-  "decl": "void FUN_000302b0(int actor_handle);",
-  "name": "FUN_000302b0",
+  "decl": "void actor_situation_combat_status_update(int actor_handle);",
+  "name": "actor_situation_combat_status_update",
   "obj": "actor_perception.obj",
-  "ported": false
+  "ported": true
  },
  "0x46f10": {
   "decl": "void ai_communication_event(int mode, int unit_handle, int target_handle, int a4, int a5, int a6, int a7);",
