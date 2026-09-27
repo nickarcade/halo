@@ -22661,7 +22661,7 @@
      "ported": true
     },
     {
-     "decl": "unsigned int IDirect3DDevice8_DeleteVertexShader(unsigned int handle);",
+     "decl": "unsigned int __stdcall IDirect3DDevice8_DeleteVertexShader(unsigned int handle);",
      "addr": "0x178840",
      "ported": true
     }

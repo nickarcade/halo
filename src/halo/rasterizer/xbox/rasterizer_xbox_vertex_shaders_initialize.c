@@ -288,7 +288,7 @@ void rasterizer_vertex_shaders_dispose(void)
 }
 
 /* 0x178840 — IDirect3DDevice8_DeleteVertexShader */
-unsigned int IDirect3DDevice8_DeleteVertexShader(unsigned int handle)
+unsigned int __stdcall IDirect3DDevice8_DeleteVertexShader(unsigned int handle)
 {
   D3DDevice_DeleteVertexShader(handle);
   return 0;
