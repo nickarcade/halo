@@ -36179,8 +36179,7 @@
     {
      "addr": "0x30d10",
      "decl": "unsigned int actor_emotion_flee_with_friends(int actor_handle, float *chance_inout);",
-     "name": "actor_emotion_flee_with_friends",
-     "ported": true
+     "name": "actor_emotion_flee_with_friends"
     },
     {
      "addr": "0x30e60",
