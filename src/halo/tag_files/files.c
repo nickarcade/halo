@@ -491,14 +491,16 @@ bool file_references_equal(file_ref_t *info1, file_ref_t *info2)
 {
   file_ref_t *ref1;
   file_ref_t *ref2;
+  bool equal;
+
   ref1 = file_reference_verify(info1);
   ref2 = file_reference_verify(info2);
-  if (ref1->unk_6 == ref2->unk_6) {
-    if (csstrcmp(ref1->unk_8, ref2->unk_8) == 0) {
-      return true;
-    }
+  equal = false;
+  if (ref1->unk_6 == ref2->unk_6 &&
+      csstrcmp(ref1->unk_8, ref2->unk_8) == 0) {
+    equal = true;
   }
-  return false;
+  return equal;
 }
 
 /**
@@ -1134,26 +1136,22 @@ bool file_exists(file_ref_t *info)
 {
   file_ref_t *ref;
   char path[256];
-  int result;
+  bool result;
 
   ref = file_reference_verify(info);
+  result = false;
 
   memset(path, 0, sizeof(path));
 
   path_from_file_reference(ref->unk_6, ref->unk_8, path);
 
-  result = file_get_full_attributes(path);
-  if (result != -1) {
-    return true;
+  if (file_get_full_attributes(path) != -1) {
+    result = true;
+  } else if (xapi_GetLastError() != 2 && xapi_GetLastError() != 3) {
+    file_error(info, "file_exists");
   }
 
-  if (xapi_GetLastError() != 2) {
-    if (xapi_GetLastError() != 3) {
-      file_error(info, "file_exists");
-    }
-  }
-
-  return false;
+  return result;
 }
 
 /* 0x19a6d0 — rename (or move) the file referenced by info to new_name.
@@ -1166,8 +1164,10 @@ bool file_rename(file_ref_t *info, const char *new_name)
   file_ref_t *ref;
   char src_path[256];
   char dst_path[256];
+  bool result;
 
   ref = file_reference_verify(info);
+  result = false;
   src_path[0] = 0;
   memset(src_path + 1, 0, sizeof(src_path) - 1);
   dst_path[0] = 0;
@@ -1180,9 +1180,9 @@ bool file_rename(file_ref_t *info, const char *new_name)
   if (XMoveFile(src_path, dst_path)) {
     path_remove_filename(ref->unk_8);
     path_add_directory(ref->unk_8, new_name);
-    return true;
+    result = true;
   }
-  return false;
+  return result;
 }
 
 bool file_open(file_ref_t *info, int flags)
@@ -1249,15 +1249,17 @@ bool file_open(file_ref_t *info, int flags)
 bool file_close(file_ref_t *info)
 {
   file_ref_t *ref;
+  bool result;
 
   ref = file_reference_verify(info);
+  result = false;
   if (XCloseHandle(*(int *)&ref->unk_8[256])) {
     *(int *)&ref->unk_8[256] = 0;
-    return true;
+    result = true;
+  } else {
+    file_error(info, "file_close");
   }
-
-  file_error(info, "file_close");
-  return false;
+  return result;
 }
 
 /* 0x19a9a0 — return the current byte offset within the open file.
