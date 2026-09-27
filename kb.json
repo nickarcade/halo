@@ -5110,7 +5110,8 @@
     },
     {
      "addr": "0x1bbea0",
-     "decl": "void simple_cache_copy_thread(void);"
+     "decl": "void simple_cache_copy_thread(void);",
+     "ported": true
     },
     {
      "addr": "0x1bc280",

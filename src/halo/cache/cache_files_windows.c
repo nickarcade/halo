@@ -357,7 +357,7 @@ void cache_copy_initialize_read_data(char *self)
  * at lines 0x416, 0x619. Sole caller: simple_cache_copy_thread (xref
  * 0x1bbfb7, unconditional call).
  */
-void FUN_001bb8a0(char *self)
+__declspec(noinline) void FUN_001bb8a0(char *self)
 {
   int overlapped_index;
   short read_buffer_index;
@@ -638,6 +638,158 @@ void cache_copy_run_decompression(char *self /* @<eax> */)
         *(int16_t *)(self + 0xabc) = -1;
       }
     }
+  }
+}
+
+/* simple_cache_copy_thread (0x1bbea0) — decompression copy worker thread.
+ *
+ * Never returns. self is the pointer global at 0x32ea98 latched once in
+ * the prologue; the 0x950 cancel-event polls and the +0x904 flag read
+ * re-read the global, as the original does. 0x4e5610..0x4e5633 is a
+ * 0x24-byte block of low-dword performance-counter accumulators and
+ * 0x4e5638/60/68/70/78 are their start timestamps (QPC LARGE_INTEGERs).
+ * Wait results: 0 WAIT_OBJECT_0, 0xc0 WAIT_IO_COMPLETION, 0x102
+ * WAIT_TIMEOUT.
+ * Source: c:\halo\SOURCE\cache\cache_files_decompress_windows.c. */
+void simple_cache_copy_thread(void)
+{
+  char *self;
+  bool read_ready;
+  bool write_ready;
+  bool keep_going;
+  unsigned int wait_result;
+  CACHE_DECOMPRESS_LARGE_INTEGER setup_end_time;
+  CACHE_DECOMPRESS_LARGE_INTEGER blocked_end_time;
+  CACHE_DECOMPRESS_LARGE_INTEGER write_end_time;
+  CACHE_DECOMPRESS_LARGE_INTEGER read_end_time;
+  CACHE_DECOMPRESS_LARGE_INTEGER total_end_time;
+  int *event_94c;
+  int *handle_990;
+  int *field_98c;
+  void **event_954;
+
+  self = *(char **)0x32ea98;
+  event_94c = (int *)(self + 0x94c);
+  handle_990 = (int *)(self + 0x990);
+  field_98c = (int *)(self + 0x98c);
+  event_954 = (void **)(self + 0x954);
+  for (;;) {
+    WaitForSingleObject(*event_94c, -1);
+    csmemset((void *)0x4e5610, 0, 0x24);
+    QueryPerformanceCounter((void *)0x4e5678);
+    FUN_001ba710(self);
+    cache_copy_initialize_and_fill_with_garbage(self);
+    if (WaitForSingleObject(*(int *)(*(unsigned char **)0x32ea98 + 0x950), 0) !=
+        0) {
+      QueryPerformanceCounter((void *)0x4e5638);
+      cache_copy_initialize_read_data(self);
+      *(int *)(self + 0x908) = 0;
+      *(int *)(self + 0x90c) = 0;
+      *(int *)(self + 0x914) = 0;
+      *(int *)(self + 0x918) = 0;
+      inflateInit_((int)(self + 0x908), "1.1.3", 0x38);
+      QueryPerformanceCounter(&setup_end_time);
+      *(int *)0x4e5610 =
+        *(int *)0x4e5610 + ((int)setup_end_time.u.LowPart - *(int *)0x4e5638);
+      if (cache_file_header_verify(self + 0x104, "cache decompressed", 1)) {
+        keep_going = 1;
+        *(int *)(self + 0xa98) = *(int *)(self + 0xa9c) =
+          *(int *)(self + 0x10c) - 0x800;
+        FUN_001bb8a0(self);
+        while (WaitForSingleObject(
+                 *(int *)(*(unsigned char **)0x32ea98 + 0x950), 0) != 0 &&
+               *(int *)(self + 0xa9c) > 0 && keep_going) {
+          wait_result = 0xc0;
+          if (*(int *)(self + 0x994) != 0) {
+            read_ready =
+              FUN_001ba9d0(self, *(uint16_t *)(self + 0xaba)) == NULL;
+            write_ready =
+              *(int *)(self + 0xab4) == 1 && *(int16_t *)(self + 0xabc) == -1;
+            if (read_ready || write_ready) {
+              if (read_ready) {
+                QueryPerformanceCounter((void *)0x4e5668);
+              }
+              if (write_ready) {
+                QueryPerformanceCounter((void *)0x4e5670);
+              }
+              QueryPerformanceCounter((void *)0x4e5660);
+              SetEvent(*(void **)(self + 0x958));
+              wait_result =
+                WaitForSingleObjectEx(*(void **)(self + 0x950), 5000, 1);
+              QueryPerformanceCounter(&blocked_end_time);
+              *(int *)0x4e5624 =
+                *(int *)0x4e5624 +
+                ((int)blocked_end_time.u.LowPart - *(int *)0x4e5660);
+              if (write_ready) {
+                QueryPerformanceCounter(&write_end_time);
+                *(int *)0x4e562c =
+                  *(int *)0x4e562c +
+                  ((int)write_end_time.u.LowPart - *(int *)0x4e5670);
+              }
+              if (read_ready) {
+                QueryPerformanceCounter(&read_end_time);
+                *(int *)0x4e5628 =
+                  *(int *)0x4e5628 +
+                  ((int)read_end_time.u.LowPart - *(int *)0x4e5668);
+              }
+            }
+          }
+          keep_going = 0;
+          switch (wait_result) {
+          case 0:
+            break;
+          case 0xc0:
+            if (*(int *)(self + 0x998) == 0) {
+              display_assert(
+                "any_bit_vector_flag_set(self->overlapped_completed_flags, "
+                "BIT_VECTOR_SIZE_IN_LONGS(NUMBER_OF_OVERLAPPED_STRUCTURES))",
+                "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c",
+                0x351, 1);
+              system_exit(-1);
+            }
+            cache_copy_update_write_buffers(self);
+            cache_copy_run_decompression(self);
+            keep_going =
+              (*(unsigned int *)(*(unsigned char **)0x32ea98 + 0x904) & 7) == 0;
+            break;
+          case 0x102:
+            display_assert(
+              "timeout for asynchronous i/o",
+              "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c",
+              0x362, 1);
+            system_exit(-1);
+            /* The original places this store after system_exit. The compiler
+             * may remove it because the project declaration is __noreturn. */
+            *(unsigned int *)(*(unsigned char **)0x32ea98 + 0x904) |= 2;
+            break;
+          default:
+            display_assert(
+              "!\"unreachable\"",
+              "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c",
+              0x36b, 1);
+            system_exit(-1);
+            break;
+          }
+        }
+        if (*(int *)(self + 0xa9c) == 0) {
+          get_write_buffer_size(self);
+          FUN_001bb2d0(self, self + 0x104, 0x800, 0, 1);
+        }
+      }
+      FUN_00115430((int)(self + 0x908));
+      *(int *)(self + 0x908) = 0;
+      *(int *)(self + 0x90c) = 0;
+      *(int *)(self + 0x914) = 0;
+      *(int *)(self + 0x918) = 0;
+    }
+    get_write_buffer_size(self);
+    CloseHandle(*handle_990);
+    *handle_990 = 0;
+    QueryPerformanceCounter(&total_end_time);
+    *(int *)0x4e5630 =
+      *(int *)0x4e5630 + ((int)total_end_time.u.LowPart - *(int *)0x4e5678);
+    *field_98c = 0;
+    SetEvent(*event_954);
   }
 }
 

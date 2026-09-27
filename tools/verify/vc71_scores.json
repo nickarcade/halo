@@ -96014,19 +96014,19 @@
       "source": "src/halo/game/player_control.c"
     },
     "simple_cache_copy_thread": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 0.7,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 9,
+      "abi_modeled_mnemonic_pct": 88.0,
       "addr": "0x1bbea0",
       "end": "0x1bc272",
       "kind": "auto",
       "n_r": 265,
-      "opnd_percent": 0.0,
-      "raw_mnemonic_pct": 0.7,
+      "opnd_percent": 58.1,
+      "raw_mnemonic_pct": 86.9,
       "ref": "synth",
       "ref_sha": "ad77aedc5c293fb3",
-      "score": 0.7,
-      "source": "src/halo/unported_thunks.c"
+      "score": 88.0,
+      "source": "src/halo/cache/cache_files_windows.c"
     },
     "single_player_set_player1_controller_choice": {
       "abi_model": "raw",
