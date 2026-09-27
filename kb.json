@@ -38431,7 +38431,8 @@
     },
     {
      "addr": "0x65f90",
-     "decl": "void TIFFFreeDirectory(int file);"
+     "decl": "void TIFFFreeDirectory(int file);",
+     "ported": true
     },
     {
      "addr": "0x66190",
@@ -38440,7 +38441,8 @@
     },
     {
      "addr": "0x66200",
-     "decl": "void TIFFSetDirectory(void);",
+     "decl": "int TIFFSetDirectory(void *tif, int dirn);",
+     "ported": true,
      "comment": "[NAME: TIFFSetDirectory \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
