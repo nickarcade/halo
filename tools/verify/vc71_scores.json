@@ -32131,17 +32131,17 @@
     "FUN_001c0ee0": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 4.4,
+      "abi_modeled_mnemonic_pct": 93.0,
       "addr": "0x1c0ee0",
       "end": "0x1c0f66",
       "kind": "auto",
       "n_r": 43,
-      "opnd_percent": 0.0,
-      "raw_mnemonic_pct": 4.4,
+      "opnd_percent": 90.7,
+      "raw_mnemonic_pct": 93.0,
       "ref": "synth",
       "ref_sha": "07e361bf2bf2e11b",
-      "score": 4.4,
-      "source": "src/halo/unported_thunks.c"
+      "score": 93.0,
+      "source": "src/halo/saved_games/game_state_xbox.c"
     },
     "FUN_001c1280": {
       "abi_model": "raw",
@@ -32174,18 +32174,18 @@
       "source": "src/halo/saved_games/game_state_xbox.c"
     },
     "FUN_001c1720": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 91.2,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 91.5,
       "addr": "0x1c1720",
       "end": "0x1c18e8",
       "kind": "auto",
       "n_r": 150,
-      "opnd_percent": 77.6,
+      "opnd_percent": 77.8,
       "raw_mnemonic_pct": 91.2,
       "ref": "synth",
       "ref_sha": "57eb0938aa68b768",
-      "score": 91.2,
+      "score": 91.5,
       "source": "src/halo/saved_games/game_state_xbox.c"
     },
     "FUN_001c1950": {
@@ -32206,17 +32206,17 @@
     "FUN_001c19a0": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 0.0,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x1c19a0",
       "end": "0x1c19b6",
       "kind": "auto",
       "n_r": 8,
-      "opnd_percent": 0.0,
-      "raw_mnemonic_pct": 0.0,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "f2a5116c99395c8e",
-      "score": 0.0,
-      "source": "src/halo/unported_thunks.c"
+      "score": 100.0,
+      "source": "src/halo/saved_games/game_state_xbox.c"
     },
     "FUN_001c19c0": {
       "abi_model": "raw",
@@ -62353,6 +62353,21 @@
       "score": 93.3,
       "source": "src/halo/saved_games/game_state.c"
     },
+    "game_state_write_core": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 96.2,
+      "addr": "0x1c0570",
+      "end": "0x1c05f5",
+      "kind": "auto",
+      "n_r": 52,
+      "opnd_percent": 84.9,
+      "raw_mnemonic_pct": 96.2,
+      "ref": "synth",
+      "ref_sha": "6b6eaf32ee83a0ab",
+      "score": 96.2,
+      "source": "src/halo/saved_games/game_state_xbox.c"
+    },
     "game_state_write_to_file": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -86172,6 +86187,21 @@
       "ref_sha": "adb1f1b9054a9efd",
       "score": 86.7,
       "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
+    },
+    "player_profile_save_last_level_played": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0x1c0f70",
+      "end": "0x1c1275",
+      "kind": "auto",
+      "n_r": 261,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "4bd7941f358151f1",
+      "score": 100.0,
+      "source": "src/halo/saved_games/game_state_xbox.c"
     },
     "player_profile_set_for_game_1wide": {
       "abi_model": "raw",

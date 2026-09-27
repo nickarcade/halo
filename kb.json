@@ -10504,7 +10504,10 @@
     },
     {
      "addr": "0x1c0570",
-     "decl": "void game_state_write_core(void);"
+     "decl": "char game_state_write_core(const char *name, void *buffer, int size);",
+     "name": "game_state_write_core",
+     "ported": true,
+     "source_path": "src/halo/saved_games/game_state_xbox.c"
     },
     {
      "addr": "0x1c0600",
@@ -10582,11 +10585,13 @@
     },
     {
      "addr": "0x1c0ee0",
-     "decl": "void *FUN_001c0ee0(uint32_t *param_1, int param_2);"
+     "decl": "void *FUN_001c0ee0(uint32_t *param_1, int param_2);",
+     "ported": true
     },
     {
      "addr": "0x1c0f70",
-     "decl": "void player_profile_save_last_level_played(void *profile, short *out_last_level, short *out_last_level_unused);"
+     "decl": "void player_profile_save_last_level_played(void *profile, short *out_last_level, short *out_last_level_unused);",
+     "ported": true
     },
     {
      "addr": "0x1c1280",

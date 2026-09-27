@@ -186,6 +186,39 @@ char game_state_read_from_file(void)
   return 0;
 }
 
+/* 0x1c0570
+ * Write a core save file to persistent storage. Ensures "d:\core" exists,
+ * builds the path "d:\core\<name>" with sprintf, creates it for write
+ * (GENERIC_WRITE, CREATE_ALWAYS), writes size bytes from buffer, and always
+ * closes the handle -- even when CreateFileA failed and the handle is -1
+ * (CloseHandle is unconditional in the disassembly). Returns 1 only if the
+ * file opened and the full size bytes were written.
+ */
+char game_state_write_core(const char *name, void *buffer, int size)
+{
+  char path[0x400];
+  int bytes_written;
+  int file_handle;
+  char result;
+
+  result = 0;
+
+  CreateDirectoryA("d:\\core", 0);
+  crt_sprintf(path, "d:\\core\\%s", name);
+
+  file_handle = XCreateFile(path, 0x40000000, 0, 0, 2, 0x80, 0);
+  if (file_handle != -1) {
+    if (XWriteFile(file_handle, buffer, (uint32_t)size, &bytes_written, NULL) &&
+        bytes_written == size) {
+      result = 1;
+    }
+  }
+
+  XCloseHandle(file_handle);
+
+  return result;
+}
+
 /* 0x1c0600
  * Read the header of a core save file back from persistent storage. Builds
  * the path "d:\core\<name>" with sprintf, opens it read-only (OPEN_EXISTING),
@@ -591,6 +624,83 @@ unsigned short FUN_001c0ed0(void)
 {
   return 0x12;
 }
+
+/* 0x1c0ee0
+ * Clamps param_2 to [0, 0x11], reads the packed 32-bit color at
+ * 0x32eae0[param_2], and writes its bits 23-16, 15-8 and 7-0 (signed SAR +
+ * mask, signed FILD) scaled by the float at 0x261518 as three floats into
+ * param_1 via a local 3-float temporary. Echoes param_1 in EAX (MSVC
+ * struct-return convention; FUN_001c1950 reads the result through EAX).
+ * Table/constant semantics are unproven.
+ */
+void *FUN_001c0ee0(uint32_t *param_1, int param_2)
+{
+  int packed;
+  float color[3];
+
+  if (param_2 >= 0x11) {
+    param_2 = 0x11;
+  }
+  packed = ((int *)0x32eae0)[param_2 < 0 ? 0 : param_2];
+  color[0] = (float)((packed >> 16) & 0xff) * *(float *)0x261518;
+  color[1] = (float)((packed >> 8) & 0xff) * *(float *)0x261518;
+  color[2] = (float)(packed & 0xff) * *(float *)0x261518;
+  *(real_vector3d *)param_1 = *(real_vector3d *)color;
+  return param_1;
+}
+
+/* 0x1c0f70
+ * player_profile.c:0x1b8 asserts "profile && level && difficulty" (param
+ * names taken from that string). Defaults *level = -1, *difficulty = 1, then
+ * scans ten per-level flag bytes at profile+0x1c..+0x25 in ascending order;
+ * for each nonzero byte the highest set bit among 8/4/2/1 selects difficulty
+ * 3/2/1/0 and *level becomes that byte's index, so the last nonzero byte
+ * wins. The binary is fully unrolled (ten identical blocks, constant level
+ * immediates), mirrored here by one block per byte. Byte meaning is
+ * unproven beyond this bit test.
+ */
+#define PLAYER_PROFILE_LEVEL_CHECK(n)               \
+  flags = *((unsigned char *)profile + 0x1c + (n)); \
+  if (flags != 0) {                                 \
+    if ((flags & 8) != 0) {                         \
+      *out_last_level = (n);                        \
+      *out_last_level_unused = 3;                   \
+    } else if ((flags & 4) != 0) {                  \
+      *out_last_level = (n);                        \
+      *out_last_level_unused = 2;                   \
+    } else if ((flags & 2) != 0) {                  \
+      *out_last_level = (n);                        \
+      *out_last_level_unused = 1;                   \
+    } else if ((flags & 1) != 0) {                  \
+      *out_last_level = (n);                        \
+      *out_last_level_unused = 0;                   \
+    }                                               \
+  }
+
+void player_profile_save_last_level_played(void *profile, short *out_last_level,
+                                           short *out_last_level_unused)
+{
+  unsigned char flags;
+
+  assert_halt_msg_at("profile && level && difficulty",
+                     "c:\\halo\\SOURCE\\saved games\\player_profile.c", 0x1b8,
+                     profile != NULL && out_last_level != NULL &&
+                       out_last_level_unused != NULL);
+  *out_last_level = -1;
+  *out_last_level_unused = 1;
+  PLAYER_PROFILE_LEVEL_CHECK(0)
+  PLAYER_PROFILE_LEVEL_CHECK(1)
+  PLAYER_PROFILE_LEVEL_CHECK(2)
+  PLAYER_PROFILE_LEVEL_CHECK(3)
+  PLAYER_PROFILE_LEVEL_CHECK(4)
+  PLAYER_PROFILE_LEVEL_CHECK(5)
+  PLAYER_PROFILE_LEVEL_CHECK(6)
+  PLAYER_PROFILE_LEVEL_CHECK(7)
+  PLAYER_PROFILE_LEVEL_CHECK(8)
+  PLAYER_PROFILE_LEVEL_CHECK(9)
+}
+
+#undef PLAYER_PROFILE_LEVEL_CHECK
 
 /* 0x1c1290
  * kb.json previously listed this address as game_state_read_from_persistent_
