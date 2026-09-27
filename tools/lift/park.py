@@ -18,7 +18,9 @@ Record schema:
     "name", "addr", "obj", "source_path",
     "best_score": float,             # highest VC71 seen across attempts
     "best_patch": "<path>",          # patch of the best-scoring attempt
-    "status": "parked" | "promoted" | "capped_confirmed" | "superseded",
+    "status": "parked" | "promoted" | "capped_confirmed" | "superseded"
+              | "blocked_review",
+    "blocked_by": {"addr", "decl", "ts", "reason"}|null,  # blocked_review only
     "first_parked": "<iso>",
     "last_updated": "<iso>",
     "promoted_commit": "<hash>"|null,
@@ -43,7 +45,8 @@ Commands:
   apply         restore a parked record's best patch into the working tree
   promote       mark a record promoted (committed elsewhere)
   confirm-cap   mark a record as a confirmed structural cap (stop retrying)
-  reconcile     retire parked records whose function is already ported in kb.json
+  reconcile     retire parked records whose function is already ported in kb.json,
+                and release blocked_review records whose blocker decl changed
   migrate       merge a worktree-local ledger into the shared ledger
   stats         summary counts
   --self-test   run built-in tests (no git needed)
@@ -353,6 +356,11 @@ def cmd_park(args: argparse.Namespace) -> int:
             # Latest write wins -- the newest research brief is the one an
             # improve pass should see, not a merge of every attempt's context.
             rec["context"] = cap_context(ctx)
+    if args.blocked_by:
+        decl = kb_decl_index(root / "kb.json").get(_norm_addr(args.blocked_by), "")
+        rec = apply_review_block(rec, args.blocked_by, decl, args.reason)
+    else:
+        rec.pop("blocked_by", None)
     store.save(rec)
 
     if args.revert_tree:
@@ -565,12 +573,70 @@ def reconcile_targets(recs: list[dict], by_name: dict, by_addr: dict) -> list[di
     """
     out = []
     for rec in recs:
-        if rec.get("status") != "parked":
+        if rec.get("status") not in ("parked", "blocked_review"):
             continue
         ported = by_name.get(rec.get("name") or "")
         if ported is None:
             ported = by_addr.get(_norm_addr(rec.get("addr") or ""))
         if ported is True:
+            out.append(rec)
+    return out
+
+
+def kb_decl_index(kb_path: Path) -> dict:
+    """Return {normalized addr: decl string} for every kb.json entry with a decl."""
+    out: dict[str, str] = {}
+
+    def walk(node) -> None:
+        if isinstance(node, dict):
+            ad = _norm_addr(node.get("addr") or "") if "addr" in node else ""
+            if ad and isinstance(node.get("decl"), str):
+                out[ad] = node["decl"]
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    try:
+        walk(json.loads(kb_path.read_text()))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return out
+
+
+def apply_review_block(rec: dict, blocker_addr: str, blocker_decl: str,
+                       reason: str) -> dict:
+    """Mark a record blocked on a callee's kb.json declaration. Pure.
+
+    The reviewer rejected a lift because a CALLEE's declared ABI is wrong, which
+    no amount of re-lifting the target can fix. Selection skips blocked_review
+    records until reconcile sees the blocker's decl change.
+    """
+    if rec.get("status") in ("promoted", "superseded"):
+        return rec
+    rec["status"] = "blocked_review"
+    rec["blocked_by"] = {"addr": _norm_addr(blocker_addr), "decl": blocker_decl or "",
+                         "ts": _now(), "reason": (reason or "")[:500]}
+    rec["last_updated"] = _now()
+    return rec
+
+
+def review_unblock_targets(recs: list[dict], decls: dict) -> list[dict]:
+    """blocked_review records whose blocker's current kb.json decl differs from
+    the decl captured at block time. Pure.
+
+    An empty decl index means kb.json was unreadable: release nothing rather
+    than treat every blocker as changed.
+    """
+    if not decls:
+        return []
+    out = []
+    for rec in recs:
+        if rec.get("status") != "blocked_review":
+            continue
+        blk = rec.get("blocked_by") or {}
+        if decls.get(_norm_addr(blk.get("addr") or ""), "") != (blk.get("decl") or ""):
             out.append(rec)
     return out
 
@@ -599,18 +665,32 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
         return 2
 
     stale = reconcile_targets(recs, by_name, by_addr)
+    stale_ids = {id(r) for r in stale}
+    unblock = [r for r in review_unblock_targets(recs, kb_decl_index(root / "kb.json"))
+               if id(r) not in stale_ids]
     parked_total = sum(1 for r in recs if r.get("status") == "parked")
-    if not stale:
-        print(f"reconcile: {parked_total} parked record(s), none stale")
+    blocked_total = sum(1 for r in recs if r.get("status") == "blocked_review")
+    if not stale and not unblock:
+        print(f"reconcile: {parked_total} parked record(s), none stale; "
+              f"{blocked_total} blocked_review, none released")
         return 0
 
-    print(f"reconcile: {len(stale)} of {parked_total} parked record(s) already "
-          f"ported=true in kb.json")
-    for rec in sorted(stale, key=lambda r: -(r.get("best_score") or 0)):
-        print(f"  {(rec.get('name') or '?')[:52]:52s} "
-              f"{rec.get('addr') or '-':10s} best={rec.get('best_score')}")
+    if stale:
+        print(f"reconcile: {len(stale)} of {parked_total + blocked_total} parked/blocked "
+              f"record(s) already ported=true in kb.json")
+        for rec in sorted(stale, key=lambda r: -(r.get("best_score") or 0)):
+            print(f"  {(rec.get('name') or '?')[:52]:52s} "
+                  f"{rec.get('addr') or '-':10s} best={rec.get('best_score')}")
+    if unblock:
+        print(f"reconcile: {len(unblock)} of {blocked_total} blocked_review record(s) "
+              f"have a changed blocker decl in kb.json")
+        for rec in unblock:
+            blk = rec.get("blocked_by") or {}
+            print(f"  {(rec.get('name') or '?')[:52]:52s} "
+                  f"{rec.get('addr') or '-':10s} blocker={blk.get('addr') or '?'}")
     if not args.apply:
-        print("\n(dry run -- pass --apply to mark these superseded)")
+        print("\n(dry run -- pass --apply to mark stale records superseded and "
+              "release changed blocks back to parked)")
         return 0
 
     for rec in stale:
@@ -619,7 +699,17 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
                                    "parked patch is no longer the path forward")
         rec["last_updated"] = _now()
         store.save(rec)
-    print(f"\nmarked {len(stale)} record(s) superseded")
+    for rec in unblock:
+        blk = rec.pop("blocked_by", None) or {}
+        rec["status"] = "parked"
+        rec.setdefault("unblocked", []).append(
+            {"ts": _now(), "blocker": blk.get("addr"), "old_decl": blk.get("decl")})
+        rec["last_updated"] = _now()
+        store.save(rec)
+    if stale:
+        print(f"\nmarked {len(stale)} record(s) superseded")
+    if unblock:
+        print(f"released {len(unblock)} blocked_review record(s) back to parked")
     return 0
 
 
@@ -893,10 +983,18 @@ def build_followup_queue(recs: list[dict], progress_text: str = "") -> list[dict
     """Deduplicated, most-repeated-first follow-up queue. Pure function."""
     queue: dict = {}
     for rec in recs:
-        if rec.get("status") not in ("parked", "capped_confirmed"):
+        if rec.get("status") not in ("parked", "capped_confirmed", "blocked_review"):
             continue
         target = {"name": rec.get("name", ""), "addr": _fu_norm(rec.get("addr", "")),
                   "obj": rec.get("obj", "")}
+        blk = rec.get("blocked_by") or {}
+        if rec.get("status") == "blocked_review" and blk.get("addr"):
+            _fu_add(queue, {"kind": "callee_abi", "blocker_addr": _fu_norm(blk["addr"]),
+                            "action": (f"fix kb.json decl of {blk['addr']} "
+                                       f"(currently: {blk.get('decl') or 'absent'}); "
+                                       f"then reconcile releases the target"),
+                            "snippet": (blk.get("reason") or "")[:300]},
+                    target)
         for a in rec.get("attempts", []):
             text = " ".join(filter(None, (a.get("reason"), a.get("cap_hypothesis"),
                                           a.get("notes"))))
@@ -1235,6 +1333,37 @@ def _self_test() -> int:
                                     "obj": "encounters.obj"}] for e in q),
           "followups: skip_parked_repeat row becomes an untried_lever entry")
 
+    # blocked_review: set by a reviewer callee-ABI REJECT, released when the
+    # blocker's kb.json decl changes, and never re-served in the meantime.
+    brec = record_attempt(None, name="race_team_can_win_game", addr="0xb40f0",
+                          obj="game.obj", source_path="src/g.c", score=93.0,
+                          model="opus", effort="medium", reason="REJECT: callee ABI",
+                          cap_hypothesis="", patch_rel="b.patch")
+    old_decl = "char FUN_000b3b30(int flag_index@<eax>, int param_1);"
+    apply_review_block(brec, "0x000b3b30", old_decl, "callee reads ECX")
+    check(brec["status"] == "blocked_review" and brec["blocked_by"]["addr"] == "0xb3b30",
+          "blocked_review: status + normalized blocker addr")
+    check(review_unblock_targets([brec], {"0xb3b30": old_decl}) == [],
+          "blocked_review: unchanged decl stays blocked")
+    check(review_unblock_targets([brec], {}) == [],
+          "blocked_review: unreadable kb releases nothing")
+    new_decl = "char FUN_000b3b30(int flag_index@<eax>, int player_handle@<ecx>);"
+    check(review_unblock_targets([brec], {"0xb3b30": new_decl}) == [brec],
+          "blocked_review: changed decl releases")
+    check(reconcile_targets([brec], {}, {"0xb40f0": True}) == [brec],
+          "blocked_review: ported target is superseded by reconcile")
+    q = build_followup_queue([brec])
+    check(len(q) == 1 and q[0]["kind"] == "callee_abi" and q[0]["blocker_addr"] == "0xb3b30",
+          "blocked_review: surfaces as callee_abi follow-up on the blocker")
+    brec2 = record_attempt(dict(brec), name="race_team_can_win_game", addr="0xb40f0",
+                           obj="game.obj", source_path="src/g.c", score=93.0,
+                           model="opus", effort="medium", reason="retry",
+                           cap_hypothesis="", patch_rel="c.patch")
+    check(brec2["status"] == "parked", "blocked_review: a new unblocked attempt reopens it")
+    prom = {"status": "promoted"}
+    check(apply_review_block(prom, "0x1", "", "x")["status"] == "promoted",
+          "blocked_review: never downgrades a promoted record")
+
     return 0 if ok else 1
 
 
@@ -1277,11 +1406,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="git checkout the paths after saving the patch (clean the tree)")
     p.add_argument("--allow-empty", action="store_true",
                    help="Record an attempt even if the diff is empty")
+    p.add_argument("--blocked-by", dest="blocked_by", default="",
+                   help="Callee address whose kb.json decl made the reviewer "
+                        "REJECT; sets status=blocked_review until that decl changes")
     p.set_defaults(func=cmd_park)
 
     p = sub.add_parser("list", help="List parked records")
     p.add_argument("--status", choices=["parked", "promoted", "capped_confirmed",
-                                        "superseded"])
+                                        "superseded", "blocked_review"])
     p.add_argument("--obj")
     p.add_argument("--min-score", type=float)
     p.add_argument("--sort", choices=["score", "attempts", "age"], default="score")

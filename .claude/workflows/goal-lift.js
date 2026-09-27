@@ -232,7 +232,7 @@ const TARGETS_SCHEMA = {
           prior_fail:         { type: 'boolean' },  // item.prior_fail
           parked_attempts:    { type: 'number'  },  // park.py ledger: attempts so far
           parked_best_score:  { type: 'number'  },  // park.py ledger: best VC71 seen
-          parked_status:      { type: 'string'  },  // park.py ledger: parked|promoted
+          parked_status:      { type: 'string'  },  // park.py ledger: parked|promoted|blocked_review|...
         },
         required: ['addr', 'name', 'obj'],
       },
@@ -380,6 +380,7 @@ const REVIEW_SCHEMA = {
     call_argument_audit:   { type: 'string' },
     memory_offset_audit:   { type: 'string' },
     abi_audit:             { type: 'string' },
+    blocked_by_callee:     { type: 'string' },  // REJECT only: callee addr whose kb.json decl is the sole blocker
   },
   required: ['verdict', 'rationale'],
 }
@@ -864,7 +865,12 @@ Gather your own evidence before deciding:
   if the bundle is fingerprint-invalid or a touched CALL lacks required evidence.
 - Relevant kb.json declarations and register args for ${brief.name}
 
-Apply your decision policy and return your verdict.`
+Apply your decision policy and return your verdict.
+blocked_by_callee: set it ONLY with verdict REJECT, and ONLY when the sole reason
+is that a CALLEE's kb.json declaration (params, @<reg>, return type) is wrong per
+the binary, so this lift would be acceptable once that decl is fixed. Value = the
+callee's address as 0x<hex>. Otherwise leave it empty. Setting it parks the target
+as blocked_review: it is not re-served until that callee's decl changes.`
 
 // Cheap mechanical gate — runs the same hazard/ABI checks the commit stage will
 // enforce, so a clean high-% lift can skip the Opus-high reviewer entirely.
@@ -964,12 +970,12 @@ rtk git status --short
 // point is that the ladder keeps tuning the very source on disk (a --revert-tree
 // there wiped the candidate out from under the optimizer — the empty-patch
 // "escalation_exhausted" records with "no C implementation to apply a lever to").
-const parkToolPrompt = (name, addr, obj, srcFile, score, attemptME, reason, capHyp, notes, fingerprint, artifacts, keepTree) =>
+const parkToolPrompt = (name, addr, obj, srcFile, score, attemptME, reason, capHyp, notes, fingerprint, artifacts, keepTree, blockedBy) =>
   `${AGENT_RULES}
 
 Preserve the sub-bar lift of ${name} (${addr}, ${score}% VC71) for a later improve
 pass${keepTree ? '' : ', then clean the tree'}. Run exactly this one command:
-rtk python3 tools/lift/park.py park --name ${JSON.stringify(name)} --addr ${JSON.stringify(addr || '')} --obj ${JSON.stringify(obj || '')} --source ${JSON.stringify(srcFile || '')} --score ${score} --model ${JSON.stringify(attemptME.model)} --effort ${JSON.stringify(attemptME.effort)} --reason ${JSON.stringify(reason || '')} --outcome parked${fingerprint ? ' --fingerprint ' + JSON.stringify(fingerprint) : ''}${Object.values(artifacts || {}).filter(Boolean).map(id => ' --evidence ' + JSON.stringify(id)).join('')}${capHyp ? ' --cap-hypothesis ' + JSON.stringify(capHyp) : ''}${notes ? ' --notes ' + JSON.stringify(String(notes).slice(0, 2000)) : ''}${keepTree ? '' : ' --revert-tree'}
+rtk python3 tools/lift/park.py park --name ${JSON.stringify(name)} --addr ${JSON.stringify(addr || '')} --obj ${JSON.stringify(obj || '')} --source ${JSON.stringify(srcFile || '')} --score ${score} --model ${JSON.stringify(attemptME.model)} --effort ${JSON.stringify(attemptME.effort)} --reason ${JSON.stringify(reason || '')} --outcome parked${fingerprint ? ' --fingerprint ' + JSON.stringify(fingerprint) : ''}${Object.values(artifacts || {}).filter(Boolean).map(id => ' --evidence ' + JSON.stringify(id)).join('')}${capHyp ? ' --cap-hypothesis ' + JSON.stringify(capHyp) : ''}${notes ? ' --notes ' + JSON.stringify(String(notes).slice(0, 2000)) : ''}${blockedBy ? ' --blocked-by ' + JSON.stringify(blockedBy) : ''}${keepTree ? '' : ' --revert-tree'}
 park.py saves the git diff to artifacts/parked/ and records the attempt (with
 history)${keepTree ? '. This is a CHECKPOINT: do NOT revert, reset or checkout anything — the working tree must stay exactly as it is' : ', then reverts src/ kb.json tools/kb_reg_baseline.json to HEAD'}. Return the
 tool's "parked ..." stdout line.`
@@ -1084,7 +1090,9 @@ async function reviewThenCommit(brief, score, srcFile, path, phaseTitle, preEqui
   }
 
   if (!review || review.verdict !== 'AUTO_ACCEPT') {
-    return { committed: false, verdict: review ? review.verdict : 'infra_blocked', rationale: review ? review.rationale : 'structured_output_null:review' }
+    const blocker = review && review.verdict === 'REJECT' && /^0x[0-9a-f]+$/i.test(String(review.blocked_by_callee || '').trim())
+      ? String(review.blocked_by_callee).trim().toLowerCase() : ''
+    return { committed: false, verdict: review ? review.verdict : 'infra_blocked', rationale: review ? review.rationale : 'structured_output_null:review', blocked_by_callee: blocker }
   }
 
   if (DRY_RUN) {
@@ -1148,13 +1156,14 @@ async function gateThenCommit(brief, score, srcFile, path, phaseTitle, preEquiv)
 // diagnostic/rationale text for this attempt (capped 2000 chars in parkToolPrompt),
 // read back by the improve pass via park.py next's last_notes/attempt_history.
 // keepTree = record the attempt WITHOUT reverting (checkpoint park); see parkToolPrompt.
-async function parkBuilt(brief, srcFile, score, attemptME, reason, capHyp, phaseTitle, notes, keepTree) {
+// blockedBy = callee addr from a reviewer callee-ABI REJECT → park.py blocked_review.
+async function parkBuilt(brief, srcFile, score, attemptME, reason, capHyp, phaseTitle, notes, keepTree, blockedBy) {
   const refreshed = await schemaAgent(bundlePrompt(brief, true), {
     label: `publish-score:${brief.name}`, phase: phaseTitle || 'Lift', ...M.mechanical, schema: BUNDLE_SCHEMA,
   })
   const evidence = refreshed || brief
   await agent(parkToolPrompt(brief.name, brief.addr, brief.obj, srcFile, score, attemptME, reason, capHyp, notes,
-    evidence.attempt_fingerprint || evidence.fingerprint, evidence.artifacts, keepTree),
+    evidence.attempt_fingerprint || evidence.fingerprint, evidence.artifacts, keepTree, blockedBy),
     { label: `park:${brief.name}`, phase: phaseTitle || 'Lift', ...M.mechanical })
 }
 
@@ -1631,6 +1640,13 @@ targets = targets.filter(t => {
     codeSkips.push({ ...t, status: 'skipped', reason: `skip_confirmed_cap (best ${t.parked_best_score}%)` })
     return false
   }
+  // Reviewer rejected over a callee's kb.json decl: re-lifting reproduces the
+  // same REJECT (race_team_can_win_game: 19 attempts at 93%). park.py reconcile
+  // (ledger-sync above) releases it once that decl changes.
+  if (!pinnedAddr && !IMPROVE && t.parked_status === 'blocked_review') {
+    codeSkips.push({ ...t, status: 'skipped', reason: `skip_blocked_review (best ${t.parked_best_score}%)` })
+    return false
+  }
   if (t.has_reg_args === true && !LIFT_REG_ARGS) { codeSkips.push({ ...t, status: 'skipped', reason: 'skip_reg_args (selector: @reg-defined prologue → sub-bar)' }); return false }
   if (Number.isFinite(a) && a >= CRT_LO && a < CRT_HI) { codeSkips.push({ ...t, status: 'skipped', reason: 'skip_nt_import (CRT/SEH region 0x1d0000-0x1de000)' }); return false }
   // Pinned targets bypass the lane gate: an explicit --addrs entry is a
@@ -1639,7 +1655,7 @@ targets = targets.filter(t => {
   if (!pinned && t.lane && t.lane !== 'auto-lift' && t.lane !== 'cache-context') { codeSkips.push({ ...t, status: 'skipped', reason: `lane=${t.lane} (not auto-liftable)` }); return false }
   return true
 })
-if (codeSkips.length) log(`Code pre-screen dropped ${codeSkips.length} before research (${codeSkips.filter(s => s.reason.startsWith('skip_confirmed_cap')).length} confirmed-cap, ${codeSkips.filter(s => s.reason.startsWith('skip_reg_args')).length} reg-args, ${codeSkips.filter(s => s.reason.startsWith('skip_nt_import')).length} CRT/SEH, ${codeSkips.filter(s => s.reason.startsWith('lane=')).length} lane, ${codeSkips.filter(s => s.reason.startsWith('skip_excluded_prior_batch')).length} excluded-prior-batch)`)
+if (codeSkips.length) log(`Code pre-screen dropped ${codeSkips.length} before research (${codeSkips.filter(s => s.reason.startsWith('skip_confirmed_cap')).length} confirmed-cap, ${codeSkips.filter(s => s.reason.startsWith('skip_blocked_review')).length} blocked-review, ${codeSkips.filter(s => s.reason.startsWith('skip_reg_args')).length} reg-args, ${codeSkips.filter(s => s.reason.startsWith('skip_nt_import')).length} CRT/SEH, ${codeSkips.filter(s => s.reason.startsWith('lane=')).length} lane, ${codeSkips.filter(s => s.reason.startsWith('skip_excluded_prior_batch')).length} excluded-prior-batch)`)
 if (targets.length === 0) {
   log('No viable targets after code pre-screen')
   return { committed: 0, goal: GOAL, reached_goal: false, skipped: codeSkips.length, reverted: 0, reason: 'empty_queue_after_prescreen' }
@@ -2050,13 +2066,13 @@ while (true) {
     // Near-miss: lift is structurally sound, only runtime evidence blocked it.
     // Park (recoverable ledger) and do NOT count toward the consecutive-fail
     // stop — this is a deferred work item, not a failed lift.
-    await parkBuilt(brief, srcFile, score, lastME, `${outcome.verdict}: ${outcome.rationale}`, '', 'Lift', lift.reason || '')
+    await parkBuilt(brief, srcFile, score, lastME, `${outcome.verdict}: ${outcome.rationale}`, '', 'Lift', lift.reason || '', false, outcome.blocked_by_callee)
     results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'parked', vc71_score: score, source_file: srcFile, reason: `${outcome.verdict}: ${outcome.rationale}` })
-    log(`◐ ${brief.name} ${score}% parked (review gate: ${outcome.verdict}; patch in artifacts/parked/)`)
+    log(`◐ ${brief.name} ${score}% parked (review gate: ${outcome.verdict}${outcome.blocked_by_callee ? `, blocked_review on callee ${outcome.blocked_by_callee}` : ''}; patch in artifacts/parked/)`)
   } else {
     // Below 85 and review-blocked: still preserve the work (a different model
     // may push it over later) rather than checkout-discarding it.
-    await parkBuilt(brief, srcFile, score, lastME, `${outcome.verdict}: ${outcome.rationale}`, '', 'Lift', lift.reason || '')
+    await parkBuilt(brief, srcFile, score, lastME, `${outcome.verdict}: ${outcome.rationale}`, '', 'Lift', lift.reason || '', false, outcome.blocked_by_callee)
     consecutiveFails++
     results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'parked', vc71_score: score, source_file: srcFile, reason: `review<85: ${outcome.verdict}: ${outcome.rationale}` })
     log(`◐ ${brief.name} ${score}% parked (review gate <85: ${outcome.verdict})`)
