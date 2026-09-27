@@ -36207,13 +36207,17 @@
     },
     {
      "addr": "0x30f50",
-     "decl": "void actor_emotion_unopposable_retreat(void);",
+     "decl": "void actor_emotion_unopposable_retreat(int actor_handle);",
      "comment": "[NAME: actor_emotion_unopposable_retreat \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "actor_emotion_unopposable_retreat"
+     "name": "actor_emotion_unopposable_retreat",
+     "ported": true
     },
     {
      "addr": "0x31440",
-     "decl": "void actor_berserk(int actor_handle, int berserk_flag);"
+     "decl": "void actor_berserk(int actor_handle, int berserk_flag);",
+     "name": "actor_berserk",
+     "ported": true,
+     "source_path": "src/halo/ai/actor_perception.c"
     },
     {
      "addr": "0x314f0",
@@ -36247,7 +36251,8 @@
     },
     {
      "addr": "0x32940",
-     "decl": "bool actor_expected_acknowledgement(int actor_handle, int prop_handle);"
+     "decl": "bool actor_expected_acknowledgement(int actor_handle, int prop_handle);",
+     "ported": true
     },
     {
      "addr": "0x32ac0",
@@ -36271,7 +36276,8 @@
     },
     {
      "addr": "0x32cb0",
-     "decl": "void actor_emotion_update(int actor_handle);"
+     "decl": "void actor_emotion_update(int actor_handle);",
+     "ported": true
     },
     {
      "addr": "0x33330",

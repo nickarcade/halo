@@ -1733,7 +1733,7 @@ typedef struct {
   int32_t field_36c;                                 /* +0x36c  accessed 1x, meaning unproven */
   int32_t field_370;                                 /* +0x370  accessed 1x, meaning unproven */
   char field_374;                                    /* +0x374  accessed 1x, meaning unproven */
-  char pad_375[0x1];
+  char field_375;                                    /* +0x375  MOV byte [ESI+0x375],1 @0x314a4, meaning unproven */
   uint8_t field_376;                                 /* +0x376  accessed 1x, meaning unproven */
   char field_377;                                    /* +0x377  accessed 2x, meaning unproven */
   char field_378;                                    /* +0x378  accessed 2x, meaning unproven */
