@@ -9299,7 +9299,7 @@ void FUN_000b39a0(int player_handle)
 }
 
 /* Race: check if a specific checkpoint flag is the next one for a player. */
-char FUN_000b3b30(int flag_index, int param_1)
+char FUN_000b3b30(int flag_index, int player_handle)
 {
   int player;
   int variant;
@@ -9307,8 +9307,8 @@ char FUN_000b3b30(int flag_index, int param_1)
   int idx;
   int i;
 
-  player = (int)datum_get(player_data, param_1);
-  idx = param_1 & 0xffff;
+  player = (int)datum_get(player_data, player_handle);
+  idx = player_handle & 0xffff;
   unvisited = ~*(uint32_t *)(0x456f54 + idx * 4) & *(uint32_t *)0x456f10;
   if (flag_index >= 0x20)
     return 0;

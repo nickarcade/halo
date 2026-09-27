@@ -10156,7 +10156,7 @@
     },
     {
      "addr": "0xb3b30",
-     "decl": "char FUN_000b3b30(int flag_index@<eax>, int param_1);",
+     "decl": "char FUN_000b3b30(int flag_index@<eax>, int player_handle@<ecx>);",
      "ported": true,
      "src": "src/halo/game/game_engine.c"
     },
