@@ -8602,7 +8602,8 @@
     },
     {
      "addr": "0xb40f0",
-     "decl": "void race_team_can_win_game(void);"
+     "decl": "char race_team_can_win_game(int player_handle, int flag_index);",
+     "ported": true
     },
     {
      "addr": "0xb4170",

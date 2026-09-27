@@ -175,7 +175,8 @@ void game_precache_new_map(char *map_name, bool a2)
   if (cache_files_precache_map_loaded(map_name)) {
   LABEL_22:
     if (a2) {
-      assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x11a, cache_files_precache_map_loaded(map_name));
+      assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x11a,
+                     cache_files_precache_map_loaded(map_name));
       main_save_current_solo_map(map_name);
       main_queue_map_name(NULL);
 
@@ -213,8 +214,9 @@ void game_precache_new_map(char *map_name, bool a2)
   if (a2) {
     game_globals->map_loading = true;
     game_globals->map_load_progress = 0.0f;
-    assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x105, cache_files_precache_in_progress() &&
-                cache_files_precache_is_copying_map(map_name));
+    assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x105,
+                   cache_files_precache_in_progress() &&
+                     cache_files_precache_is_copying_map(map_name));
     ui_widget_load_progress_widget();
     progress_bar_begin(global_scenario_index != -1);
 
@@ -233,7 +235,8 @@ void game_precache_new_map(char *map_name, bool a2)
       display_error_damaged_media();
 
     cache_files_precache_map_end();
-    assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x123, cache_files_precache_map_loaded(map_name));
+    assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x123,
+                   cache_files_precache_map_loaded(map_name));
 
     game_globals->map_loading = false;
     game_globals->map_load_progress = 1.0f;
@@ -571,9 +574,12 @@ bool game_load(game_options_t *options)
   game_globals_t *globals;
   bool loaded;
 
-  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x192, !game_globals->active);
-  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x193, !game_globals->map_loaded);
-  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x194, game_options_verify(options));
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x192,
+                 !game_globals->active);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x193,
+                 !game_globals->map_loaded);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x194,
+                 game_options_verify(options));
 
   random_seed_debug_log(1);
   csmemcpy(&game_globals->game_options, options, sizeof(*options));
@@ -592,8 +598,10 @@ void game_initialize_for_new_map(void)
 {
   int random_seed;
 
-  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x1d1, game_globals->map_loaded);
-  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x1d2, !game_globals->active);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x1d1,
+                 game_globals->map_loaded);
+  assert_halt_at("c:\\halo\\SOURCE\\game\\game.c", 0x1d2,
+                 !game_globals->active);
 
   random_seed = game_globals->game_options.random_seed;
 #ifdef HALO_RNG_TRACE
@@ -660,6 +668,27 @@ void game_set_game_variant_from_name(const char *name)
   qmemcpy(&variant_copy, game_engine_get_variant_by_name(&variant, name),
           sizeof(game_variant_t));
   qmemcpy(&game_variant_global, &variant_copy, sizeof(game_variant_t));
+}
+
+/* race_team_can_win_game (0xb40f0) — game_engine_race.c.
+ * Args at [EBP+8] (player handle, passed to datum_get and as ECX) and
+ * [EBP+0xc] (goal/flag index, bit-tested against 0x456f10 and passed as EAX).
+ * XOR BL,BL at 0xb4119 pre-clears the result; the valid path tail-jumps to
+ * FUN_000b3b30 (0xb414a). Result of datum_get is discarded (0xb40ff). */
+char race_team_can_win_game(int player_handle, int flag_index)
+{
+  char result;
+
+  datum_get(player_data, player_handle);
+  result = 0;
+  if (!((1 << flag_index) & race_globals.track_flags_bitmask)) {
+    display_assert("!\"race goal matches player called on an invalid goal\"",
+                   "c:\\halo\\SOURCE\\game\\game_engine_race.c", 0x426, true);
+    system_exit(-1);
+  } else {
+    result = FUN_000b3b30(flag_index, player_handle);
+  }
+  return result;
 }
 
 /* FUN_000b4170 (0xb4170) — race/team score computation.
@@ -1176,9 +1205,8 @@ void update_speed_for_score(int param_1, int param_2)
     player_2->speed_multiplier -= 0.02f;
     if (player_2->speed_multiplier >= 1.0f) {
       player_2->speed_multiplier -= 0.15f;
-      player_2->speed_multiplier = player_2->speed_multiplier > 1.0f
-                                       ? player_2->speed_multiplier
-                                       : 1.0f;
+      player_2->speed_multiplier =
+        player_2->speed_multiplier > 1.0f ? player_2->speed_multiplier : 1.0f;
     }
     player_2->speed_multiplier =
       player_2->speed_multiplier > 0.9f ? player_2->speed_multiplier : 0.9f;
@@ -1187,9 +1215,8 @@ void update_speed_for_score(int param_1, int param_2)
     player_1->speed_multiplier += 0.1f;
     if (player_1->speed_multiplier <= 1.0f) {
       player_1->speed_multiplier += 0.1f;
-      player_1->speed_multiplier = player_1->speed_multiplier > 1.0f
-                                       ? 1.0f
-                                       : player_1->speed_multiplier;
+      player_1->speed_multiplier =
+        player_1->speed_multiplier > 1.0f ? 1.0f : player_1->speed_multiplier;
     }
     player_1->speed_multiplier =
       player_1->speed_multiplier > 1.5f ? 1.5f : player_1->speed_multiplier;
