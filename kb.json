@@ -39965,7 +39965,8 @@
     },
     {
      "addr": "0x120620",
-     "decl": "char FUN_00120620(int animation@<esi>);"
+     "decl": "char FUN_00120620(int animation@<esi>);",
+     "ported": true
     },
     {
      "addr": "0x120670",
@@ -40014,7 +40015,8 @@
     },
     {
      "addr": "0x120ba0",
-     "decl": "void interpolate_node_orientations(int16_t node_count, void *interp_data, void *anim_data, int16_t interp_tick, int16_t interp_total);"
+     "decl": "void interpolate_node_orientations(int16_t node_count, void *original_node_orientations, void *target_node_orientations, int16_t frame_index, int16_t frame_count);",
+     "ported": true
     },
     {
      "addr": "0x120cb0",

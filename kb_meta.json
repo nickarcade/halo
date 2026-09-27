@@ -17064,6 +17064,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x120620": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x120670": {
       "kind": "function",
       "status": "ported"
@@ -17097,6 +17101,10 @@
       "status": "ported"
     },
     "0x120a40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x120ba0": {
       "kind": "function",
       "status": "ported"
     },

@@ -420,6 +420,30 @@ const char *FUN_001205f0(void *string_table, int16_t index)
   return result;
 }
 
+/* animation_is_compressed (0x120620)
+ *
+ * Name: PAL 2342 model_animations.c animation_is_compressed (T2), whose
+ * match_assert("...model_animations.c", 38, animation) matches the
+ * "animation" assert at line 0x26 here.
+ * Confirmed: register arg — TEST ESI,ESI at entry, no prologue, no stack
+ *   args; every caller loads ESI before the CALL.
+ * Confirmed: TEST byte [ESI+0x3a],1 (compressed flag); then the byte
+ *   global 0x322600 (PAL: hs_model_animation_compression_enabled) or
+ *   dword [ESI+0x88] == 0 (PAL: compressed_data_offset).  Returns via
+ *   MOV EAX,1 / XOR EAX,EAX.
+ */
+char FUN_00120620(int animation)
+{
+  if (animation == 0) {
+    display_assert("animation", "c:\\halo\\SOURCE\\models\\model_animations.c",
+                   0x26, 1);
+    system_exit(-1);
+  }
+
+  return (*(unsigned char *)(animation + 0x3a) & 1) &&
+         (DAT_00322600 != '\0' || *(int *)(animation + 0x88) == 0);
+}
+
 /* build_damage_animation_index (0x120670) — flatten a (damage_type,
  * damage_direction, damage_part) triple into a single animation index.
  *
@@ -831,6 +855,44 @@ void animation_graph_node_matrices_from_orientations(
         write_index = write_index + 1;
       }
     } while ((short)read_index != (short)write_index);
+  }
+}
+
+/* interpolate_node_orientations (0x120ba0) -- blend each node's orientation
+ * from original toward target in place: fraction = (frame_index+1)/frame_count.
+ * Node records are 0x20 bytes: +0x00 rotation quaternion, +0x10 translation,
+ * +0x1c scale (layout from the loop's FMUL/FSTP offsets; same stride as
+ * overlay_animation_apply).  Asserts are model_animations.c 0x4fd/0x4fe with
+ * the XBE's own strings.  quaternions_interpolate_and_normalize (0x10cb60) is
+ * called (original, target, fraction, target) -- pushes at 0x120c46..0x120c50.
+ * Shape: PAL 2342 model_animations.c interpolate_node_orientations (T2). */
+void interpolate_node_orientations(int16_t node_count,
+                                   void *original_node_orientations,
+                                   void *target_node_orientations,
+                                   int16_t frame_index, int16_t frame_count)
+{
+  real fraction;
+  real inverse_fraction;
+  int16_t node_index;
+
+  fraction = (real)(frame_index + 1) / (real)frame_count;
+  inverse_fraction = *(float *)0x2533c8 - fraction;
+  assert_halt_msg_at("frame_count>0",
+                     "c:\\halo\\SOURCE\\models\\model_animations.c", 0x4fd,
+                     frame_count > 0);
+  assert_halt_msg_at("frame_index<frame_count",
+                     "c:\\halo\\SOURCE\\models\\model_animations.c", 0x4fe,
+                     frame_index < frame_count);
+
+  for (node_index = 0; node_index < node_count; node_index++) {
+    float *target = (float *)target_node_orientations + node_index * 8;
+    float *original = (float *)original_node_orientations + node_index * 8;
+
+    target[7] = inverse_fraction * original[7] + fraction * target[7];
+    quaternions_interpolate_and_normalize(original, target, fraction, target);
+    target[4] = inverse_fraction * original[4] + fraction * target[4];
+    target[5] = inverse_fraction * original[5] + fraction * target[5];
+    target[6] = inverse_fraction * original[6] + fraction * target[6];
   }
 }
 
@@ -1752,7 +1814,7 @@ void FUN_00121d60(void *mode_tag, void *animation, int animation_index,
  *   +0x5c[]: translation channel present
  *   +0x6c[]: rotation channel present
  *   +0x7c[]: scale channel present
- * When the animation is not compressed (FUN_00120620 == 0) the values are
+ * When the animation is not compressed (animation_is_compressed == 0) the values are
  * read sequentially out of the frame data returned by FUN_00120500; when it
  * is compressed each present channel is evaluated from the keyframe streams
  * with a per-channel running component index.
@@ -1761,7 +1823,7 @@ void FUN_00121d60(void *mode_tag, void *animation, int animation_index,
  * +0x10 translation (3 floats), +0x1c scale (1 float).
  *
  * Confirmed: cdecl, 3 args, void return (MOV ESP,EBP epilogue at 0x12222d).
- * Confirmed: CALL FUN_00120620(animation@<esi>) at 0x12208f — no stack args,
+ * Confirmed: CALL animation_is_compressed(animation@<esi>) at 0x12208f — no stack args,
  * result byte stored to [EBP+0xb]. Confirmed: CALL FUN_00120500 at 0x122099
  * and 0x1221f5 (2 args: animation, frame_index). Confirmed: CALL
  * quaternion_decompress_8byte at 0x12211d (2 args: src_shorts, dest_floats).
@@ -1797,7 +1859,7 @@ void replacement_animation_apply(void *animation, short frame_index,
   if (*(short *)(anim + 0x20) == 2) {
     node_index = 0;
     if (frame_index >= node_index && frame_index < *(short *)(anim + 0x22)) {
-      compressed = FUN_00120620((int)anim);
+      compressed = animation_is_compressed((int)anim);
       data = (int *)FUN_00120500(animation, frame_index);
       rotation_count = 0;
       translation_count = 0;
@@ -1896,7 +1958,7 @@ void replacement_animation_apply(void *animation, short frame_index,
  * Confirmed: cdecl, 3 args, void return (MOV ESP,EBP epilogue at 0x122442).
  * Confirmed: frame_index is read as a 16-bit value (CMP DI,BX at 0x12225c;
  * MOVSX EAX,word ptr [EBP+0xc] at 0x1222d7).
- * Confirmed: CALL FUN_00120620(animation@<esi>) at 0x12226f — no stack args,
+ * Confirmed: CALL animation_is_compressed(animation@<esi>) at 0x12226f — no stack args,
  * result byte stored to [EBP+0xb]. Confirmed: CALL FUN_00120500 at 0x122279
  * and 0x12240a (2 args: animation, frame_index). Confirmed: CALL
  * quaternion_decompress_8byte at 0x122300 (2 args: src_shorts, dest_floats;
@@ -1941,7 +2003,7 @@ void overlay_animation_apply(void *anim_entry, int frame, void *node_data)
   if (*(short *)(anim + 0x20) == 1) {
     node_index = 0;
     if (frame_index >= node_index && frame_index < *(short *)(anim + 0x22)) {
-      compressed = FUN_00120620((int)anim);
+      compressed = animation_is_compressed((int)anim);
       data = (int *)FUN_00120500(anim_entry, frame_index);
       rotation_count = 0;
       translation_count = 0;

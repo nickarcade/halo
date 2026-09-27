@@ -18853,6 +18853,21 @@
       "score": 100.0,
       "source": "src/halo/models/model_animations.c"
     },
+    "FUN_00120620": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0x120620",
+      "end": "0x120663",
+      "kind": "auto",
+      "n_r": 22,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "1b5dde84d22f09c7",
+      "score": 100.0,
+      "source": "src/halo/models/model_animations.c"
+    },
     "FUN_00120710": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -72646,17 +72661,17 @@
     "interpolate_node_orientations": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 8.2,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x120ba0",
       "end": "0x120ca2",
       "kind": "auto",
       "n_r": 92,
-      "opnd_percent": 6.2,
-      "raw_mnemonic_pct": 8.2,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "61a7be36d520f257",
-      "score": 8.2,
-      "source": "src/halo/unported_thunks.c"
+      "score": 100.0,
+      "source": "src/halo/models/model_animations.c"
     },
     "interpolate_scalar": {
       "abi_model": "raw",
