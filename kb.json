@@ -844,25 +844,25 @@
     },
     {
      "addr": "0x160670",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_10(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_10(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_10"
     },
     {
      "addr": "0x160890",
-     "decl": "uint32_t IDirect3DDevice8_SetTexture(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTexture(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTexture"
     },
     {
      "addr": "0x1608a0",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_10(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_10(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_10"
     },
     {
      "addr": "0x160900",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_10(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_10(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_10"
     },
@@ -4775,7 +4775,7 @@
     },
     {
      "addr": "0x1c6160",
-     "decl": "void D3DTexture_UnlockRect(void);",
+     "decl": "void __stdcall D3DTexture_UnlockRect(int param_1, int param_2);",
      "ported": false,
      "name": "D3DTexture_UnlockRect"
     },
@@ -4786,7 +4786,7 @@
     },
     {
      "addr": "0x1c6190",
-     "decl": "uint32_t IDirect3DTexture8_UnlockRect(void);",
+     "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect(int param_1, int param_2);",
      "ported": false,
      "name": "IDirect3DTexture8_UnlockRect"
     },
@@ -6949,7 +6949,7 @@
     },
     {
      "addr": "0x1cf91e",
-     "decl": "bool DuplicateHandle(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6);",
+     "decl": "bool __stdcall DuplicateHandle(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7);",
      "ported": false,
      "name": "DuplicateHandle"
     },
@@ -16788,7 +16788,7 @@
     },
     {
      "addr": "0xe0490",
-     "decl": "void IDirect3DDevice8_PersistDisplay(void);",
+     "decl": "void __stdcall IDirect3DDevice8_PersistDisplay(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_PersistDisplay"
     },
@@ -23512,7 +23512,7 @@
     },
     {
      "addr": "0xe19b0",
-     "decl": "uint32_t IDirect3DDevice8_GetBackBuffer_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_GetBackBuffer_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_GetBackBuffer_0"
     },
@@ -23529,13 +23529,13 @@
     },
     {
      "addr": "0xe19f0",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderTarget_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderTarget_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderTarget_0"
     },
     {
      "addr": "0xe1a00",
-     "decl": "void IDirect3DDevice8_GetDepthStencilSurface_0(uint32_t a0);",
+     "decl": "void __stdcall IDirect3DDevice8_GetDepthStencilSurface_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_GetDepthStencilSurface_0"
     },
@@ -23547,19 +23547,19 @@
     },
     {
      "addr": "0xe1a30",
-     "decl": "uint32_t IDirect3DDevice8_SetTransform(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTransform(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTransform"
     },
     {
      "addr": "0xe1a40",
-     "decl": "uint32_t IDirect3DDevice8_GetTransform(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_GetTransform(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_GetTransform"
     },
     {
      "addr": "0xe1a50",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_17(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_17(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_17"
     },
@@ -23590,7 +23590,7 @@
     },
     {
      "addr": "0xe1cf0",
-     "decl": "uint32_t IDirect3DDevice8_SetTexture_1(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTexture_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTexture_1"
     },
@@ -23602,7 +23602,7 @@
     },
     {
      "addr": "0xe1d50",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_16(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_16(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_16"
     },
@@ -23613,13 +23613,13 @@
     },
     {
      "addr": "0xe1ec0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShader_1(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShader_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShader_1"
     },
     {
      "addr": "0xe1ed0",
-     "decl": "uint32_t IDirect3DDevice8_SetPixelShaderProgram_0(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetPixelShaderProgram_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetPixelShaderProgram_0"
     },
@@ -23631,7 +23631,7 @@
     },
     {
      "addr": "0xe1ef0",
-     "decl": "void IDirect3DDevice8_BlockUntilVerticalBlank(void);",
+     "decl": "void __stdcall IDirect3DDevice8_BlockUntilVerticalBlank(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_BlockUntilVerticalBlank"
     },
@@ -23649,13 +23649,13 @@
     },
     {
      "addr": "0xe1f50",
-     "decl": "uint32_t IDirect3DDevice8_Begin_11(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_11(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_11"
     },
     {
      "addr": "0xe1f60",
-     "decl": "uint32_t IDirect3DDevice8_End_11(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_11(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_11"
     },
@@ -23683,7 +23683,7 @@
     },
     {
      "addr": "0xe2180",
-     "decl": "void D3DTexture_UnlockRect_2(void);",
+     "decl": "void __stdcall D3DTexture_UnlockRect_2(int param_1, int param_2);",
      "ported": false,
      "name": "D3DTexture_UnlockRect_2"
     },
@@ -23706,7 +23706,7 @@
     },
     {
      "addr": "0xe21d0",
-     "decl": "uint32_t IDirect3DTexture8_UnlockRect_2(void);",
+     "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect_2(int param_1, int param_2);",
      "ported": false,
      "name": "IDirect3DTexture8_UnlockRect_2"
     },
@@ -24036,19 +24036,19 @@
     },
     {
      "addr": "0x16dbd0",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_6(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_6(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_6"
     },
     {
      "addr": "0x16ddf0",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_6(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_6(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_6"
     },
     {
      "addr": "0x16de50",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_6(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_6(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_6"
     },
@@ -24066,19 +24066,19 @@
     },
     {
      "addr": "0x16deb0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s_3(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_3(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s_3"
     },
     {
      "addr": "0x16dec0",
-     "decl": "uint32_t IDirect3DDevice8_Begin_4(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_4(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_4"
     },
     {
      "addr": "0x16ded0",
-     "decl": "uint32_t IDirect3DDevice8_End_4(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_4(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_4"
     },
@@ -24110,19 +24110,19 @@
     },
     {
      "addr": "0x16ec60",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_5(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_5(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_5"
     },
     {
      "addr": "0x16ee80",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_5(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_5(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_5"
     },
     {
      "addr": "0x16eee0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_5(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_5(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_5"
     },
@@ -24209,13 +24209,13 @@
     },
     {
      "addr": "0x170380",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_4(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_4(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_4"
     },
     {
      "addr": "0x1703e0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_4(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_4(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_4"
     },
@@ -24226,19 +24226,19 @@
     },
     {
      "addr": "0x170410",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s_2(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_2(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s_2"
     },
     {
      "addr": "0x170420",
-     "decl": "uint32_t IDirect3DDevice8_Begin_3(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_3(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_3"
     },
     {
      "addr": "0x170430",
-     "decl": "uint32_t IDirect3DDevice8_End_3(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_3(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_3"
     },
@@ -24264,7 +24264,7 @@
     },
     {
      "addr": "0x172300",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_3(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_3(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_3"
     },
@@ -24275,13 +24275,13 @@
     },
     {
      "addr": "0x172530",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_3(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_3(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_3"
     },
     {
      "addr": "0x172630",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_3(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_3(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_3"
     },
@@ -24297,19 +24297,19 @@
     },
     {
      "addr": "0x172670",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s_1(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s_1"
     },
     {
      "addr": "0x172680",
-     "decl": "uint32_t IDirect3DDevice8_Begin_2(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_2(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_2"
     },
     {
      "addr": "0x172690",
-     "decl": "uint32_t IDirect3DDevice8_End_2(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_2(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_2"
     },
@@ -24342,19 +24342,19 @@
     },
     {
      "addr": "0x173850",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_2(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_2(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_2"
     },
     {
      "addr": "0x173a70",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_2(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_2(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_2"
     },
     {
      "addr": "0x173ad0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_2(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_2(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_2"
     },
@@ -24370,19 +24370,19 @@
     },
     {
      "addr": "0x173b10",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexDataColor_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexDataColor_0"
     },
     {
      "addr": "0x173b20",
-     "decl": "uint32_t IDirect3DDevice8_Begin_1(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_1"
     },
     {
      "addr": "0x173b30",
-     "decl": "uint32_t IDirect3DDevice8_End_1(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_1"
     },
@@ -24420,49 +24420,49 @@
     },
     {
      "addr": "0x174690",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_1(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_1"
     },
     {
      "addr": "0x1748b0",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_1(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_1"
     },
     {
      "addr": "0x174910",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_1(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_1"
     },
     {
      "addr": "0x174920",
-     "decl": "uint32_t IDirect3DDevice8_SetStreamSource(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetStreamSource"
     },
     {
      "addr": "0x174930",
-     "decl": "uint32_t IDirect3DDevice8_BeginVisibilityTest_0(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_BeginVisibilityTest_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_BeginVisibilityTest_0"
     },
     {
      "addr": "0x174940",
-     "decl": "void IDirect3DDevice8_EndVisibilityTest_0(uint32_t a0);",
+     "decl": "void __stdcall IDirect3DDevice8_EndVisibilityTest_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_EndVisibilityTest_0"
     },
     {
      "addr": "0x174950",
-     "decl": "void IDirect3DDevice8_GetVisibilityTestResult_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "void __stdcall IDirect3DDevice8_GetVisibilityTestResult_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_GetVisibilityTestResult_0"
     },
     {
      "addr": "0x174960",
-     "decl": "void D3DVertexBuffer_Unlock(void);",
+     "decl": "void __stdcall D3DVertexBuffer_Unlock(int param_1);",
      "ported": false,
      "name": "D3DVertexBuffer_Unlock"
     },
@@ -24480,7 +24480,7 @@
     },
     {
      "addr": "0x1749a0",
-     "decl": "uint32_t IDirect3DVertexBuffer8_Unlock(void);",
+     "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock(int param_1);",
      "ported": false,
      "name": "IDirect3DVertexBuffer8_Unlock"
     },
@@ -24554,19 +24554,19 @@
     },
     {
      "addr": "0x1792e0",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_0(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_0"
     },
     {
      "addr": "0x179500",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_0(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_0"
     },
     {
      "addr": "0x179560",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_0"
     },
@@ -24577,19 +24577,19 @@
     },
     {
      "addr": "0x179590",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s_0"
     },
     {
      "addr": "0x1795a0",
-     "decl": "uint32_t IDirect3DDevice8_Begin_0(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_0"
     },
     {
      "addr": "0x1795b0",
-     "decl": "uint32_t IDirect3DDevice8_End_0(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_0"
     },
@@ -24624,37 +24624,37 @@
     },
     {
      "addr": "0x17aa60",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState"
     },
     {
      "addr": "0x17ac80",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState"
     },
     {
      "addr": "0x17ace0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant"
     },
     {
      "addr": "0x17acf0",
-     "decl": "uint32_t IDirect3DDevice8_BeginVisibilityTest(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_BeginVisibilityTest(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_BeginVisibilityTest"
     },
     {
      "addr": "0x17ad00",
-     "decl": "void IDirect3DDevice8_EndVisibilityTest(uint32_t a0);",
+     "decl": "void __stdcall IDirect3DDevice8_EndVisibilityTest(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_EndVisibilityTest"
     },
     {
      "addr": "0x17ad10",
-     "decl": "void IDirect3DDevice8_GetVisibilityTestResult(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "void __stdcall IDirect3DDevice8_GetVisibilityTestResult(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_GetVisibilityTestResult"
     },
@@ -24672,13 +24672,13 @@
     },
     {
      "addr": "0x17ad70",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s"
     },
     {
      "addr": "0x17ad80",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexDataColor(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexDataColor"
     },
@@ -24689,7 +24689,7 @@
     },
     {
      "addr": "0x17ada0",
-     "decl": "uint32_t IDirect3DDevice8_Begin(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin"
     },
@@ -24909,7 +24909,7 @@
    "functions": [
     {
      "addr": "0x178840",
-     "decl": "uint32_t IDirect3DDevice8_DeleteVertexShader(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_DeleteVertexShader(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_DeleteVertexShader"
     },
@@ -24931,25 +24931,25 @@
    "functions": [
     {
      "addr": "0x178b00",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShader(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShader(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShader"
     },
     {
      "addr": "0x178b10",
-     "decl": "uint32_t IDirect3DDevice8_LoadVertexShader(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_LoadVertexShader(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_LoadVertexShader"
     },
     {
      "addr": "0x178b20",
-     "decl": "uint32_t IDirect3DDevice8_SelectVertexShader(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SelectVertexShader(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SelectVertexShader"
     },
     {
      "addr": "0x178b30",
-     "decl": "uint32_t IDirect3DDevice8_GetVertexShaderSize(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_GetVertexShaderSize(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_GetVertexShaderSize"
     },
@@ -24987,7 +24987,7 @@
     },
     {
      "addr": "0x1550b0",
-     "decl": "uint32_t IDirect3D8_Release(void);",
+     "decl": "uint32_t __stdcall IDirect3D8_Release(int param_1);",
      "ported": false,
      "name": "IDirect3D8_Release"
     },
@@ -25103,37 +25103,37 @@
     },
     {
      "addr": "0x159300",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_15(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_15(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_15"
     },
     {
      "addr": "0x159520",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_14(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_14(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_14"
     },
     {
      "addr": "0x159580",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_14(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_14(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_14"
     },
     {
      "addr": "0x159590",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s_7(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_7(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s_7"
     },
     {
      "addr": "0x1595a0",
-     "decl": "uint32_t IDirect3DDevice8_Begin_9(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_9(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_9"
     },
     {
      "addr": "0x1595b0",
-     "decl": "uint32_t IDirect3DDevice8_End_9(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_9(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_9"
     },
@@ -25162,7 +25162,7 @@
     },
     {
      "addr": "0x15a2a0",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_14(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_14(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_14"
     },
@@ -25174,7 +25174,7 @@
     },
     {
      "addr": "0x15a4d0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_13(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_13(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_13"
     },
@@ -25192,25 +25192,25 @@
     },
     {
      "addr": "0x15a520",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s_6(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_6(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s_6"
     },
     {
      "addr": "0x15a530",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexDataColor_2(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor_2(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexDataColor_2"
     },
     {
      "addr": "0x15a540",
-     "decl": "uint32_t IDirect3DDevice8_Begin_8(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_8(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_8"
     },
     {
      "addr": "0x15a550",
-     "decl": "uint32_t IDirect3DDevice8_End_8(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_8(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_8"
     },
@@ -25302,7 +25302,7 @@
     },
     {
      "addr": "0x15b230",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_13(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_13(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_13"
     },
@@ -25318,7 +25318,7 @@
     },
     {
      "addr": "0x15b4d0",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_13(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_13(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_13"
     },
@@ -25335,7 +25335,7 @@
     },
     {
      "addr": "0x15b5d0",
-     "decl": "uint32_t IDirect3DDevice8_SetStreamSource_2(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource_2(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetStreamSource_2"
     },
@@ -25352,7 +25352,7 @@
     },
     {
      "addr": "0x15b670",
-     "decl": "void D3DVertexBuffer_Unlock_3(void);",
+     "decl": "void __stdcall D3DVertexBuffer_Unlock_3(int param_1);",
      "ported": false,
      "name": "D3DVertexBuffer_Unlock_3"
     },
@@ -25376,7 +25376,7 @@
     },
     {
      "addr": "0x15b6c0",
-     "decl": "uint32_t IDirect3DVertexBuffer8_Unlock_3(void);",
+     "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_3(int param_1);",
      "ported": false,
      "name": "IDirect3DVertexBuffer8_Unlock_3"
     },
@@ -25442,31 +25442,31 @@
     },
     {
      "addr": "0x15c340",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_12(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_12(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_12"
     },
     {
      "addr": "0x15c560",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_12(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_12(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_12"
     },
     {
      "addr": "0x15c5c0",
-     "decl": "uint32_t IDirect3DDevice8_DrawVertices(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_DrawVertices(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_DrawVertices"
     },
     {
      "addr": "0x15c5d0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_12(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_12(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_12"
     },
     {
      "addr": "0x15c5e0",
-     "decl": "uint32_t IDirect3DDevice8_SetStreamSource_1(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetStreamSource_1"
     },
@@ -25484,7 +25484,7 @@
     },
     {
      "addr": "0x15c630",
-     "decl": "void D3DVertexBuffer_Unlock_2(void);",
+     "decl": "void __stdcall D3DVertexBuffer_Unlock_2(int param_1);",
      "ported": false,
      "name": "D3DVertexBuffer_Unlock_2"
     },
@@ -25502,7 +25502,7 @@
     },
     {
      "addr": "0x15c670",
-     "decl": "uint32_t IDirect3DVertexBuffer8_Unlock_2(void);",
+     "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_2(int param_1);",
      "ported": false,
      "name": "IDirect3DVertexBuffer8_Unlock_2"
     },
@@ -25590,13 +25590,13 @@
     },
     {
      "addr": "0x15d530",
-     "decl": "uint32_t IDirect3DDevice8_SetStreamSource_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetStreamSource_0"
     },
     {
      "addr": "0x15d540",
-     "decl": "uint32_t IDirect3DDevice8_SetIndices(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetIndices(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetIndices"
     },
@@ -25640,13 +25640,13 @@
     },
     {
      "addr": "0x155330",
-     "decl": "void IDirect3DDevice8_Release(void);",
+     "decl": "void __stdcall IDirect3DDevice8_Release(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Release"
     },
     {
      "addr": "0x155340",
-     "decl": "uint32_t IDirect3DDevice8_GetDeviceCaps(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_GetDeviceCaps(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_GetDeviceCaps"
     },
@@ -25657,7 +25657,7 @@
     },
     {
      "addr": "0x155370",
-     "decl": "uint32_t IDirect3DDevice8_GetBackBuffer(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_GetBackBuffer(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_GetBackBuffer"
     },
@@ -25683,31 +25683,31 @@
     },
     {
      "addr": "0x155510",
-     "decl": "void IDirect3DDevice8_CreatePalette(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "void __stdcall IDirect3DDevice8_CreatePalette(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_CreatePalette"
     },
     {
      "addr": "0x155520",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderTarget(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderTarget(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderTarget"
     },
     {
      "addr": "0x155530",
-     "decl": "void IDirect3DDevice8_GetDepthStencilSurface(uint32_t a0);",
+     "decl": "void __stdcall IDirect3DDevice8_GetDepthStencilSurface(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_GetDepthStencilSurface"
     },
     {
      "addr": "0x155540",
-     "decl": "uint32_t IDirect3DDevice8_BeginScene(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_BeginScene(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_BeginScene"
     },
     {
      "addr": "0x155550",
-     "decl": "uint32_t IDirect3DDevice8_EndScene(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_EndScene(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_EndScene"
     },
@@ -25753,67 +25753,67 @@
     },
     {
      "addr": "0x1558a0",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_15(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_15(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_15"
     },
     {
      "addr": "0x155900",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShader_0(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShader_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShader_0"
     },
     {
      "addr": "0x155910",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_15(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_15(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_15"
     },
     {
      "addr": "0x155920",
-     "decl": "uint32_t IDirect3DDevice8_SetShaderConstantMode(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetShaderConstantMode(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetShaderConstantMode"
     },
     {
      "addr": "0x155930",
-     "decl": "uint32_t IDirect3DDevice8_SetStreamSource_3(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource_3(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetStreamSource_3"
     },
     {
      "addr": "0x155940",
-     "decl": "uint32_t IDirect3DDevice8_SetIndices_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetIndices_0(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetIndices_0"
     },
     {
      "addr": "0x155950",
-     "decl": "uint32_t IDirect3DDevice8_SetPixelShaderProgram(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetPixelShaderProgram(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetPixelShaderProgram"
     },
     {
      "addr": "0x155960",
-     "decl": "void IDirect3DDevice8_SetVerticalBlankCallback(uint32_t a0);",
+     "decl": "void __stdcall IDirect3DDevice8_SetVerticalBlankCallback(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVerticalBlankCallback"
     },
     {
      "addr": "0x155970",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s_8(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_8(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s_8"
     },
     {
      "addr": "0x155980",
-     "decl": "uint32_t IDirect3DDevice8_Begin_10(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_10(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_10"
     },
     {
      "addr": "0x155990",
-     "decl": "uint32_t IDirect3DDevice8_End_10(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_10(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_10"
     },
@@ -25854,7 +25854,7 @@
     },
     {
      "addr": "0x155b40",
-     "decl": "void D3DTexture_UnlockRect_1(void);",
+     "decl": "void __stdcall D3DTexture_UnlockRect_1(int param_1, int param_2);",
      "ported": false,
      "name": "D3DTexture_UnlockRect_1"
     },
@@ -25871,7 +25871,7 @@
     },
     {
      "addr": "0x155b80",
-     "decl": "uint32_t IDirect3DTexture8_UnlockRect_1(void);",
+     "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect_1(int param_1, int param_2);",
      "ported": false,
      "name": "IDirect3DTexture8_UnlockRect_1"
     },
@@ -25882,7 +25882,7 @@
     },
     {
      "addr": "0x155c00",
-     "decl": "void D3DVolumeTexture_UnlockBox_0(void);",
+     "decl": "void __stdcall D3DVolumeTexture_UnlockBox_0(int param_1, int param_2);",
      "ported": false,
      "name": "D3DVolumeTexture_UnlockBox_0"
     },
@@ -25903,7 +25903,7 @@
     },
     {
      "addr": "0x155ce0",
-     "decl": "uint32_t IDirect3DVolumeTexture8_UnlockBox_0(void);",
+     "decl": "uint32_t __stdcall IDirect3DVolumeTexture8_UnlockBox_0(int param_1, int param_2);",
      "ported": false,
      "name": "IDirect3DVolumeTexture8_UnlockBox_0"
     },
@@ -25919,7 +25919,7 @@
     },
     {
      "addr": "0x155e70",
-     "decl": "void D3DCubeTexture_UnlockRect_0(void);",
+     "decl": "void __stdcall D3DCubeTexture_UnlockRect_0(int param_1, int param_2, int param_3);",
      "ported": false,
      "name": "D3DCubeTexture_UnlockRect_0"
     },
@@ -25935,7 +25935,7 @@
     },
     {
      "addr": "0x156090",
-     "decl": "uint32_t IDirect3DCubeTexture8_UnlockRect_0(void);",
+     "decl": "uint32_t __stdcall IDirect3DCubeTexture8_UnlockRect_0(int param_1, int param_2, int param_3);",
      "ported": false,
      "name": "IDirect3DCubeTexture8_UnlockRect_0"
     },
@@ -25951,7 +25951,7 @@
     },
     {
      "addr": "0x156410",
-     "decl": "void D3DPalette_Unlock(void);",
+     "decl": "void __stdcall D3DPalette_Unlock(int param_1);",
      "ported": false,
      "name": "D3DPalette_Unlock"
     },
@@ -25963,7 +25963,7 @@
     },
     {
      "addr": "0x156430",
-     "decl": "uint32_t IDirect3DPalette8_Unlock(void);",
+     "decl": "uint32_t __stdcall IDirect3DPalette8_Unlock(int param_1);",
      "ported": false,
      "name": "IDirect3DPalette8_Unlock"
     },
@@ -25989,7 +25989,7 @@
     },
     {
      "addr": "0x1569d0",
-     "decl": "void D3DSurface_UnlockRect(void);",
+     "decl": "void __stdcall D3DSurface_UnlockRect(int param_1);",
      "ported": false,
      "name": "D3DSurface_UnlockRect"
     },
@@ -26022,7 +26022,7 @@
     },
     {
      "addr": "0x156c20",
-     "decl": "uint32_t IDirect3DSurface8_UnlockRect(void);",
+     "decl": "uint32_t __stdcall IDirect3DSurface8_UnlockRect(int param_1);",
      "ported": false,
      "name": "IDirect3DSurface8_UnlockRect"
     },
@@ -35965,13 +35965,13 @@
     },
     {
      "addr": "0x1becf0",
-     "decl": "void IDirect3DDevice8_IsBusy(void);",
+     "decl": "void __stdcall IDirect3DDevice8_IsBusy(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_IsBusy"
     },
     {
      "addr": "0x1bed00",
-     "decl": "void IDirect3DDevice8_KickPushBuffer(void);",
+     "decl": "void __stdcall IDirect3DDevice8_KickPushBuffer(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_KickPushBuffer"
     },
@@ -44586,7 +44586,7 @@
     },
     {
      "addr": "0x15f320",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_11(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_11(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_11"
     },
@@ -44597,13 +44597,13 @@
     },
     {
      "addr": "0x15f570",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_11(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_11(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_11"
     },
     {
      "addr": "0x15f5d0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_11(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_11(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_11"
     },
@@ -44614,19 +44614,19 @@
     },
     {
      "addr": "0x15f600",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexDataColor_1(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor_1(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexDataColor_1"
     },
     {
      "addr": "0x15f610",
-     "decl": "uint32_t IDirect3DDevice8_Begin_7(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_7(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_7"
     },
     {
      "addr": "0x15f620",
-     "decl": "uint32_t IDirect3DDevice8_End_7(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_7(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_7"
     },
@@ -46491,7 +46491,7 @@
     },
     {
      "addr": "0x170160",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_4(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_4(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_4"
     },
@@ -46551,7 +46551,7 @@
    "functions": [
     {
      "addr": "0x1cfb68",
-     "decl": "void XapiDispatchAPC(void *a0, uint32_t a1);",
+     "decl": "void __stdcall XapiDispatchAPC(int param_1, int param_2, int param_3);",
      "ported": false,
      "name": "XapiDispatchAPC"
     },
@@ -46565,7 +46565,7 @@
     },
     {
      "addr": "0x1cfc09",
-     "decl": "uint32_t SetUnhandledExceptionFilter(uint32_t a0);",
+     "decl": "uint32_t __stdcall SetUnhandledExceptionFilter(int param_1);",
      "ported": false,
      "name": "SetUnhandledExceptionFilter"
     },
@@ -46585,7 +46585,7 @@
     },
     {
      "addr": "0x1cffbf",
-     "decl": "bool ReleaseSemaphore(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "bool __stdcall ReleaseSemaphore(int param_1, int param_2, int param_3);",
      "ported": false,
      "name": "ReleaseSemaphore"
     },
@@ -53337,7 +53337,7 @@
    "functions": [
     {
      "addr": "0x17adb0",
-     "decl": "uint32_t IDirect3DDevice8_End(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End"
     },
@@ -53479,7 +53479,7 @@
     },
     {
      "addr": "0x15e750",
-     "decl": "void D3DVertexBuffer_Unlock_1(void);",
+     "decl": "void __stdcall D3DVertexBuffer_Unlock_1(int param_1);",
      "ported": false,
      "name": "D3DVertexBuffer_Unlock_1"
     },
@@ -53497,7 +53497,7 @@
     },
     {
      "addr": "0x15e790",
-     "decl": "uint32_t IDirect3DVertexBuffer8_Unlock_1(void);",
+     "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_1(int param_1);",
      "ported": false,
      "name": "IDirect3DVertexBuffer8_Unlock_1"
     },
@@ -53509,7 +53509,7 @@
     },
     {
      "addr": "0x15e7b0",
-     "decl": "void D3DIndexBuffer_Unlock_0(void);",
+     "decl": "void __stdcall D3DIndexBuffer_Unlock_0(int param_1);",
      "ported": false,
      "name": "D3DIndexBuffer_Unlock_0"
     },
@@ -53527,7 +53527,7 @@
     },
     {
      "addr": "0x15e7f0",
-     "decl": "uint32_t IDirect3DIndexBuffer8_Unlock_0(void);",
+     "decl": "uint32_t __stdcall IDirect3DIndexBuffer8_Unlock_0(int param_1);",
      "ported": false,
      "name": "IDirect3DIndexBuffer8_Unlock_0"
     },
@@ -53805,13 +53805,13 @@
     },
     {
      "addr": "0x165a30",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_9(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_9(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_9"
     },
     {
      "addr": "0x165c50",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_9(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_9(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_9"
     },
@@ -53823,7 +53823,7 @@
     },
     {
      "addr": "0x165dc0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_9(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_9(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_9"
     },
@@ -53841,19 +53841,19 @@
     },
     {
      "addr": "0x165e70",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s_5(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_5(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s_5"
     },
     {
      "addr": "0x165e80",
-     "decl": "uint32_t IDirect3DDevice8_Begin_6(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_6(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_6"
     },
     {
      "addr": "0x165e90",
-     "decl": "uint32_t IDirect3DDevice8_End_6(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_6(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_6"
     },
@@ -53962,7 +53962,7 @@
     },
     {
      "addr": "0x1682b0",
-     "decl": "void D3DTexture_UnlockRect_0(void);",
+     "decl": "void __stdcall D3DTexture_UnlockRect_0(int param_1, int param_2);",
      "ported": false,
      "name": "D3DTexture_UnlockRect_0"
     },
@@ -53973,13 +53973,13 @@
     },
     {
      "addr": "0x1682e0",
-     "decl": "uint32_t IDirect3DTexture8_UnlockRect_0(void);",
+     "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect_0(int param_1, int param_2);",
      "ported": false,
      "name": "IDirect3DTexture8_UnlockRect_0"
     },
     {
      "addr": "0x1682f0",
-     "decl": "void D3DVolumeTexture_UnlockBox(void);",
+     "decl": "void __stdcall D3DVolumeTexture_UnlockBox(int param_1, int param_2);",
      "ported": false,
      "name": "D3DVolumeTexture_UnlockBox"
     },
@@ -53990,13 +53990,13 @@
     },
     {
      "addr": "0x168320",
-     "decl": "uint32_t IDirect3DVolumeTexture8_UnlockBox(void);",
+     "decl": "uint32_t __stdcall IDirect3DVolumeTexture8_UnlockBox(int param_1, int param_2);",
      "ported": false,
      "name": "IDirect3DVolumeTexture8_UnlockBox"
     },
     {
      "addr": "0x168330",
-     "decl": "void D3DCubeTexture_UnlockRect(void);",
+     "decl": "void __stdcall D3DCubeTexture_UnlockRect(int param_1, int param_2, int param_3);",
      "ported": false,
      "name": "D3DCubeTexture_UnlockRect"
     },
@@ -54007,7 +54007,7 @@
     },
     {
      "addr": "0x168360",
-     "decl": "uint32_t IDirect3DCubeTexture8_UnlockRect(void);",
+     "decl": "uint32_t __stdcall IDirect3DCubeTexture8_UnlockRect(int param_1, int param_2, int param_3);",
      "ported": false,
      "name": "IDirect3DCubeTexture8_UnlockRect"
     },
@@ -54055,19 +54055,19 @@
     },
     {
      "addr": "0x168c00",
-     "decl": "void D3DResource_MoveResourceMemory(void);",
+     "decl": "void __stdcall D3DResource_MoveResourceMemory(int param_1, int param_2);",
      "ported": false,
      "name": "D3DResource_MoveResourceMemory"
     },
     {
      "addr": "0x168c10",
-     "decl": "void D3DVertexBuffer_MoveResourceMemory(void);",
+     "decl": "void __stdcall D3DVertexBuffer_MoveResourceMemory(int param_1, int param_2);",
      "ported": false,
      "name": "D3DVertexBuffer_MoveResourceMemory"
     },
     {
      "addr": "0x168c20",
-     "decl": "void D3DVertexBuffer_Unlock_0(void);",
+     "decl": "void __stdcall D3DVertexBuffer_Unlock_0(int param_1);",
      "ported": false,
      "name": "D3DVertexBuffer_Unlock_0"
     },
@@ -54084,7 +54084,7 @@
     },
     {
      "addr": "0x168c60",
-     "decl": "uint32_t IDirect3DVertexBuffer8_Unlock_0(void);",
+     "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_0(int param_1);",
      "ported": false,
      "name": "IDirect3DVertexBuffer8_Unlock_0"
     },
@@ -54095,7 +54095,7 @@
     },
     {
      "addr": "0x168c80",
-     "decl": "void D3DIndexBuffer_Unlock(void);",
+     "decl": "void __stdcall D3DIndexBuffer_Unlock(int param_1);",
      "ported": false,
      "name": "D3DIndexBuffer_Unlock"
     },
@@ -54118,7 +54118,7 @@
    "functions": [
     {
      "addr": "0x168cc0",
-     "decl": "uint32_t IDirect3DIndexBuffer8_Unlock(void);",
+     "decl": "uint32_t __stdcall IDirect3DIndexBuffer8_Unlock(int param_1);",
      "ported": false,
      "name": "IDirect3DIndexBuffer8_Unlock"
     },
@@ -54164,7 +54164,7 @@
     },
     {
      "addr": "0x1693c0",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_8(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_8(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_8"
     }
@@ -54176,13 +54176,13 @@
    "functions": [
     {
      "addr": "0x1695e0",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_8(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_8(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_8"
     },
     {
      "addr": "0x169640",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_8(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_8(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_8"
     },
@@ -54200,19 +54200,19 @@
     },
     {
      "addr": "0x1696a0",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexData2s_4(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_4(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexData2s_4"
     },
     {
      "addr": "0x1696b0",
-     "decl": "uint32_t IDirect3DDevice8_Begin_5(uint32_t a0);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_5(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_Begin_5"
     },
     {
      "addr": "0x1696c0",
-     "decl": "uint32_t IDirect3DDevice8_End_5(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_End_5(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_End_5"
     },
@@ -54256,19 +54256,19 @@
     },
     {
      "addr": "0x16aef0",
-     "decl": "uint32_t IDirect3DDevice8_SetRenderState_7(void);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_7(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetRenderState_7"
     },
     {
      "addr": "0x16b110",
-     "decl": "uint32_t IDirect3DDevice8_SetTextureStageState_7(uint32_t a0, int32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_7(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetTextureStageState_7"
     },
     {
      "addr": "0x16b170",
-     "decl": "uint32_t IDirect3DDevice8_SetVertexShaderConstant_7(uint32_t a0, uint32_t a1, uint32_t a2);",
+     "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_7(int param_1);",
      "ported": false,
      "name": "IDirect3DDevice8_SetVertexShaderConstant_7"
     },
