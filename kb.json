@@ -36124,7 +36124,8 @@
     },
     {
      "addr": "0x2fb60",
-     "decl": "void arctangent(void);"
+     "decl": "float arctangent(float y, float x);",
+     "ported": true
     },
     {
      "addr": "0x2fb70",
@@ -36164,7 +36165,8 @@
     },
     {
      "addr": "0x303f0",
-     "decl": "void actor_situation_update(int actor_handle);"
+     "decl": "void actor_situation_update(int actor_handle);",
+     "ported": true
     },
     {
      "addr": "0x308e0",
@@ -36173,7 +36175,8 @@
     },
     {
      "addr": "0x309d0",
-     "decl": "char actor_perception_friend_prop_is_attacking(int actor_handle, int iter_handle, float *out_pos);"
+     "decl": "char actor_perception_friend_prop_is_attacking(int actor_handle, int iter_handle, float *out_pos);",
+     "ported": true
     },
     {
      "addr": "0x30b80",
@@ -36181,8 +36184,10 @@
     },
     {
      "addr": "0x30d10",
-     "decl": "unsigned int actor_emotion_flee_with_friends(int actor_handle, float *chance_inout);",
-     "name": "actor_emotion_flee_with_friends"
+     "decl": "bool actor_emotion_flee_with_friends(int actor_handle, float *chance_inout);",
+     "name": "actor_emotion_flee_with_friends",
+     "ported": true,
+     "source_path": "src/halo/ai/actor_perception.c"
     },
     {
      "addr": "0x30e60",
