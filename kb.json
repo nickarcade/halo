@@ -6511,11 +6511,13 @@
     },
     {
      "addr": "0x11f460",
-     "decl": "void dispose_handle(void);"
+     "decl": "void dispose_handle(void *pool, void *block_hdr);",
+     "ported": true
     },
     {
      "addr": "0x11f4e0",
-     "decl": "void lock_handle(void);"
+     "decl": "void lock_handle(void *pool, void **h);",
+     "ported": true
     },
     {
      "addr": "0x11f550",
@@ -6546,7 +6548,8 @@
     },
     {
      "addr": "0x11fd10",
-     "decl": "float FUN_0011fd10(void *page, int param_2);"
+     "decl": "float FUN_0011fd10(void *page, int param_2);",
+     "ported": true
     },
     {
      "addr": "0x11fd50",

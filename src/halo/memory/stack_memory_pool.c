@@ -845,6 +845,71 @@ void *stack_memory_pool_alloc_internal(int alloc_size, void *pool,
   return block_hdr;
 }
 
+/* dispose_handle (0x11f460) — free a handle's block back to its pool.
+ *
+ * Stack args: [ebp+8] pool (passed in ECX to valid_block, EDI to unlink),
+ * [ebp+0xc] block header (EAX to valid_block, ESI to unlink).  No callers
+ * found in the binary.  The block's size (low 31 bits of header word) is read
+ * before the unlink, then subtracted from pool+0x14; pool+0x1c is decremented.
+ *
+ * Asserts: "not a valid handle, or handle is locked" (0xe8), "block" (0x22f).
+ */
+void dispose_handle(void *pool, void *block_hdr)
+{
+  char *pool_p = (char *)pool;
+  unsigned int usable_size;
+
+  if (!stack_memory_pool_valid_block(block_hdr, pool)) {
+    fatal_assert("not a valid handle, or handle is locked", 0xe8);
+    system_exit(-1);
+  }
+
+  if (block_hdr == 0) {
+    fatal_assert("block", 0x22f);
+    system_exit(-1);
+  }
+
+  usable_size = *(unsigned int *)block_hdr & 0x7fffffff;
+
+  stack_memory_pool_unlink_block(block_hdr, pool);
+
+  *(unsigned int *)(pool_p + 0x14) -= usable_size;
+  *(int *)(pool_p + 0x1c) -= 1;
+}
+
+/* lock_handle (0x11f4e0) — lock the pool block referenced by *h.
+ *
+ * Stack args: [ebp+8] pool (ECX to valid_block and mark_used), [ebp+0xc] h.
+ * *h holds the block header on entry (EAX to valid_block, ESI to mark_used)
+ * and receives mark_used's EAX return on exit.
+ *
+ * The original stores stack_memory_pool_mark_used's EAX into *h.  mark_used
+ * (0x11f070) ends with LEA EAX,[ESI+0x1c] at 0x11f12f, i.e. it returns the
+ * block's user address, but its kb.json prototype is void, so that value is
+ * written out here from the same block pointer.
+ *
+ * Asserts: h (0xf7), "not a valid handle, or handle is already locked" (0xfa).
+ */
+void lock_handle(void *pool, void **h)
+{
+  char *block;
+
+  if (h == 0) {
+    fatal_assert("h", 0xf7);
+    system_exit(-1);
+  }
+
+  block = (char *)*h;
+
+  if (!stack_memory_pool_valid_block(block, pool)) {
+    fatal_assert("not a valid handle, or handle is already locked", 0xfa);
+    system_exit(-1);
+  }
+
+  stack_memory_pool_mark_used(block, pool);
+  *h = block + 0x1c;
+}
+
 /* unlock_handle (0x11f550) — unlock the pool block that owns a user pointer.
  *
  * Scans the pool's slot table (+0x34, pool->slot_count entries at +0xc) for the
@@ -1214,6 +1279,38 @@ void *stack_memory_pool_realloc(void *pool, int block, unsigned short new_size,
   }
 
   return (void *)(new_hdr + 0x1c);
+}
+
+
+/* FUN_0011fd10 — ratio of one of two texture-page dword counters to the page
+ * area.
+ *
+ * Name left as FUN_: no string in this function proves one.
+ *
+ * Binary evidence (0011fd10-0011fd40):
+ *   MOV AL,[EBP+0xc]; TEST AL,AL      only the low byte of param_2 is tested
+ *   JZ -> MOV EDX,[EAX+0x10]          param_2 low byte == 0: dword at +0x10
+ *   else  MOV ECX,[EAX+0x14]          param_2 low byte != 0: dword at +0x14
+ *   (selected dword stored back into the param_2 stack slot)
+ *   MOVSX [EAX+0xa] * MOVSX [EAX+0x8] int16 height * int16 width (IMUL)
+ *   FILD selected; FIDIV product      signed int / signed int, result in ST0
+ * The +0x08/+0x0a int16 names come from texture_page_verify's assert string;
+ * the meanings of the +0x10/+0x14 dwords are unproven (texture_page_new clears
+ * both).  The Ghidra decompile ("void (void)") is wrong; the disassembly above
+ * is authoritative.
+ */
+float FUN_0011fd10(void *page, int param_2)
+{
+  int value;
+
+  if ((char)param_2 != 0) {
+    value = *(int *)((char *)page + 0x14);
+  } else {
+    value = *(int *)((char *)page + 0x10);
+  }
+
+  return (float)value /
+         (*(int16_t *)((char *)page + 0xa) * *(int16_t *)((char *)page + 8));
 }
 
 
