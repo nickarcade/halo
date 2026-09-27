@@ -274,7 +274,7 @@ bool network_game_client_initiate_join_game(void *client, void *game,
 
   connected = network_connection_connect(*(int *)((char *)client + 0x82c),
                                          (int)address, 0);
-  if (connected) {
+  if (connected == true) {
     *(int16_t *)((char *)client + 0xca6) = 1;
     network_event("attempting to connect to game @ %s",
                      transport_address_to_string(address));
@@ -378,10 +378,10 @@ void *network_game_client_get_available_games(void *client)
 
 /* 0x124cc0 — Asserts client is non-null and returns the int16_t field at
  * offset 0xca8. */
-int16_t network_game_client_get_error(void *server)
+int16_t network_game_client_get_error(void *client)
 {
-  assert_halt(server);
-  return *(int16_t *)((char *)server + 0xca8);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_client_manager.c", 0x2b4, client);
+  return *(int16_t *)((char *)client + 0xca8);
 }
 
 /* network_game_client_get_seconds_to_game_start (0x124d00)
@@ -693,16 +693,16 @@ bool network_game_client_game_settings_updated(void *client,
 int unstrip_player_index(int player_index)
 {
   data_iter_t iter;
-  void *player;
+  int result = NONE;
 
   data_iterator_new(&iter, player_data);
-  for (player = data_iterator_next(&iter); player != NULL;
-       player = data_iterator_next(&iter)) {
-    if ((iter.datum_handle & 0xffff) == (uint32_t)(player_index & 0xffff))
-      return (int)iter.datum_handle;
+  while (data_iterator_next(&iter)) {
+    if ((iter.datum_handle & 0xffff) == (uint32_t)(player_index & 0xffff)) {
+      result = (int)iter.datum_handle;
+      break;
+    }
   }
-
-  return NONE;
+  return result;
 }
 
 /* network_game_client_game_has_started (0x1251e0)
@@ -740,11 +740,8 @@ int unstrip_player_index(int player_index)
 char network_game_client_game_has_started(void *client)
 {
   char *c;
-  int target;
   int i;
-  char *entry;
   unsigned short *packet;
-  signed char next;
 
   c = (char *)client;
   if (client == NULL || *(int16_t *)(c + 0xca6) != 2) {
@@ -758,39 +755,24 @@ char network_game_client_game_has_started(void *client)
   network_connection_keep_alive(*(int *)(c + 0x82c));
 
   if (network_game_create_game_objects(c + 0x85c)) {
-    target = (int)*(uint16_t *)c;
-    i = 0;
-    entry = c + 0xa9e;
-    do {
-      if ((int)*(signed char *)entry == target)
-        goto found_player;
-      i++;
-      entry += 0x20;
-    } while (i < 16);
-    goto skip_players;
-
-  found_player:
-    entry = c + (i << 5);
-    if ((int)*(signed char *)(entry + 0xa9e) == target) {
-      do {
-        if (!network_player_is_valid(entry + 0xa82))
-          break;
-        local_player_set_player_index(
-          (signed char)*(entry + 0xa9f),
-          unstrip_player_index(*(signed char *)(entry + 0xaa1)));
-        next = *(signed char *)(entry + 0xabe);
-        target = (int)*(uint16_t *)c;
-        entry += 0x20;
-      } while ((int)next == target);
+    for (i = 0; i < 16; i++) {
+      if (*(signed char *)(c + i * 0x20 + 0xa9e) == *(uint16_t *)c) {
+        for (; *(signed char *)(c + i * 0x20 + 0xa9e) == *(uint16_t *)c &&
+               network_player_is_valid(c + i * 0x20 + 0xa82);
+             i++) {
+          local_player_set_player_index(
+            *(signed char *)(c + i * 0x20 + 0xa9f),
+            unstrip_player_index(*(signed char *)(c + i * 0x20 + 0xaa1)));
+        }
+        break;
+      }
     }
-
-  skip_players:
 
     network_connection_keep_alive(*(int *)(c + 0x82c));
     client = 0;
     packet = (unsigned short *)create_network_game_message(0x18, &client, 4);
     if (packet != NULL) {
-      if (network_connection_write(*(void **)(c + 0x82c), packet, *packet >> 4,
+      if (network_game_client_write(*(void **)(c + 0x82c), packet, (unsigned short)(*packet >> 4),
                                    0, true)) {
         network_event("local machine is loaded & ready to play");
         *(int16_t *)(c + 0xca6) = 3;
@@ -800,10 +782,10 @@ char network_game_client_game_has_started(void *client)
         ui_widgets_close_all();
         game_time_start();
         game_initial_pulse();
-        return *(int16_t *)(c + 0xca6) == 3;
+      } else {
+        network_event("network_game_client_write() failed while sending a "
+                      "message_client_loaded message");
       }
-      network_event("network_game_client_write() failed while sending a "
-                       "message_client_loaded message");
     } else {
       network_event("failed to create a message_client_loaded message");
     }
@@ -1049,10 +1031,10 @@ int network_game_client_get_connection(void *client)
 /* 0x125750 — Asserts client is non-null, then calls
  * network_connection_get_address with the connection handle at offset 0x82c,
  * the output buffer, and flag 0. */
-void network_game_client_get_remote_server_address(void *server, void *out)
+void network_game_client_get_remote_server_address(void *client, void *out)
 {
-  assert_halt(server);
-  network_connection_get_address(*(int *)((char *)server + 0x82c), out, 0);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_client_manager.c", 0x4bc, client);
+  network_connection_get_address(*(int *)((char *)client + 0x82c), out, 0);
 }
 
 /* network_game_client_get_game (0x1257a0)
@@ -1073,27 +1055,27 @@ void *network_game_client_get_game(void *client)
 
 /* 0x1257e0 — Asserts client is non-null and returns whether the int field at
  * offset 0xc98 is non-zero. */
-bool network_game_client_server_has_started_game(void *server)
+bool network_game_client_server_has_started_game(void *client)
 {
-  assert_halt(server);
-  return *(int *)((char *)server + 0xc98) != 0;
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_client_manager.c", 0x4d5, client);
+  return *(uint32_t *)((char *)client + 0xc98) > 0;
 }
 
 /* 0x125820 — Asserts client is non-null and returns the uint32_t field at
  * offset 0xc98 (the raw value that network_game_client_server_has_started_game
  * tests for non-zero). */
-uint32_t network_game_client_get_next_update_number(void *server)
+uint32_t network_game_client_get_next_update_number(void *client)
 {
-  assert_halt(server);
-  return *(uint32_t *)((char *)server + 0xc98);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_client_manager.c", 0x4dd, client);
+  return *(uint32_t *)((char *)client + 0xc98);
 }
 
 /* 0x125860 — Asserts client is non-null and returns the byte field at
  * offset 0xcac. */
-bool network_client_get_oos(void *server)
+bool network_client_get_oos(void *client)
 {
-  assert_halt(server);
-  return *(char *)((char *)server + 0xcac);
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_client_manager.c", 0x4e5, client);
+  return *(char *)((char *)client + 0xcac);
 }
 
 /* network_game_client_add_player (0x1258a0)
@@ -1235,8 +1217,11 @@ bool network_game_client_add_player(void *client, uint16_t player_index)
  * 0x125a9b). */
 bool network_game_client_update_local_player_data(void *client, void *player)
 {
+  bool success;
   char player_settings[32];
   unsigned short *encoded;
+
+  success = false;
 
   if (client == NULL || player == NULL) {
     display_assert("client && player",
@@ -1265,13 +1250,14 @@ bool network_game_client_update_local_player_data(void *client, void *player)
   if (encoded != NULL) {
     if (network_game_client_write(*(void **)((char *)client + 0x82c), encoded,
                                  (unsigned short)(*encoded >> 4), 0, true)) {
-      return 1;
+      success = true;
+    } else {
+      network_event("network_game_client_update_local_player_data() failed "
+                    "while sending a message_client_player_settings_request "
+                    "message");
     }
-    network_event("network_game_client_update_local_player_data() failed "
-                     "while sending a message_client_player_settings_request "
-                     "message");
   }
-  return 0;
+  return success;
 }
 
 /* 0x125b90 — network_game_client_request_start_time_change
@@ -1293,7 +1279,7 @@ bool network_game_client_update_local_player_data(void *client, void *player)
 bool network_game_client_request_start_time_change(void *client,
                                                    short request_type)
 {
-  short message;
+  short message[1];
   unsigned short *encoded;
 
   if (client == NULL) {
@@ -1309,8 +1295,8 @@ bool network_game_client_request_start_time_change(void *client,
     system_exit(-1);
   }
   if (*(int16_t *)((char *)client + 0xca6) == 2) {
-    message = request_type;
-    encoded = (unsigned short *)create_network_game_message(0x11, &message, 2);
+    message[0] = request_type;
+    encoded = (unsigned short *)create_network_game_message(0x11, message, 2);
     if (encoded != NULL) {
       if (!network_game_client_write(*(void **)((char *)client + 0x82c), encoded,
                                     (unsigned short)(*encoded >> 4), 0, true)) {
@@ -2541,8 +2527,10 @@ bool network_game_client_idle_postgame(void *server)
  * (0x1267c5, 0x1267fa). The kb decl was `(void)` and has been widened. */
 void *network_game_client_create(void)
 {
+  void *client;
   int connection;
 
+  client = (void *)0x5a95a0;
   if (*(char *)0x46e8b9 != '\0') {
     display_assert("!network_game_client_dont_use_directly_in_use",
                    "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
@@ -2555,61 +2543,61 @@ void *network_game_client_create(void)
   *(int *)0x5a9dcc = connection;
   if (connection != 0) {
     network_game_client_reset((void *)0x5a95a0, 0);
-    return (void *)0x5a95a0;
+  } else {
+    network_event("network_game_create_client() failed; could not create network connection");
+    network_game_client_dispose((void *)0x5a95a0);
+    client = NULL;
   }
-  network_event(
-    "network_game_create_client() failed; could not create network connection");
-  network_game_client_dispose((void *)0x5a95a0);
-  return NULL;
+  return client;
 }
 
 /* 0x127070 — Network client idle dispatch: asserts client non-null, switches
  * on the connection state at offset 0xca6, and calls the appropriate
  * state-specific idle handler. Logs and returns false on handler failure. */
-bool network_game_client_idle(void *server)
+bool network_game_client_idle(void *client)
 {
   bool result;
 
   result = 0;
-  assert_halt(server);
-  switch (*(unsigned short *)((char *)server + 0xca6)) {
+  assert_halt_at("c:\\halo\\SOURCE\\networking\\network_client_manager.c", 0xc6, client);
+  switch (*(unsigned short *)((char *)client + 0xca6)) {
   case 0:
-    result = network_game_client_idle_searching(server);
+    result = network_game_client_idle_searching(client);
     if (!result) {
       network_event("network_game_client_idle_searching() failed");
       return result;
     }
     break;
   case 1:
-    result = network_game_client_idle_joining(server);
+    result = network_game_client_idle_joining(client);
     if (!result) {
       network_event("network_game_client_idle_joining() failed");
       return result;
     }
     break;
   case 2:
-    result = network_game_client_idle_pregame(server);
+    result = network_game_client_idle_pregame(client);
     if (!result) {
       network_event("network_game_client_idle_pregame() failed");
       return result;
     }
     break;
   case 3:
-    result = network_game_client_idle_ingame(server);
+    result = network_game_client_idle_ingame(client);
     if (!result) {
       network_event("network_game_client_idle_ingame() failed");
       return result;
     }
     break;
   case 4:
-    result = network_game_client_idle_postgame(server);
+    result = network_game_client_idle_postgame(client);
     if (!result) {
       network_event("network_game_client_idle_postgame() failed");
       return result;
     }
     break;
   default:
-    assert_halt(!"unknown client state");
+    assert_halt_at("c:\\halo\\SOURCE\\networking\\network_client_manager.c", 0xee, !"unknown client state");
   }
   return result;
 }
