@@ -92414,18 +92414,18 @@
       "source": "src/halo/render/render_cameras.c"
     },
     "render_camera_build_frustum": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 80.1,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 43,
+      "abi_modeled_mnemonic_pct": 87.9,
       "addr": "0x187250",
       "end": "0x187f7a",
       "kind": "auto",
       "n_r": 1074,
-      "opnd_percent": 74.8,
-      "raw_mnemonic_pct": 80.1,
+      "opnd_percent": 84.4,
+      "raw_mnemonic_pct": 80.5,
       "ref": "synth",
       "ref_sha": "20ba12488fa9e7ad",
-      "score": 80.1,
+      "score": 87.9,
       "source": "src/halo/render/render_cameras.c"
     },
     "render_camera_build_frustum_bounds": {
@@ -92506,16 +92506,16 @@
     "render_camera_mirror": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 94.8,
+      "abi_modeled_mnemonic_pct": 96.4,
       "addr": "0x186ef0",
       "end": "0x18724d",
       "kind": "auto",
       "n_r": 304,
-      "opnd_percent": 90.5,
-      "raw_mnemonic_pct": 94.8,
+      "opnd_percent": 95.4,
+      "raw_mnemonic_pct": 96.4,
       "ref": "synth",
       "ref_sha": "59dd22e833cdc614",
-      "score": 94.8,
+      "score": 96.4,
       "source": "src/halo/render/render_cameras.c"
     },
     "render_camera_new": {
@@ -93016,16 +93016,16 @@
     "render_frustum_sphere_visible": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 93.7,
+      "abi_modeled_mnemonic_pct": 95.9,
       "addr": "0x186ac0",
       "end": "0x186c62",
       "kind": "auto",
       "n_r": 143,
-      "opnd_percent": 93.7,
-      "raw_mnemonic_pct": 93.7,
+      "opnd_percent": 95.9,
+      "raw_mnemonic_pct": 95.9,
       "ref": "synth",
       "ref_sha": "6d70b049cd3ea85a",
-      "score": 93.7,
+      "score": 95.9,
       "source": "src/halo/render/render_cameras.c"
     },
     "render_frustum_triangle_visible": {
@@ -106681,16 +106681,16 @@
     "weapon_build_weapon_interface_state": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 95.9,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0xfc550",
       "end": "0xfc688",
       "kind": "auto",
       "n_r": 97,
-      "opnd_percent": 83.5,
-      "raw_mnemonic_pct": 95.9,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "3db6cb3c8504072b",
-      "score": 95.9,
+      "score": 100.0,
       "source": "src/halo/items/weapons.c"
     },
     "weapon_busy": {
@@ -106831,16 +106831,16 @@
     "weapon_export_function_values": {
       "abi_model": "regarg_mixed_stripped",
       "abi_model_items": 9,
-      "abi_modeled_mnemonic_pct": 95.6,
+      "abi_modeled_mnemonic_pct": 97.7,
       "addr": "0xfbf00",
       "end": "0xfc243",
       "kind": "auto",
       "n_r": 240,
-      "opnd_percent": 56.6,
-      "raw_mnemonic_pct": 93.8,
+      "opnd_percent": 67.5,
+      "raw_mnemonic_pct": 95.9,
       "ref": "synth",
       "ref_sha": "9fe0a09fae6268fd",
-      "score": 95.6,
+      "score": 97.7,
       "source": "src/halo/items/weapons.c"
     },
     "weapon_get_field_of_view": {

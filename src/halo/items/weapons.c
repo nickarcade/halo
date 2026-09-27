@@ -1225,10 +1225,10 @@ void weapon_export_function_values(int weapon_handle)
   char *weapon_obj;
   char *weapon_defn;
   char *obj;
-  float *out;
-  int16_t *source;
+  float *function_values; /* name: PAL 2342 items/weapons.c:807 */
+  int16_t *function_mode; /* PAL 2342 items/weapons.c:808 function_modes */
   int count;
-  float value;
+  float function_value; /* name: PAL 2342 items/weapons.c:822 */
   float t;
   int16_t i;
   char *trigger_defn;
@@ -1241,23 +1241,23 @@ void weapon_export_function_values(int weapon_handle)
   while ((*(uint8_t *)(obj + 4) & 1) != 0 && *(int *)(obj + 0xcc) != -1) {
     obj = (char *)object_get_and_verify_type(*(int *)(obj + 0xcc), -1);
   }
-  out = (float *)(obj + 0xd4);
-  source = (int16_t *)(weapon_defn + 0x330);
+  function_values = (float *)(obj + 0xd4);
+  function_mode = (int16_t *)(weapon_defn + 0x330);
   count = 4;
   do {
-    if (*source != 0) {
-      value = 0.0f;
-      switch (*source) {
+    if (*function_mode != 0) {
+      function_value = 0.0f;
+      switch (*function_mode) {
       case 6:
-        value = 1.0f;
+        function_value = 1.0f;
         break;
       case 1:
-        value = *(float *)(weapon_obj + 0x1ec);
+        function_value = *(float *)(weapon_obj + 0x1ec);
         break;
       case 9:
         if ((*(uint8_t *)(weapon_obj + 0x1dc) & 1) != 0 &&
             *(int *)(weapon_defn + 0x34c) != 0x3f800000) {
-          value =
+          function_value =
             (*(float *)(weapon_obj + 0x1ec) - *(float *)(weapon_defn + 0x34c)) /
             (*(float *)0x2533c8 - *(float *)(weapon_defn + 0x34c));
         }
@@ -1270,84 +1270,84 @@ void weapon_export_function_values(int weapon_handle)
           if (*(float *)(trigger_defn + 0x48) > *(float *)0x2533c0) {
             t = weapon_trigger_get_charged_fraction(weapon_handle, i) *
                 *(float *)(trigger_defn + 0x54);
-            if (value <= t) {
-              value = t;
+            if (!(function_value > t)) {
+              function_value = t;
             }
           }
           if (trigger[1] == 3) {
             t = (*(float *)0x2533c8 - *(float *)(trigger_defn + 0x54)) *
                   *(float *)(weapon_obj + 0x1f4) +
                 *(float *)(trigger_defn + 0x54);
-            if (value <= t) {
-              value = t;
+            if (!(function_value > t)) {
+              function_value = t;
             }
           }
-          if (value <= *(float *)(trigger + 0x18)) {
-            value = *(float *)(trigger + 0x18);
+          if (!(function_value > *(float *)(trigger + 0x18))) {
+            function_value = *(float *)(trigger + 0x18);
           }
-          *(float *)(trigger + 0x18) = value;
+          *(float *)(trigger + 0x18) = function_value;
         }
         t = *(float *)(weapon_defn + 0x360) * *(float *)(weapon_obj + 0x1ec);
-        if (value <= t) {
-          value = t;
+        if (!(function_value > t)) {
+          function_value = t;
         }
         break;
       case 2:
       case 3:
-        i = *source - 2;
+        i = *function_mode - 2;
         if ((int)i < *(int *)(weapon_defn + 0x4f0)) {
           magazine_defn =
             (char *)tag_block_get_element(weapon_defn + 0x4f0, (int)i, 0x70);
           if (*(int16_t *)(magazine_defn + 10) != 0) {
-            value = (float)(int)*(int16_t *)(weapon_obj + 0x260 + i * 12) /
+            function_value = (float)(int)*(int16_t *)(weapon_obj + 0x260 + i * 12) /
                     (float)(int)*(int16_t *)(magazine_defn + 10);
           }
         }
         break;
       case 7:
       case 8:
-        i = *source - 7;
+        i = *function_mode - 7;
         if ((int)i < *(int *)(weapon_defn + 0x4fc)) {
-          value = *(float *)(weapon_obj + 0x224 + i * 36);
+          function_value = *(float *)(weapon_obj + 0x224 + i * 36);
         }
         break;
       case 4:
       case 5:
-        i = *source - 4;
+        i = *function_mode - 4;
         if ((int)i < *(int *)(weapon_defn + 0x4fc)) {
-          value = *(float *)(weapon_obj + 0x220 + i * 36);
+          function_value = *(float *)(weapon_obj + 0x220 + i * 36);
         }
         break;
       case 15:
       case 16:
-        i = *source - 15;
+        i = *function_mode - 15;
         if ((int)i < *(int *)(weapon_defn + 0x4fc)) {
-          value = *(float *)(weapon_obj + 0x220 + i * 36);
+          function_value = *(float *)(weapon_obj + 0x220 + i * 36);
           if (game_time_get() - *(int *)(weapon_obj + 0x278) > 1) {
-            value = 0.0f;
+            function_value = 0.0f;
           }
         }
         break;
       case 10:
       case 11:
-        i = *source - 10;
+        i = *function_mode - 10;
         if ((int)i < *(int *)(weapon_defn + 0x4fc)) {
           tag_block_get_element(weapon_defn + 0x4fc, (int)i, 0x114);
           weapon_trigger_get(weapon_obj, i);
-          value = weapon_trigger_get_charged_fraction(weapon_handle, i);
+          function_value = weapon_trigger_get_charged_fraction(weapon_handle, i);
         }
         break;
       case 14:
-        value = *(float *)(weapon_obj + 0x1f8);
+        function_value = *(float *)(weapon_obj + 0x1f8);
         break;
       case 13:
-        value = *(float *)(weapon_obj + 0x1f0);
+        function_value = *(float *)(weapon_obj + 0x1f0);
         break;
       }
-      *out = value;
+      *function_values = function_value;
     }
-    source++;
-    out++;
+    function_mode++;
+    function_values++;
     count--;
   } while (count != 0);
 }
@@ -1491,7 +1491,8 @@ void weapon_owner_update(int weapon_handle, int a1, float a2)
 
 /* weapon_build_weapon_interface_state (0xfc550)
  *
- * Fills the caller's weapon-interface state record (param_2) from a weapon
+ * Fills the caller's weapon-interface state record (state; name: PAL 2342
+ * items/weapons.c:1141) from a weapon
  * object and its 'weap' tag: two dwords copied from weapon+0x1ec/0x1f0,
  * a one-bit flag from weapon+0x1dc, the magazine count, then a 10-byte
  * record per magazine.
@@ -1499,16 +1500,16 @@ void weapon_owner_update(int weapon_handle, int a1, float a2)
  * Confirmed: PUSH 4 / PUSH handle -> object_get_and_verify_type (0x13d680).
  * Confirmed: PUSH weapon[0] / PUSH 'weap' -> tag_get (0x1ba140) both times.
  * Confirmed: magazines tag_block is at weapon_definition+0x4f0; its first
- * dword is the element count, stored as a 16-bit field at param_2+0xa.
+ * dword is the element count, stored as a 16-bit field at state+0xa.
  * Confirmed: loop counter is a 16-bit value re-sign-extended each iteration
  * (INC EAX / MOVSX ESI,AX), the assert tests the 16-bit form for < 0.
  * Confirmed: PUSH 0x70 / PUSH index / PUSH block -> tag_block_get_element
  * (0x19b210), element size 0x70.
  * Confirmed: per-magazine source fields are weapon+0x258+index*0xc (+0, +6,
- * +8) and magazine_definition+8/+0xa; destinations are param_2+index*10 at
+ * +8) and magazine_definition+8/+0xa; destinations are state+index*10 at
  * +0xc, +0xd, +0xe, +0x10, +0x12 and +0x14.
  */
-void weapon_build_weapon_interface_state(int weapon_handle, int param_2)
+void weapon_build_weapon_interface_state(int weapon_handle, int state)
 {
   int *weapon_data;
   void *weapon_definition;
@@ -1517,20 +1518,20 @@ void weapon_build_weapon_interface_state(int weapon_handle, int param_2)
   int *magazine;
   int out_base;
   int index;
-  int loaded;
+  int reloading; /* name: PAL 2342 items/weapons.c:1157 */
   int16_t magazine_index;
 
   weapon_data = (int *)object_get_and_verify_type(weapon_handle, 4);
   weapon_definition = tag_get(0x77656170, weapon_data[0]);
 
-  *(int *)param_2 = weapon_data[0x7b];
-  *(int *)(param_2 + 4) = weapon_data[0x7c];
+  *(int *)state = weapon_data[0x7b];
+  *(int *)(state + 4) = weapon_data[0x7c];
+
+  *(uint8_t *)(state + 8) =
+    (uint8_t)(*(uint8_t *)((int)weapon_data + 0x1dc) & 1);
 
   magazines_block = (int *)((int)weapon_definition + 0x4f0);
-
-  *(uint8_t *)(param_2 + 8) =
-    (uint8_t)(*(uint8_t *)((int)weapon_data + 0x1dc) & 1);
-  *(int16_t *)(param_2 + 10) = *(int16_t *)magazines_block;
+  *(int16_t *)(state + 10) = *(int16_t *)magazines_block;
 
   index = 0;
   magazine_index = 0;
@@ -1539,7 +1540,7 @@ void weapon_build_weapon_interface_state(int weapon_handle, int param_2)
     do {
       weapon_definition = tag_get(0x77656170, weapon_data[0]);
       if ((magazine_index < 0) ||
-          (*(int *)((int)weapon_definition + 0x4f0) <= index)) {
+          (index >= *(int *)((int)weapon_definition + 0x4f0))) {
         display_assert(
           "magazine_index>=0 && "
           "magazine_index<weapon_definition->weapon.magazines.count",
@@ -1550,23 +1551,21 @@ void weapon_build_weapon_interface_state(int weapon_handle, int param_2)
       magazine = weapon_data + index * 3 + 0x96;
       magazine_definition = tag_block_get_element(magazines_block, index, 0x70);
 
-      if (*(int16_t *)magazine == 1) {
-        loaded = 1;
-      } else {
-        loaded = 0;
-        if (*(int16_t *)magazine == 3) {
-          loaded = 1;
-        }
-      }
+      reloading = *(int16_t *)magazine == 1 || *(int16_t *)magazine == 3;
+      /* Magazine state 1 or 3 counts as reloading; the bool form, not an
+       * if/else ladder, is what emits the reference's CMP CX,1 / JE /
+       * CMP CX,3 sequence with immediate stores to the flag slot
+       * (PAL 2342 weapons.c:1157 spells it the same way).
+       */
 
-      out_base = param_2 + index * 10;
-      *(uint8_t *)(out_base + 0xc) = (uint8_t)loaded;
+      out_base = state + index * 10;
+      *(uint8_t *)(out_base + 0xc) = (uint8_t)reloading;
       *(uint8_t *)(out_base + 0xd) = (uint8_t)(*(int16_t *)magazine == 0);
       *(int16_t *)(out_base + 0xe) = *(int16_t *)((int)magazine + 8);
       *(int16_t *)(out_base + 0x10) =
         *(int16_t *)((int)magazine_definition + 0xa);
       *(int16_t *)(out_base + 0x12) = *(int16_t *)((int)magazine + 6);
-      *(int16_t *)(param_2 + (index * 5 + 10) * 2) =
+      *(int16_t *)(state + (index * 5 + 10) * 2) =
         *(int16_t *)((int)magazine_definition + 8);
 
       magazine_index = (int16_t)(magazine_index + 1);
@@ -2842,7 +2841,7 @@ void weapon_trigger_release_charge(int trigger_index, int weapon_handle)
 
   if (*(float *)(trigger_defn + 0x58) > *(float *)0x2533c0) {
     charge_ticks =
-      (int16_t)(int)(*(float *)(trigger_defn + 0x58) * TICKS_PER_SECOND);
+      (int16_t)(int)(*(float *)(trigger_defn + 0x58) * 30.0f); /* TICKS_PER_SECOND */
 
     weapon_data = (char *)object_get_and_verify_type(weapon_handle, 4);
 
