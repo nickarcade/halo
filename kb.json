@@ -23243,7 +23243,7 @@
     },
     {
      "addr": "0x12350",
-     "decl": "short action_alert_next_position(int actor_handle, int param_2, int param_3, void *param_4);",
+     "decl": "short action_alert_next_position(int actor_handle, short param_2, short param_3, void *param_4);",
      "ported": true
     },
     {

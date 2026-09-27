@@ -179,9 +179,6 @@ float FUN_000121e0(float min, float max)
 void action_alert_update(int actor_handle)
 {
   char *actor;
-  float dx;
-  float dy;
-  float dz;
   float distance_sq;
   short initiative;
   short command_index;
@@ -198,10 +195,8 @@ void action_alert_update(int actor_handle)
     return;
   }
 
-  dx = *(float *)(actor + 0xa8) - *(float *)(actor + 0x12c);
-  dy = *(float *)(actor + 0xac) - *(float *)(actor + 0x130);
-  dz = *(float *)(actor + 0xb0) - *(float *)(actor + 0x134);
-  distance_sq = dz * dz + dx * dx + dy * dy;
+  distance_sq = distance_squared3d((const float *)(actor + 0x12c),
+                                   (const float *)(actor + 0xa8));
 
   assert_halt_msg_at("!actor->meta.swarm",
                      "c:\\halo\\SOURCE\\ai\\action_alert.c", 0xae,
@@ -257,7 +252,7 @@ void action_alert_update(int actor_handle)
  *   is stored to *param_4 when non-NULL. Returns the first index whose flag
  *   bit is clear.
  * Unknown: field meanings of actor+0x160/0x68, pos+0x1e, prop+0x24/0xbc. */
-short action_alert_next_position(int actor_handle, int param_2, int param_3,
+short action_alert_next_position(int actor_handle, short param_2, short param_3,
                                  void *param_4)
 {
   char *actor;
@@ -269,6 +264,7 @@ short action_alert_next_position(int actor_handle, int param_2, int param_3,
   uint32_t used_flags[1];
   short index;
   short next;
+  short result;
   char usable;
   char any_usable;
   char forward;
@@ -277,106 +273,118 @@ short action_alert_next_position(int actor_handle, int param_2, int param_3,
   float dz;
 
   actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
-  if (*(char *)(actor + 0x160) != 0 || (short)param_2 == 0 ||
-      *(int *)(actor + 0x34) == -1) {
-    return -1;
-  }
-  squad = tag_block_get_element((char *)global_scenario_get() + 0x42c,
-                                *(int *)(actor + 0x34) & 0xffff, 0xb0);
-  squad =
-    tag_block_get_element((char *)squad + 0x80, *(short *)(actor + 0x3a), 0xe8);
-  if (*(char *)(actor + 6) != 0) {
-    display_assert("!actor->meta.swarm", "c:\\halo\\SOURCE\\ai\\action_alert.c",
-                   0x113, 1);
-    system_exit(-1);
-  }
-  if ((short)param_2 == 1 && (short)param_3 != -1) {
-    return (short)param_3;
-  }
-
-  any_usable = 0;
-  csmemset(used_flags, 0, 4);
-  positions = (int *)((char *)squad + 0xc4);
-  for (index = 0; index < *positions; index++) {
-    position = (float *)tag_block_get_element(positions, index, 0x50);
-    usable = index != (short)param_3;
-    if ((short)param_3 != -1) {
-      dx = position[0] - *(float *)(actor + 0x12c);
-      dy = position[1] - *(float *)(actor + 0x130);
-      dz = position[2] - *(float *)(actor + 0x134);
-      if (dx * dx + dy * dy + dz * dz < *(float *)0x25337c) {
-        usable = 0;
+  result = -1;
+  if (*(char *)(actor + 0x160) == 0 && (short)param_2 != 0 &&
+      *(int *)(actor + 0x34) != -1) {
+    squad = tag_block_get_element((char *)global_scenario_get() + 0x42c,
+                                  *(int *)(actor + 0x34) & 0xffff, 0xb0);
+    squad = tag_block_get_element((char *)squad + 0x80,
+                                  *(short *)(actor + 0x3a), 0xe8);
+    if (*(char *)(actor + 6) != 0) {
+      display_assert("!actor->meta.swarm", "c:\\halo\\SOURCE\\ai\\action_alert.c",
+                     0x113, 1);
+      system_exit(-1);
+    }
+    if ((short)param_2 == 1 && (short)param_3 != -1) {
+      result = (short)param_3;
+    } else {
+      any_usable = 0;
+      csmemset(used_flags, 0, 4);
+      positions = (int *)((char *)squad + 0xc4);
+      index = 0;
+      while (index < *positions) {
+        position = (float *)tag_block_get_element(positions, index, 0x50);
+        usable = 1;
+        if (index == (short)param_3) {
+          usable = 0;
+        }
+        if ((short)param_3 != -1) {
+          dx = position[0] - *(float *)(actor + 0x12c);
+          dy = position[1] - *(float *)(actor + 0x130);
+          dz = position[2] - *(float *)(actor + 0x134);
+          if (dx * dx + dy * dy + dz * dz < *(float *)0x25337c) {
+            usable = 0;
+          }
+        }
+        if (*((char *)position + 0x1e) != 0 &&
+            *((char *)position + 0x1e) != *(char *)(actor + 0x68)) {
+          usable = 0;
+        }
+        prop_iterator_new(iterator, actor_handle);
+        prop = prop_iterator_next(iterator);
+        while (prop != 0) {
+          if (*(short *)(prop + 0x24) >= 2 && *(short *)(prop + 0x24) <= 3) {
+            dx = position[0] - *(float *)(prop + 0xbc);
+            dy = position[1] - *(float *)(prop + 0xc0);
+            dz = position[2] - *(float *)(prop + 0xc4);
+            if (dz * dz + dy * dy + dx * dx < *(float *)0x25337c) {
+              usable = 0;
+              break;
+            }
+          }
+          prop = prop_iterator_next(iterator);
+        }
+        if (usable) {
+          any_usable = 1;
+        } else {
+          used_flags[index >> 5] |= 1 << (index & 0x1f);
+        }
+        index++;
       }
-    }
-    if (*((char *)position + 0x1e) != 0 &&
-        *((char *)position + 0x1e) != *(char *)(actor + 0x68)) {
-      usable = 0;
-    }
-    prop_iterator_new(iterator, actor_handle);
-    prop = prop_iterator_next(iterator);
-    while (prop != 0) {
-      if (*(short *)(prop + 0x24) >= 2 && *(short *)(prop + 0x24) <= 3) {
-        dx = position[0] - *(float *)(prop + 0xbc);
-        dy = position[1] - *(float *)(prop + 0xc0);
-        dz = position[2] - *(float *)(prop + 0xc4);
-        if (dz * dz + dy * dy + dx * dx < *(float *)0x25337c) {
-          goto occupied;
+      if (!any_usable) {
+        result = -1;
+      } else {
+        if ((short)param_2 == 5) {
+          result = choose_random_array_element(*(void **)((char *)squad + 0xc8),
+                                               0x50, (short)*positions, 0x10,
+                                               used_flags);
+        } else {
+          next = (short)param_3;
+          if (next < 0 || next >= *positions) {
+            next = 0;
+          }
+          do {
+            forward = 1;
+            switch ((short)param_2) {
+            case 2:
+              forward = 1;
+              break;
+            case 3:
+              if (next == 0) {
+                forward = 1;
+              } else if (next == *positions - 1) {
+                forward = 0;
+              } else if (param_4 != NULL) {
+                forward = *(char *)param_4;
+              } else {
+                forward = 1;
+              }
+              break;
+            case 4:
+              forward = (char)(game_time_get() & 1);
+              break;
+            }
+            if (param_4 != NULL) {
+              *(char *)param_4 = forward;
+            }
+            if (forward) {
+              next++;
+              if (next >= *positions) {
+                next = 0;
+              }
+            } else {
+              next--;
+              if (next < 0) {
+                next = (short)*positions - 1;
+              }
+            }
+          } while (used_flags[next >> 5] & (1 << (next & 0x1f)));
+          result = next;
         }
       }
-      prop = prop_iterator_next(iterator);
-    }
-    if (usable) {
-      any_usable = 1;
-    } else {
-    occupied:
-      used_flags[index >> 5] |= 1 << (index & 0x1f);
     }
   }
-  if (!any_usable) {
-    return -1;
-  }
-
-  if ((short)param_2 == 5) {
-    return choose_random_array_element(*(void **)((char *)squad + 0xc8), 0x50,
-                                       (short)*positions, 0x10, used_flags);
-  }
-
-  next = (short)param_3;
-  if (next < 0 || next >= *positions) {
-    next = 0;
-  }
-  do {
-    forward = 1;
-    switch ((short)param_2) {
-    case 3:
-      if (next == 0) {
-        forward = 1;
-      } else if (next == *positions - 1) {
-        forward = 0;
-      } else if (param_4 != NULL) {
-        forward = *(char *)param_4;
-      }
-      break;
-    case 4:
-      forward = (char)(game_time_get() & 1);
-      break;
-    }
-    if (param_4 != NULL) {
-      *(char *)param_4 = forward;
-    }
-    if (forward) {
-      next++;
-      if (next >= *positions) {
-        next = 0;
-      }
-    } else {
-      next--;
-      if (next < 0) {
-        next = (short)*positions - 1;
-      }
-    }
-  } while (used_flags[next >> 5] & (1 << (next & 0x1f)));
-  return next;
+  return result;
 }
 
 /* action_alert_perform (0x12660)
