@@ -556,7 +556,8 @@ bool actor_compute_prop_unopposable(int actor_handle, int prop_handle)
   type = *(short *)(prop + 0x24);
   result = 0;
 
-  if (type > 1 && type < 4 && *(char *)(prop + 0x60) != 0 &&
+  /* prop->state: PAL 2342 source/ai/actor_perception.c:3314 */
+  if (type >= 2 && type <= 3 && *(char *)(prop + 0x60) != 0 &&
       *(char *)(prop + 0x127) == 0) {
     if (*(short *)(prop + 0x9c) != 0 &&
         (((actor_t *)actor)->target_target_prop_index == prop_handle ||
@@ -577,7 +578,8 @@ bool actor_compute_prop_unopposable(int actor_handle, int prop_handle)
     *(uint16_t *)(prop + 0xac) = 0;
   }
 
-  if (type > 1 && type < 4 && result == 0 &&
+  /* prop->state: PAL 2342 source/ai/actor_perception.c:3344 */
+  if (type >= 2 && type <= 3 && result == 0 &&
       ((actor_t *)actor)->field_3a8 > 0 &&
       ((actor_t *)actor)->field_3ac == prop_handle) {
     *(uint16_t *)(actor + 0x3a8) = 0;
@@ -652,7 +654,8 @@ float actor_compute_prop_target_weight(int actor_handle, int clump_item_handle)
       if (*(int *)(prop + 0x110) != -1) {
         vision_level = 0;
       } else if (*(char *)(prop + 0x130) != 0 &&
-                 *(float *)(actr_tag + 0x38c) == 0.0f) {
+                 /* melee_leap_velocity: PAL 2342 source/ai/actor_perception.c:2229 */
+                 *(float *)(actr_tag + 0x38c) == *(float *)0x2533c0) {
         vision_level = 0;
       } else if (*(char *)(prop + 0x118) != ((actor_t *)actor)->field_15d) {
         vision_level = 1;
@@ -668,7 +671,8 @@ float actor_compute_prop_target_weight(int actor_handle, int clump_item_handle)
         actor_combat_get_firing_variant_definition(actor_handle);
 
       if (weapon_tag == 0 ||
-          *(float *)(prop + 0x11c) >= *(float *)(weapon_tag + 0x40c)) {
+          /* minimum_target_range: PAL 2342 source/ai/actor_perception.c:2249 */
+          !(*(float *)(prop + 0x11c) < *(float *)(weapon_tag + 0x40c))) {
         /* prop distance >= weapon range (or no weapon tag) */
         if (*(char *)(prop + 0x118) != ((actor_t *)actor)->field_15d) {
           vision_level = 2;
@@ -681,7 +685,8 @@ float actor_compute_prop_target_weight(int actor_handle, int clump_item_handle)
           vision_level = 3;
         } else {
           vision_level = 2;
-          if (*(float *)(prop + 0x11c) >= *(float *)(actv_tag2 + 0x74)) {
+          /* maximum_firing_range: PAL 2342 source/ai/actor_perception.c:2273 */
+          if (!(*(float *)(prop + 0x11c) < *(float *)(actv_tag2 + 0x74))) {
             vision_level = 1;
           }
         }
@@ -734,7 +739,8 @@ done_vision:
     }
   } else if (clump_item_handle ==
                ((actor_t *)actor)->target_target_prop_index &&
-             ((actor_t *)actor)->field_06e > 2) {
+             /* combat_status: PAL 2342 source/ai/actor_perception.c:2345 */
+             ((actor_t *)actor)->field_06e >= 3) {
     weights.target_weight = 1;
   }
 
@@ -749,7 +755,7 @@ done_vision:
    */
   weights.target_weight =
     ((short)weights.target_weight + (short)weights.preferred_weight) +
-    (awareness + vision_level);
+    (vision_level + awareness);
   /* 0x30092: FADD [EBP-0xc] joins the bonus to the distance term before the
    * FILD/FMUL product is added (a + (b + c), not (a + b) + c). */
   return (float)weights.target_weight * 10.0f +
@@ -1009,10 +1015,9 @@ void actor_situation_update(int actor_handle)
           }
           counts[0x1f8]++;
           level = 1;
-        } else if (*(char *)(prop + 0x12f) == 0 ||
-                   *(short *)(prop + 0x38) != 0) {
-          goto bump_level;
         }
+        if (far_enough || (*(char *)(prop + 0x12f) != 0 &&
+                           *(short *)(prop + 0x38) == 0)) {
         if (*(char *)(prop + 0x74) != 0) {
           counts[0x1ff]++;
           if (level <= 8) {
@@ -1062,7 +1067,7 @@ void actor_situation_update(int actor_handle)
             }
           }
         }
-      bump_level:
+        }
         counts[0x1ee + level]++;
       } else {
         object = (char *)object_get_and_verify_type(*(int *)(prop + 0x18), 3);
@@ -1308,7 +1313,8 @@ bool actor_emotion_flee_with_friends(int actor_handle, float *chance_inout)
   prop = (char *)prop_iterator_next(iter);
   if (prop != NULL) {
     do {
-      if (*(short *)(prop + 0x24) > 1 && *(short *)(prop + 0x24) < 4 &&
+      /* prop->state: PAL 2342 source/ai/actor_perception.c:6187 */
+      if (*(short *)(prop + 0x24) >= 2 && *(short *)(prop + 0x24) <= 3 &&
           *(char *)(prop + 0x60) == 0 &&
           *(short *)(prop + 0x10) == actor->field_004 &&
           *(int *)(prop + 0x1c) != -1) {
@@ -1423,57 +1429,47 @@ short actor_emotion_get_unopposable_enemy(void *records /* @<eax> */,
  * the path is taken only when ST < mem.  *0x253394 = TICKS_PER_SECOND.
  *
  * No __FILE__ string. */
-void actor_emotion_unopposable_retreat(int actor_handle)
+void actor_emotion_unopposable_retreat(int actor_index)
+/* name: PAL 2342 source/ai/actor_perception.c:2845 */
 {
-  char records[16 * 0x1c];
+  char targets[16 * 0x1c]; /* name: PAL 2342 source/ai/actor_perception.c:2848 */
   actor_t *actor;
-  actor_t *other;
   int iter[2];
-  short count;
-  int enemy_handle;
-  char *actr_tag;
+  short target_count; /* name: PAL 2342 source/ai/actor_perception.c:2850 */
+  char *definition; /* name: PAL 2342 source/ai/actor_perception.c:2853 */
   char *prop;
-  char *known;
-  char *target;
-  char *enemy;
-  char *rec;
-  char promote;
-  char flag;
-  short index;
-  short priority;
-  short threshold;
-  short cap;
-  short best_priority;
-  int best_handle;
-  int remaining;
-  int key;
-  float dist_sq;
-  float lo;
-  float hi;
+  short target_index; /* name: PAL 2342 source/ai/actor_perception.c:2851 */
 
-  actor = (actor_t *)datum_get(actor_data, actor_handle);
-  actr_tag = (char *)tag_get(0x61637472, actor->field_058);
-  count = 0;
-  prop_iterator_new(iter, actor_handle);
+  actor = (actor_t *)datum_get(actor_data, actor_index);
+  definition = (char *)tag_get(0x61637472, actor->field_058);
+  target_count = 0;
+  prop_iterator_new(iter, actor_index);
   prop = (char *)prop_iterator_next(iter);
   while (prop != NULL) {
+    char *known;
+    short priority;
+
     known = (char *)datum_get(prop_data, iter[0]);
+    priority = 0;
     if (*(short *)(known + 0x24) >= 2 && *(short *)(known + 0x24) <= 3 &&
         *(char *)(known + 0xa4) != 0) {
       if (*(char *)(known + 0x74) != 0) {
         priority = 4;
       } else if (*(char *)(known + 0x12f) != 0) {
         priority = (short)((*(char *)(known + 0x122) <= 1) + 2);
-      } else if (*(short *)(known + 0x32) < 2) {
-        goto secondary;
-      } else {
+      } else if (*(short *)(known + 0x32) >= 2) {
         priority = 1;
       }
+    }
+    if (priority > 0) {
+      int key;
+      char *rec;
+
       key = *(int *)(prop + 0x18);
-      index = actor_emotion_get_unopposable_enemy(records, key, actor_handle,
-                                                  &count, 0x10);
-      if (index != -1) {
-        rec = records + index * 0x1c;
+      target_index = actor_emotion_get_unopposable_enemy(targets, key, actor_index,
+                                                  &target_count, 0x10);
+      if (target_index != -1) {
+        rec = targets + target_index * 0x1c;
         if (*(short *)rec < priority) {
           *(int *)(rec + 0x4) = iter[0];
           *(int *)(rec + 0x8) = key;
@@ -1481,37 +1477,44 @@ void actor_emotion_unopposable_retreat(int actor_handle)
           *(short *)rec = priority;
         }
       }
-    } else {
-    secondary:
-      if (*(short *)(prop + 0x24) >= 2 && *(short *)(prop + 0x24) <= 3 &&
-          *(char *)(prop + 0x60) == 0 && *(int *)(prop + 0x1c) != -1 &&
-          *(float *)(prop + 0x11c) < *(float *)0x00253f78) {
-        other = (actor_t *)datum_get(actor_data, *(int *)(prop + 0x1c));
-        if (other->field_3a8 != 0 && other->field_3ac != -1 &&
-            (actor->field_3a4 == -1 || other->field_3b0 >= actor->field_3a4)) {
-          target = (char *)datum_get(prop_data, other->field_3ac);
-          enemy_handle = prop_get_active_by_unit_index(actor_handle,
-                                                       *(int *)(target + 0x18));
-          if (enemy_handle != -1) {
-            enemy = (char *)datum_get(prop_data, enemy_handle);
-            if (*(short *)(enemy + 0x24) >= 2 &&
-                *(short *)(enemy + 0x24) <= 3 && *(char *)(enemy + 0xa4) != 0) {
-              index = actor_emotion_get_unopposable_enemy(
-                records, *(int *)(target + 0x18), actor_handle, &count, 0x10);
-              if (index != -1) {
-                rec = records + index * 0x1c;
-                dist_sq = *(float *)(target + 0x11c);
-                *(short *)(rec + 0x10) = *(short *)(rec + 0x10) + 1;
-                dist_sq = dist_sq * dist_sq;
-                if (dist_sq < *(float *)(rec + 0x14)) {
-                  *(float *)(rec + 0x14) = dist_sq;
-                  *(int *)(rec + 0x18) = *(int *)(prop + 0x1c);
-                }
-                if (*(int *)(rec + 0x4) == -1) {
-                  *(int *)(rec + 0x4) = enemy_handle;
-                  *(int *)(rec + 0x8) = *(int *)(enemy + 0x18);
-                  *(char **)(rec + 0xc) = enemy;
-                }
+    } else if (*(short *)(prop + 0x24) >= 2 && *(short *)(prop + 0x24) <= 3 &&
+               *(char *)(prop + 0x60) == 0 && *(int *)(prop + 0x1c) != -1 &&
+               *(float *)(prop + 0x11c) < *(float *)0x00253f78) {
+      actor_t *other;
+
+      other = (actor_t *)datum_get(actor_data, *(int *)(prop + 0x1c));
+      if (other->field_3a8 != 0 && other->field_3ac != -1 &&
+          (actor->field_3a4 == -1 || other->field_3b0 >= actor->field_3a4)) {
+        char *target;
+        int enemy_handle;
+
+        target = (char *)datum_get(prop_data, other->field_3ac);
+        enemy_handle = prop_get_active_by_unit_index(actor_index,
+                                                     *(int *)(target + 0x18));
+        if (enemy_handle != -1) {
+          char *enemy;
+
+          enemy = (char *)datum_get(prop_data, enemy_handle);
+          if (*(short *)(enemy + 0x24) >= 2 && *(short *)(enemy + 0x24) <= 3 &&
+              *(char *)(enemy + 0xa4) != 0) {
+            char *rec;
+            float dist_sq;
+
+            target_index = actor_emotion_get_unopposable_enemy(
+              targets, *(int *)(target + 0x18), actor_index, &target_count, 0x10);
+            if (target_index != -1) {
+              rec = targets + target_index * 0x1c;
+              dist_sq = *(float *)(target + 0x11c);
+              *(short *)(rec + 0x10) = *(short *)(rec + 0x10) + 1;
+              dist_sq = dist_sq * dist_sq;
+              if (dist_sq < *(float *)(rec + 0x14)) {
+                *(float *)(rec + 0x14) = dist_sq;
+                *(int *)(rec + 0x18) = *(int *)(prop + 0x1c);
+              }
+              if (*(int *)(rec + 0x4) == -1) {
+                *(int *)(rec + 0x4) = enemy_handle;
+                *(int *)(rec + 0x8) = *(int *)(enemy + 0x18);
+                *(char **)(rec + 0xc) = enemy;
               }
             }
           }
@@ -1521,99 +1524,109 @@ void actor_emotion_unopposable_retreat(int actor_handle)
     prop = (char *)prop_iterator_next(iter);
   }
 
-  if (count > 0) {
-    rec = records;
-    remaining = (unsigned short)count;
-    do {
-      known = *(char **)(rec + 0xc);
-      threshold = *(short *)(actr_tag + 0x268);
-      promote = 0;
-      if (*(char *)(known + 0x135) != 0 || *(char *)(known + 0x136) != 0) {
-        threshold = *(short *)(actr_tag + 0x26a);
+  for (target_index = 0; target_index < target_count; target_index++) {
+    char *rec;
+    char *known;
+    short threshold;
+    char promote;
+    char flag;
+    short priority;
+    float lo;
+    float hi;
+
+    rec = targets + (int)target_index * 0x1c;
+    known = *(char **)(rec + 0xc);
+    threshold = *(short *)(definition + 0x268);
+    promote = 0;
+    if (*(char *)(known + 0x135) != 0 || *(char *)(known + 0x136) != 0) {
+      threshold = *(short *)(definition + 0x26a);
+    }
+    flag = *(char *)(known + 0x12e);
+    if (flag != 0) {
+      short cap;
+
+      cap = *(short *)(definition + 0x26c);
+      if (cap > 0 && threshold > cap) {
+        threshold = cap;
       }
-      flag = *(char *)(known + 0x12e);
-      if (flag != 0) {
-        cap = *(short *)(actr_tag + 0x26c);
-        if (cap > 0 && threshold > cap) {
-          threshold = cap;
-        }
-      }
-      if (threshold > 0 && *(short *)rec >= threshold) {
-        if (flag == 0) {
-          *(short *)(known + 0xaa) = 0x16;
-        } else {
-          promote = 1;
-        }
-      } else if (flag != 0) {
+    }
+    if (threshold > 0 && *(short *)rec >= threshold) {
+      if (flag == 0) {
         *(short *)(known + 0xaa) = 0x16;
+      } else {
+        promote = 1;
       }
-      if (*(short *)(known + 0xaa) > 0) {
-        if (*(short *)(known + 0xac) == 0) {
-          lo = *(float *)(actr_tag + 0x270);
-          hi = *(float *)(actr_tag + 0x274);
-          *(short *)(known + 0xae) =
-            (short)(int)(random_real_range(get_global_random_seed_address(), lo,
-                                           hi) *
-                         TICKS_PER_SECOND);
-        }
-        *(short *)(known + 0xaa) = *(short *)(known + 0xaa) - 1;
-        *(short *)(known + 0xac) = *(short *)(known + 0xac) + 1;
+    } else if (flag != 0) {
+      *(short *)(known + 0xaa) = 0x16;
+    }
+    if (*(short *)(known + 0xaa) > 0) {
+      if (*(short *)(known + 0xac) == 0) {
+        lo = *(float *)(definition + 0x270);
+        hi = *(float *)(definition + 0x274);
+        *(short *)(known + 0xae) =
+          (short)(int)(random_real_range(get_global_random_seed_address(), lo,
+                                         hi) *
+                       TICKS_PER_SECOND);
       }
-      if (*(short *)(known + 0x78) >= 0x2d || *(short *)rec >= 4) {
-        if (*(short *)(known + 0xae) > 0 &&
-            *(short *)(known + 0xac) >= *(short *)(known + 0xae)) {
-          priority = *(short *)rec;
-          *(short *)rec = (short)(priority > 7 ? priority : 7);
-        }
-        if (promote != 0) {
-          priority = *(short *)rec;
-          *(short *)rec = (short)(priority > 8 ? priority : 8);
-        }
-        if (*(short *)(actr_tag + 0x278) > 0 &&
-            *(short *)(known + 0xa6) >= *(short *)(actr_tag + 0x278)) {
-          priority = *(short *)rec;
-          *(short *)rec = (short)(priority > 9 ? priority : 9);
-        }
-        if (*(short *)(actr_tag + 0x27a) > 0 &&
-            *(short *)(rec + 0x10) >= *(short *)(actr_tag + 0x27a)) {
-          priority = *(short *)rec;
-          *(short *)rec = (short)(priority > 6 ? priority : 6);
-        }
+      *(short *)(known + 0xaa) = *(short *)(known + 0xaa) - 1;
+      *(short *)(known + 0xac) = *(short *)(known + 0xac) + 1;
+    }
+    if (*(short *)(known + 0x78) >= 0x2d || *(short *)rec >= 4) {
+      if (*(short *)(known + 0xae) > 0 &&
+          *(short *)(known + 0xac) >= *(short *)(known + 0xae)) {
+        priority = *(short *)rec;
+        *(short *)rec = (short)(priority > 7 ? priority : 7);
       }
-      rec += 0x1c;
-      remaining--;
-    } while (remaining != 0);
+      if (promote != 0) {
+        priority = *(short *)rec;
+        *(short *)rec = (short)(priority > 8 ? priority : 8);
+      }
+      if (*(short *)(definition + 0x278) > 0 &&
+          *(short *)(known + 0xa6) >= *(short *)(definition + 0x278)) {
+        priority = *(short *)rec;
+        *(short *)rec = (short)(priority > 9 ? priority : 9);
+      }
+      if (*(short *)(definition + 0x27a) > 0 &&
+          *(short *)(rec + 0x10) >= *(short *)(definition + 0x27a)) {
+        priority = *(short *)rec;
+        *(short *)rec = (short)(priority > 6 ? priority : 6);
+      }
+    }
   }
 
   if (actor->field_3a8 > 0) {
     actor->field_3a8 = actor->field_3a8 - 1;
     if (actor->field_3a8 == 0) {
       actor->field_3a4 = game_time_get();
+      return;
     }
   } else {
+    int best_handle;
+    short best_priority;
+
     best_handle = -1;
     best_priority = 5;
-    if (count > 0) {
-      rec = records;
-      remaining = (unsigned short)count;
-      do {
-        if (*(short *)rec > best_priority && *(int *)(rec + 0x4) != -1) {
-          best_priority = *(short *)rec;
-          best_handle = *(int *)(rec + 0x4);
-        }
-        rec += 0x1c;
-        remaining--;
-      } while (remaining != 0);
-      if (best_handle != -1) {
-        lo = *(float *)(actr_tag + 0x288);
-        hi = *(float *)(actr_tag + 0x28c);
-        actor->field_3a8 =
-          (short)(int)(random_real_range(get_global_random_seed_address(), lo,
-                                         hi) *
-                       TICKS_PER_SECOND);
-        actor->field_3ac = best_handle;
-        actor->field_3b0 = game_time_get();
+    for (target_index = 0; target_index < target_count; target_index++) {
+      char *rec;
+
+      rec = targets + (int)target_index * 0x1c;
+      if (*(short *)rec > best_priority && *(int *)(rec + 0x4) != -1) {
+        best_priority = *(short *)rec;
+        best_handle = *(int *)(rec + 0x4);
       }
+    }
+    if (best_handle != -1) {
+      float lo;
+      float hi;
+
+      lo = *(float *)(definition + 0x288);
+      hi = *(float *)(definition + 0x28c);
+      actor->field_3a8 =
+        (short)(int)(random_real_range(get_global_random_seed_address(), lo,
+                                       hi) *
+                     TICKS_PER_SECOND);
+      actor->field_3ac = best_handle;
+      actor->field_3b0 = game_time_get();
     }
   }
 }
@@ -1673,7 +1686,7 @@ void actor_perception_find_sense_position(int actor_handle, float *position,
                                           int param_3,
                                           void *input_block_out)
 {
-  char *actor;
+  actor_t *actor;
   char *swarm;
   char *component;
   float dx;
@@ -1682,37 +1695,41 @@ void actor_perception_find_sense_position(int actor_handle, float *position,
   float distance_squared;
   float best_distance_squared;
   int best_unit_handle;
-  int i;
+  short i;
 
   (void)param_3;
-  actor = (char *)datum_get(actor_data, actor_handle);
-  if (*(char *)(actor + 0x6) != 0) {
-    swarm =
-      (char *)datum_get(*(data_t **)0x6325a0, *(int *)(actor + 0x28));
+  actor = (actor_t *)datum_get(actor_data, actor_handle);
+  if (actor->field_006 != 0) {
+    swarm = (char *)datum_get(*(data_t **)0x6325a0,
+                              actor->meta_swarm_cache_index);
     best_distance_squared = 3.4028235e+38f;
     best_unit_handle = -1;
 
-    if (*(short *)(actor + 0x1e) <= 0) {
+    if (actor->field_01e <= 0) {
       display_assert("actor->meta.swarm_unit_count > 0",
                      "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x665, true);
       system_exit(-1);
     }
-    if (*(int *)(actor + 0x24) == -1) {
+    if (actor->field_024 == -1) {
       display_assert("actor->meta.swarm_unit_index != NONE",
                      "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x666, true);
       system_exit(-1);
     }
 
-    for (i = 0; (short)i < *(short *)(swarm + 0x2); i++) {
+    for (i = 0; i < *(short *)(swarm + 0x2); i++) {
+      float *component_pos;
+
       component = (char *)datum_get(
-        *(data_t **)0x63259c, *(int *)(swarm + 0x58 + (short)i * 4));
-      dx = position[0] - *(float *)(component + 0x4);
-      dy = position[1] - *(float *)(component + 0x8);
-      dz = position[2] - *(float *)(component + 0xc);
-      distance_squared = dx * dx + dy * dy + dz * dz;
+        *(data_t **)0x63259c, *(int *)(swarm + 0x58 + i * 4));
+      component_pos = (float *)component;
+      component_pos += 1;
+      dx = position[0] - component_pos[0];
+      dy = position[1] - component_pos[1];
+      dz = position[2] - component_pos[2];
+      distance_squared = (dx * dx + dy * dy) + dz * dz;
       if (distance_squared < best_distance_squared) {
-        best_unit_handle = *(int *)(swarm + 0x18 + (short)i * 4);
         best_distance_squared = distance_squared;
+        best_unit_handle = *(int *)(swarm + 0x18 + i * 4);
       }
     }
 
@@ -1724,7 +1741,7 @@ void actor_perception_find_sense_position(int actor_handle, float *position,
     actor_input_sample_position(actor_handle, best_unit_handle,
                                 (char *)input_block_out);
   } else {
-    memcpy(input_block_out, actor + 0x120, 0x38);
+    memcpy(input_block_out, &actor->field_120, 0x38);
   }
 }
 
@@ -1998,13 +2015,12 @@ void actor_emotion_update(int actor_handle)
 
   *(char *)(actor + 0x375) =
     *(char *)(actor + 0x378) != 0 || (*(unsigned int *)actr_tag & 0x800) != 0;
-  if (*(int *)(actor + 0x158) == -1) {
-    if ((*(unsigned int *)actr_tag & 0x1000000) != 0 &&
-        *(char *)(actor + 0x374) == 0) {
-      *(char *)(actor + 0x375) = 1;
-    }
-  } else {
+  /* actor index != NONE: PAL 2342 source/ai/actor_perception.c:3466 */
+  if (*(int *)(actor + 0x158) != -1) {
     *(char *)(actor + 0x375) = 0;
+  } else if ((*(unsigned int *)actr_tag & 0x1000000) != 0 &&
+             *(char *)(actor + 0x374) == 0) {
+    *(char *)(actor + 0x375) = 1;
   }
 
   level = 9;
@@ -2037,11 +2053,11 @@ void actor_emotion_update(int actor_handle)
 
   if ((*(unsigned int *)actr_tag & 0xc0000000) != 0) {
     if (*(int *)(actor + 0x158) == -1 && *(short *)(actor + 0x6e) >= 3) {
-      *(char *)(actor + 0x35d) = 0;
       check_target = *(short *)(actor + 0x268) > 8;
       *(char *)(actor + 0x35c) = 0;
       *(char *)(actor + 0x35e) = 0;
       *(char *)(actor + 0x35f) = 0;
+      *(char *)(actor + 0x35d) = 0;
       if (check_target) {
         /* actor+0x270 = actor_t.target_target_prop_index */
         target = (char *)datum_get(prop_data, *(int *)(actor + 0x270));
