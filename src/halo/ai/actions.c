@@ -127,7 +127,7 @@ int action_vehicle_find_best_seat(int actor_handle, int vehicle_handle, float *o
  * Confirmed: the return byte lives at EBP-1 and is loaded into AL before the
  * single RET at 0x1be8c — Ghidra rendered this function as void(void). */
 char action_vehicle_setup_impromptu(int actor_handle, int vehicle_handle,
-                                    float radius_a, float radius_b,
+                                    float radius_a, float radius_b, /* name: PAL 2342 action_vehicle.c:1039 */
                                     void *out_action_data)
 {
   char *actor;
@@ -165,8 +165,8 @@ char action_vehicle_setup_impromptu(int actor_handle, int vehicle_handle,
     delta[0] = delta[0] - *(float *)(actor_pos + 0x12c);
     delta[1] = delta[1] - *(float *)(actor_pos + 0x130);
     delta[2] = delta[2] - *(float *)(actor_pos + 0x134);
-    if (radius_b * radius_b >
-        delta[1] * delta[1] + delta[2] * delta[2] + delta[0] * delta[0]) {
+    if (delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2] <=
+        radius_b * radius_b) {
       qualified = 1;
       if (FUN_00012170((float *)(object + 0x18)) <= *(const float *)0x253f2c) {
         goto qualified_resolved;
@@ -714,10 +714,10 @@ char actor_action_handle_panic_from_damage(int actor_handle)
           actor_perception_find_recent_damaging_prop_index(actor_handle, 1);
       }
       panic_type = actor->stimuli_panic_type;
-      if (panic_type <= 1) {
-        panic_type = 1;
-      }
-      actor->stimuli_panic_type = panic_type;
+      actor->stimuli_panic_type = panic_type > 1 ? panic_type : 1;
+      /* short ternary: cmp / movsx / jg, same as the matched melee clamp */
+      /* line pad: keep later __LINE__ asserts stable */
+      /* line pad: keep later __LINE__ asserts stable */
       actor->field_2ec = 0;
       result = 1;
     }
@@ -868,7 +868,7 @@ char actor_action_handle_berserking_from_attacking_mode(int actor_handle)
 {
   char *actor;
   int *actr_tag;
-  short berserk_state;
+  short berserk_type; /* name: PAL 2342 actions.c:1538 */
   char result;
 
   actor = (char *)datum_get(actor_data, actor_handle);
@@ -877,11 +877,11 @@ char actor_action_handle_berserking_from_attacking_mode(int actor_handle)
   if (((*(unsigned int *)actr_tag & 0x80000) != 0) &&
       (((actor_t *)actor)->field_1c9 == '\0') &&
       (((actor_t *)actor)->field_06e >= 5)) {
-    berserk_state = ((actor_t *)actor)->field_310;
-    if (berserk_state <= (2 - 1)) {
-      berserk_state = 1;
-    }
-    ((actor_t *)actor)->field_310 = berserk_state;
+    berserk_type = ((actor_t *)actor)->field_310;
+    ((actor_t *)actor)->field_310 = berserk_type > 1 ? berserk_type : 1;
+    /* short ternary: cmp / movsx / jg, same as the matched melee clamp */
+    /* line pad: keep later __LINE__ asserts stable */
+    /* line pad: keep later __LINE__ asserts stable */
     result = 1;
   }
   return result;
@@ -941,20 +941,20 @@ char actor_action_handle_berserking_from_damage(int actor_handle)
 {
   char *actor;
   int actr_tag;
-  short berserk_state;
+  short berserk_type; /* name: PAL 2342 actions.c:1558 */
   char result;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   actr_tag = (int)tag_get(0x61637472, ((actor_t *)actor)->field_058);
   result = 0;
   if (((actor_t *)actor)->field_2ec != '\0') {
-    if (*(float *)(actor + 0x1c0) > *(float *)(actr_tag + 0x398)) {
+    if (((actor_t *)actor)->field_1c0 > *(float *)(actr_tag + 0x398)) {
       if (*(float *)(actor + 0x1b8) < *(float *)(actr_tag + 0x39c)) {
-        berserk_state = ((actor_t *)actor)->field_310;
-        if (berserk_state <= 3) {
-          berserk_state = 3;
-        }
-        ((actor_t *)actor)->field_310 = berserk_state;
+        berserk_type = ((actor_t *)actor)->field_310;
+        ((actor_t *)actor)->field_310 = berserk_type > 3 ? berserk_type : 3;
+        /* short ternary: cmp / movsx / jg, same as the matched melee clamp */
+        /* line pad: keep later __LINE__ asserts stable */
+        /* line pad: keep later __LINE__ asserts stable */
         ((actor_t *)actor)->field_2ec = 0;
         result = 1;
       }
@@ -1030,9 +1030,9 @@ char actor_action_vehicle_entry_allowed(int record_index, int datum_handle /* @<
 char actor_action_handle_vehicle_exit(int actor_handle)
 {
   char *actor;
-  char berserk_nearby;
-  char local_5;
-  char iter_buf[12];
+  char want_exit; /* name: PAL 2342 actions.c:4459 */
+  char forced_exit; /* name: PAL 2342 actions.c:4460 */
+  int iter[2];
   int prop;
   char exit_ok;
   int t;
@@ -1043,34 +1043,34 @@ char actor_action_handle_vehicle_exit(int actor_handle)
   if (((actor_t *)actor)->field_158 == -1) {
     goto done_clear;
   }
-  berserk_nearby = 0;
-  local_5 = 0;
-  prop_iterator_new((int *)iter_buf, actor_handle);
-  prop = prop_iterator_next((int *)iter_buf);
+  want_exit = 0;
+  forced_exit = 0;
+  prop_iterator_new(iter, actor_handle);
+  prop = prop_iterator_next(iter);
   while (prop != 0) {
-    if (((1 < *(short *)(prop + 0x24)) && (*(short *)(prop + 0x24) < 4)) &&
+    if ((*(short *)(prop + 0x24) >= 2 && *(short *)(prop + 0x24) <= 3) &&
         (*(char *)(prop + 0x12e) != '\0') && (*(char *)(prop + 0x60) != '\0') &&
         (*(int *)(prop + 0x110) == ((actor_t *)actor)->field_158)) {
-      berserk_nearby = 1;
-      local_5 = 1;
+      want_exit = 1;
+      forced_exit = 1;
       break;
     }
-    prop = prop_iterator_next((int *)iter_buf);
+    prop = prop_iterator_next(iter);
   }
   if (((actor_t *)actor)->field_2ed != '\0') {
-    berserk_nearby = 1;
+    want_exit = 1;
   }
   if ((((actor_t *)actor)->field_160 == '\0') ||
       ((((actor_t *)actor)->field_1b0 == -1) &&
        ((((actor_t *)actor)->danger_zone_danger_type != 2 ||
          (((actor_t *)actor)->field_28a == '\0'))))) {
-    if (!berserk_nearby) {
+    if (!want_exit) {
       goto done_clear;
     }
   } else {
-    local_5 = 1;
+    forced_exit = 1;
   }
-  ((actor_t *)actor)->field_38c = local_5;
+  ((actor_t *)actor)->field_38c = forced_exit;
   exit_ok = unit_try_and_exit_seat(((actor_t *)actor)->field_018);
   if (exit_ok != '\0') {
     ((actor_t *)actor)->field_390 = ((actor_t *)actor)->field_158;
@@ -1146,19 +1146,19 @@ char actor_action_allow_cover_seeking(int actor_handle, char param_2)
 /* actor_action_can_stop_guarding (0x1cf10)
  * Returns 1 if the actor can stop the guard action, based on state counters and
  * flags. Asserts that the actor's current action is _actor_action_guard (6). */
-char actor_action_can_stop_guarding(int actor_handle, short min_state,
-                                    short max_state)
+char actor_action_can_stop_guarding(int actor_handle, short guard_investigate_threshold,
+                                    short cower_investigate_threshold)
 {
   char *actor;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   assert_halt(((actor_t *)actor)->state_action == _actor_action_guard);
   if (*(char *)(actor + 0xa4) != '\0') {
-    return max_state <= ((actor_t *)actor)->field_06e;
-  }
+    return ((actor_t *)actor)->field_06e >= cower_investigate_threshold;
+  } /* name: PAL 2342 actions.c:1748 */
   if (((0 < *(short *)(actor + 0x9c)) &&
-       (((actor_t *)actor)->field_06e < min_state)) &&
-      ((((actor_t *)actor)->field_1e4 < 1 ||
+       (((actor_t *)actor)->field_06e < guard_investigate_threshold)) &&
+      ((((actor_t *)actor)->field_1e4 <= 0 ||
         (((actor_t *)actor)->field_0a1 != '\0')))) {
     return 0;
   }
@@ -1267,18 +1267,18 @@ void actor_action_change(int actor_handle, int new_action_type, int param_3)
 
   (*(uint16_t *)0x5ac87c)++;
 
-  assert_halt(new_action_type >= 0 &&
+  assert_halt_msg_at("(new_action_type >= 0) && (new_action_type < NUMBER_OF_ACTOR_ACTIONS)", "c:\\halo\\SOURCE\\ai\\actions.c", 0xb83, new_action_type >= 0 &&
               new_action_type < NUMBER_OF_ACTOR_ACTIONS);
 
   table_offset = new_action_type * 0x38;
 
-  assert_halt(*(int *)(0x253fa0 + table_offset) == new_action_type);
+  assert_halt_msg_at("global_action_functions[new_action_type].action == new_action_type", "c:\\halo\\SOURCE\\ai\\actions.c", 0xb84, *(int *)(0x253fa0 + table_offset) == new_action_type);
 
-  assert_halt(((actor_t *)actor)->state_action >= 0 &&
+  assert_halt_msg_at("(actor->state.action >= 0) && (actor->state.action < NUMBER_OF_ACTOR_ACTIONS)", "c:\\halo\\SOURCE\\ai\\actions.c", 0xb87, ((actor_t *)actor)->state_action >= 0 &&
               ((actor_t *)actor)->state_action < NUMBER_OF_ACTOR_ACTIONS);
 
-  handler = *(action_handler_fn_t *)((0x253fc4 +
-                                     ((actor_t *)actor)->state_action * 0x38) ^ 0);
+  handler = *(action_handler_fn_t *)(0x253fc4 +
+                                     ((actor_t *)actor)->state_action * 0x38);
   if (handler != NULL) {
     handler(actor_handle);
   }
@@ -1295,7 +1295,7 @@ void actor_action_change(int actor_handle, int new_action_type, int param_3)
 
   actor_clear_discarded_firing_positions(actor_handle, 0);
 
-  if (*(unsigned int *)(0x253fac + table_offset) != 0 && param_3 != 0) {
+  if (*(unsigned int *)(0x253fac + table_offset) > 0 && param_3 != 0) {
     csmemcpy(actor + 0x9c, (void *)param_3, *(int *)(0x253fac + table_offset));
   }
 
@@ -1971,15 +1971,13 @@ char actor_action_handle_surprise(int actor_handle, short type)
   int weapon_trigger_index;
   int weapon_state;
   int prop_handle;
+  char result; /* name: PAL 2342 actions.c:1845 */
 
   actor = (char *)datum_get(actor_data, actor_handle);
   actv_tag = (char *)tag_get(0x61637476, ((actor_t *)actor)->field_05c);
-
-  if (((actor_t *)actor)->field_160 != '\0' ||
-      ((actor_t *)actor)->field_2ee < type) {
-    ((actor_t *)actor)->field_2ee = 0;
-    return 0;
-  }
+  result = 0;
+  if (((actor_t *)actor)->field_160 == '\0' &&
+      ((actor_t *)actor)->field_2ee >= type) {
 
   if (((actor_t *)actor)->field_2f8 != '\0') {
     direction[0] = *(float *)(actor + 0x2fc);
@@ -1987,16 +1985,14 @@ char actor_action_handle_surprise(int actor_handle, short type)
     normalize2d(direction);
     dot = direction[1] * ((actor_t *)actor)->control_desired_facing_vector[1] +
           direction[0] * ((actor_t *)actor)->control_desired_facing_vector[0];
-    if (dot < 0.0f) {
-      direction[0] = -direction[0];
-      direction[1] = -direction[1];
+    if (!(dot >= 0.0f)) {
+      direction[0] = -direction[0]; direction[1] = -direction[1];
       anim_type = 5;
     } else {
       anim_type = 4;
     }
   } else {
-    direction[0] = ((actor_t *)actor)->input_facing_vector[0];
-    direction[1] = ((actor_t *)actor)->input_facing_vector[1];
+    direction[0] = ((actor_t *)actor)->input_facing_vector[0]; direction[1] = ((actor_t *)actor)->input_facing_vector[1];
     normalize2d(direction);
     anim_type = 4;
   }
@@ -2031,9 +2027,13 @@ char actor_action_handle_surprise(int actor_handle, short type)
     actor_situation_try_new_target(actor_handle, prop_handle);
   }
 
+  result = 1;
+  }
   ((actor_t *)actor)->field_2ee = 0;
-  return 1;
+  return result;
 }
+/* line pad: keep __LINE__ stable for later asserts in this TU */
+/* line pad */
 
 /* actor_action_handle_panic_transition (0x1dd40) — Handles a panic-level
  * transition for an actor. If the actor's current panic level (actor+0x308)
@@ -2185,12 +2185,10 @@ char actor_action_handle_vehicle_entry(int actor_handle)
   float radius_b;
   float dist2;
   int index;
-  int identifier;
   short id_count;
   short i;
   char matched;
   char result;
-  int iter[2];
   vector3_t pos;
   short action_buf[66];
 
@@ -2214,6 +2212,7 @@ char actor_action_handle_vehicle_entry(int actor_handle)
 
   /* Source 1: allied actors already heading for / owning a vehicle. */
   if ((*actr_tag & 0x1000) != 0) {
+    int iter[2]; /* name: PAL 2342 actions.c:4094 */
     prop_iterator_new(iter, actor_handle);
     ally = prop_iterator_next(iter);
     if (ally != 0) {
@@ -2272,6 +2271,7 @@ char actor_action_handle_vehicle_entry(int actor_handle)
         id_count = *(short *)(entry + 0xc);
         matched = 1;
         if (id_count > 0) {
+          int identifier;
           matched = 0;
           for (i = 0; i < id_count; i++) {
             identifier = *(int *)(entry + 0x10 + i * 4);
@@ -3691,7 +3691,7 @@ int actor_pursuit_find_nearby_actors(int actor_handle, char flag)
   int count;
   int best_index;
   float best_dist;
-  int threshold;
+  int desired_actor_count; /* name: PAL 2342 actions.c:2174 */
   int threshold_raw;
   int mapped;
   float dx;
@@ -3712,7 +3712,7 @@ int actor_pursuit_find_nearby_actors(int actor_handle, char flag)
     if (*(char *)(rec + 0x60) == '\0' && *(char *)(rec + 0x127) == '\0' &&
         *(int *)(rec + 0x1c) != -1 &&
         (flag == '\0' ||
-         (1 < *(short *)(rec + 0x24) && *(short *)(rec + 0x24) < 4)) &&
+         (*(short *)(rec + 0x24) >= 2 && *(short *)(rec + 0x24) <= 3)) &&
         actor_pursuit_consider_nearby_actor(actor_handle, flag, *(int *)(rec + 0x1c)) != '\0') {
       count++;
       if (*(float *)(rec + 0x11c) < best_dist) {
@@ -3722,8 +3722,8 @@ int actor_pursuit_find_nearby_actors(int actor_handle, char flag)
     }
     rec = prop_iterator_next(iter1);
   }
-  threshold = (short)threshold_raw;
-  if (count < threshold && *(int *)(actor + 0x34) != -1) {
+  desired_actor_count = (short)threshold_raw;
+  if (count < desired_actor_count && *(int *)(actor + 0x34) != -1) {
     encounter_actor_iterator_new(iter2, *(int *)(actor + 0x34));
     rec = encounter_actor_iterator_next(iter2);
     while (rec != 0) {
@@ -3744,7 +3744,7 @@ int actor_pursuit_find_nearby_actors(int actor_handle, char flag)
             best_index = mapped;
             best_dist = dist;
           }
-          if (threshold <= count) {
+          if (count >= desired_actor_count) {
             break;
           }
         }
