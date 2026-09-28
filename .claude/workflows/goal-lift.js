@@ -1609,7 +1609,7 @@ log(`Selected ${targets.length} candidates across ${new Set(targets.map(t => t.o
 // ── Code-side pre-screen — drop targets the SELECTOR already proved unsuitable,
 // using authoritative facts (has_reg_args / lane / addr) rather than re-deriving
 // them in 6 Opus research agents that drift. Saves the research tokens entirely.
-const CRT_LO = 0x1d0000, CRT_HI = 0x1de000
+const CRT_LO = 0x1d0000, CRT_HI = 0x1de000, XAPI_LO = 0x1cf900
 const codeSkips = []
 targets = targets.filter(t => {
   const a = parseInt((t.addr || '0').replace(/^0x/i, ''), 16)
@@ -1652,6 +1652,12 @@ targets = targets.filter(t => {
   // Pinned targets bypass the lane gate: an explicit --addrs entry is a
   // deliberate operator choice, often of a manual-lift/cache-context lane fn.
   const pinned = ADDRS && ADDRS.has(a)
+  // XAPILIB thread/handle exports (CloseHandle, SetThreadPriority, ...) sit just
+  // below the CRT region, misattributed to d3d_intimacy.obj. Research agents
+  // rejected them as xbox_kernel_import 54 times across the 09-2x campaigns,
+  // burning ~4 slots per batch. Pinned targets still get through (0x1cf97c
+  // UnhandledExceptionFilter was lifted deliberately).
+  if (!pinned && Number.isFinite(a) && a >= XAPI_LO && a < CRT_LO) { codeSkips.push({ ...t, status: 'skipped', reason: 'skip_nt_import (XAPILIB region 0x1cf900-0x1d0000)' }); return false }
   if (!pinned && t.lane && t.lane !== 'auto-lift' && t.lane !== 'cache-context') { codeSkips.push({ ...t, status: 'skipped', reason: `lane=${t.lane} (not auto-liftable)` }); return false }
   return true
 })
