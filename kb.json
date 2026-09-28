@@ -28636,7 +28636,7 @@
     {
      "addr": "0xe46f0",
      "decl": "void push_widget(int *head@<ebx>, void *record@<edi>);",
-     "ported": false,
+     "ported": true,
      "name": "push_widget"
     },
     {
@@ -28666,7 +28666,8 @@
     {
      "addr": "0xe4960",
      "decl": "float widget_instance_get_cumulative_alpha_modifier(void *widget@<eax>);",
-     "name": "widget_instance_get_cumulative_alpha_modifier"
+     "name": "widget_instance_get_cumulative_alpha_modifier",
+     "ported": true
     },
     {
      "addr": "0xe4980",
@@ -28703,7 +28704,8 @@
     {
      "addr": "0xe4ce0",
      "decl": "bool string_has_icons_to_draw(const wchar_t *text@<eax>);",
-     "name": "string_has_icons_to_draw"
+     "name": "string_has_icons_to_draw",
+     "ported": true
     },
     {
      "addr": "0xe4d40",
@@ -28749,7 +28751,7 @@
     {
      "addr": "0xe5440",
      "decl": "void widget_instance_tab_to_previous_valid_widget(void *widget@<edi>);",
-     "ported": false,
+     "ported": true,
      "name": "widget_instance_tab_to_previous_valid_widget"
     },
     {
@@ -36730,9 +36732,10 @@
     },
     {
      "addr": "0x498d0",
-     "decl": "void ai_debug_lineofsight_storeray(int arg_edi @<edi>);",
+     "decl": "void ai_debug_lineofsight_storeray(int16_t arg_eax @<eax>, int arg_edi @<edi>);",
      "comment": "[NAME: ai_debug_lineofsight_storeray \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "ai_debug_lineofsight_storeray"
+     "name": "ai_debug_lineofsight_storeray",
+     "ported": true
     },
     {
      "addr": "0x49990",
@@ -36967,7 +36970,9 @@
     {
      "addr": "0x52b60",
      "decl": "void ai_debug_render_all_actors(unsigned char mode @<dl>);",
-     "name": "ai_debug_render_all_actors"
+     "name": "ai_debug_render_all_actors",
+     "ported": true,
+     "src": "src/halo/ai/ai_debug.c"
     },
     {
      "addr": "0x52bb0",
@@ -38935,7 +38940,8 @@
     },
     {
      "addr": "0x6c780",
-     "decl": "int FUN_0006c780(void *tif@<ecx>);"
+     "decl": "int FUN_0006c780(void *tif@<ecx>);",
+     "ported": true
     },
     {
      "addr": "0x6c860",
@@ -39403,7 +39409,8 @@
     {
      "addr": "0x705b0",
      "decl": "void RGBToColor(unsigned short *rgb@<eax>, unsigned char *color);",
-     "comment": "[NAME: RGBToColor \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: RGBToColor \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x70610",
