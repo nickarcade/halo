@@ -5158,6 +5158,21 @@
       "score": 2.9,
       "source": "src/halo/unported_thunks.c"
     },
+    "FUN_0006c5e0": {
+      "abi_model": "regparam_stripped",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 92.2,
+      "addr": "0x6c5e0",
+      "end": "0x6c680",
+      "kind": "auto",
+      "n_r": 61,
+      "opnd_percent": 92.2,
+      "raw_mnemonic_pct": 91.5,
+      "ref": "synth",
+      "ref_sha": "1ea11494853ae4ad",
+      "score": 92.2,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
     "FUN_0006c680": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -5231,6 +5246,21 @@
       "ref": "synth",
       "ref_sha": "831958cf5814c98a",
       "score": 91.1,
+      "source": "src/halo/bitmaps/libtiff/tif_open.c"
+    },
+    "FUN_0006ca50": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 95.7,
+      "addr": "0x6ca50",
+      "end": "0x6cabb",
+      "kind": "auto",
+      "n_r": 36,
+      "opnd_percent": 95.7,
+      "raw_mnemonic_pct": 95.7,
+      "ref": "synth",
+      "ref_sha": "7df815a5874821d5",
+      "score": 95.7,
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
     },
     "FUN_0006cac0": {
@@ -5309,18 +5339,18 @@
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
     },
     "FUN_0006cde0": {
-      "abi_model": "regparam_stripped_saves",
-      "abi_model_items": 4,
-      "abi_modeled_mnemonic_pct": 93.7,
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x6cde0",
       "end": "0x6ce51",
       "kind": "auto",
       "n_r": 37,
-      "opnd_percent": 93.7,
-      "raw_mnemonic_pct": 89.2,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "4be6976983385be4",
-      "score": 93.7,
+      "score": 100.0,
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
     },
     "FUN_0006ce60": {
@@ -5339,18 +5369,18 @@
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
     },
     "FUN_0006cfa0": {
-      "abi_model": "regarg_call_stripped",
-      "abi_model_items": 2,
-      "abi_modeled_mnemonic_pct": 90.0,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 4,
+      "abi_modeled_mnemonic_pct": 90.6,
       "addr": "0x6cfa0",
       "end": "0x6d13f",
       "kind": "auto",
       "n_r": 142,
-      "opnd_percent": 56.7,
+      "opnd_percent": 57.1,
       "raw_mnemonic_pct": 89.3,
       "ref": "synth",
       "ref_sha": "8c2240338ec180f4",
-      "score": 90.0,
+      "score": 90.6,
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
     },
     "FUN_0006d140": {
@@ -5384,18 +5414,18 @@
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
     },
     "FUN_0006d1e0": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 95.1,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 2,
+      "abi_modeled_mnemonic_pct": 96.7,
       "addr": "0x6d1e0",
       "end": "0x6d2c5",
       "kind": "auto",
       "n_r": 60,
-      "opnd_percent": 93.4,
+      "opnd_percent": 95.8,
       "raw_mnemonic_pct": 95.1,
       "ref": "synth",
       "ref_sha": "e496696accb9a3e6",
-      "score": 95.1,
+      "score": 96.7,
       "source": "src/halo/bitmaps/libtiff/tif_open.c"
     },
     "FUN_0006d2d0": {

@@ -144,6 +144,72 @@ int TIFFReadRGBAImage(void *tif, unsigned long rwidth, unsigned long rheight,
   return (ok);
 }
 
+/**
+ * Predictor setup shared by the LZW decoder (0x6ce60) and encoder (0x6d1e0):
+ * Bungie's form of libtiff's PredictorSetup, with the two horizontal
+ * predictor routines handed in by the caller instead of chosen internally.
+ *
+ * ABI note (explicit unknown in kb.json): the binary also reads the predictor
+ * state in ESI without ever setting it (0x6c616 `mov [esi+0x8],cx`, 0x6c64b
+ * `mov ecx,[esi+0xc]`). Both original callers load ESI from the same value
+ * they store in tif->tif_data (0x6ceb4 / 0x6d230 `mov esi,eax`) right before
+ * the call, so this lift reads tif->tif_data (+0x120) instead. The kb decl
+ * carries no @<esi> parameter and is left unchanged.
+ *
+ * tiff_t and tiff_predictor_state_t are defined further down this file, so
+ * the offsets are spelled raw here: +0x00 tif_name, +0x0a flags byte (signed,
+ * bit 7 = tiled), +0x36 td_bitspersample, +0x44 td_samplesperpixel, +0x46
+ * td_predictor, +0x5e td_planarconfig, +0x120 tif_data; state +0x08 stride,
+ * +0x0a rowsize, +0x0c pfunc.
+ *
+ * @param tif_      TIFF handle, in EAX.
+ * @param hordiff8  routine installed for 8-bit samples (first stack arg).
+ * @param hordiff16 routine installed for 16-bit samples (second stack arg).
+ * @return 0 after reporting an unsupported predictor or bit depth, else 1.
+ */
+int FUN_0006c5e0(void *tif_, void *hordiff8, void *hordiff16)
+{
+  char *tif = (char *)tif_;
+  char *sp = *(char **)(tif + 0x120);
+
+  switch (*(unsigned short *)(tif + 0x46)) {
+  case 1:
+    break;
+  case 2:
+    *(unsigned short *)(sp + 0x08) = *(unsigned short *)(tif + 0x5e) == 1 ?
+                                       *(unsigned short *)(tif + 0x44) :
+                                       1;
+    switch (*(unsigned short *)(tif + 0x36)) {
+    case 8:
+      *(void **)(sp + 0x0c) = hordiff8;
+      break;
+    case 16:
+      *(void **)(sp + 0x0c) = hordiff16;
+      break;
+    default:
+      FUN_00068a30(*(char **)tif,
+                   "Horizontal differencing \"Predictor\" not supported with "
+                   "%d-bit samples",
+                   *(unsigned short *)(tif + 0x36));
+      return 0;
+    }
+    break;
+  default:
+    FUN_00068a30(*(char **)tif, "\"Predictor\" value %d not supported",
+                 *(unsigned short *)(tif + 0x46));
+    return 0;
+  }
+  if (*(void **)(sp + 0x0c) != 0) {
+    if (*(char *)(tif + 0x0a) < 0) {
+      *(unsigned short *)(sp + 0x0a) = (unsigned short)FUN_0006f890(tif);
+    } else {
+      *(unsigned short *)(sp + 0x0a) =
+        (unsigned short)TIFFScanlineSize((int)tif);
+    }
+  }
+  return 1;
+}
+
 /* Horizontal differencing predictor accumulator, 8-bit samples.
  *
  * Transcribed from the vendored libtiff (tif_predict.c horAcc8) rather than
@@ -235,6 +301,93 @@ void FUN_0006c6f0(unsigned short *wp, int cc, int stride)
   }
 }
 
+/* Bit masks used by the LZW code reader and packer below. Both live in .rdata
+ * in the original image and both are NINE bytes, not eight -- element 8 (0xff)
+ * is present at 0x2ec7d8 and 0x2ec7e4 respectively, each followed by alignment
+ * padding.
+ *
+ * tiff_msbmask[n]  = 0x2ec7d0, keeps the LOW n bits of a value.
+ * tiff_leadmask[n] = 0x2ec7dc, keeps the HIGH n bits of a byte, i.e. the bits
+ *                    already written at a sub-byte bit position.
+ *
+ * Declared static rather than imported at their original VAs: they are
+ * read-only constants, and the direct `mov al, table[reg]` addressing form
+ * that a static reproduces is what the original emits (an HDATA import would
+ * add an __imp_ indirection the binary does not have).
+ */
+static const unsigned char tiff_msbmask[9] = { 0x00, 0x01, 0x03, 0x07, 0x0f,
+                                               0x1f, 0x3f, 0x7f, 0xff };
+
+static const unsigned char tiff_leadmask[9] = { 0x00, 0x80, 0xc0, 0xe0, 0xf0,
+                                                0xf8, 0xfc, 0xfe, 0xff };
+
+/**
+ * Read the next LZW code of `sp->nbits` bits from the raw strip buffer.
+ *
+ * Upstream libtiff's pre-3.5 GetNextCode (tif_lzw.c), kept out of line:
+ * FUN_0006cb00 calls it with the handle in ECX (kb.json `tif@<ecx>`).
+ * The structs used by the rest of this TU are declared further down, so the
+ * offsets are spelled raw, matching FUN_0006c5e0:
+ *   tif+0x00 tif_name, tif+0xdc tif_curstrip, tif+0x120 tif_data,
+ *   tif+0x12c tif_rawdata; sp+0x04 flags byte, sp+0x06 nbits (movzx word),
+ *   sp+0x14 bit cursor, sp+0x18 bit limit (lzw_codec_state_t below).
+ *
+ * Past the limit it warns (0x6c7a5, FUN_0006f9d0 with the string at
+ * 0x2604a4 and tif_curstrip) and returns CODE_EOI (0x101, 0x6c7ad) without
+ * advancing the cursor. Flag 0x02 (LZW_FLAG_OLDSTYLE, `test cl,2` at
+ * 0x6c7d3) selects the LSB-first compat reader; otherwise MSB-first. Both
+ * reads of `bp >> r_off` / the middle byte / the tail mask are signed-int
+ * shifts on zero-extended bytes, as in the binary. The cursor advance
+ * re-reads nbits (0x6c84b), it does not reuse the decremented copy.
+ *
+ * @param tif_ TIFF handle whose tif_data is the LZW codec state.
+ * @return the next code, or 0x101 (CODE_EOI) when the strip is exhausted.
+ */
+int FUN_0006c780(void *tif_)
+{
+  char *tif = (char *)tif_;
+  char *sp = *(char **)(tif + 0x120);
+  int code;
+  int bits;
+  int r_off;
+  unsigned char *bp;
+
+  if (*(int *)(sp + 0x14) > *(int *)(sp + 0x18)) {
+    FUN_0006f9d0(*(char **)tif,
+                 "LZWDecode: Strip %d not terminated with EOI code",
+                 *(unsigned long *)(tif + 0xdc));
+    return 0x101; /* CODE_EOI */
+  }
+  r_off = *(int *)(sp + 0x14);
+  bits = *(unsigned short *)(sp + 0x06);
+  bp = *(unsigned char **)(tif + 0x12c) + (r_off >> 3);
+  r_off &= 7;
+  if (*(unsigned char *)(sp + 0x04) & 0x02) {
+    /* low-order bits first */
+    code = *bp++ >> r_off;
+    r_off = 8 - r_off;
+    bits -= r_off;
+    if (bits >= 8) {
+      code |= *bp++ << r_off;
+      r_off += 8;
+      bits -= 8;
+    }
+    code |= (*bp & tiff_msbmask[bits]) << r_off;
+  } else {
+    r_off = 8 - r_off;
+    code = *bp++ & tiff_msbmask[r_off];
+    bits -= r_off;
+    if (bits >= 8) {
+      code = (code << 8) | *bp++;
+      bits -= 8;
+    }
+    code =
+      (code << bits) | (((unsigned)(*bp & tiff_leadmask[bits])) >> (8 - bits));
+  }
+  *(int *)(sp + 0x14) += *(unsigned short *)(sp + 0x06);
+  return code;
+}
+
 /**
  * Apply horizontal differencing over a scanline of 8-bit samples in place.
  *
@@ -321,25 +474,6 @@ void FUN_0006c8d0(unsigned short *wp, int cc, int stride)
     } while (wc > 0);
   }
 }
-
-/* Bit masks used by the packer below. Both live in .rdata in the original
- * image and both are NINE bytes, not eight -- element 8 (0xff) is present at
- * 0x2ec7d8 and 0x2ec7e4 respectively, each followed by alignment padding.
- *
- * tiff_msbmask[n]  = 0x2ec7d0, keeps the LOW n bits of a value.
- * tiff_leadmask[n] = 0x2ec7dc, keeps the HIGH n bits of a byte, i.e. the bits
- *                    already written at a sub-byte bit position.
- *
- * Declared static rather than imported at their original VAs: they are
- * read-only constants, and the direct `mov al, table[reg]` addressing form
- * that a static reproduces is what the original emits (an HDATA import would
- * add an __imp_ indirection the binary does not have).
- */
-static const unsigned char tiff_msbmask[9] = { 0x00, 0x01, 0x03, 0x07, 0x0f,
-                                               0x1f, 0x3f, 0x7f, 0xff };
-
-static const unsigned char tiff_leadmask[9] = { 0x00, 0x80, 0xc0, 0xe0, 0xf0,
-                                                0xf8, 0xfc, 0xfe, 0xff };
 
 /* Codec private bit-writer state, reached through TIFF::tif_data.
  * Only the four offsets below are touched by FUN_0006c960; everything else
@@ -699,6 +833,57 @@ void FUN_0006c960(void *tif_, long value)
   sp->bitpos += sp->nbits;
   sp->bitcount += sp->nbits;
   tif->tif_rawcc = (sp->bitpos + 7) >> 3;
+}
+
+/**
+ * Clear the LZW encoder hash table and reset the encoder counters.
+ *
+ * The cl_hash shape of the classic compress(1) code that early libtiff
+ * tif_lzw.c inherited: a pointer starting one past the end of the table,
+ * 16 stores of -1 per pass (0x6ca60..0x6ca8d, ECX = -1 from `or ecx,-1`),
+ * then a `*--p = -1` tail for the remainder. 0x138 passes (0x6ca56) of 16
+ * plus 11 tail stores (0x6ca96) is exactly 5003 dwords, i.e. HSIZE longs
+ * ending at +0x4e5c (0x6ca50), so the table is based at +0x30.
+ *
+ * After the clear it zeroes +0x24, +0x28, +0x2c in that order (0x6caaa..
+ * 0x6cab0) and stores 0x102 (CODE_FIRST) into +0x1c, the free_ent slot
+ * (0x6cab3). The lzw_codec_state_t layout is defined later in this TU and
+ * leaves these encoder members unmodelled, so they go through raw offsets.
+ *
+ * @param sp LZW codec state block, passed in ESI. Never null-checked.
+ */
+void FUN_0006ca50(void *sp)
+{
+  long *htab_p = (long *)((char *)sp + 0x4e5c);
+  long i;
+
+  i = 5003 - 16; /* HSIZE - 16 */
+  do {
+    htab_p[-16] = -1;
+    htab_p[-15] = -1;
+    htab_p[-14] = -1;
+    htab_p[-13] = -1;
+    htab_p[-12] = -1;
+    htab_p[-11] = -1;
+    htab_p[-10] = -1;
+    htab_p[-9] = -1;
+    htab_p[-8] = -1;
+    htab_p[-7] = -1;
+    htab_p[-6] = -1;
+    htab_p[-5] = -1;
+    htab_p[-4] = -1;
+    htab_p[-3] = -1;
+    htab_p[-2] = -1;
+    htab_p[-1] = -1;
+    htab_p -= 16;
+  } while ((i -= 16) >= 0);
+  for (i += 16; i > 0; i--) {
+    *--htab_p = -1;
+  }
+  *(long *)((char *)sp + 0x24) = 0; /* enc_ratio */
+  *(long *)((char *)sp + 0x28) = 0; /* enc_incount */
+  *(long *)((char *)sp + 0x2c) = 0; /* enc_outcount */
+  *(int *)((char *)sp + 0x1c) = 0x102; /* free_ent = CODE_FIRST */
 }
 
 /**
