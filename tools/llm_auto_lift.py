@@ -214,6 +214,7 @@ def _parked_state(name: str) -> dict:
             "parked_attempts": len(rec.get("attempts") or []),
             "parked_best_score": rec.get("best_score"),
             "parked_status": rec.get("status"),
+            "parked_blocked_by": (rec.get("blocked_by") or {}).get("addr"),
         }
     except Exception:
         return {}
@@ -225,9 +226,15 @@ def _is_confirmed_cap(state: dict) -> bool:
     return status in {"capped_confirmed", "confirmed_cap"}
 
 
+def _is_review_blocked(state: dict) -> bool:
+    """A reviewer rejected the lift over a callee's kb.json decl (park.py
+    blocked_review); re-lifting cannot pass until reconcile releases it."""
+    return str(state.get("parked_status") or "").strip().lower() == "blocked_review"
+
+
 # Statuses that mean "this target resisted a lift and was preserved", i.e. the
 # record still describes unfinished work. "superseded"/"promoted" do not.
-_UNFINISHED_PARK_STATUSES = {"parked", "capped_confirmed", "confirmed_cap"}
+_UNFINISHED_PARK_STATUSES = {"parked", "capped_confirmed", "confirmed_cap", "blocked_review"}
 
 
 def _is_mined_record(rec: dict) -> bool:
@@ -1377,6 +1384,10 @@ def _select_targets(
             total_score -= 50
             lane = "defer"
             reasons.append("confirmed_cap=-50(parked ledger)")
+        if _is_review_blocked(parked_state):
+            total_score -= 50
+            lane = "defer"
+            reasons.append(f"review_blocked=-50(callee {parked_state.get('parked_blocked_by') or '?'})")
         if _is_parked_subbar(parked_state):
             # Deprioritize only -- see _is_parked_subbar(). No attempt-count or
             # park-reason hard skip: those futility signals were measured NOT to
@@ -2211,6 +2222,8 @@ def _selftest_tu_history() -> int:
     # Records that count toward a mined tail.
     check("mined rec parked", _is_mined_record({"status": "parked", "best_score": 84.0}), True)
     check("mined rec capped", _is_mined_record({"status": "capped_confirmed", "best_score": 70.0}), True)
+    check("review blocked", _is_review_blocked({"parked_status": "blocked_review"}), True)
+    check("parked not review blocked", _is_review_blocked({"parked_status": "parked"}), False)
     check("mined rec at bar", _is_mined_record({"status": "parked", "best_score": 90.0}), False)
     check("mined rec promoted", _is_mined_record({"status": "promoted", "best_score": 80.0}), False)
     check("mined rec empty", _is_mined_record({}), False)

@@ -1253,11 +1253,11 @@ __declspec(noinline) void FUN_000693b0(void *tif_)
       value += 4;
     else
       value -= 4;
-    FUN_00069200(value, 0);
+    FUN_00069200(value, 0, tif);
   }
-  FUN_00069200(12, 1);
+  FUN_00069200(12, 1, tif);
   if ((tif->field_68 & 1) != 0)
-    FUN_00069200(1, sp->field_10 == 0);
+    FUN_00069200(1, sp->field_10 == 0, tif);
 }
 
 /* The two 256-byte run-scan tables the codec state caches at 0x1c/0x20. Their
@@ -1948,6 +1948,79 @@ bad:
   if ((tif->field_09 & 2) == 0)
     FUN_00068a70(0, tif);
   return a0 >= npels;
+}
+
+/**
+ * Encode `cc` bytes of CCITT Group 3 rows, one row at a time.
+ *
+ * Installed as tif_encoderow / tif_encodestrip / tif_encodetile (see the
+ * method stores that cast it to tiff_code_method_t). Shape matches upstream
+ * libtiff tif_fax3.c `Fax3Encode` with `Fax3PutEOL` (FUN_000693b0) expanded
+ * inline; that identity is INFERRED from shape. The inlined EOL block reloads
+ * tif_data into its own slot every row (0x69f54, stored to [ebp+8]) while the
+ * row state used afterwards stays in ESI, loaded once at 0x69f3d.
+ *
+ * ABI from the frame at 0x69f30: no `sub esp`, cdecl args at [ebp+8..0x10],
+ * two epilogues returning 1 (0x6a05f) and 0 (0x6a069). The fourth method
+ * argument is never read.
+ *
+ * Call conventions, all from the call sites here:
+ *  - 0x69200: length in EAX, code pushed, tif in EDI (`mov edi,ebx` at
+ *    0x69f74/0x69f85; the third call relies on EDI still holding tif).
+ *  - Fax3Encode1DRow (0x69b90): tif and bp pushed (`add esp,8`), rowpixels in
+ *    EDI (`mov edi,[esi+0xc]` at 0x69fc6/0x6a031), result tested in EAX.
+ *  - Fax3Encode2DRow (0x69c40): four pushed args, result tested in EAX.
+ */
+int FUN_00069f30(void *tif_, unsigned char *bp, int cc, int s)
+{
+  tiff_t *tif;
+  tiff_codec_bits_t *sp;
+  tiff_codec_bits_t *eol_sp;
+  int align;
+
+  tif = (tiff_t *)tif_;
+  sp = tif->tif_data;
+  (void)s;
+
+  while (cc > 0) {
+    /* Inlined Fax3PutEOL. */
+    eol_sp = tif->tif_data;
+    if ((tif->field_68 & 4) != 0 && eol_sp->bit != 4) {
+      align = eol_sp->bit;
+      if (align < 4)
+        align += 4;
+      else
+        align -= 4;
+      FUN_00069200(align, 0, tif);
+    }
+    FUN_00069200(12, 1, tif);
+    if ((tif->field_68 & 1) != 0)
+      FUN_00069200(1, eol_sp->field_10 == 0, tif);
+
+    if ((tif->field_68 & 1) != 0) {
+      if (sp->field_10 == 0) {
+        if (!Fax3Encode1DRow(tif, bp, sp->rowpixels))
+          return 0;
+        sp->field_10 = 1;
+      } else {
+        if (!Fax3Encode2DRow(tif, bp, sp->fill_line, sp->rowpixels))
+          return 0;
+        sp->k--;
+      }
+      if (sp->k == 0) {
+        sp->field_10 = 0;
+        sp->k = sp->maxk - 1;
+      } else {
+        csmemcpy(sp->fill_line, bp, sp->rowbytes);
+      }
+    } else {
+      if (!Fax3Encode1DRow(tif, bp, sp->rowpixels))
+        return 0;
+    }
+    bp += sp->rowbytes;
+    cc -= sp->rowbytes;
+  }
+  return 1;
 }
 
 /**

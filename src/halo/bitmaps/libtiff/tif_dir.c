@@ -169,7 +169,11 @@ typedef struct tiff_s {
    * different values (TIFF_ISTILED == 0x400) -- do NOT import upstream's
    * numbering, and keep the field mechanical rather than named tif_flags. */
   char field_0a; /* 0x0a */
-  unsigned char pad_0b[0x09]; /* 0x0b */
+  unsigned char pad_0b[0x05]; /* 0x0b */
+  /* TIFFSetDirectory stores the next directory offset here
+   * (`MOV dword ptr [ESI+0x10],EAX` at 0x662c2); tif_open.c names the same
+   * offset tif_nextdiroff from independent evidence. */
+  unsigned long tif_nextdiroff; /* 0x10 */
   /* "Which tags are present" bit array, indexed as dwords off 0x14: the field
    * bit set at the tail of _TIFFVSetField is
    * `LEA EDI,[EBX + ECX*0x4 + 0x14]` with ECX = field_bit >> 5 (0x65869). The
@@ -250,7 +254,11 @@ typedef struct tiff_s {
    * declares an eight-byte tiff_header_t at 0xc4 whose first member is
    * tiff_magic, which agrees. */
   unsigned short tiff_magic; /* 0xc4 */
-  unsigned char pad_c6[0x06]; /* 0xc6 */
+  unsigned char pad_c6[0x02]; /* 0xc6 */
+  /* First directory offset from the file header: TIFFSetDirectory seeds its
+   * walk with `MOV EAX,dword ptr [ESI+0xc8]` (0x66209). tif_open.c names the
+   * same offset tiff_diroff. */
+  unsigned long tiff_diroff; /* 0xc8 */
   /* Two per-type tables indexed by tdir_type. Both are POINTERS, loaded and
    * then indexed by type*4: `MOV EDI,dword ptr [ESI+0xcc]` /
    * `MOV ECX,dword ptr [EDI+EDX*0x1]` with EDX already scaled (0x6678a-0x66793)
@@ -261,7 +269,11 @@ typedef struct tiff_s {
    * load; signedness is unobservable, so upstream's unsigned typing is kept. */
   const unsigned long *tif_typeshift; /* 0xcc */
   const unsigned long *tif_typemask; /* 0xd0 */
-  unsigned char pad_d4[0x48]; /* 0xd4 */
+  unsigned char pad_d4[0x04]; /* 0xd4 */
+  /* Dword store `MOV dword ptr [ESI+0xd8],EDI` at 0x662c5 in TIFFSetDirectory;
+   * tif_open.c names the same offset tif_curdir (32-bit in this build). */
+  unsigned long tif_curdir; /* 0xd8 */
+  unsigned char pad_dc[0x40]; /* 0xdc */
   /* Codec teardown hook, called before a new compression scheme replaces the
    * current one (`MOV EAX,dword ptr [EAX+0x11c]` / `CALL EAX` at
    * 0x65399-0x653a6, one pushed argument). tif_open.c proves the identity: the
@@ -515,9 +527,10 @@ int _TIFFVSetField(void *tif_, int tag, va_list ap)
   /* 0x65376. The masked vararg is 0x6537c-0x65381; the field-set test is the
    * signed byte branch at 0x6537e-0x65389; `break` on an unchanged scheme is
    * the JZ straight to the field-bit tail at 0x65391. TIFFSetCompressionScheme
-   * (TIFFSetCompressionScheme) takes (tif, scheme) -- EDI is pushed first, so it is the
-   * second argument (0x653ae-0x653b0) -- and its EAX lands in `status` before
-   * the test (0x653ba), which is the assignment-in-condition below. */
+   * (TIFFSetCompressionScheme) takes (tif, scheme) -- EDI is pushed first, so
+   * it is the second argument (0x653ae-0x653b0) -- and its EAX lands in
+   * `status` before the test (0x653ba), which is the assignment-in-condition
+   * below. */
   case TIFFTAG_COMPRESSION:
     v = va_arg(ap, unsigned long) & 0xffff;
     if (TIFFFieldSet(tif, FIELD_COMPRESSION)) {
@@ -983,6 +996,90 @@ int TIFFVGetField(void *tif_, unsigned int tag, char *ap)
 #endif
 
 /* ---------------------------------------------------------------------------
+ * TIFFFreeDirectory (0x65f90) -- upstream libtiff tif_dir.c.
+ *
+ * Each pointer member is released through debug_free with this TU's __FILE__
+ * (0x25f5c4) and its own __LINE__ (0x367-0x372, then 0x388/0x389), then
+ * cleared. Offsets 0x80-0xb0 and 0xbc/0xc0 are read `MOV EAX,[ESI+off]` and
+ * zeroed `MOV [ESI+off],EDI` in address order (0x65f97-0x6617e).
+ * ------------------------------------------------------------------------- */
+void TIFFFreeDirectory(int file)
+{
+  tiff_t *tif = (tiff_t *)file;
+
+  if (tif->td_colormap[0] != 0) {
+    debug_free(tif->td_colormap[0],
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x367);
+    tif->td_colormap[0] = 0;
+  }
+  if (tif->td_colormap[1] != 0) {
+    debug_free(tif->td_colormap[1],
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x368);
+    tif->td_colormap[1] = 0;
+  }
+  if (tif->td_colormap[2] != 0) {
+    debug_free(tif->td_colormap[2],
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x369);
+    tif->td_colormap[2] = 0;
+  }
+  if (tif->td_documentname != 0) {
+    debug_free(tif->td_documentname,
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x36a);
+    tif->td_documentname = 0;
+  }
+  if (tif->td_artist != 0) {
+    debug_free(tif->td_artist, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c",
+               0x36b);
+    tif->td_artist = 0;
+  }
+  if (tif->td_datetime != 0) {
+    debug_free(tif->td_datetime,
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x36c);
+    tif->td_datetime = 0;
+  }
+  if (tif->td_hostcomputer != 0) {
+    debug_free(tif->td_hostcomputer,
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x36d);
+    tif->td_hostcomputer = 0;
+  }
+  if (tif->td_imagedescription != 0) {
+    debug_free(tif->td_imagedescription,
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x36e);
+    tif->td_imagedescription = 0;
+  }
+  if (tif->td_make != 0) {
+    debug_free(tif->td_make, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c",
+               0x36f);
+    tif->td_make = 0;
+  }
+  if (tif->td_model != 0) {
+    debug_free(tif->td_model, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c",
+               0x370);
+    tif->td_model = 0;
+  }
+  if (tif->td_software != 0) {
+    debug_free(tif->td_software,
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x371);
+    tif->td_software = 0;
+  }
+  if (tif->td_pagename != 0) {
+    debug_free(tif->td_pagename,
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x372);
+    tif->td_pagename = 0;
+  }
+  if (tif->td_stripoffset != 0) {
+    debug_free(tif->td_stripoffset,
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x388);
+    tif->td_stripoffset = 0;
+  }
+  if (tif->td_stripbytecount != 0) {
+    debug_free(tif->td_stripbytecount,
+               "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c", 0x389);
+    tif->td_stripbytecount = 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
  * TIFFDefaultDirectory (0x66190) -- upstream libtiff tif_dir.c.
  *
  * Identification: the body is upstream TIFFDefaultDirectory's default-value
@@ -1062,6 +1159,59 @@ int TIFFDefaultDirectory(void *tif_)
   tif->field_0a &= ~TIFF_DIRTYDIRECT;
   /* 0x661f9. */
   return 1;
+}
+
+/* ---------------------------------------------------------------------------
+ * TIFFSetDirectory (0x66200) -- upstream libtiff tif_dir.c, with the static
+ * TIFFAdvanceDirectory helper inlined into the loop.
+ *
+ * Evidence from 0x66200-0x66315:
+ *   - Two stack arguments: the handle (`MOV ESI,[EBP+0x8]`) and the directory
+ *     index (`MOV EDI,[EBP+0xc]`), compared signed (`TEST EDI,EDI` / `JLE`).
+ *   - Returns FUN_00066e70(tif) on success and 0 (`XOR EAX,EAX`) on both error
+ *     arms; the kb decl `void (void)` did not match the binary.
+ *   - Directory entries are 12 bytes: `LEA ECX,[EAX+EAX*2]` / `SHL ECX,2` on
+ * the zero-extended count before the SEEK_CUR (`PUSH 1`) lseek at 0x66283,
+ *     whose return is discarded.
+ *   - Byte swaps run only when bit 0x10 of field_0a is set (0x6625f, 0x662a0).
+ *   - Both error messages use module 0x2c9a20 ("TIFFSetDirectory") and pass
+ *     `[ESI]` (tif_name).
+ * ------------------------------------------------------------------------- */
+/* 0x66200 */
+int TIFFSetDirectory(void *tif_, int dirn)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  unsigned long nextdir;
+  unsigned short dircount;
+  int n;
+
+  nextdir = tif->tiff_diroff;
+  for (n = dirn; n > 0 && nextdir != 0; n--) {
+    /* 0x66228-0x66259. */
+    if (__lseek(tif->tif_fd, (long)nextdir, 0) != (long)nextdir ||
+        __read(tif->tif_fd, &dircount, sizeof(unsigned short)) != 2) {
+      FUN_00068a30("TIFFSetDirectory", "%s: Error fetching directory count",
+                   tif->tif_name);
+      return 0;
+    }
+    if ((tif->field_0a & 0x10) != 0) {
+      FUN_0006f1b0(&dircount);
+    }
+    /* 0x66283: SEEK_CUR past the entries, return value discarded. */
+    __lseek(tif->tif_fd, (long)(dircount * 12), 1);
+    if (__read(tif->tif_fd, &nextdir, sizeof(unsigned long)) != 4) {
+      FUN_00068a30("TIFFSetDirectory", "%s: Error fetching directory link",
+                   tif->tif_name);
+      return 0;
+    }
+    if ((tif->field_0a & 0x10) != 0) {
+      FUN_0006f1d0(&nextdir);
+    }
+  }
+  /* 0x662be-0x662cb. */
+  tif->tif_nextdiroff = nextdir;
+  tif->tif_curdir = (unsigned long)((dirn - n) - 1);
+  return FUN_00066e70(tif);
 }
 
 /* ---------------------------------------------------------------------------

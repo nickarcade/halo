@@ -13,10 +13,16 @@ operand encodings are classified from bytes. Unknown encodings are reported as
 uncomparable instead of being guessed.
 
 Relocation targets resolve through, in order: a ``FUN_<addr>`` symbol name, a
-unique function name in the bounds table, a unique kb.json data-global name,
-or, for read-only COMDAT literals such as ``??_C@`` strings and ``__real@``
-constants, byte-equal contents at the original's ``.rdata`` address. Literal
-contents that differ are a proven mismatch, not an unknown.
+label in the function's own section (its original address follows from the
+function's), a unique function name in the bounds table (exact C name first,
+then the CRT helpers the table only knows as ``FUN_``, then a lenient
+underscore-folded name), a unique kb.json data-global name, or, for read-only
+COMDAT literals such as ``??_C@`` strings and ``__real@`` constants, byte-equal
+contents at the original's ``.rdata`` address. Literal contents that differ are
+a proven mismatch, not an unknown.
+
+VC71's inline switch tables after the last instruction are cut from the
+candidate before comparison; the raw-XBE bounds already exclude them.
 """
 
 import argparse
@@ -189,11 +195,79 @@ def _parse_coff(path, function):
             literal = _read_only_literal(data, sections, symbols, target)
             if literal is not None:
                 item["literal"] = literal
+            if (target and target["section"] == symbol["section"] and
+                    target["storage"] == IMAGE_SYM_CLASS_STATIC):
+                # A label ($L...) or section symbol in the function's own
+                # section: its raw-XBE address follows from the function's.
+                item["local_offset"] = target["value"] - start
             relocs.append(item)
     code = data[section["raw_offset"] + start:section["raw_offset"] + end]
-    return code, relocs, {"coff_symbol": symbol["name"], "coff_section": section["name"],
-                          "coff_offset": start, "coff_end": end,
-                          "coff_relocations": section["reloc_count"]}
+    code, relocs, table = _strip_inline_switch_tables(code, relocs)
+    provenance = {"coff_symbol": symbol["name"], "coff_section": section["name"],
+                  "coff_offset": start, "coff_end": end,
+                  "coff_relocations": section["reloc_count"]}
+    if table:
+        provenance["inline_switch_table"] = table
+    return code, relocs, provenance
+
+
+_PAD_LEA_RE = re.compile(r"(\w+), \[(\w+)(?: \+ 0)?\]$")
+
+
+def _is_pad_instruction(insn):
+    """VC71 alignment filler: nop, int3, `mov edi, edi`, or `lea r, [r(+0)]`."""
+    mnemonic, op_str = insn.get("mnemonic"), insn.get("op_str", "")
+    if mnemonic in ("nop", "int3"):
+        return True
+    if mnemonic == "mov" and op_str == "edi, edi":
+        return True
+    match = _PAD_LEA_RE.match(op_str) if mnemonic == "lea" else None
+    return bool(match and match.group(1) == match.group(2))
+
+
+def _strip_inline_switch_tables(code, relocs):
+    """Cut VC71's inline switch tables (and the pad before them) off ``code``.
+
+    VC71 emits a switch's dword jump table, and any byte index table, into
+    ``.text`` after the function's last instruction, inside the COFF symbol's
+    extent. The raw-XBE bounds stop at the last instruction, so left in place
+    every table byte scores as a candidate-only difference. A table is
+    recognised only when it is provable from relocations: its start is the
+    lowest function-local label a DIR32 points at, and everything at or after
+    that offset is DIR32 relocations against function-local labels (dword
+    entries) or unrelocated bytes (index tables). Any REL32, or a DIR32 to
+    anything else, at or past the cut means it is not a trailing table, and
+    the code is returned unchanged.
+    """
+    def local_dir32(r):
+        return r["type"] == IMAGE_REL_I386_DIR32 and r.get("local_offset") is not None
+
+    # A table base is referenced from code in front of it (the indexed jmp or
+    # index-byte load). Case labels are referenced only by table entries,
+    # which sit at or after the table, so they never qualify.
+    starts = set()
+    for r in relocs:
+        if local_dir32(r) and r["offset"] + 4 <= len(code):
+            target = r["local_offset"] + struct.unpack_from("<I", code, r["offset"])[0]
+            if r["offset"] + 4 <= target < len(code):
+                starts.add(target)
+    cut = None
+    for start in sorted(starts):
+        if all(local_dir32(r) and r["offset"] >= start
+               for r in relocs if r["offset"] + 4 > start):
+            cut = start
+            break
+    if cut is None:
+        return code, relocs, None
+    insns = _decode_instructions(code[:cut])
+    if insns is None:
+        return code, relocs, None
+    insns = list(insns)  # the decoder result is cached; do not pop from it
+    while insns and _is_pad_instruction(insns[-1]):
+        insns.pop()
+    body = insns[-1]["offset"] + insns[-1]["size"] if insns else 0
+    return (code[:body], [r for r in relocs if r["offset"] < body],
+            {"offset": cut, "table_bytes": len(code) - cut, "pad_bytes": cut - body})
 
 
 def _raw_name_for_target(target):
@@ -210,11 +284,46 @@ def _normal_name(name):
     return name
 
 
+def _c_name(name):
+    """Undo exactly one level of i386 COFF decoration: `_f`, `_f@N`, `@f@N`.
+
+    Unlike ``_normal_name`` this keeps any further leading underscores, so the
+    C functions ``_data_packet_decode`` and ``data_packet_decode`` stay distinct.
+    """
+    if not name:
+        return None
+    if name[0] in "_@":
+        name = name[1:]
+    if "@" in name and name.rsplit("@", 1)[1].isdigit():
+        name = name.rsplit("@", 1)[0]
+    return name
+
+
+# CRT helpers that the bounds table only knows as FUN_<addr>. Addresses are
+# the compiler-runtime intrinsic table in docs/agent-instructions/
+# lift-implementation.md.
+_CRT_HELPER_ADDRESSES = {
+    "_chkstk": 0x1d90e0,
+    "_ftol2": 0x1d9068,
+}
+
+
 def _raw_addresses_for_name(name):
-    """Return raw-XBE addresses whose bounds entry has this exact name."""
+    """Return raw-XBE addresses whose bounds entry has this name.
+
+    An exact C-name match wins. The lenient ``_normal_name`` comparison is only
+    a fallback, because it folds every leading underscore and so makes
+    ``_foo`` and ``foo`` ambiguous with each other.
+    """
+    exact = _c_name(name)
+    bounds = xref._bounds()
+    matches = [address for address, entry in bounds.items() if entry.get("name") == exact]
+    if matches:
+        return matches
+    if exact in _CRT_HELPER_ADDRESSES:
+        return [_CRT_HELPER_ADDRESSES[exact]]
     normalized = _normal_name(name)
-    matches = []
-    for address, entry in xref._bounds().items():
+    for address, entry in bounds.items():
         if _normal_name(entry.get("name")) == normalized:
             matches.append(address)
     return matches
@@ -477,6 +586,11 @@ def _identity_evidence(relocation, form, candidate, reference, address, target_i
         resolved_base = None
         if match:
             symbol_base = int(match.group(1), 16)
+        elif relocation.get("local_offset") is not None:
+            # Correct only when the candidate's layout up to the label matches
+            # the original's, so this is still a real identity check.
+            symbol_base = address + relocation["local_offset"]
+            resolved_base = (symbol_base, "function_local_label")
         else:
             addresses = _raw_addresses_for_name(symbol_name)
             symbol_base = addresses[0] if len(addresses) == 1 else None
@@ -488,7 +602,8 @@ def _identity_evidence(relocation, form, candidate, reference, address, target_i
         if symbol_base is None and literal is not None and injected is None:
             identity = _literal_identity(literal, form, target, addend)
         elif symbol_base is None:
-            identity = {"status": "unresolved", "reason": "relocation symbol has no unique raw-XBE base address"}
+            identity = {"status": "unresolved", "reason": "relocation symbol has no unique raw-XBE base address",
+                        "candidate": symbol_name}
         else:
             logical_target = symbol_base + addend
             convention = ("S+A (REL32 field is linked as S+A-P; logical target is S+A)"

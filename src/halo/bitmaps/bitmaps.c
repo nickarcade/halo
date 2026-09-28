@@ -86,9 +86,9 @@ void FUN_0007bcb0(void *bitmap)
     error(2, "### ERROR failed to allocate temporary bitmap");
   } else {
     for (slice_index = 0; slice_index < *(short *)(b + 8); slice_index++) {
-      bitmap_3d_slice_insert(bitmap, 0, (short)slice_index, slice_bitmap);
+      bitmap_3d_slice_extract(bitmap, 0, (short)slice_index, slice_bitmap);
       FUN_0007ba50(slice_bitmap);
-      bitmap_cube_map_face_extract(slice_bitmap, bitmap, 0, slice_index);
+      bitmap_3d_slice_insert(slice_bitmap, bitmap, 0, slice_index);
     }
   }
   bitmap_delete(slice_bitmap);
@@ -117,7 +117,7 @@ void FUN_0007bd90(void *bitmap)
     error(2, "### ERROR failed to allocate temporary bitmap");
   } else {
     for (face_index = 0; face_index < 6; face_index++) {
-      FUN_0007ea60(bitmap, 0, face_index, face_bitmap);
+      bitmap_cube_map_face_extract(bitmap, 0, face_index, face_bitmap);
       FUN_0007ba50(face_bitmap);
       bitmap_cube_map_face_insert(face_bitmap, bitmap, 0, face_index);
     }
@@ -151,18 +151,18 @@ void bitmap_compress_to_mipmap(void *source_bitmap, void *destination_bitmap,
                    "c:\\halo\\SOURCE\\bitmaps\\bitmap_utilities.c", 0x61c, 1);
     system_exit(-1);
   }
-  expected = *(short *)(destination + 4) >> (destination_mipmap_index & 0x1f);
-  if (expected < 1)
-    expected = 1;
+  expected = 1 > (short)(*(short *)(destination + 4) >> destination_mipmap_index)
+             ? 1
+             : *(short *)(destination + 4) >> destination_mipmap_index;
   if (expected != *(short *)(source + 4)) {
     display_assert("MAX(1, destination_bitmap->width "
                    ">>destination_mipmap_index)==source_bitmap->width",
                    "c:\\halo\\SOURCE\\bitmaps\\bitmap_utilities.c", 0x61d, 1);
     system_exit(-1);
   }
-  expected = *(short *)(destination + 6) >> (destination_mipmap_index & 0x1f);
-  if (expected < 1)
-    expected = 1;
+  expected = 1 > (short)(*(short *)(destination + 6) >> destination_mipmap_index)
+             ? 1
+             : *(short *)(destination + 6) >> destination_mipmap_index;
   if (expected != *(short *)(source + 6)) {
     display_assert("MAX(1, "
                    "destination_bitmap->height>>destination_mipmap_index)=="
@@ -170,9 +170,9 @@ void bitmap_compress_to_mipmap(void *source_bitmap, void *destination_bitmap,
                    "c:\\halo\\SOURCE\\bitmaps\\bitmap_utilities.c", 0x61e, 1);
     system_exit(-1);
   }
-  expected = *(short *)(destination + 8) >> (destination_mipmap_index & 0x1f);
-  if (expected < 1)
-    expected = 1;
+  expected = 1 > (short)(*(short *)(destination + 8) >> destination_mipmap_index)
+             ? 1
+             : *(short *)(destination + 8) >> destination_mipmap_index;
   if (expected != *(short *)(source + 8)) {
     display_assert("MAX(1, destination_bitmap->depth "
                    ">>destination_mipmap_index)==source_bitmap->depth",
@@ -227,18 +227,18 @@ void bitmap_3d_compress_to_mipmap(void *source_bitmap, void *destination_bitmap,
                    "c:\\halo\\SOURCE\\bitmaps\\bitmap_utilities.c", 0x747, 1);
     system_exit(-1);
   }
-  expected = *(short *)(source + 4) >> (source_mipmap_index & 0x1f);
-  if (expected < 1)
-    expected = 1;
+  expected = 1 > (short)(*(short *)(source + 4) >> source_mipmap_index)
+             ? 1
+             : *(short *)(source + 4) >> source_mipmap_index;
   if (expected != *(short *)(destination + 4)) {
     display_assert("MAX(1, source_bitmap->width "
                    ">>source_mipmap_index)==destination_bitmap->width",
                    "c:\\halo\\SOURCE\\bitmaps\\bitmap_utilities.c", 0x748, 1);
     system_exit(-1);
   }
-  expected = *(short *)(source + 6) >> (source_mipmap_index & 0x1f);
-  if (expected < 1)
-    expected = 1;
+  expected = 1 > (short)(*(short *)(source + 6) >> source_mipmap_index)
+             ? 1
+             : *(short *)(source + 6) >> source_mipmap_index;
   if (expected != *(short *)(destination + 6)) {
     display_assert(
       "MAX(1, "
@@ -246,9 +246,9 @@ void bitmap_3d_compress_to_mipmap(void *source_bitmap, void *destination_bitmap,
       "c:\\halo\\SOURCE\\bitmaps\\bitmap_utilities.c", 0x749, 1);
     system_exit(-1);
   }
-  expected = *(short *)(source + 8) >> (source_mipmap_index & 0x1f);
-  if (expected < 1)
-    expected = 1;
+  expected = 1 > (short)(*(short *)(source + 8) >> source_mipmap_index)
+             ? 1
+             : *(short *)(source + 8) >> source_mipmap_index;
   if (expected != *(short *)(destination + 8)) {
     display_assert("MAX(1, source_bitmap->depth "
                    ">>source_mipmap_index)==destination_bitmap->depth",
@@ -655,14 +655,14 @@ void bitmap_delete(void *bitmap)
 void *bitmap_2d_address(void *bitmap, short x, short y, short mipmap_index)
 {
   char *b = (char *)bitmap;
-  int pixel_count;
-  int min_dim;
-  short bpp;
+  int pixel_offset; /* name: PAL 2342 source/bitmaps/bitmaps.c:654 */
   short width;
   short height;
-  int bit_offset;
+  short minimum_dimension;
+  int bits_per_pixel;
+  short i;
 
-  pixel_count = 0;
+  pixel_offset = 0;
 
   if (bitmap == NULL) {
     display_assert("bitmap", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1a1, 1);
@@ -715,45 +715,30 @@ void *bitmap_2d_address(void *bitmap, short x, short y, short mipmap_index)
 
   width = *(short *)(b + 0x4);
   height = *(short *)(b + 0x6);
-  min_dim = ((*(uint8_t *)(b + 0xe) & 2) != 0) ? 4 : 1;
-  bpp = bitmap_format_bits_per_pixel(*(short *)(b + 0xc));
-
-  if (mipmap_index > 0) {
-    short mip_count = mipmap_index;
-    do {
-      short w = width;
-      short h = height;
-      pixel_count = pixel_count + (int)w * (int)h;
-      width =
-        ((short)min_dim <= (short)(w >> 1)) ? (short)(w >> 1) : (short)min_dim;
-      height =
-        ((short)min_dim <= (short)(h >> 1)) ? (short)(h >> 1) : (short)min_dim;
-      mip_count--;
-    } while (mip_count != 0);
+  minimum_dimension = ((*(uint8_t *)(b + 0xe) & 2) != 0) ? 4 : 1;
+  bits_per_pixel = bitmap_format_bits_per_pixel(*(short *)(b + 0xc));
+  for (i = 0; i < mipmap_index; i++) {
+    pixel_offset += width * height;
+    width = minimum_dimension > (width >> 1) ? minimum_dimension : (width >> 1);
+    height = minimum_dimension > (height >> 1) ? minimum_dimension : (height >> 1);
   }
-
-  bit_offset = ((int)x + pixel_count + (int)width * (int)y) * (int)bpp;
-  return (void *)(bit_offset / 8 + *(int *)(b + 0x2c));
+  return *(char **)(b + 0x2c) + (pixel_offset + width * y + x) * bits_per_pixel / 8;
 }
 
 void *bitmap_3d_address(void *bitmap, short x, short y, short z,
                         short mipmap_index)
 {
   char *b;
-  int pixel_count;
-  int min_dim;
-  short bpp;
+  int pixel_offset; /* name: PAL 2342 source/bitmaps/bitmaps.c:688 */
   short width;
   short height;
   short depth;
-  short mip_count;
-  short old_width;
-  short old_height;
-  short old_depth;
-  int bit_offset;
+  short minimum_dimension;
+  int bits_per_pixel;
+  short i;
 
   b = (char *)bitmap;
-  pixel_count = 0;
+  pixel_offset = 0;
   if (bitmap == NULL) {
     display_assert("bitmap", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1c7, 1);
     system_exit(-1);
@@ -804,42 +789,31 @@ void *bitmap_3d_address(void *bitmap, short x, short y, short z,
   width = *(short *)(b + 4);
   height = *(short *)(b + 6);
   depth = *(short *)(b + 8);
-  min_dim = ((*(uint8_t *)(b + 0xe) & 2) != 0) ? 4 : 1;
-  bpp = bitmap_format_bits_per_pixel(*(short *)(b + 0xc));
-  mip_count = mipmap_index;
-  while (mip_count > 0) {
-    old_width = width;
-    old_height = height;
-    old_depth = depth;
-    pixel_count += (int)old_width * (int)old_height * (int)old_depth;
-    width =
-      (min_dim <= (old_width >> 1)) ? (short)(old_width >> 1) : (short)min_dim;
-    height = (min_dim <= (old_height >> 1)) ? (short)(old_height >> 1) :
-                                              (short)min_dim;
-    depth = (old_depth > 1) ? (short)(old_depth >> 1) : 1;
-    mip_count--;
+  minimum_dimension = ((*(uint8_t *)(b + 0xe) & 2) != 0) ? 4 : 1;
+  bits_per_pixel = bitmap_format_bits_per_pixel(*(short *)(b + 0xc));
+  for (i = 0; i < mipmap_index; i++) {
+    pixel_offset += width * height * depth;
+    width = minimum_dimension > (width >> 1) ? minimum_dimension : (width >> 1);
+    height = minimum_dimension > (height >> 1) ? minimum_dimension : (height >> 1);
+    depth = 1 > (depth >> 1) ? 1 : (depth >> 1);
   }
 
-  bit_offset =
-    ((int)x + pixel_count + ((int)height * (int)z + (int)y) * (int)width) *
-    (int)bpp;
-  return (void *)(bit_offset / 8 + *(int *)(b + 0x2c));
+  return *(char **)(b + 0x2c) +
+         (pixel_offset + (height * z + y) * width + x) * bits_per_pixel / 8;
 }
 
 void *bitmap_cube_map_address(void *bitmap, short x, short y, short face_index,
                               short mipmap_index)
 {
   char *b;
-  int pixel_count;
-  int min_dim;
-  short bpp;
+  int pixel_offset; /* name: PAL 2342 source/bitmaps/bitmaps.c:726 */
   short width;
-  short old_width;
-  short mip_count;
-  int bit_offset;
+  short minimum_dimension;
+  int bits_per_pixel;
+  short i;
 
   b = (char *)bitmap;
-  pixel_count = 0;
+  pixel_offset = 0;
   if (bitmap == NULL) {
     display_assert("bitmap", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x1f0, 1);
     system_exit(-1);
@@ -883,21 +857,15 @@ void *bitmap_cube_map_address(void *bitmap, short x, short y, short face_index,
   }
 
   width = *(short *)(b + 4);
-  min_dim = ((*(uint8_t *)(b + 0xe) & 2) != 0) ? 4 : 1;
-  bpp = bitmap_format_bits_per_pixel(*(short *)(b + 0xc));
-  mip_count = mipmap_index;
-  while (mip_count > 0) {
-    old_width = width;
-    pixel_count += (int)old_width * (int)old_width * 6;
-    width =
-      (min_dim <= (old_width >> 1)) ? (short)(old_width >> 1) : (short)min_dim;
-    mip_count--;
+  minimum_dimension = ((*(uint8_t *)(b + 0xe) & 2) != 0) ? 4 : 1;
+  bits_per_pixel = bitmap_format_bits_per_pixel(*(short *)(b + 0xc));
+  for (i = 0; i < mipmap_index; i++) {
+    pixel_offset += width * width * 6;
+    width = minimum_dimension > (width >> 1) ? minimum_dimension : (width >> 1);
   }
 
-  bit_offset = ((int)x + pixel_count +
-                ((int)face_index * (int)width + (int)y) * (int)width) *
-               (int)bpp;
-  return (void *)(bit_offset / 8 + *(int *)(b + 0x2c));
+  return *(char **)(b + 0x2c) +
+         (pixel_offset + (face_index * width + y) * width + x) * bits_per_pixel / 8;
 }
 
 /* 0x7d000 — dispatch bitmap_pixel_address by bitmap type.
@@ -964,21 +932,20 @@ uint32_t bitmap_format_to_a8r8g8b8(short format, void *mipmap_address,
   }
   switch (format) {
   case 6:
-    value = ((uint16_t *)mipmap_address)[pixel_index];
-    result = ((value & 0xfffff800) | 0xffff0000) << 3;
-    result |= value & 0x7e0;
-    result = (result << 2) | (value & 0xffffe01f);
-    work = ((value >> 1) & 0xe) | (value & 0x600);
-    return (result << 3) | (work >> 1);
+    value16 = ((uint16_t *)mipmap_address)[pixel_index];
+    return 0xff000000 | (((((value16 >> 11) & 0x1f) << 3) | (((value16 >> 11) & 0x1f) >> 2)) << 16) |
+           (((((value16 >> 5) & 0x3f) << 2) | (((value16 >> 5) & 0x3f) >> 4)) << 8) |
+           (((value16 & 0x1f) << 3) | ((value16 & 0x1f) >> 2));
+    /* r5g6b5: PAL 2342 bitmaps.c expression form */
+
   case 8:
-    value = ((uint16_t *)mipmap_address)[pixel_index];
-    result = (value & 0x7c00) << 3;
-    result = (result | (value & 0x3e0)) << 2;
-    result = (result | (value & 0x7000)) << 1;
-    result |= value & 0x1f;
-    result = (result << 2) | (value & 0x380);
-    result = (result << 1) | ((value >> 2) & 7);
-    return result | (-(int32_t)(value >> 15) << 24);
+    value16 = ((uint16_t *)mipmap_address)[pixel_index];
+    return (((value16 >> 15) * 0xff) << 24) |
+           (((((value16 >> 10) & 0x1f) << 3) | (((value16 >> 10) & 0x1f) >> 2)) << 16) |
+           (((((value16 >> 5) & 0x1f) << 3) | (((value16 >> 5) & 0x1f) >> 2)) << 8) |
+           (((value16 & 0x1f) << 3) | ((value16 & 0x1f) >> 2));
+    /* a1r5g5b5: PAL 2342 bitmaps.c expression form */
+
   case 9:
     value = ((uint16_t *)mipmap_address)[pixel_index];
     work = value >> 8;
@@ -1264,17 +1231,17 @@ short bitmap_get_max_mipmap_count(void *bitmap)
 short bitmap_mipmap_width(void *bitmap, int mipmap_index)
 {
   char *b = (char *)bitmap;
-  uint16_t width;
-  uint16_t result;
+  short width;
+  short result;
 
-  assert_halt(bitmap_verify(bitmap, 0));
-  assert_halt((int16_t)mipmap_index >= 0 &&
-              (int16_t)mipmap_index <= *(int16_t *)(b + 0x14));
+  assert_halt_msg_at("bitmap_verify(bitmap, FALSE)", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x39b, bitmap_verify(bitmap, 0));
+  assert_halt_msg_at("mipmap_index>=0 && mipmap_index<=bitmap->mipmap_count", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x39c,
+                     (int16_t)mipmap_index >= 0 && (int16_t)mipmap_index <= *(int16_t *)(b + 0x14));
 
-  width = *(uint16_t *)(b + 0x4);
-  result = width >> (mipmap_index & 0x1f);
-  if (result < 2)
-    result = 1;
+  width = *(short *)(b + 0x4);
+  result = (short)(width >> mipmap_index) > 1
+             ? (short)(width >> mipmap_index)
+             : 1;
 
   if ((*(uint8_t *)(b + 0xe) & 2) != 0)
     result = result + ((-(uint8_t)result) & 3);
@@ -1290,16 +1257,16 @@ short bitmap_mipmap_width(void *bitmap, int mipmap_index)
 short bitmap_mipmap_get_height(void *bitmap, short mipmap_index)
 {
   char *b = (char *)bitmap;
-  uint16_t height;
-  uint16_t result;
+  short height;
+  short result;
 
-  assert_halt(bitmap_verify(bitmap, 0));
-  assert_halt(mipmap_index >= 0 && mipmap_index <= *(short *)(b + 0x14));
+  assert_halt_msg_at("bitmap_verify(bitmap, FALSE)", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3ae, bitmap_verify(bitmap, 0));
+  assert_halt_msg_at("mipmap_index>=0 && mipmap_index<=bitmap->mipmap_count", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3af, mipmap_index >= 0 && mipmap_index <= *(short *)(b + 0x14));
 
-  height = *(uint16_t *)(b + 0x6);
-  result = height >> (mipmap_index & 0x1f);
-  if (result < 2)
-    result = 1;
+  height = *(short *)(b + 0x6);
+  result = (short)(height >> mipmap_index) > 1
+             ? (short)(height >> mipmap_index)
+             : 1;
 
   if ((*(uint8_t *)(b + 0xe) & 2) != 0)
     result = result + ((-(uint8_t)result) & 3);
@@ -1317,8 +1284,8 @@ int bitmap_mipmap_get_depth(void *bitmap, short mipmap_index)
   char *b = (char *)bitmap;
   short depth;
 
-  assert_halt(bitmap_verify(bitmap, 0));
-  assert_halt(mipmap_index >= 0 && mipmap_index <= *(short *)(b + 0x14));
+  assert_halt_msg_at("bitmap_verify(bitmap, FALSE)", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3bf, bitmap_verify(bitmap, 0));
+  assert_halt_msg_at("mipmap_index>=0 && mipmap_index<=bitmap->mipmap_count", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3c0, mipmap_index >= 0 && mipmap_index <= *(short *)(b + 0x14));
 
   depth = *(short *)(b + 0x8);
   if (1 < depth >> mipmap_index)
@@ -1339,9 +1306,9 @@ int bitmap_mipmap_get_pixel_count(void *bitmap, int mipmap_index)
   short depth;
   int result;
 
-  assert_halt(bitmap_verify(bitmap, 0));
-  assert_halt((short)mipmap_index >= 0 &&
-              (short)mipmap_index <= *(short *)(b + 0x14));
+  assert_halt_msg_at("bitmap_verify(bitmap, FALSE)", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3cb, bitmap_verify(bitmap, 0));
+  assert_halt_msg_at("mipmap_index>=0 && mipmap_index<=bitmap->mipmap_count", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3cc,
+                     (short)mipmap_index >= 0 && (short)mipmap_index <= *(short *)(b + 0x14));
 
   width = bitmap_mipmap_width(bitmap, mipmap_index);
   height = bitmap_mipmap_get_height(bitmap, mipmap_index);
@@ -1360,18 +1327,18 @@ int bitmap_mipmap_get_pixel_count(void *bitmap, int mipmap_index)
 int bitmap_mipmap_get_pixel_data_size(void *bitmap, int mipmap_index)
 {
   char *b = (char *)bitmap;
-  int texels;
+  int pixel_count; /* name: PAL 2342 source/bitmaps/bitmaps.c:1050 */
   short bpp;
-  int total_bits;
+  int pixel_data_size;
 
-  assert_halt(bitmap_verify(bitmap, 0));
-  assert_halt((short)mipmap_index >= 0 &&
-              (short)mipmap_index <= *(short *)(b + 0x14));
+  assert_halt_msg_at("bitmap_verify(bitmap, FALSE)", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3e3, bitmap_verify(bitmap, 0));
+  assert_halt_msg_at("mipmap_index>=0 && mipmap_index<=bitmap->mipmap_count", "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x3e4,
+                     (short)mipmap_index >= 0 && (short)mipmap_index <= *(short *)(b + 0x14));
 
-  texels = bitmap_mipmap_get_pixel_count(bitmap, mipmap_index);
+  pixel_count = bitmap_mipmap_get_pixel_count(bitmap, mipmap_index);
   bpp = bitmap_format_bits_per_pixel(*(short *)(b + 0xc));
-  total_bits = (int)bpp * texels;
-  return (total_bits + (total_bits >> 31 & 7)) >> 3;
+  pixel_data_size = pixel_count * bpp / 8;
+  return pixel_data_size;
 }
 
 /*
@@ -1818,8 +1785,8 @@ void *bitmap_cube_map_new(unsigned short width, unsigned short mipmap_count,
   return bitmap;
 }
 
-void bitmap_3d_slice_insert(void *source_bitmap, short source_mipmap_index,
-                            short source_slice_index, void *slice_bitmap)
+void bitmap_3d_slice_extract(void *source_bitmap, short source_mipmap_index,
+                             short source_slice_index, void *slice_bitmap)
 {
   char *source;
   char *slice;
@@ -1854,18 +1821,18 @@ void bitmap_3d_slice_insert(void *source_bitmap, short source_mipmap_index,
       "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x2e6, 1);
     system_exit(-1);
   }
-  expected_width = *(short *)(source + 4) >> (source_mipmap_index & 0x1f);
-  if (expected_width < 1)
-    expected_width = 1;
+  expected_width = 1 > (short)(*(short *)(source + 4) >> source_mipmap_index)
+                     ? 1
+                     : *(short *)(source + 4) >> source_mipmap_index;
   if (expected_width != *(short *)(slice + 4)) {
     display_assert(
       "MAX(1, source_bitmap->width >>source_mipmap_index)==slice_bitmap->width",
       "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x2e7, 1);
     system_exit(-1);
   }
-  expected_height = *(short *)(source + 6) >> (source_mipmap_index & 0x1f);
-  if (expected_height < 1)
-    expected_height = 1;
+  expected_height = 1 > (short)(*(short *)(source + 6) >> source_mipmap_index)
+                      ? 1
+                      : *(short *)(source + 6) >> source_mipmap_index;
   if (expected_height != *(short *)(slice + 6)) {
     display_assert(
       "MAX(1, "
@@ -1911,9 +1878,9 @@ void bitmap_3d_slice_insert(void *source_bitmap, short source_mipmap_index,
   csmemcpy(slice_address, source_address, size);
 }
 
-void bitmap_cube_map_face_extract(void *slice_bitmap, void *destination_bitmap,
-                                  int destination_mipmap_index,
-                                  int destination_slice_index)
+void bitmap_3d_slice_insert(void *slice_bitmap, void *destination_bitmap,
+                            int destination_mipmap_index,
+                            int destination_slice_index)
 {
   char *slice;
   char *destination;
@@ -1976,18 +1943,18 @@ void bitmap_cube_map_face_extract(void *slice_bitmap, void *destination_bitmap,
                    "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x30f, 1);
     system_exit(-1);
   }
-  expected_width = *(short *)(destination + 4) >> (mipmap_index & 0x1f);
-  if (expected_width < 1)
-    expected_width = 1;
+  expected_width = 1 > (short)(*(short *)(destination + 4) >> mipmap_index)
+                   ? 1
+                   : *(short *)(destination + 4) >> mipmap_index;
   if (expected_width != *(short *)(slice + 4)) {
     display_assert("MAX(1, destination_bitmap->width "
                    ">>destination_mipmap_index)==slice_bitmap->width",
                    "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x310, 1);
     system_exit(-1);
   }
-  expected_height = *(short *)(destination + 6) >> (mipmap_index & 0x1f);
-  if (expected_height < 1)
-    expected_height = 1;
+  expected_height = 1 > (short)(*(short *)(destination + 6) >> mipmap_index)
+                    ? 1
+                    : *(short *)(destination + 6) >> mipmap_index;
   if (expected_height != *(short *)(slice + 6)) {
     display_assert("MAX(1, "
                    "destination_bitmap->height>>destination_mipmap_index)=="
@@ -2009,8 +1976,9 @@ void bitmap_cube_map_face_extract(void *slice_bitmap, void *destination_bitmap,
   csmemcpy(destination_address, source_address, size);
 }
 
-void FUN_0007ea60(void *source_bitmap, short source_mipmap_index,
-                  short source_face_index, void *face_bitmap)
+void bitmap_cube_map_face_extract(void *source_bitmap,
+                                  short source_mipmap_index,
+                                  short source_face_index, void *face_bitmap)
 {
   char *source;
   char *face;
@@ -2045,18 +2013,18 @@ void FUN_0007ea60(void *source_bitmap, short source_mipmap_index,
       "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x32c, 1);
     system_exit(-1);
   }
-  expected_width = *(short *)(source + 4) >> (source_mipmap_index & 0x1f);
-  if (expected_width < 1)
-    expected_width = 1;
+  expected_width = 1 > (short)(*(short *)(source + 4) >> source_mipmap_index)
+                   ? 1
+                   : *(short *)(source + 4) >> source_mipmap_index;
   if (expected_width != *(short *)(face + 4)) {
     display_assert(
       "MAX(1, source_bitmap->width >>source_mipmap_index)==face_bitmap->width",
       "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x32d, 1);
     system_exit(-1);
   }
-  expected_height = *(short *)(source + 6) >> (source_mipmap_index & 0x1f);
-  if (expected_height < 1)
-    expected_height = 1;
+  expected_height = 1 > (short)(*(short *)(source + 6) >> source_mipmap_index)
+                    ? 1
+                    : *(short *)(source + 6) >> source_mipmap_index;
   if (expected_height != *(short *)(face + 6)) {
     display_assert(
       "MAX(1, source_bitmap->height>>source_mipmap_index)==face_bitmap->height",
@@ -2163,20 +2131,18 @@ void bitmap_cube_map_face_insert(void *face_bitmap, void *destination_bitmap,
                    "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x355, 1);
     system_exit(-1);
   }
-  expected_width =
-    *(short *)(destination + 4) >> (destination_mipmap_index & 0x1f);
-  if (expected_width < 1)
-    expected_width = 1;
+  expected_width = 1 > (short)(*(short *)(destination + 4) >> destination_mipmap_index)
+                   ? 1
+                   : *(short *)(destination + 4) >> destination_mipmap_index;
   if (expected_width != *(short *)(face + 4)) {
     display_assert("MAX(1, destination_bitmap->width "
                    ">>destination_mipmap_index)==face_bitmap->width",
                    "c:\\halo\\SOURCE\\bitmaps\\bitmaps.c", 0x356, 1);
     system_exit(-1);
   }
-  expected_height =
-    *(short *)(destination + 6) >> (destination_mipmap_index & 0x1f);
-  if (expected_height < 1)
-    expected_height = 1;
+  expected_height = 1 > (short)(*(short *)(destination + 6) >> destination_mipmap_index)
+                    ? 1
+                    : *(short *)(destination + 6) >> destination_mipmap_index;
   if (expected_height != *(short *)(face + 6)) {
     display_assert("MAX(1, "
                    "destination_bitmap->height>>destination_mipmap_index)=="

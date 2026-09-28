@@ -1273,6 +1273,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2f6e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x2f910": {
       "kind": "function",
       "status": "ported"
@@ -1282,6 +1286,10 @@
       "status": "ported"
     },
     "0x2fa70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x2fb60": {
       "kind": "function",
       "status": "ported"
     },
@@ -1326,7 +1334,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x303f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x308e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x309d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x30d10": {
       "kind": "function",
       "status": "ported"
     },
@@ -1335,6 +1355,10 @@
       "status": "ported"
     },
     "0x31440": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x31a90": {
       "kind": "function",
       "status": "ported"
     },
@@ -2144,6 +2168,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x42cb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x42ce0": {
       "kind": "function",
       "status": "ported",
@@ -2294,6 +2322,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x43a20": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x43ce0": {
       "kind": "function",
       "status": "ported"
@@ -2342,6 +2374,10 @@
         "The semantic meaning of param_2 and scenario definition flag bit 0 remains uncertain beyond their observed control-flow roles."
       ]
     },
+    "0x447d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x45830": {
       "kind": "function",
       "status": "ported"
@@ -2354,7 +2390,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x460e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x46b60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x46cb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3541,7 +3585,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x5e9b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x5eae0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5f1d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3833,7 +3885,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x65f90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x66190": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66200": {
       "kind": "function",
       "status": "ported"
     },
@@ -3890,6 +3950,10 @@
       "status": "ported"
     },
     "0x66cc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x66d40": {
       "kind": "function",
       "status": "ported"
     },
@@ -4747,7 +4811,7 @@
         "The NULL check on temp+0x2c is inferred to be the temporary bitmap's pixel-data pointer because failing it routes to the '### ERROR failed to allocate temporary bitmap' error call."
       ],
       "uncertain": [
-        "The kb names of the two slice-transfer callees read backwards for this call pair: 0x7e560 (bitmap_3d_slice_insert) reads a slice of the 3D bitmap into the temporary 2D bitmap, and 0x7e7e0 (bitmap_cube_map_face_extract) writes the temporary back into the 3D bitmap, so one or both names may be misattributed."
+        "RESOLVED: the slice-transfer callee names were rotated and are now corrected by assert line numbers matched against PAL 2342 bitmaps.c: 0x7e560 is bitmap_3d_slice_extract (asserts 0x2e3-), 0x7e7e0 is bitmap_3d_slice_insert (0x306-0x312), and 0x7ea60 is bitmap_cube_map_face_extract (0x329-). So this call pair is extract (3D -> temp), then insert (temp -> 3D)."
       ]
     },
     "0x79590": {
@@ -4780,7 +4844,7 @@
       "kind": "function",
       "status": "unknown",
       "inferred": [
-        "Callee 0x7e560 (kb name bitmap_3d_slice_insert) is used here as a slice EXTRACT (source -> temp) and 0x7e7e0 (kb name bitmap_cube_map_face_extract) as the slice WRITE-BACK (temp -> destination); the kb names appear swapped relative to the data flow, but they were left unchanged because no string evidence names either function.",
+        "Callee 0x7e560 (bitmap_3d_slice_extract) is the slice EXTRACT (source -> temp) and 0x7e7e0 (bitmap_3d_slice_insert) the slice WRITE-BACK (temp -> destination). The names were corrected from a rotated assignment using assert line numbers matched against PAL 2342 bitmaps.c (0x2e3- and 0x306-0x312).",
         "The widened decl for 0x7e560 uses short mipmap_index and short slice_index by analogy with the already-ported sibling call to 0x7ea60 at 0x7a6eb, which emits the same plain dword reload of the parameter slot rather than a MOVSX."
       ]
     },
@@ -7065,6 +7129,14 @@
       "status": "ported"
     },
     "0xa2930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa2970": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa29c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -11869,6 +11941,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xc97f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xc9840": {
       "kind": "function",
       "status": "ported"
@@ -12043,6 +12119,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xcaf60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xcaf70": {
       "kind": "function",
       "status": "ported"
@@ -12091,6 +12171,10 @@
       "status": "ported"
     },
     "0xcb9a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcb9c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -13910,7 +13994,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe73c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe76b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe7760": {
       "kind": "function",
       "status": "ported"
     },
@@ -14071,6 +14163,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xea570": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xea810": {
       "kind": "function",
       "status": "ported"
@@ -14099,7 +14195,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xeb150": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xeb4f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeb710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeba70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xebff0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xec2c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xec840": {
       "kind": "function",
       "status": "ported"
     },
@@ -14111,7 +14231,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xeceb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xed240": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xedcd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xedfb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14352,6 +14484,14 @@
       "status": "ported"
     },
     "0xf3960": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf39c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf4210": {
       "kind": "function",
       "status": "ported"
     },
@@ -14752,6 +14892,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfb5a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfb6e0": {
       "kind": "function",
       "status": "ported"
@@ -14784,11 +14928,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfbcf0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfbd10": {
       "kind": "function",
       "status": "ported"
     },
     "0xfbea0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfbf00": {
       "kind": "function",
       "status": "ported"
     },
@@ -14809,6 +14961,14 @@
       "status": "ported"
     },
     "0xfc710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfc780": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfc8e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14840,7 +15000,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xfcec0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xfcf20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfd0b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14876,6 +15044,10 @@
       "status": "ported"
     },
     "0xfd520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfe450": {
       "kind": "function",
       "status": "ported"
     },
@@ -16912,6 +17084,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x120620": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x120670": {
       "kind": "function",
       "status": "ported"
@@ -16948,6 +17124,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x120ba0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x120cb0": {
       "kind": "function",
       "status": "ported"
@@ -16965,6 +17145,10 @@
       "status": "ported"
     },
     "0x121940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x121c30": {
       "kind": "function",
       "status": "ported"
     },
@@ -17000,6 +17184,10 @@
       "status": "ported"
     },
     "0x123b30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x123c70": {
       "kind": "function",
       "status": "ported"
     },
@@ -18321,6 +18509,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x138fd0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1390d0": {
       "kind": "function",
       "status": "ported"
@@ -19566,11 +19758,76 @@
         "Resolved from void(void) to a 10-arg cdecl collision/line-of-sight query returning a u16 result count in AX; arg9 is the max-result count (0x10) and arg10 is the base of a 16-entry 0x2c-byte result array; arg4 is a float field pushed as physics[0x15]."
       ]
     },
+    "0x150710": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1509c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x150b60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x150c80": {
       "kind": "function",
       "status": "ported"
     },
+    "0x150dd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x150ed0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "friction_evaluate is called with the friction datum in ESI, so the original compiler kept physics in ESI and reloaded it after each call; the VC71 lane models the call as stack-pushed, which rotates ESI/EDI/EBX allocation and caps the score near 94%.",
+        "The 2276 source builds velocity_relative_to_ground, powered velocities and every powered_force accumulation with point_from_line3d (v*t + p with no intermediate store), not the scale_vector3d plus add_vectors3d pair of the PAL text."
+      ],
+      "uncertain": [
+        "The antigrav magnitude multiply chain is emitted by VC71 as ge*ge*g and ...*alignment*mass from both PAL and binary-order source, while the binary has (ge*ge)*g and ...*mass*alignment; the exact 2276 source spelling is unknown."
+      ]
+    },
+    "0x151a50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x151ec0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x152350": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1524d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x152680": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The byte at 0x4761fa is debug_physics_disable_penetration_freeze, identified through its hs-global table entry at 0x2f2bf8 (name string 0x27edc4, type 5).",
+        "physics_definition+0x5c is a tag_block with 0x24-byte 3x3 matrix elements whose element 1 is used as the body-space inertia tensor inverse; the meaning is inferred from the rotation-conjugation sequence FUN_00109c70/FUN_001099f0/FUN_00109c70.",
+        "The dword written to object+0x478 after the penetration loop is a per-mass-point bitmask of points whose sweep collided (bit i set on hit); no field name is assigned.",
+        "FUN_001099f0 returns its dst pointer in EAX (MOV EAX,[EBP+0xc] at 0x1099f6), which this function consumes at 0x15284b as the second FUN_00109c70 argument."
+      ],
+      "uncertain": [
+        "Flag bits 2 and 3 of object->flags are both set from in_water_count>0 in the binary; whether bit 2 was meant to use a different count in source cannot be determined.",
+        "The dot!=0 guard compiles to FUCOMPP under VC71 where the original uses FCOM against the 0.0f constant at 0x2533c0; the comparison is semantically identical and remains the residual FCOM-WARN."
+      ]
+    },
+    "0x152e40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x154270": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x154630": {
       "kind": "function",
       "status": "ported"
     },
@@ -19598,10 +19855,14 @@
     },
     "0x1548c0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "Declaration corrected from void(void) to void *point_physics_definition_interpolate(void *physics_a, void *physics_b, float interpolation, void *out): the only observed call site (0x9fc40) pushes four args, cleans up with ADD ESP,0x10, and consumes the EAX return as the physics-definition argument to FUN_00154a50."
       ]
+    },
+    "0x154a50": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x154fc0": {
       "kind": "function",
@@ -23930,6 +24191,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c0f70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c1290": {
       "kind": "function",
       "status": "ported"
@@ -24420,6 +24685,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c8700": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c88a0": {
       "kind": "function",
       "status": "ported"
@@ -24697,7 +24966,15 @@
         "The two float parameters cached at channel+0x44 and channel+0x48 are named scalar_44/scalar_48 because their meaning is unproven; sound_dsound_channel_update_3d consumes both as 1.0-value gain sends, so they are plausibly obstruction and occlusion, but nothing in the binary names them."
       ]
     },
+    "0x1cb1a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1cb1d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1cb4c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -24772,6 +25049,10 @@
       "uncertain": [
         "The MOVSX SI,SI and IMUL pattern suggests promotion_count is sign-extended from short to int before the multiplication with interval."
       ]
+    },
+    "0x1cbc20": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1cbd30": {
       "kind": "function",

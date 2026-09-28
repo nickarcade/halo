@@ -36,26 +36,27 @@
 
 /* decode_string — copy a string from source into the state buffer (0x11a230).
  * Source: data_encoding.c line 0xb6. */
-bool data_encode_string(data_encoding_state_t *state, const char *source, short max_length)
+bool data_encode_string(data_encoding_state_t *state, const char *string, short maximum_length)
 {
+  /* names: PAL 2342 memory/data_encoding.c:323 */
   short string_length;
-  int dest;
+  int destination;
 
-  string_length = strnlen(source, (int)max_length);
-  dest = (int)state->buffer + state->offset;
-  if (state->buffer_size < (int)string_length + 1 + state->offset) {
+  string_length = strnlen(string, (int)maximum_length);
+  destination = (int)state->buffer + state->offset;
+  if (!(state->offset + string_length + 1 <= state->buffer_size)) {
     display_assert("state->offset+string_length+1<=state->buffer_size",
                    "c:\\halo\\SOURCE\\memory\\data_encoding.c", 0xb6, 1);
     system_exit(-1);
   }
-  if ((state->offset + 1 + (int)string_length <= state->buffer_size) &&
+  if ((state->offset + string_length + 1 <= state->buffer_size) &&
       (state->overflow == '\0')) {
-    csstrncpy((char *)dest, source, (int)string_length);
-    *(char *)(dest + (int)string_length) = 0;
-    state->offset = state->offset + (int)string_length + 1;
-    return state->overflow == '\0';
+    csstrncpy((char *)destination, string, (int)string_length);
+    *(char *)(destination + (int)string_length) = 0;
+    state->offset += string_length + 1;
+  } else {
+    state->overflow = 1;
   }
-  state->overflow = 1;
   return state->overflow == '\0';
 }
 
@@ -171,8 +172,9 @@ __declspec(noinline) int data_decode_memory(data_encoding_state_t *state, short 
  * Source: data_encoding.c. */
 __declspec(noinline) unsigned char data_decode_byte(data_encoding_state_t *state)
 {
+  /* name: PAL 2342 memory/data_encoding.c:447 */
   int new_offset;
-  unsigned char *ptr;
+  unsigned char *value;
 
   if (!(state != NULL && state->buffer != NULL && state->offset >= 0 &&
         state->offset <= state->buffer_size)) {
@@ -184,21 +186,20 @@ __declspec(noinline) unsigned char data_decode_byte(data_encoding_state_t *state
   new_offset = state->offset + 1;
   if (new_offset > state->buffer_size || state->overflow != '\0') {
     state->overflow = 1;
+    value = NULL;
   } else {
-    ptr = (unsigned char *)((int)state->buffer + state->offset);
+    value = (unsigned char *)((int)state->buffer + state->offset);
     state->offset = new_offset;
-    if (ptr != NULL) {
-      return *ptr;
-    }
   }
-  return 0;
+  return value ? *value : 0;
 }
 
 /* decode_short — read and byte-swap a 16-bit value from the buffer (0x11a5d0).
  * Source: data_encoding.c. */
 short data_decode_short(data_encoding_state_t *state)
 {
-  short *ptr;
+  /* name: PAL 2342 memory/data_encoding.c:455 */
+  short *value;
 
   if (!(state != NULL && state->buffer != NULL && state->offset >= 0 &&
         state->offset <= state->buffer_size)) {
@@ -207,17 +208,15 @@ short data_decode_short(data_encoding_state_t *state)
                    "c:\\halo\\SOURCE\\memory\\data_encoding.c", 0x100, 1);
     system_exit(-1);
   }
-  if ((state->buffer_size < state->offset + 2) || (state->overflow != '\0')) {
+  if ((state->offset + 2 > state->buffer_size) || (state->overflow != '\0')) {
     state->overflow = 1;
+    value = NULL;
   } else {
-    ptr = (short *)((int)state->buffer + state->offset);
-    FUN_00118620(ptr, 1, -2);
+    value = (short *)((int)state->buffer + state->offset);
+    FUN_00118620(value, 1, -2);
     state->offset += 2;
-    if (ptr != NULL) {
-      return *ptr;
-    }
   }
-  return 0;
+  return value ? *value : 0;
 }
 
 /* decode_long — read and byte-swap a 32-bit value from the buffer (0x11a650).
@@ -420,36 +419,34 @@ bool data_packet_group_decode_packet(int group, void *decoded_packet, char *enco
                    "c:\\halo\\SOURCE\\memory\\data_packet_groups.c", 0x4d, 1);
     system_exit(-1);
   }
-  if (*encoded_packet_size == 0) {
-    error_msg = "got packet with no header";
-  } else {
+  if (*encoded_packet_size >= sizeof(char)) {
     header_ptr = (char *)(*encoded_packet_size - 1 + (int)encoded_packet);
     byte_swap_structures(packet_header_bs_def, header_ptr, 1);
     packet_type_byte = *header_ptr;
-    if (packet_type_byte < 0 ||
-        *(short *)(group + 4) <= (short)packet_type_byte) {
-      error_msg = "got packet with bad type";
-    } else {
+    if (packet_type_byte >= 0 &&
+        (short)packet_type_byte < *(short *)(group + 4)) {
       packets_array = *(int *)(group + 0x10);
       if (*(short *)(packets_array + (int)packet_type_byte * 8) ==
           expected_packet_class) {
         *encoded_packet_size = *encoded_packet_size - 1;
         definition = *(int *)(packets_array + (int)packet_type_byte * 8 + 4);
-        if (definition != 0) {
-          if (!data_packet_decode(definition, (int)encoded_packet,
-                            *encoded_packet_size, (int)decoded_packet,
-                            (unsigned short *)packet_version, 0)) {
-            error_msg = "got packet which wouldn't decode";
-            goto done;
-          }
+        if (definition == 0 ||
+            data_packet_decode(definition, (int)encoded_packet,
+                               *encoded_packet_size, (int)decoded_packet,
+                               (unsigned short *)packet_version, 0)) {
+          *packet_type = (short)*header_ptr;
+        } else {
+          error_msg = "got packet which wouldn't decode";
         }
-        *packet_type = (short)*header_ptr;
       } else {
         error_msg = "got packet with mismatched class";
       }
+    } else {
+      error_msg = "got packet with bad type";
     }
+  } else {
+    error_msg = "got packet with no header";
   }
-done:
   s_last_decode_error = error_msg;
   return error_msg == NULL;
 }
@@ -796,7 +793,7 @@ void hashtable_dispose(short *table)
 
 /* hashtable_hash — default hash function using small primes (0x11ba00).
  * Source: hashtable.c. */
-int default_hash_function(unsigned char *key, unsigned int key_size)
+short default_hash_function(unsigned char *key, unsigned int key_size)
 {
   int hash;
   short prime_index;
@@ -822,7 +819,7 @@ int default_hash_function(unsigned char *key, unsigned int key_size)
 
 /* hashtable_find_slot — probe for a key in the table (0x11ba50).
  * Source: hashtable.c. Takes table via @ESI register arg. */
-int hashtable_search(short *table_, void *key, unsigned short *slot_index_out)
+boolean hashtable_search(short *table_, void *key, unsigned short *slot_index_out)
 {
   hashtable_t *table;
   short hash_val;
@@ -871,10 +868,9 @@ int hashtable_search(short *table_, void *key, unsigned short *slot_index_out)
  * Source: hashtable.c line 0x4d. */
 int hashtable_get(short *table_, void *key)
 {
+  /* name: PAL 2342 memory/hashtable.c:165 */
   hashtable_t *table;
-  char found;
-  int element_ptr;
-  short slot;
+  short element_index;
   int result = 0;
 
   if (!hashtable_valid(table_)) {
@@ -883,13 +879,11 @@ int hashtable_get(short *table_, void *key)
     system_exit(-1);
   }
   table = (hashtable_t *)table_;
-  if (table->count != 0) {
-    found = (char)hashtable_search((short *)table, key, (unsigned short *)&slot);
-    if (found != '\0') {
-      element_ptr =
-        array_get_element((int *)&table->array, (int)slot, (int)table->element_size);
-      return element_ptr + table->key_size;
-    }
+  if (table->count != 0 &&
+      (char)hashtable_search((short *)table, key, (unsigned short *)&element_index)) {
+    result =
+      array_get_element((int *)&table->array, (int)element_index, (int)table->element_size) +
+      table->key_size;
   }
   return result;
 }
@@ -1450,12 +1444,12 @@ void *create_network_game_message(int type, void *data,
     CHECK_MSG_SIZE(0x434, "message_struct_size==sizeof(message_server_game_settings_update)", 0xaa);
   case _network_game_message_server_pregame_countdown:
     CHECK_MSG_SIZE(2, "message_struct_size==sizeof(message_server_pregame_countdown)", 0xab);
+  case _network_game_message_server_pregame_keep_alive:
+    CHECK_MSG_SIZE(2, "message_struct_size==sizeof(message_server_pregame_keep_alive)", 0xac);
   case _network_game_message_server_begin_game:
     CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_server_begin_game)", 0xad);
   case _network_game_message_server_graceful_game_exit_pregame:
     CHECK_MSG_SIZE(4, "message_struct_size==sizeof(message_server_graceful_game_exit_pregame)", 0xae);
-  case _network_game_message_server_pregame_keep_alive:
-    CHECK_MSG_SIZE(2, "message_struct_size==sizeof(message_server_pregame_keep_alive)", 0xac);
   case _network_game_message_server_postgame_keep_alive:
     CHECK_MSG_SIZE(2, "message_struct_size==sizeof(message_server_postgame_keep_alive)", 0xb1);
   case _network_game_message_client_join_game_request:
@@ -1534,6 +1528,6 @@ void *create_network_game_message(int type, void *data,
     return msg;
   }
 
-  network_event("create_network_game_message() failed");
+  network_event("encode_network_game_message() failed");
   return NULL;
 }

@@ -879,8 +879,11 @@ float FUN_001099a0(float *m)
          m[0] * m[7] * m[5] - m[8] * m[1] * m[3] - m[6] * m[2] * m[4];
 }
 
-/* 0x1099f0 — Transpose a 3x3 matrix. Supports src == dst (in-place). */
-void FUN_001099f0(float *src, float *dst)
+/* 0x1099f0 — Transpose a 3x3 matrix. Supports src == dst (in-place).
+ * Returns dst: both exits leave MOV EAX,[EBP+0xc] (0x1099f6) in EAX, and
+ * physics_update_new pushes that EAX straight into FUN_00109c70 at
+ * 0x15284b. */
+float *FUN_001099f0(float *src, float *dst)
 {
   float t;
   uint32_t *s = (uint32_t *)src;
@@ -896,7 +899,7 @@ void FUN_001099f0(float *src, float *dst)
     t = src[7];
     dst[7] = src[5];
     dst[5] = t;
-    return;
+    return dst;
   }
   d[0] = s[0];
   d[1] = s[3];
@@ -907,6 +910,7 @@ void FUN_001099f0(float *src, float *dst)
   d[6] = s[2];
   d[7] = s[5];
   d[8] = s[8];
+  return dst;
 }
 
 /* 0x109a60 — Invert a 3x3 matrix (row-major float[9]) given its
@@ -1898,8 +1902,7 @@ bool fast_vector_intersects_sphere(float *line_start, float *line_end,
     if (t_check < 0.0f)
       return true;
 
-    if (t_check * t_check < disc_narrow)
-      return true;
+    return t_check * t_check < disc_narrow;
   }
 
   return false;
@@ -2691,8 +2694,8 @@ char point_in_triangle3d(float *p1, float *p2, float *p3, float *p4, float *out_
   float v3[3], v1[3], v2[3];
   float n[3];
   float dot_n;
-  uint32_t basis;
-  uint8_t axis;
+  short basis;
+  bool axis;
   float p1_proj[2];
   float v1_proj[2];
   float v2_proj[2];

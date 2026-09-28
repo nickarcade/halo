@@ -44,7 +44,9 @@
  *   1                                  — index past the end of the point
  *                                        block, or the element lookup failed
  *   ((~flags & 0x10) | 0x20) >> 4      — 3 when bit 4 of the flags byte is
- *                                        clear, 2 when it is set
+ *                                        clear, 2 when it is set (the
+ *                                        binary's branch-free form of a
+ *                                        2-vs-3 if/else)
  * The caller only ever tests the result against zero and takes the maximum
  * over every object, so 1 < 2 < 3 is an ordered status.
  *
@@ -55,31 +57,40 @@
  * swarm_component+0x1c / +0x20.
  *
  * 0x57330 / ai_script.obj */
-static int ai_command_list_status(short command_list_index,
-                                  const unsigned char *point, int actor_index,
-                                  int object_index, int unused)
+short ai_scripting_command_list_status_internal(int16_t scenario_index,
+                                                void *record, int field_1a8_val,
+                                                int child_handle, int reserved)
 {
+  const unsigned char *point;
   char *list;
-  unsigned char flags;
+  short status;
 
-  (void)actor_index;
-  (void)object_index;
-  (void)unused;
+  (void)field_1a8_val;
+  (void)child_handle;
+  (void)reserved;
+
+  point = (const unsigned char *)record;
 
   list = (char *)tag_block_get_element((char *)global_scenario_get() + 0x438,
-                                       command_list_index, 0x60);
-  if ((int)point[0] < *(int *)(list + 0x30) &&
-      tag_block_get_element(list + 0x30, point[0], 0x20) != (void *)0) {
-    /* Byte NOT then a 32-bit mask/or/shift: the reference is
-     * `movb ..,%cl; notb %cl; movzbl %cl,%eax; andl $0x10,%eax; orl $0x20,%eax;
-     * shrl $0x4,%eax`.  Keeping the complement in an unsigned char and letting
-     * the usual integer promotions widen it reproduces that exactly; writing
-     * the whole expression with an inline (unsigned char) cast makes VC71 emit
-     * `andb/orb/shrb` instead. */
-    flags = (unsigned char)~point[4];
-    return ((flags & 0x10) | 0x20) >> 4;
+                                       scenario_index, 0x60);
+  /* One status variable set down an else-if chain and returned once
+   * (measured, VC71).  The reference's `movb ..,%cl; notb %cl; movzbl
+   * %cl,%eax; andl $0x10; orl $0x20; shrl $0x4` is VC71's branch-free
+   * lowering of the 2-vs-3 if/else below, not a source expression.  Spelled
+   * as that expression, as a ternary, or as early returns, VC71 sinks the
+   * status-1 block below the success path and emits `movw $1,%ax` or
+   * `xorl; movb %al`: 84.2% -> 98.2%. */
+  if ((int)point[0] >= *(int *)(list + 0x30)) {
+    status = 1;
+  } else if (tag_block_get_element(list + 0x30, point[0], 0x20) ==
+             (void *)0) {
+    status = 1;
+  } else if (point[4] & 0x10) {
+    status = 2;
+  } else {
+    status = 3;
   }
-  return 1;
+  return status;
 }
 
 /* 0x00057380 — ai_scripting_command_list_status.
@@ -138,8 +149,8 @@ short ai_scripting_command_list_status(int ai_index)
                          "c:\\halo\\SOURCE\\ai\\ai_script.c", 0xa80,
                          actor[6] == 0);
       if (*(short *)(actor + 0x6c) == 0xb) {
-        status = ai_command_list_status(
-          *(short *)(actor + 0x9c), (const unsigned char *)(actor + 0xa4),
+        status = ai_scripting_command_list_status_internal(
+          *(short *)(actor + 0x9c), (void *)(actor + 0xa4),
           *(int *)(object + 0x1a4), object_index, 0);
         if (status != 0)
           goto accumulate;
@@ -179,9 +190,9 @@ short ai_scripting_command_list_status(int ai_index)
                                   *(int *)(swarm + index * 4 + 0x58));
     if ((component[2] & 8) == 0)
       goto recently_finished;
-    status = ai_command_list_status(*(short *)(actor + 0x9c),
-                                    (const unsigned char *)(component + 0x1c),
-                                    *(int *)(object + 0x1a8), object_index, 0);
+    status = ai_scripting_command_list_status_internal(
+      *(short *)(actor + 0x9c), (void *)(component + 0x1c),
+      *(int *)(object + 0x1a8), object_index, 0);
     if (status != 0)
       goto accumulate;
   recently_finished:
@@ -198,11 +209,13 @@ short ai_scripting_command_list_status(int ai_index)
 }
 
 /* 0x00058cc0 — ai_go_to_vehicle_override script command entry point.
- * Uses the same trace path and 0x100-byte name buffer as ai_scripting_go_to_vehicle, but
- * forwards allow_type9 = 1 to ai_scripting_go_to_vehicle_internal.  The three parameters are stack
+ * Uses the same trace path and 0x100-byte name buffer as
+ * ai_scripting_go_to_vehicle, but forwards allow_type9 = 1 to
+ * ai_scripting_go_to_vehicle_internal.  The three parameters are stack
  * arguments at [EBP+8], [EBP+0xc], and [EBP+0x10]. */
-void ai_scripting_go_to_vehicle_override(unsigned int ai_index, int vehicle_handle,
-                                  const char *seat_substring)
+void ai_scripting_go_to_vehicle_override(unsigned int ai_index,
+                                         int vehicle_handle,
+                                         const char *seat_substring)
 {
   char local_104[0x100];
 
@@ -213,7 +226,8 @@ void ai_scripting_go_to_vehicle_override(unsigned int ai_index, int vehicle_hand
           hs_runtime_get_executing_thread_name(), local_104,
           vehicle_handle & 0xffff, seat_substring);
   }
-  ai_scripting_go_to_vehicle_internal(ai_index, vehicle_handle, (int)seat_substring, 1);
+  ai_scripting_go_to_vehicle_internal(ai_index, vehicle_handle,
+                                      (int)seat_substring, 1);
 }
 
 /* 0x00058d40 — "ai_scripting_renew" HS script command.
@@ -225,7 +239,8 @@ void ai_scripting_go_to_vehicle_override(unsigned int ai_index, int vehicle_hand
  *      actor_variant tag's [min,max] range, if the variant carries a grenade
  *      type at all.
  *
- * Name is Confirmed from the format string at 0x25d1fc ("%s: ai_scripting_renew %s").
+ * Name is Confirmed from the format string at 0x25d1fc ("%s: ai_scripting_renew
+ * %s").
  *
  * Signature: the HS thunk at 0xc0970 does MOV EDX,dword ptr [EAX]; PUSH EDX
  * and cleans with cdecl, so this takes exactly ONE stack dword.  Ghidra models
@@ -277,8 +292,8 @@ void ai_scripting_renew(int handle)
   if (*(char *)0x5aca59) {
     ai_index_to_string((unsigned int)handle, global_scenario_get(), local_11c,
                        0x100);
-    error(2, "%s: ai_scripting_renew %s", hs_runtime_get_executing_thread_name(),
-          local_11c);
+    error(2, "%s: ai_scripting_renew %s",
+          hs_runtime_get_executing_thread_name(), local_11c);
   }
 
   ai_index_actor_iterator_new((unsigned int)handle, local_1c);
@@ -294,9 +309,10 @@ void ai_scripting_renew(int handle)
         (*(float *)((char *)unit + 0x8c) > 0.0f) ? 1.0f : 0.0f;
 
       if (*(short *)((char *)variant + 0x180) != -1) {
-        wanted = seed_random_range((unsigned int *)get_global_random_seed_address(),
-                              *(short *)((char *)variant + 0x1d0),
-                              *(short *)((char *)variant + 0x1d2) + 1);
+        wanted =
+          seed_random_range((unsigned int *)get_global_random_seed_address(),
+                            *(short *)((char *)variant + 0x1d0),
+                            *(short *)((char *)variant + 0x1d2) + 1);
         count = unit_get_grenade_count(
           *(int *)(actor + 0x18),
           unit_get_current_grenade_type(*(int *)(actor + 0x18)));

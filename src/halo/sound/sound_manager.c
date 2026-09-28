@@ -672,6 +672,116 @@ void FUN_001c7b40(void)
   } while (local_player_index < 4);
 }
 
+/* decompress_ima_adpcm_audio_data (0x1c8700)
+ *
+ * IMA ADPCM decoder, inverse of compress_ima_adpcm_audio_data (0x1c85a0).
+ * compressed: +0 int = sample count, +4 short = first predictor, codes start
+ * at +8 (compressed_size includes the 8-byte header). With output == NULL
+ * returns sample_count * 2 (decoded byte size). Otherwise decodes one 4-bit
+ * code per sample, high nibble first, until the samples, output_count or
+ * compressed bytes run out, and returns the count of samples not decoded.
+ *
+ * decode_state (optional, layout unproven beyond these offsets): +0 int total
+ * samples (seeded from the header when 0), +4 int samples already decoded
+ * (incremented per sample), +8 short predictor, +0xa short step index.
+ * Tables: 0x2bc710 = int step table, 0x2bc6d0 = int index-adjust table. */
+int decompress_ima_adpcm_audio_data(int *compressed, int compressed_size,
+                                    short *output, int output_count,
+                                    int *decode_state)
+{
+  int remaining;
+  uint8_t *data;
+  int predicted;
+  short step_index;
+  bool high_nibble;
+
+  remaining = compressed[0];
+  data = (uint8_t *)compressed + 8;
+  compressed_size -= 8;
+  if (output == NULL)
+    return remaining * 2;
+
+  if (decode_state != NULL) {
+    int position;
+
+    if (decode_state[0] == 0) {
+      decode_state[0] = remaining;
+      *(short *)((char *)decode_state + 8) = *(short *)((char *)compressed + 4);
+      *(short *)((char *)decode_state + 0xa) = 0;
+    }
+    predicted = *(short *)((char *)decode_state + 8);
+    position = decode_state[1];
+    step_index = *(short *)((char *)decode_state + 0xa);
+    compressed_size -= position >> 1;
+    data += position >> 1;
+    remaining = decode_state[0] - position;
+    high_nibble = (bool)(~position & 1);
+  } else {
+    predicted = *(short *)((char *)compressed + 4);
+    step_index = 0;
+    high_nibble = 1;
+  }
+
+  while (remaining != 0 && output_count != 0 && compressed_size != 0) {
+    int step;
+    int delta;
+    int next_index;
+    char code;
+    char mask;
+
+    code = (char)*data;
+    step = ((int *)0x2bc710)[step_index];
+    delta = step >> 3;
+    if (high_nibble)
+      code >>= 4;
+    code &= 0xf;
+
+    mask = 4;
+    do {
+      if ((mask & code) != 0)
+        delta += step;
+      mask >>= 1;
+      step >>= 1;
+    } while (mask != 0);
+
+    if ((code & 8) != 0)
+      delta = -delta;
+    delta += predicted;
+    if (delta < -0x8000)
+      predicted = -0x8000;
+    else if (delta > 0x7fff)
+      predicted = 0x7fff;
+    else
+      predicted = delta;
+
+    next_index = step_index + ((int *)0x2bc6d0)[(int)code];
+    if (next_index < 0)
+      step_index = 0;
+    else if (next_index > 0x58)
+      step_index = 0x58;
+    else
+      step_index = (short)next_index;
+
+    high_nibble = !high_nibble;
+    *output = (short)predicted;
+    if (high_nibble) {
+      data++;
+      compressed_size--;
+    }
+    output++;
+    remaining--;
+    output_count--;
+    if (decode_state != NULL)
+      decode_state[1]++;
+  }
+
+  if (decode_state != NULL) {
+    *(short *)((char *)decode_state + 8) = (short)predicted;
+    *(short *)((char *)decode_state + 0xa) = step_index;
+  }
+  return remaining;
+}
+
 /* sound_is_active (0x1c88a0)
  *
  * Byte-swaps one "bungie ima adpcm header" record in place.
@@ -950,6 +1060,176 @@ short sound_select_permutation(void *sound_tag, short pitch_range_index,
       }
     }
   }
+}
+
+/* dsound_virtual_queue (0x1cb1a0)
+ *
+ * Resolves a virtual channel index through sound_dsound_channel_resolve
+ * (EBX = [EBP+8]) and, when it maps to a dsound channel (AX != 0xffff),
+ * forwards that channel with the sound pointer (EDI = [EBP+0xc]) to
+ * FUN_001cb0c0.  No xrefs recorded in the artifact (likely an indirect
+ * dispatch entry).  Parameter meanings beyond the callee decls are UNKNOWN.
+ * The resolved channel is pushed as-is (PUSH EAX, no MOVSX), so
+ * FUN_001cb0c0 takes a short.  The incoming index stays int: the original
+ * loads it into EBX with a plain dword MOV. */
+void dsound_virtual_queue(int channel_index, void *sound)
+{
+  short channel;
+
+  channel = sound_dsound_channel_resolve(channel_index);
+  if (channel != -1) {
+    FUN_001cb0c0(channel, sound);
+  }
+}
+
+/* dsound_virtual_set_location (0x1cb1d0)
+ *
+ * Binary: resolves [EBP+8] via sound_dsound_channel_resolve (EBX); when
+ * AX != 0xffff, loads EBX = [EBP+0x10] and pushes [EBP+0x1c], [EBP+0x18],
+ * [EBP+0x14], [EBP+0xc], EAX before calling dsound_channel_set_location
+ * (0x1cadd0, cleanup 0x14).  The callee reads EBX as float* (offsets
+ * 0x00..0x20), [EBP+0xc]/[EBP+0x18] as bytes and [EBP+0x10]/[EBP+0x14] as
+ * floats.  Parameter meanings beyond those widths are UNKNOWN. */
+void dsound_virtual_set_location(int channel_index, char flag_0c,
+                                 float *location, float value_10,
+                                 float value_14, char flag_18)
+{
+  short channel;
+
+  channel = sound_dsound_channel_resolve(channel_index);
+  if (channel != -1) {
+    dsound_channel_set_location(channel, flag_0c, location, value_10, value_14,
+                                flag_18);
+  }
+}
+
+/* dsound_initialize (0x1cb4c0)
+ *
+ * Binary: [EBP+8] is a pointer asserted non-NULL as "preferences"
+ * (sound_dsound_xbox.c line 0xea); AL is the return value.  Creates the
+ * DirectSound object into 0x50545c, copies its caps into 0x50544c..0x505458,
+ * sets distance factor 3.048f and rolloff 1.0f, downloads the effects image
+ * (0x2bccf0, 0x3a5c bytes; failure is logged but not fatal), then
+ * initializes virtual channels (per-type counts at preferences[5..8]) and
+ * dsound channels (per-type counts at preferences[1..4], flags from the
+ * short table at 0x32fcf8).  The 0x34-byte block passed to FUN_001ca2b0
+ * and the preferences layout beyond these reads are UNKNOWN. */
+boolean dsound_initialize(short *preferences)
+{
+  uint32_t params[13];
+  uint32_t caps[4];
+  void *image_desc;
+  uint32_t image_loc[2];
+  const uint32_t *source;
+  short *vchannel;
+  short virtual_index;
+  short channel_index;
+  short type_index;
+  short count_index;
+  boolean success;
+  int result;
+
+  success = false;
+  *(char *)0x4fdbc0 = false;
+  *(char *)0x505484 = false;
+  *(float *)0x505488 = 1.0f;
+  *(void **)0x505460 = NULL;
+  if (preferences == NULL) {
+    display_assert("preferences",
+                   "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0xea, 1);
+    system_exit(-1);
+  }
+
+  result = DirectSoundCreate(NULL, (void **)0x50545c, NULL);
+  if (result >= 0) {
+    result = IDirectSound_GetCaps(*(void **)0x50545c, caps);
+    if (result >= 0) {
+      *(uint32_t *)0x50544c = caps[0];
+      *(uint32_t *)0x505450 = caps[1];
+      *(uint32_t *)0x505454 = caps[2];
+      *(uint32_t *)0x505458 = caps[3];
+      result = IDirectSound_SetDistanceFactor(*(void **)0x50545c, 3.048f, 0);
+      if (result >= 0) {
+        result = IDirectSound_SetRolloffFactor(*(void **)0x50545c, 1.0f, 0);
+        if (result >= 0) {
+          csmemset(params, 0, 0x34);
+          source = *(const uint32_t **)0x31fc3c;
+          params[3] = source[0];
+          params[4] = source[1];
+          params[5] = source[2];
+          source = *(const uint32_t **)0x31fc44;
+          params[6] = source[0];
+          params[7] = source[1];
+          params[8] = source[2];
+          params[12] = 0x2c1220;
+          image_loc[0] = 0;
+          image_loc[1] = 1;
+          result = IDirectSound_DownloadEffectsImage(
+            *(void **)0x50545c, (const void *)0x2bccf0, 0x3a5c, image_loc,
+            &image_desc);
+          if (result < 0) {
+            sound_dsound_log_error(result, "could not download effects image.");
+          }
+          IDirectSound_SetMixBinHeadroom(*(void **)0x50545c, 0x7fffffff, 0);
+          DirectSoundUseFullHRTF();
+          FUN_001ca2b0((const float *)params);
+
+          virtual_index = 0;
+          success = true;
+          for (type_index = 0; type_index < 4; type_index++) {
+            for (count_index = 0; count_index < preferences[5 + type_index];
+                 count_index++) {
+              (*(short *)0x4fdbc2)++;
+              if (success) {
+                vchannel = (short *)sound_dsound_vchannel_get(virtual_index);
+                if (type_index < 0 || type_index >= 4) {
+                  display_assert(
+                    "type_index>=0 && type_index<NUMBER_OF_SOUND_CHANNEL_TYPES",
+                    "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x1a6, 1);
+                  system_exit(-1);
+                }
+                vchannel[1] = type_index;
+                vchannel[0] = -1;
+                virtual_index++;
+                success = true;
+              } else {
+                success = false;
+              }
+            }
+          }
+
+          channel_index = 0;
+          for (type_index = 0; type_index < 4; type_index++) {
+            ((short *)0x5053c8)[type_index] = channel_index;
+            for (count_index = 0; count_index < preferences[1 + type_index];
+                 count_index++) {
+              (*(short *)0x4fdfc4)++;
+              success =
+                success && dsound_initialize_channel(
+                             ((short *)0x32fcf8)[type_index], channel_index++);
+            }
+          }
+
+          success = success && dsound_fix_rear_speakers();
+        } else {
+          sound_dsound_log_error(result, "could not adjust rolloff factor");
+        }
+      } else {
+        sound_dsound_log_error(result, "could not adjust distance factor");
+      }
+    } else {
+      sound_dsound_log_error(result, "could not get caps for sound card?");
+    }
+  } else {
+    sound_dsound_log_error(result, "could not create direct sound object");
+  }
+
+  if (success) {
+    *(char *)0x4fdbc0 = true;
+  } else {
+    FUN_001c93f0();
+  }
+  return success;
 }
 
 /* sound_valid_for_channel (0x1cb790)
@@ -1248,7 +1528,9 @@ void *sound_listener_get(short listener_index /* @<si> */)
 {
   short index = listener_index;
 
-  assert_halt_msg_at("index>=0 && index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x430, index >= 0 && index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("index>=0 && index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x430,
+                     index >= 0 && index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   return (void *)(0x4eaf58 + (int)index * 0x44);
 }
@@ -1299,6 +1581,15 @@ int16_t sound_check_promotion(int sound_tag_index /* @<eax> */)
   }
 
   return result;
+}
+
+/* sound_travel_milliseconds (0x1cbc20)
+ *
+ * FLD [0x2c1288]; FMUL [ebp+8]; tail-JMP _ftol2 (0x1d9068): the constant at
+ * 0x2c1288 times the float argument, truncated to int in EAX. */
+int sound_travel_milliseconds(float distance)
+{
+  return (int)(*(float *)0x2c1288 * distance);
 }
 
 /* FUN_001cbc40 (0x1cbc40)
@@ -4278,6 +4569,133 @@ void sound_idle(void)
   }
   xbox_sound_cache_idle();
   *(uint8_t *)0x4eaf43 = 0;
+}
+
+/* FUN_001cf360 (0x1cf360)
+ *
+ * Walks every live sound (0x4fdba4) with data_next_index.  For each entry:
+ *   - if its start time (+0x84) is still in the future relative to the
+ *     global sound timestamp (0x4eaf4c), only asserts the delayed/postpone
+ *     invariant (line 0x683);
+ *   - else if it has no playing channel (+0x8c == NONE), requests the
+ *     permutation (tag+0x98 block [+0x8e], size 0x48 -> +0x3c block [+0x90],
+ *     size 0x7c) from the sound cache; on success it falls through to the
+ *     channel-start path, otherwise (still no channel and the update callback
+ *     is not track_loop_impulse_sound) the class cache_miss_mode (+0xc)
+ *     decides: 0 records +0x90 into the pitch-range +0x3a word when NONE and
+ *     stops the sound, 1 leaves it pending, anything else asserts (0x679);
+ *   - otherwise marks +0x04 bit 1, picks a channel via sound_find_channel and
+ *     either stops the sound (NONE) or binds it to that channel (0x4fc3a0,
+ *     stride 0x18), stopping the channel's previous sound first.
+ * The callback compare uses the SYMBOL (as in sound_update_music) because
+ * the store site passes our ported track_loop_impulse_sound.
+ * The `playing != NONE || request` test and the NONE-channel else arm let
+ * one sound_stop tail be shared with the discard case.  flags (+0x04) is a
+ * word field; the ORB still comes from a 16-bit |=. */
+void FUN_001cf360(void)
+{
+  int sound_index;
+  char *sound_entry;
+  char *sound_tag;
+  char *class_def;
+  char *element;
+  int *channel;
+  short channel_index;
+
+  sound_index = data_next_index(*(data_t **)0x4fdba4, -1);
+  while (sound_index != -1) {
+    sound_entry = (char *)datum_get(*(data_t **)0x4fdba4, sound_index);
+    if (*(int *)(sound_entry + 0x84) <= *(int *)0x4eaf4c) {
+      if (*(short *)(sound_entry + 0x8c) != -1 ||
+          sound_cache_request_sound(
+            tag_block_get_element(
+              (char *)tag_block_get_element(
+                (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8)) +
+                  0x98,
+                (int)*(short *)(sound_entry + 0x8e), 0x48) +
+                0x3c,
+              (int)*(short *)(sound_entry + 0x90), 0x7c),
+            0, 1, 1)) {
+        *(unsigned short *)(sound_entry + 0x4) |= 2;
+        channel_index = sound_find_channel(sound_index);
+        if (channel_index != -1) {
+          if (channel_index < 0 || channel_index >= *(short *)0x4eb0b4) {
+            display_assert(
+              "index>=0 && index<sound_manager_globals.channel_count",
+              "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x428, 1);
+            system_exit(-1);
+          }
+          channel = (int *)(0x4fc3a0 + (int)channel_index * 0x18);
+          if (channel[0] != sound_index) {
+            sound_tag =
+              (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8));
+            if (!sound_valid_for_channel(
+                  *(short *)(sound_tag + 0x6e), *(short *)(sound_tag + 0x6c),
+                  *(unsigned short *)(sound_tag + 0x6),
+                  *(short *)(sound_entry + 0x14),
+                  *(unsigned short *)((char *)channel + 0x4))) {
+              display_assert(
+                "sound_valid_for_channel(definition->compression, "
+                "definition->encoding, definition->sample_rate, "
+                "sound->source.spatialization_mode, channel->type_flags)",
+                "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x642, 1);
+              system_exit(-1);
+            }
+            if (channel[0] != -1)
+              sound_stop_channel(channel[0]);
+            channel[0] = sound_index;
+            *(int *)(sound_entry + 0x84) = *(int *)0x4eaf4c;
+          } else {
+            if (*(short *)(sound_entry + 0x8c) != channel_index) {
+              display_assert("sound->playing_channel_index==channel_index",
+                             "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x654,
+                             1);
+              system_exit(-1);
+            }
+          }
+        } else {
+          sound_stop_channel(sound_index);
+        }
+      } else if (*(short *)(sound_entry + 0x8c) == -1 &&
+                 *(void **)(sound_entry + 0x10) !=
+                   (void *)&track_loop_impulse_sound) {
+        sound_tag = (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8));
+        class_def = (char *)sound_class_get_definition(
+          *(unsigned short *)(sound_tag + 0x4));
+        switch (*(short *)(class_def + 0xc)) {
+        case 0:
+          element = (char *)tag_block_get_element(
+            sound_tag + 0x98, (int)*(short *)(sound_entry + 0x8e), 0x48);
+          if (*(short *)(element + 0x3a) == -1)
+            *(short *)(element + 0x3a) = *(short *)(sound_entry + 0x90);
+          sound_stop_channel(sound_index);
+          break;
+        case 1:
+          break;
+        default:
+          display_assert(0, "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x679,
+                         1);
+          system_exit(-1);
+          break;
+        }
+      }
+    } else {
+      if ((*(unsigned short *)(sound_entry + 0x4) & 1) == 0) {
+        sound_tag = (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8));
+        class_def = (char *)sound_class_get_definition(
+          *(unsigned short *)(sound_tag + 0x4));
+        if (*(short *)(class_def + 0xc) != 1) {
+          display_assert(
+            "TEST_FLAG(sound->flags, _sound_delayed_bit) || "
+            "sound_class_get(sound_definition_get(sound->definition_index)->"
+            "class_index)->cache_miss_mode==_sound_cache_miss_mode_postpone",
+            "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x683, 1);
+          system_exit(-1);
+        }
+      }
+    }
+    sound_index = data_next_index(*(data_t **)0x4fdba4, sound_index);
+  }
 }
 
 void sound_dispose_from_old_map(void)

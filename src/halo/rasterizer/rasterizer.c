@@ -6576,15 +6576,15 @@ void rasterizer_frame_begin(float *elapsed)
     *(char *)0x3256d5 = val;
     *(char *)0x3256c8 = 2;
   }
-  if (*(float *)0x325694 == *(float *)0x2533c0)
+  if (*(float *)0x325694 == 0.0f)
     *(int *)0x325694 = *(int *)0x2af1ac;
-  if (*(float *)0x325698 == *(float *)0x2533c0)
+  if (*(float *)0x325698 == 0.0f)
     *(int *)0x325698 = *(int *)0x2af1b0;
-  if (*(float *)0x32569c == *(float *)0x2533c0)
+  if (*(float *)0x32569c == 0.0f)
     *(int *)0x32569c = *(int *)0x2af1b4;
-  if (*(float *)0x3256a0 == *(float *)0x2533c0)
+  if (*(float *)0x3256a0 == 0.0f)
     *(int *)0x3256a0 = *(int *)0x2af1b8;
-  ((void (*)(float *))0x157940)(elapsed);
+  FUN_00157940(elapsed);
 }
 
 void rasterizer_windows_begin(void)

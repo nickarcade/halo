@@ -420,6 +420,30 @@ const char *FUN_001205f0(void *string_table, int16_t index)
   return result;
 }
 
+/* animation_is_compressed (0x120620)
+ *
+ * Name: PAL 2342 model_animations.c animation_is_compressed (T2), whose
+ * match_assert("...model_animations.c", 38, animation) matches the
+ * "animation" assert at line 0x26 here.
+ * Confirmed: register arg — TEST ESI,ESI at entry, no prologue, no stack
+ *   args; every caller loads ESI before the CALL.
+ * Confirmed: TEST byte [ESI+0x3a],1 (compressed flag); then the byte
+ *   global 0x322600 (PAL: hs_model_animation_compression_enabled) or
+ *   dword [ESI+0x88] == 0 (PAL: compressed_data_offset).  Returns via
+ *   MOV EAX,1 / XOR EAX,EAX.
+ */
+char FUN_00120620(int animation)
+{
+  if (animation == 0) {
+    display_assert("animation", "c:\\halo\\SOURCE\\models\\model_animations.c",
+                   0x26, 1);
+    system_exit(-1);
+  }
+
+  return (*(unsigned char *)(animation + 0x3a) & 1) &&
+         (DAT_00322600 != '\0' || *(int *)(animation + 0x88) == 0);
+}
+
 /* build_damage_animation_index (0x120670) — flatten a (damage_type,
  * damage_direction, damage_part) triple into a single animation index.
  *
@@ -831,6 +855,44 @@ void animation_graph_node_matrices_from_orientations(
         write_index = write_index + 1;
       }
     } while ((short)read_index != (short)write_index);
+  }
+}
+
+/* interpolate_node_orientations (0x120ba0) -- blend each node's orientation
+ * from original toward target in place: fraction = (frame_index+1)/frame_count.
+ * Node records are 0x20 bytes: +0x00 rotation quaternion, +0x10 translation,
+ * +0x1c scale (layout from the loop's FMUL/FSTP offsets; same stride as
+ * overlay_animation_apply).  Asserts are model_animations.c 0x4fd/0x4fe with
+ * the XBE's own strings.  quaternions_interpolate_and_normalize (0x10cb60) is
+ * called (original, target, fraction, target) -- pushes at 0x120c46..0x120c50.
+ * Shape: PAL 2342 model_animations.c interpolate_node_orientations (T2). */
+void interpolate_node_orientations(int16_t node_count,
+                                   void *original_node_orientations,
+                                   void *target_node_orientations,
+                                   int16_t frame_index, int16_t frame_count)
+{
+  real fraction;
+  real inverse_fraction;
+  int16_t node_index;
+
+  fraction = (real)(frame_index + 1) / (real)frame_count;
+  inverse_fraction = *(float *)0x2533c8 - fraction;
+  assert_halt_msg_at("frame_count>0",
+                     "c:\\halo\\SOURCE\\models\\model_animations.c", 0x4fd,
+                     frame_count > 0);
+  assert_halt_msg_at("frame_index<frame_count",
+                     "c:\\halo\\SOURCE\\models\\model_animations.c", 0x4fe,
+                     frame_index < frame_count);
+
+  for (node_index = 0; node_index < node_count; node_index++) {
+    float *target = (float *)target_node_orientations + node_index * 8;
+    float *original = (float *)original_node_orientations + node_index * 8;
+
+    target[7] = inverse_fraction * original[7] + fraction * target[7];
+    quaternions_interpolate_and_normalize(original, target, fraction, target);
+    target[4] = inverse_fraction * original[4] + fraction * target[4];
+    target[5] = inverse_fraction * original[5] + fraction * target[5];
+    target[6] = inverse_fraction * original[6] + fraction * target[6];
   }
 }
 
@@ -1491,6 +1553,76 @@ void animation_get_keyframe_scale(void *animation, float frame,
   scalars_interpolate(this_kf_scale, next_kf_scale, blend, (float *)out_scale);
 }
 
+/* animation_update_internal (0x121c30) — Advance an animation state by one
+ * frame and classify the result.
+ *
+ * Confirmed: tag_get('antr', animation_graph_tag_index) at 0x121c3f; asserts
+ * "state" (line 0x93) when state is NULL (0x121c4a-0x121c68).
+ * Confirmed: animation element = tag_block_get_element(tag+0x74, state[0],
+ * 0xb4) at 0x121c7d. When out_sound is non-NULL, writes -1 unless
+ * element+0x3c != -1 and element+0x3e == state[1], in which case it writes
+ * dword +0xc of tag_block_get_element(tag+0x54, element+0x3c, 0x14)
+ * (0x121c8e-0x121cbe).
+ * Confirmed: INC word [state+2] at 0x121cc4, then compares against the frame
+ * count at element+0x22. Return codes: 4 = clamp to element+0x2e (bounded by
+ * count-1), 3 = pick next animation via model_animation_choose_random with
+ * element+0x42 and reset frame to 0, 2 = last frame with element+0x2e == 0,
+ * 1 = frame equals element+0x34 or element+0x36, else 0.
+ * Field meanings beyond these accesses are unknown. */
+int animation_update_internal(int update_kind, int animation_graph_tag_index,
+                              short *state, int *out_sound)
+{
+  char *antr_tag;
+  char *animation;
+  char *sound_element;
+  short frame;
+  short frame_count;
+  short loop_frame;
+  int clamped;
+
+  antr_tag = (char *)tag_get(0x616e7472, animation_graph_tag_index);
+  if (state == NULL) {
+    display_assert("state", "c:\\halo\\SOURCE\\models\\model_animations.c",
+                   0x93, 1);
+    system_exit(-1);
+  }
+  animation =
+    (char *)tag_block_get_element(antr_tag + 0x74, (int)state[0], 0xb4);
+  if (out_sound != NULL) {
+    if (*(short *)(animation + 0x3c) == -1 ||
+        *(short *)(animation + 0x3e) != state[1]) {
+      *out_sound = -1;
+    } else {
+      sound_element = (char *)tag_block_get_element(
+        antr_tag + 0x54, (int)*(short *)(animation + 0x3c), 0x14);
+      *out_sound = *(int *)(sound_element + 0xc);
+    }
+  }
+  state[1]++;
+  frame = state[1];
+  frame_count = *(short *)(animation + 0x22);
+  if (frame >= frame_count) {
+    loop_frame = *(short *)(animation + 0x2e);
+    if (loop_frame > 0) {
+      clamped = frame_count - 1;
+      if ((int)loop_frame <= frame_count - 1)
+        clamped = (int)loop_frame;
+      state[1] = (short)clamped;
+      return 4;
+    }
+    state[0] = model_animation_choose_random(
+      update_kind, animation_graph_tag_index, *(int16_t *)(animation + 0x42));
+    state[1] = 0;
+    return 3;
+  }
+  if (frame + 1 == (int)frame_count && *(short *)(animation + 0x2e) == 0)
+    return 2;
+  if (frame != *(short *)(animation + 0x34) &&
+      frame != *(short *)(animation + 0x36))
+    return 0;
+  return 1;
+}
+
 /* FUN_00121d60 (0x121d60) — Decode a single animation frame into per-node
  * rotation/translation/scale data.
  *
@@ -1682,7 +1814,7 @@ void FUN_00121d60(void *mode_tag, void *animation, int animation_index,
  *   +0x5c[]: translation channel present
  *   +0x6c[]: rotation channel present
  *   +0x7c[]: scale channel present
- * When the animation is not compressed (FUN_00120620 == 0) the values are
+ * When the animation is not compressed (animation_is_compressed == 0) the values are
  * read sequentially out of the frame data returned by FUN_00120500; when it
  * is compressed each present channel is evaluated from the keyframe streams
  * with a per-channel running component index.
@@ -1691,7 +1823,7 @@ void FUN_00121d60(void *mode_tag, void *animation, int animation_index,
  * +0x10 translation (3 floats), +0x1c scale (1 float).
  *
  * Confirmed: cdecl, 3 args, void return (MOV ESP,EBP epilogue at 0x12222d).
- * Confirmed: CALL FUN_00120620(animation@<esi>) at 0x12208f — no stack args,
+ * Confirmed: CALL animation_is_compressed(animation@<esi>) at 0x12208f — no stack args,
  * result byte stored to [EBP+0xb]. Confirmed: CALL FUN_00120500 at 0x122099
  * and 0x1221f5 (2 args: animation, frame_index). Confirmed: CALL
  * quaternion_decompress_8byte at 0x12211d (2 args: src_shorts, dest_floats).
@@ -1826,7 +1958,7 @@ void replacement_animation_apply(void *animation, short frame_index,
  * Confirmed: cdecl, 3 args, void return (MOV ESP,EBP epilogue at 0x122442).
  * Confirmed: frame_index is read as a 16-bit value (CMP DI,BX at 0x12225c;
  * MOVSX EAX,word ptr [EBP+0xc] at 0x1222d7).
- * Confirmed: CALL FUN_00120620(animation@<esi>) at 0x12226f — no stack args,
+ * Confirmed: CALL animation_is_compressed(animation@<esi>) at 0x12226f — no stack args,
  * result byte stored to [EBP+0xb]. Confirmed: CALL FUN_00120500 at 0x122279
  * and 0x12240a (2 args: animation, frame_index). Confirmed: CALL
  * quaternion_decompress_8byte at 0x122300 (2 args: src_shorts, dest_floats;
@@ -2098,6 +2230,54 @@ void model_get_node_matrices(void *mode_tag, float *node_matrices,
       write_index = write_index + 1;
     }
   } while ((short)read_index != (short)write_index);
+}
+
+/* FUN_00123c70 (0x123c70) — Build world node matrices from node orientation
+ * data by walking the mode-tag node tree breadth-first. */
+void FUN_00123c70(void *mode_tag, void *out_matrices, void *node_data,
+                  float *position, float *forward, float *up)
+{
+  short node_indices[64];
+  float node_matrix[13];
+  float root_matrix[13];
+  void *node_block;
+  void *node;
+  float *parent_matrix;
+  short node_index;
+  int read_index;
+  int write_index;
+
+  matrix4x3_from_forward_up_position(root_matrix, position, forward, up);
+  read_index = 0;
+  node_block = (char *)mode_tag + 0xb8;
+  if (0 < *(int *)((char *)mode_tag + 0xb8)) {
+    write_index = 1;
+    node_indices[0] = 0;
+    do {
+      node_index = node_indices[(short)read_index];
+      read_index = read_index + 1;
+      node = tag_block_get_element(node_block, (int)node_index, 0x9c);
+      if (node_index == 0) {
+        parent_matrix = root_matrix;
+      } else {
+        parent_matrix = (float *)((char *)out_matrices +
+                                  *(short *)((char *)node + 0x24) * 0x34);
+      }
+      FUN_00109500(node_matrix,
+                   (float *)((char *)node_data + (int)node_index * 0x20));
+      matrix4x3_multiply(
+        parent_matrix, node_matrix,
+        (float *)((char *)out_matrices + (int)node_index * 0x34));
+      if (*(short *)((char *)node + 0x20) != -1) {
+        node_indices[(short)write_index] = *(short *)((char *)node + 0x20);
+        write_index = write_index + 1;
+      }
+      if (*(short *)((char *)node + 0x22) != -1) {
+        node_indices[(short)write_index] = *(short *)((char *)node + 0x22);
+        write_index = write_index + 1;
+      }
+    } while ((short)read_index != (short)write_index);
+  }
 }
 
 /* FUN_00123d80 (0x123d80) — Binary-search a mode-tag block (+0xac, element

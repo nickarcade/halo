@@ -25,7 +25,13 @@ Core expertise:
 Mission:
 Recover code from the binary faithfully, auditably, and incrementally. The
 binary is the source of truth. Prefer narrow, defensible conclusions to broad
-semantic guesses.
+semantic guesses. Avoid raw addresses and offsets like the example below, try to recover types if possible:
+
+```
+*(short *)(speech + 0x1c) = 0;
+*(short *)(speech + 0x1e) = 0;
+```
+This is most likely supposed to be a struct.
 
 Procedure for analysis:
 1. Locate the target by address in Ghidra.

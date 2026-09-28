@@ -203,6 +203,23 @@ void ai_communication_dispose_from_old_map(void)
   data_make_invalid(*(void **)0x6324ec);
 }
 
+/* ai_communication_get_type_name (0x42cb0): bounds-checked lookup into the
+ * 57-entry communication-type name table at 0x2c8d78.
+ *
+ * Binary: MOV CX,[EBP+8]; TEST CX,CX; MOV EAX,0x253b58 ("<error>"); JL out;
+ * CMP CX,0x39; JGE out; MOVSX EAX,CX; MOV EAX,[EAX*4+0x2c8d78]; out: RET.
+ * Both compares are signed (JL/JGE). */
+const char *ai_communication_get_type_name(int16_t type)
+{
+  const char *result;
+
+  result = (const char *)0x253b58; /* "<error>" */
+  if (type >= 0 && type < 0x39) {
+    result = ((const char **)0x2c8d78)[type];
+  }
+  return result;
+}
+
 /* ai_communication_get_type_by_name (0x42ce0): case-sensitive search of the
  * 57-entry communication-type name table at 0x2c8d78 (an array of
  * `const char *`, one per row) for `name`. Returns the matching row index,
@@ -1255,6 +1272,157 @@ bool ai_conversation_line_begin(int conversation_handle)
   return result;
 }
 
+/* ai_conversation_line_perform (0x43a20) — per-tick driver for the currently
+ * armed line of one running conversation: start the line's sound (unit speech
+ * or a scripted sound) once nothing blocks it, then wait for it to finish and
+ * for the line's countdown to expire, and report whether the line is done.
+ *
+ * Confirmed (disasm 0x43a20-0x43ca8):
+ *   - Conversation handle arrives in EAX (PUSH EAX at 0x43a2d with no prior
+ *     def of EAX); every exit loads AL from byte [conversation+0x63]
+ *     (0x43c69, 0x43c91, 0x43ca1), so the result is that byte.
+ *   - tag_block_get_element(scenario+0x468, word[conversation+2], 0x74) is
+ *     kept in [EBP-0x8] and pushed as the first %s of console_printf.
+ *   - Participant loop: short counter in BX, bound dword [conv_tag+0x50]
+ *     reloaded each pass; flags word [conversation+0x4e] reloaded each pass.
+ *     Actor tests: word +0x6c == 0xc, DWORD +0xa8 != -1 (the actor_t field
+ *     is typed int16, so raw access is used), bytes +0xa1 / +0xa0 == 0.
+ *   - unit_test_speech pushes (last arg first): &[EBP-0xc] (sound index,
+ *     preset from +0x5c), &[EBP-0x10] (dword -1), 0, EBX=1, 0, 6, unit handle
+ *     (+0x54); ADD ESP,0x1c = 7 stack dwords.
+ *     The type local is a dword store, so it is int passed via `short *`.
+ *   - Result 1 skips to the +0x61 re-check without marking the line started;
+ *     results <= 0 fall through to the marking stores.
+ *   - 0x30-byte record at EBP-0x40: +0x00=6, +0x02=-1, +0x04=conv+0x5c,
+ *     +0x10=conv+0x58, +0x14/+0x16/+0x18=-1, +0x1c/+0x1e=1, +0x20=conv+0x54,
+ *     +0x24=0; unit_speak(conv+0x54 reloaded, count, record).
+ *   - scripted_sound_new(conv+0x5c, -1, 1.0f) (PUSH 0x3f800000).
+ *   - +0x62: object_get_and_verify_type(conv+0x54, 3), word +0x338 != 6.
+ * Uncertain: meaning of the +0x4e flag bits 0x08/0x10/0x20, of actor
+ *   state_action 0xc, and of bytes +0x05/+0x08/+0x09/+0x60. */
+bool ai_conversation_line_perform(int conversation_handle)
+{
+  char *conversation;
+  char *conv_tag;
+  char *actor;
+  char communication[0x30];
+  int sound_definition_index;
+  int vocalization_type;
+  int actor_handle;
+  short index;
+  short communication_count;
+  char blocked;
+
+  conversation = (char *)datum_get(*(data_t **)0x6324ec, conversation_handle);
+  conv_tag =
+    (char *)tag_block_get_element((char *)global_scenario_get() + 0x468,
+                                  (int)*(int16_t *)(conversation + 2), 0x74);
+  if (*(char *)(conversation + 0x63) != 0) {
+    return *(char *)(conversation + 0x63);
+  }
+  if (*(char *)(conversation + 0x61) == 0) {
+    blocked = 0;
+    if (*(int32_t *)(conversation + 0x5c) != -1) {
+      if ((*(uint16_t *)(conversation + 0x4e) & 0x30) != 0) {
+        for (index = 0; (int)index < *(int32_t *)(conv_tag + 0x50); index++) {
+          actor_handle = *(int32_t *)(conversation + index * 4 + 0x28);
+          if (actor_handle != -1) {
+            actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+            if (((*(uint16_t *)(conversation + 0x4e) & 0x20) != 0 ||
+                 ((*(uint16_t *)(conversation + 0x4e) & 0x10) != 0 &&
+                  actor_handle == *(int32_t *)(conversation + 0x50))) &&
+                *(int16_t *)(actor + 0x6c) == 0xc &&
+                *(int32_t *)(actor + 0xa8) != -1 &&
+                *(char *)(actor + 0xa1) == 0 && *(char *)(actor + 0xa0) == 0) {
+              blocked = 1;
+            }
+          }
+        }
+      }
+      if (sound_scripted_dialog_is_playing() || blocked != 0) {
+        goto check_started;
+      }
+      if (*(int32_t *)(conversation + 0x54) == -1 ||
+          *(char *)(conversation + 0x60) != 0) {
+        scripted_sound_new(*(int32_t *)(conversation + 0x5c), -1, 1.0f);
+      } else {
+        sound_definition_index = *(int32_t *)(conversation + 0x5c);
+        vocalization_type = -1;
+        communication_count = unit_test_speech(
+          *(int32_t *)(conversation + 0x54), 6, 0, 1, NULL,
+          (short *)&vocalization_type, &sound_definition_index);
+        if (communication_count == 1) {
+          goto check_started;
+        }
+        if (communication_count > 0) {
+          csmemset(communication, 0, 0x30);
+          *(short *)(communication + 0x00) = 6;
+          *(short *)(communication + 0x02) = -1;
+          *(int32_t *)(communication + 0x04) =
+            *(int32_t *)(conversation + 0x5c);
+          *(int32_t *)(communication + 0x10) =
+            *(int32_t *)(conversation + 0x58);
+          *(short *)(communication + 0x14) = -1;
+          *(short *)(communication + 0x16) = -1;
+          *(short *)(communication + 0x18) = -1;
+          *(short *)(communication + 0x1c) = 1;
+          *(short *)(communication + 0x1e) = 1;
+          *(int32_t *)(communication + 0x20) =
+            *(int32_t *)(conversation + 0x54);
+          *(short *)(communication + 0x24) = 0;
+          if (*(char *)0x5aca5f != '\0') {
+            console_printf(0, "%s: speak %s", conv_tag,
+                           tag_get_name(*(int32_t *)(conversation + 0x5c)));
+          }
+          unit_speak(*(int32_t *)(conversation + 0x54), communication_count,
+                     communication);
+        }
+      }
+    }
+    *(char *)(conversation + 0x61) = 1;
+    *(char *)(conversation + 5) = 1;
+  check_started:
+    if (*(char *)(conversation + 0x61) == 0) {
+      return *(char *)(conversation + 0x63);
+    }
+  }
+  if (*(char *)(conversation + 0x62) == 0) {
+    if (*(int32_t *)(conversation + 0x54) == -1) {
+      if (*(int32_t *)(conversation + 0x5c) == -1 ||
+          scripted_sound_time(*(int32_t *)(conversation + 0x5c)) == 0) {
+        *(char *)(conversation + 0x62) = 1;
+      } else {
+        *(char *)(conversation + 0x62) = 0;
+      }
+    } else {
+      *(char *)(conversation + 0x62) =
+        *(int16_t *)((char *)object_get_and_verify_type(
+                       *(int32_t *)(conversation + 0x54), 3) +
+                     0x338) != 6;
+    }
+    if (*(char *)(conversation + 0x62) == 0) {
+      return *(char *)(conversation + 0x63);
+    }
+  }
+  if (*(int16_t *)(conversation + 0x4c) > 0) {
+    *(int16_t *)(conversation + 0x4c) -= 1;
+    return *(char *)(conversation + 0x63);
+  }
+  *(char *)(conversation + 0x63) = 1;
+  if ((*(uint16_t *)(conversation + 0x4e) & 8) != 0) {
+    if (*(char *)(conversation + 8) == 0) {
+      *(char *)(conversation + 8) = 1;
+      *(char *)(conversation + 9) = 0;
+    }
+    if (*(char *)(conversation + 9) != 0) {
+      *(char *)(conversation + 8) = 0;
+      return *(char *)(conversation + 0x63);
+    }
+    *(char *)(conversation + 0x63) = 0;
+  }
+  return *(char *)(conversation + 0x63);
+}
+
 /* actor_reset_idle_vocalization_timer (0x43ce0) — arm the idle/fighting
  * vocalization countdown for an actor: pick a random delay from the 'actr'
  * tag's idle-vocalization range (a separate min/max pair for in-combat vs
@@ -2084,6 +2252,502 @@ int ai_communication_find_global_actor_to_talk(int16_t param_1, int param_2,
   return best_handle;
 }
 
+/* ai_conversation_begin (0x45a10) — try to start a scenario conversation.
+ * Resolves every participant through ai_conversation_find_participant,
+ * rejects the start when a required participant is missing (can_begin = 0),
+ * not yet ready, or (definition flag 0x40) outside the trigger distance
+ * (keep_trying = 1).  Definition flag 0x10 requires some participant to see
+ * a player; flag 0x80 requires a player to look at a participant.  On success
+ * every assigned participant's unit gets its dialogue variant (+0x6e) set and
+ * conversation[6] = 1.  On failure *out_keep_trying receives
+ * keep_trying && (definition flag 0x40).  Returns can_begin.
+ *
+ * Confirmed (live Ghidra disasm 0x45a10-0x460d6; bundle artifact held only
+ * connection-error payloads):
+ *   - The participant finder at 0x447d0 takes the conversation handle
+ *     in EAX (MOV EAX,[EBP+8] before each CALL; callee PUSH EAX at 0x447e2 into
+ *     datum_get) plus 5 cdecl args (ADD ESP,0x14): index, &any_assigned,
+ *     &saw_flag2 (NULL in the second pass, PUSH 0 at 0x45b55),
+ *     &participant_flag, &min_distance.  Return (AL) is only tested in the
+ *     second pass (0x45b68).
+ *   - Out-flag byte [EBP-2] is reused by the third loop as "missing"; float
+ *     [EBP-0x1c] and dword [EBP-0x10] are reused per block (block locals).
+ *   - FCOMP/TEST AH,0x41/JNZ at 0x45cbf and 0x45cd3: def+0x24 > 0.0f and
+ *     min_distance > def+0x24; 0x45e1c TEST AH,5/JP: dist < best.
+ *   - console_printf 0x45ce4: (0, fmt, definition, (double)min_distance,
+ *     (double)def+0x24) from FSTP [ESP] / FSTP [ESP+8].
+ *   - unit_can_see_point third arg is PUSH 0x3f060a92 (0.5235988f).
+ *   - assert string 0x259ff0 / line 0x1216: conv+0x18 is dialogue_indices
+ *     (int16, < 6).
+ * Uncertain: meaning of find_participant out-flags 2/3/4 beyond the observed
+ * writes, definition flags 0x10/0x20/0x40/0x80, unit +0x6e / +0x1b4 bit 8. */
+char ai_conversation_begin(int conversation_handle, char *out_keep_trying)
+{
+  int state_data[33];
+  data_iter_t iter;
+  unsigned int ready_mask;
+  char retry_flag;
+  float min_distance;
+  char found_not_ready;
+  char *conversation;
+  int16_t i;
+  char keep_trying;
+  char *definition;
+  char any_assigned;
+  char saw_flag2;
+  char participant_flag;
+  char can_begin;
+  int *participants;
+  char *participant;
+  unsigned int bit;
+  uint16_t flags;
+
+  conversation = (char *)datum_get(*(data_t **)0x6324ec, conversation_handle);
+  definition =
+    (char *)tag_block_get_element((char *)global_scenario_get() + 0x468,
+                                  *(int16_t *)(conversation + 2), 0x74);
+  ready_mask = 0;
+  saw_flag2 = '\0';
+  retry_flag = '\0';
+  any_assigned = '\0';
+  can_begin = '\1';
+  keep_trying = '\0';
+  min_distance = 3.4028235e38f;
+  *(uint32_t *)(conversation + 0x14) = 0;
+  csmemset(conversation + 0x28, -1, 0x20);
+  csmemset(conversation + 0x18, -1, 0x10);
+  participants = (int *)(definition + 0x50);
+  if (*participants > 0) {
+    i = 0;
+    do {
+      participant = (char *)tag_block_get_element(participants, i, 0x54);
+      if ((participant[2] & 4) == 0) {
+        participant_flag = '\0';
+        ai_conversation_find_participant(i, &any_assigned, &saw_flag2,
+                                         &participant_flag, &min_distance,
+                                         conversation_handle);
+        if (participant_flag != '\0') {
+          ready_mask |= 1 << i;
+        } else {
+          ready_mask &= ~(1 << i);
+        }
+      }
+      i++;
+    } while (i < *participants);
+    if (saw_flag2 != '\0') {
+      for (i = 0; i < *participants; i++) {
+        participant = (char *)tag_block_get_element(participants, i, 0x54);
+        bit = 1 << i;
+        if ((*(uint32_t *)(conversation + 0x14) & bit) == 0 &&
+            (participant[2] & 4) != 0) {
+          participant_flag = '\0';
+          if (ai_conversation_find_participant(i, &any_assigned, NULL,
+                                               &participant_flag, &min_distance,
+                                               conversation_handle) != '\0') {
+            retry_flag = '\1';
+          } else if (participant_flag != '\0') {
+            ready_mask |= bit;
+          } else {
+            ready_mask &= ~bit;
+          }
+        }
+      }
+    }
+  }
+  found_not_ready = '\0';
+  participant_flag = '\0';
+  for (i = 0; i < *participants; i++) {
+    participant = (char *)tag_block_get_element(participants, i, 0x54);
+    flags = *(uint16_t *)(participant + 2);
+    if ((flags & 1) == 0 &&
+        (*(uint32_t *)(conversation + 0x14) & (1 << i)) == 0 &&
+        ((flags & 2) == 0 || retry_flag == '\0') &&
+        ((flags & 4) == 0 || saw_flag2 != '\0')) {
+      bit = (1 << i) & ready_mask;
+      if (bit != 0) {
+        found_not_ready = '\1';
+      } else {
+        participant_flag = '\1';
+      }
+      if (*(char *)0x5aca5f != '\0') {
+        const char *name;
+        int16_t name_index;
+        int index;
+
+        name = (const char *)0x254384;
+        name_index = *(int16_t *)(participant + 8);
+        if (name_index == -1) {
+          name_index = *(int16_t *)(participant + 0xa);
+        }
+        if (name_index >= 0) {
+          index = name_index;
+          if (index < *(int *)((char *)global_scenario_get() + 0x204)) {
+            name = (const char *)tag_block_get_element(
+              (char *)global_scenario_get() + 0x204, index, 0x24);
+          }
+        }
+        console_printf(0,
+                       bit != 0 ?
+                         "%s: found participant %d/%s but not ready to "
+                         "talk yet" :
+                         "%s: could not find participant %d/%s",
+                       definition, (int)i, name);
+      }
+      break;
+    }
+  }
+  if (participant_flag != '\0') {
+    can_begin = '\0';
+  } else if (found_not_ready != '\0') {
+    keep_trying = '\1';
+    can_begin = '\0';
+  } else if ((definition[0x20] & 0x40) != 0 &&
+             *(float *)(definition + 0x24) > 0.0f && any_assigned != '\0' &&
+             min_distance > *(float *)(definition + 0x24)) {
+    if (*(char *)0x5aca5f != '\0') {
+      console_printf(0,
+                     "%s: participants currently outside trigger-dist %.1f > "
+                     "%.1f, must wait",
+                     definition, (double)min_distance,
+                     (double)*(float *)(definition + 0x24));
+    }
+    keep_trying = '\1';
+    can_begin = '\0';
+  }
+  *(int32_t *)(conversation + 0x10) = -1;
+  if (can_begin != '\0') {
+    if ((definition[0x20] & 0x10) != 0) {
+      if (any_assigned == '\0') {
+        can_begin = '\0';
+      } else {
+        float best_distance;
+        char *player;
+
+        best_distance = 3.4028235e38f;
+        data_iterator_new(&iter, player_data);
+        player = (char *)data_iterator_next(&iter);
+        while (player != NULL) {
+          if (*(int *)(player + 0x34) != -1) {
+            float distance;
+            int16_t j;
+            int prop_handle;
+            char *prop;
+
+            distance = 3.4028235e38f;
+            for (j = 0; j < *(int *)(definition + 0x50); j++) {
+              prop_handle = *(int *)(conversation + j * 4 + 0x28);
+              if (prop_handle != -1 &&
+                  (prop_handle = prop_get_active_by_unit_index(
+                     prop_handle, *(int *)(player + 0x34))) != -1) {
+                prop = (char *)datum_get(prop_data, prop_handle);
+                if (*(int16_t *)(prop + 0x24) >= 2 &&
+                    *(int16_t *)(prop + 0x24) <= 3 &&
+                    distance > *(float *)(prop + 0x11c)) {
+                  distance = *(float *)(prop + 0x11c);
+                }
+              }
+            }
+            if (distance < best_distance) {
+              *(int *)(conversation + 0x10) = *(int *)(player + 0x34);
+              best_distance = distance;
+            }
+          }
+          player = (char *)data_iterator_next(&iter);
+        }
+        if (*(int *)(conversation + 0x10) == -1) {
+          if (*(char *)0x5aca5f != '\0') {
+            console_printf(0, "%s: cannot start, nobody can see player",
+                           definition);
+          }
+          if ((definition[0x20] & 0x40) != 0) {
+            keep_trying = '\1';
+          }
+          can_begin = '\0';
+        }
+      }
+    }
+    if (can_begin != '\0' && (definition[0x20] & 0x80) != 0 &&
+        any_assigned != '\0') {
+      char *player;
+      char looking;
+
+      looking = '\0';
+      data_iterator_new(&iter, player_data);
+      player = (char *)data_iterator_next(&iter);
+      while (player != NULL && looking == '\0') {
+        if (*(int *)(player + 0x34) != -1) {
+          int16_t j;
+          int actor_handle;
+
+          for (j = 0; j < *(int *)(definition + 0x50); j++) {
+            actor_handle = *(int *)(conversation + j * 4 + 0x28);
+            if (actor_handle != -1 &&
+                unit_can_see_point(
+                  *(int *)(player + 0x34),
+                  (float *)((char *)datum_get(*(data_t **)0x6325a4,
+                                              actor_handle) +
+                            0x120),
+                  0.5235988f) != '\0') {
+              looking = '\1';
+              break;
+            }
+          }
+        }
+        player = (char *)data_iterator_next(&iter);
+      }
+      if (looking == '\0') {
+        if (*(char *)0x5aca5f != '\0') {
+          console_printf(0, "%s: cannot start, players are not looking at us",
+                         definition);
+        }
+        if ((definition[0x20] & 0x40) != 0) {
+          keep_trying = '\1';
+        }
+        can_begin = '\0';
+      }
+    }
+    if (can_begin != '\0') {
+      int16_t j;
+
+      for (j = 0; j < *(int *)(definition + 0x50); j++) {
+        if ((*(uint32_t *)(conversation + 0x14) & (1 << j)) != 0 &&
+            *(int *)(conversation + j * 4 + 0x28) != -1) {
+          char *actor;
+          char *unit;
+          int16_t variant;
+
+          participant =
+            (char *)tag_block_get_element(definition + 0x50, j, 0x54);
+          actor = (char *)datum_get(*(data_t **)0x6325a4,
+                                    *(int *)(conversation + j * 4 + 0x28));
+          unit = (char *)object_get_and_verify_type(*(int *)(actor + 0x18), 3);
+          if (*(int16_t *)(participant + 0xa) != -1) {
+            object_name_list_set_handle(*(int16_t *)(participant + 0xa),
+                                        *(int *)(actor + 0x18));
+          }
+          if ((definition[0x20] & 0x20) != 0 &&
+              action_converse_setup(*(int *)(conversation + j * 4 + 0x28),
+                                    conversation_handle, state_data) != '\0') {
+            actor_action_change(*(int *)(conversation + j * 4 + 0x28), 0xc,
+                                (int)state_data);
+          }
+          if (!(*(int16_t *)(conversation + j * 2 + 0x18) >= 0 &&
+                *(int16_t *)(conversation + j * 2 + 0x18) < 6)) {
+            display_assert(
+              "(conversation->dialogue_indices[index] >= 0) && "
+              "(conversation->dialogue_indices[index] < "
+              "MAXIMUM_DIALOGUE_VARIANTS_PER_CONVERSATION_PARTICIPANT)",
+              "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x1216, 1);
+            system_exit(-1);
+          }
+          variant =
+            *(int16_t *)(participant +
+                         *(int16_t *)(conversation + j * 2 + 0x18) * 2 + 0x18);
+          if (*(int16_t *)(unit + 0x6e) != variant) {
+            *(int16_t *)(unit + 0x6e) = variant;
+            *(uint32_t *)(unit + 0x1b4) &= 0xfffffeff;
+          }
+        }
+      }
+      conversation[6] = '\1';
+      return can_begin;
+    }
+  }
+  if (keep_trying != '\0' && (definition[0x20] & 0x40) != 0) {
+    *out_keep_trying = '\1';
+  } else {
+    *out_keep_trying = '\0';
+  }
+  return can_begin;
+}
+
+/* ai_communication_find_actor_to_reply_to_player (0x460e0) — walk the reply
+ * table at 0x258eb0 (0x24-byte entries, sentinel field_00 == -1) for entries
+ * whose field_00 equals param_3 and whose field_02 is -1 or equals param_4.
+ * Each matching entry rolls its chance (+0x14) and then picks a replier by
+ * entry type (+0x04): 2/4 -> ai_communication_find_global_actor_to_talk with
+ * mode 1/2 around unit_handle; 3 -> the actor of param_2's unit (+0x1a4).
+ * A found actor is rejected while its team's reply timer (+4 of the
+ * 0x331f14 slot) is still in the future.  The first accepted actor stops the
+ * walk.  *out_scale (when non-NULL) receives the time-since-last-reply
+ * scale clamped to [0,1] (default 1.0).  Returns the actor handle or -1.
+ *
+ * Confirmed (live Ghidra disasm 0x460e0-0x46521; bundle artifact held only
+ * connection-error payloads):
+ *   - Five cdecl stack args: [EBP+8] int (object_get_and_verify_type(.,3)),
+ *     [EBP+0xc] int (object_try_and_get_and_verify_type(.,3)), [EBP+0x10]
+ *     and [EBP+0x14] compared with CMP word, [EBP+0x18] float * written at
+ *     0x46519.  EAX = [EBP-8] at 0x4651b is the returned actor handle.
+ *   - find_global_actor_to_talk pushes (0x462ad-0x462df): mode, -1,
+ *     0x41100000 (9.0f bits; callee param is int), -1, zero-extended
+ *     entry+0x0a, the short read from 0x257c68[entry+0x0a] (EBX), zero-
+ *     extended entry+0x06, zero-extended entry+0x08, 0; EDI = unit_handle,
+ *     BX = unit+0x68.  ADD ESP,0x2c also covers object_get_and_verify_type.
+ *   - chance test FCOMP [0x2533c0]/TEST AH,0x41/JNZ: proceed only when
+ *     chance > 0.0f.  Roll FLD r/FCOMP chance/TEST AH,5/JP: accept only
+ *     when r < chance (NaN rejects).
+ *   - scale: FILD (now - slot[0]) * [0x25620c]; TEST AH,5/JP: < 0 -> 0.0f;
+ *     TEST AH,0x41/JNZ: > [0x2533c8] -> 1.0f.
+ *   - Final error(2, buffer) passes the accumulated buffer as the format.
+ * Uncertain: meanings of param_2..param_4 and entry fields +0x06/+0x08/+0x0a
+ *   beyond their observed uses; the 0x257c68 table; global 0x5aca44 bit
+ *   vector semantics (suppresses the final log). */
+int ai_communication_find_actor_to_reply_to_player(int unit_handle, int param_2,
+                                                   int16_t param_3,
+                                                   int16_t param_4,
+                                                   float *out_scale)
+{
+  char buffer[1024];
+  int now;
+  int reply_index;
+  float roll;
+  float scale;
+  int actor_handle;
+  char print_log;
+  char *entry;
+  int16_t vocalization_value;
+  int16_t team;
+  int32_t *slot;
+  void *unit;
+  int bit;
+
+  actor_handle = -1;
+  scale = 1.0f;
+  if (*(char *)(*(char **)0x632574 + 0x10) != '\0' && param_3 != -1) {
+    print_log = *(char *)0x5aca44;
+    if (*(char *)0x5aca4f != '\0') {
+      crt_sprintf(buffer, "PLAYER-REPLY %s ",
+                  dialogue_get_vocalization_name(param_3, 1));
+    }
+    if (*(char *)0x5aca44 != '\0') {
+      bit = (int)param_3;
+      if ((((int *)0x5aca24)[bit >> 5] & (1 << (bit & 0x1f))) != 0) {
+        print_log = '\0';
+      }
+    }
+    reply_index = 0;
+    entry = (char *)0x258eb0;
+    do {
+      if (*(int16_t *)(entry + 0x00) == param_3 &&
+          (*(int16_t *)(entry + 0x02) == -1 ||
+           *(int16_t *)(entry + 0x02) == param_4)) {
+        vocalization_value =
+          *(int16_t *)(0x257c68 + (int)*(int16_t *)(entry + 0x0a) * 2);
+        if (*(char *)0x5aca44 != '\0') {
+          bit = (int)*(int16_t *)(entry + 0x06);
+          if ((((int *)0x5aca24)[bit >> 5] & (1 << (bit & 0x1f))) != 0) {
+            print_log = '\0';
+          }
+        }
+        if (sound_scripted_dialog_is_playing() &&
+            (*(uint8_t *)(entry + 0x0c) & 1) == 0) {
+          if (*(char *)0x5aca4f != '\0') {
+            csstrcat(buffer, "[scripted-override] ");
+          }
+        } else if (*(float *)(entry + 0x14) > *(float *)0x2533c0) {
+          roll =
+            random_math_real((unsigned int *)get_global_random_seed_address());
+          if ((game_connection() == 0 && *(char *)0x5aca45 != '\0') ||
+              roll < *(float *)(entry + 0x14)) {
+            switch (*(int16_t *)(entry + 0x04)) {
+            case 2:
+              unit = object_get_and_verify_type(unit_handle, 3);
+              actor_handle = ai_communication_find_global_actor_to_talk(
+                1, -1, 0x41100000, -1, *(uint16_t *)(entry + 0x0a),
+                vocalization_value, *(uint16_t *)(entry + 0x06),
+                *(uint16_t *)(entry + 0x08), 0, unit_handle,
+                *(int16_t *)((char *)unit + 0x68));
+              break;
+            case 3:
+              unit = object_try_and_get_and_verify_type(param_2, 3);
+              if (unit != NULL) {
+                actor_handle = *(int *)((char *)unit + 0x1a4);
+              }
+              break;
+            case 4:
+              unit = object_get_and_verify_type(unit_handle, 3);
+              actor_handle = ai_communication_find_global_actor_to_talk(
+                2, -1, 0x41100000, -1, *(uint16_t *)(entry + 0x0a),
+                vocalization_value, *(uint16_t *)(entry + 0x06),
+                *(uint16_t *)(entry + 0x08), 0, unit_handle,
+                *(int16_t *)((char *)unit + 0x68));
+              break;
+            }
+            if (actor_handle == -1) {
+              if (*(char *)0x5aca4f != '\0') {
+                csstrcat(buffer, csprintf((char *)0x5ab100, "[%s nobody] ",
+                                          dialogue_get_vocalization_name(
+                                            *(uint16_t *)(entry + 0x06), 1)));
+              }
+              goto next_entry;
+            }
+            team = actor_communication_team(actor_handle);
+            if (team != -1) {
+              slot =
+                (int32_t *)(*(char **)0x331f14 +
+                            ((int)team + (int)(int16_t)reply_index * 2) * 8);
+              now = game_time_get();
+              if (slot[0] != -1) {
+                scale = (float)(now - slot[0]) * *(float *)0x25620c;
+                if (scale < *(float *)0x2533c0) {
+                  scale = 0.0f;
+                } else if (scale > *(float *)0x2533c8) {
+                  scale = 1.0f;
+                }
+              }
+              if ((game_connection() != 0 || *(char *)0x5aca46 == '\0') &&
+                  slot[1] != -1 && slot[1] - now > 0) {
+                if (*(char *)0x5aca4f != '\0') {
+                  csstrcat(buffer,
+                           csprintf((char *)0x5ab100, "[%s %s-d-dis/%d] ",
+                                    dialogue_get_vocalization_name(
+                                      *(uint16_t *)(entry + 0x06), 1),
+                                    *(char **)(0x2c8d6c + (int)team * 8),
+                                    slot[1] - now));
+                }
+                actor_handle = -1;
+                goto next_entry;
+              }
+            }
+            if (*(char *)0x5aca4f != '\0') {
+              csstrcat(buffer, csprintf((char *)0x5ab100, "[%s found-actor] ",
+                                        dialogue_get_vocalization_name(
+                                          *(uint16_t *)(entry + 0x06), 1)));
+            }
+          } else {
+            if (*(char *)0x5aca4f != '\0') {
+              csstrcat(buffer, csprintf((char *)0x5ab100, "[%s rand%.2f>%.2f] ",
+                                        dialogue_get_vocalization_name(
+                                          *(uint16_t *)(entry + 0x06), 1),
+                                        (double)roll,
+                                        (double)*(float *)(entry + 0x14)));
+            }
+          }
+        } else {
+          if (*(char *)0x5aca4f != '\0') {
+            csstrcat(buffer, csprintf((char *)0x5ab100, "[%s 0-player-chance] ",
+                                      dialogue_get_vocalization_name(
+                                        *(uint16_t *)(entry + 0x06), 1)));
+          }
+        }
+        if (actor_handle != -1) {
+          break;
+        }
+      }
+    next_entry:
+      reply_index++;
+      entry += 0x24;
+    } while (*(int16_t *)(entry + 0x00) != -1);
+    if (*(char *)0x5aca4f != '\0' && print_log == '\0') {
+      error(2, buffer);
+    }
+  }
+  if (out_scale != NULL) {
+    *out_scale = scale;
+  }
+  return actor_handle;
+}
+
 /* ai_conversation (0x46b60) — script entry point that starts a scenario
  * conversation by index.  Validates the 16-bit index against the scenario
  * tag's conversation block count at +0x468, allocates/force-starts the
@@ -2182,4 +2846,126 @@ int ai_conversation(int param_1, int param_2)
     ai_conversation_finish(conversation_handle, '\1', '\0');
   }
   return 0;
+}
+
+/* ai_conversation_update (0x46cb0) — per-tick driver for every live
+ * conversation datum in the "ai conversation" pool (0x6324ec).  Not-yet-begun
+ * conversations retry ai_conversation_begin every 30 ticks from their +0xc
+ * timestamp and are finished ('\1','\0') once begin clears the keep-trying
+ * flag; begun ones advance their line index (+0x48) through
+ * ai_conversation_line_perform / ai_conversation_line_begin until the scenario
+ * definition's +0x5c count is exhausted, which sets +0x7; +0x7 set finishes
+ * the conversation ('\0','\1'); otherwise participants get their
+ * actor +0x1dc/+0x1e0 fields refreshed.
+ *
+ * Confirmed (disasm 0x46cb0-0x46f0d, live Ghidra; bundle artifact held only
+ * connection-error payloads):
+ *   - game_time_get() is called once, before data_iterator_new.
+ *   - tag_block_get_element(global_scenario_get() + 0x468, *(short*)(c+2),
+ *     0x74): pushes 0x74, index, block — (block, index, element_size).
+ *   - ai_conversation_begin (0x45a10): pushes LEA [EBP-1] then iter handle
+ *     [EBP-0x14] (iter at EBP-0x1c, datum_handle at +8), ADD ESP,8; the
+ *     keep_trying byte is set to 1 before the modulo test; return unused.
+ *   - console_printf channel is EDX (the zero remainder) at the first site,
+ *     PUSH 0 elsewhere; the scenario definition pointer is the %s arg.
+ *   - ai_conversation_line_perform / _line_begin take the handle in EAX; the
+ *     begin return (AL) becomes the next iteration's line-ready flag.
+ *   - After a successful perform, datum_get(conversation pool, handle) and
+ *     tag_block_get_element(...) are called again and the result discarded
+ *     (EDI keeps the original definition pointer).
+ *   - Actor loop: 16-bit counter (BX), bit test of +0x14, handle at
+ *     +0x28 + i*4, actor pool 0x6325a4; the +0x4e flags byte test for bit 0
+ *     and word test for bits 1/2.
+ * Uncertain: semantics of conversation +0x6/+0x7/+0x14/+0x4e/+0x54/+0x58 and
+ * actor +0x18/+0x1dc/+0x1e0 beyond the observed accesses. */
+void ai_conversation_update(void)
+{
+  data_iter_t iter;
+  char *conversation;
+  char *definition;
+  actor_t *actor;
+  int time;
+  int actor_handle;
+  int16_t member;
+  char keep_trying;
+  char line_ready;
+
+  time = game_time_get();
+  data_iterator_new(&iter, *(data_t **)0x6324ec);
+  conversation = (char *)data_iterator_next(&iter);
+  while (conversation != 0) {
+    definition =
+      (char *)tag_block_get_element((char *)global_scenario_get() + 0x468,
+                                    *(int16_t *)(conversation + 2), 0x74);
+    if (conversation[6] == '\0') {
+      keep_trying = '\1';
+      if ((time - *(int32_t *)(conversation + 0xc)) % 0x1e == 0) {
+        if (*(char *)0x5aca5f != '\0') {
+          console_printf(0, "%s: trying to begin", definition);
+        }
+        ai_conversation_begin((int)iter.datum_handle, &keep_trying);
+      }
+      if (conversation[6] == '\0' && keep_trying == '\0') {
+        if (*(char *)0x5aca5f != '\0') {
+          console_printf(0, "%s: unable to begin, and no point in continuing",
+                         definition);
+        }
+        ai_conversation_finish((int)iter.datum_handle, '\1', '\0');
+      }
+    }
+    if (conversation[6] != '\0' && conversation[7] == '\0') {
+      line_ready =
+        (*(int16_t *)(conversation + 0x48) >= 0 &&
+         *(int16_t *)(conversation + 0x48) < *(int32_t *)(definition + 0x5c));
+      for (;;) {
+        if (line_ready != '\0') {
+          if (!ai_conversation_line_perform((int)iter.datum_handle)) {
+            goto line_pending;
+          }
+          tag_block_get_element(
+            (char *)global_scenario_get() + 0x468,
+            *(int16_t *)((char *)datum_get(*(data_t **)0x6324ec,
+                                           (int)iter.datum_handle) +
+                         2),
+            0x74);
+        }
+        *(int16_t *)(conversation + 0x48) =
+          *(int16_t *)(conversation + 0x48) + 1;
+        if (*(int16_t *)(conversation + 0x48) >=
+            *(int32_t *)(definition + 0x5c)) {
+          break;
+        }
+        line_ready = ai_conversation_line_begin((int)iter.datum_handle);
+      }
+      if (*(char *)0x5aca5f != '\0') {
+        console_printf(0, "%s: no more lines to play", definition);
+      }
+      conversation[7] = '\1';
+    }
+  line_pending:
+    if (conversation[7] != '\0') {
+      ai_conversation_finish((int)iter.datum_handle, '\0', '\1');
+    } else if (conversation[6] != '\0') {
+      for (member = 0; member < *(int32_t *)(definition + 0x50); member++) {
+        if ((*(uint32_t *)(conversation + 0x14) & (1 << member)) != 0 &&
+            (actor_handle = *(int32_t *)(conversation + member * 4 + 0x28),
+             actor_handle != -1)) {
+          actor = (actor_t *)datum_get(*(data_t **)0x6325a4, actor_handle);
+          actor->field_1dc = (int32_t)iter.datum_handle;
+          actor->field_1e0 = -1;
+          if (actor->field_018 == *(int32_t *)(conversation + 0x54)) {
+            actor->field_1e0 = *(int32_t *)(conversation + 0x58);
+          } else if (actor->field_018 == *(int32_t *)(conversation + 0x58) &&
+                     (*(uint16_t *)(conversation + 0x4e) & 1) != 0) {
+            actor->field_1e0 = *(int32_t *)(conversation + 0x54);
+          } else if ((*(uint16_t *)(conversation + 0x4e) & 2) != 0) {
+            actor->field_1e0 = *(int32_t *)(conversation + 0x54);
+          } else if ((*(uint16_t *)(conversation + 0x4e) & 4) != 0) {
+            actor->field_1e0 = *(int32_t *)(conversation + 0x58);
+          }
+        }
+      }
+    }
+    conversation = (char *)data_iterator_next(&iter);
+  }
 }

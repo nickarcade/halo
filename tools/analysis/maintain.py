@@ -24,6 +24,18 @@ from analysis.knowledge import KnowledgeBase
 log = logging.getLogger(__name__)
 
 
+def _same_file(a: str, b: str) -> bool:
+    """Path equality that survives absolute-vs-relative spellings.
+
+    A plain string compare made `maintain.py /abs/path/src/.../x.c` treat every
+    function as misplaced (KB paths are relative `src/halo/...`): each one was
+    appended to x.c and x.c was then rewritten without them -> a 0-byte file.
+    That emptied ui_widget_game_data_input_functions.c, actor_perception.c and
+    cache_files_windows.c during the 09-27 campaign.
+    """
+    return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
+
+
 class SourceManager:
     def __init__(self, kb: KnowledgeBase):
         self.kb: KnowledgeBase = kb
@@ -122,7 +134,7 @@ class SourceManager:
             expected_source = self._get_path_for_name(name)
             if expected_source is None:
                 continue
-            if expected_source != path:
+            if not _same_file(expected_source, path):
                 log.info('Moving %s from %s to %s', name, path, expected_source)
                 extents = name_to_extent_map[name]
                 start = extents[0] - num_lines_removed - 1
@@ -164,7 +176,7 @@ class SourceManager:
         errors = []
         for name in name_to_extent_map:
             expected_source = self._get_path_for_name(name)
-            if expected_source is not None and expected_source != path:
+            if expected_source is not None and not _same_file(expected_source, path):
                 errors.append(f'{path}: {name} should be in {expected_source}')
         return errors
 

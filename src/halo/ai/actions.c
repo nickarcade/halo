@@ -152,13 +152,9 @@ char action_vehicle_setup_impromptu(int actor_handle, int vehicle_handle,
   csmemset(state, 0, 0x4c);
   *(float *)(state + 0x20) = radius_a;
   *(float *)(state + 0x24) = radius_b;
-  if (((actor_t *)actor)->field_158 != -1) {
-    return result;
-  }
-  if (((actor_t *)actor)->field_006 != '\0') {
-    return result;
-  }
-  if (((actor_t *)actor)->state_action == _actor_action_vehicle) {
+  if (((actor_t *)actor)->field_158 != -1 ||
+      ((actor_t *)actor)->field_006 != '\0' ||
+      ((actor_t *)actor)->state_action == _actor_action_vehicle) {
     return result;
   }
 
@@ -242,67 +238,67 @@ char action_wait_perform(int actor_handle)
 {
   int actor;
   int prop;
-  int new_var;
 
   actor = (int)datum_get(actor_data, actor_handle);
-  if (((actor_t *)actor)->field_04c == '\0') {
-    return *(char *)(actor + 0x9c);
-  }
-  ((actor_t *)actor)->field_09f = 0;
-  actor_pursuit_find_nearby_actors(actor_handle, ((actor_t *)actor)->field_1cc);
-  if (((actor_t *)actor)->field_09d != '\0') {
-    if (((actor_t *)actor)->field_1d0 == -1) {
-      if (*(short *)(actor + 0xaa) == 0) {
-        *(short *)(actor + 0xaa) = 0x96;
-      }
-      goto LAB_0001bf35;
-    }
-    if (game_time_get() < *(int *)(actor + 0xa4) + 0xa8c) {
-      goto LAB_0001bf35;
-    }
-  LAB_0001bf2e:
-    *(char *)(actor + 0x9c) = 1;
-    goto LAB_0001bf35;
-  }
-  new_var = actor + 0x9c;
-  *(char *)new_var = 1;
-  if (((actor_t *)actor)->field_1d0 == -1) {
-    goto LAB_0001bf35;
-  }
-  prop = (int)datum_get(prop_data, ((actor_t *)actor)->field_1d0);
-  if (((actor_t *)actor)->field_09e == '\0' ||
-      ((actor_t *)actor)->field_0a0 != '\0') {
-    if (*(short *)(prop + 0x32) < 2 ||
-        *(const float *)0x253f78 <= *(float *)(prop + 0x11c)) {
-      goto LAB_0001bf2e;
-    }
-    if (((actor_t *)actor)->field_0a0 != '\0') {
-      goto LAB_0001c009;
-    }
-  }
-  /* LAB_0001bfdf */
-  if (*(float *)(prop + 0x11c) > *(const float *)0x253f30) {
-    ((actor_t *)actor)->field_09f = 1;
-    *(char *)(actor + 0x9c) = 0;
-    goto LAB_0001bf35;
-  }
-  prop = 0;
-LAB_0001c009:
-  ((actor_t *)actor)->field_09f = prop;
-  *(char *)(actor + 0x9c) = prop;
-LAB_0001bf35:
-  if (*(char *)(actor + 6) == '\0') {
-    if (((actor_t *)actor)->field_09f != '\0') {
-      if (actor_move_to_prop(actor_handle, ((actor_t *)actor)->field_1d0,
-                             8.0f) == '\0') {
-        ((actor_t *)actor)->field_0a0 = 1;
+  if (((actor_t *)actor)->field_04c != '\0') {
+    ((actor_t *)actor)->field_09f = 0;
+    actor_pursuit_find_nearby_actors(actor_handle, ((actor_t *)actor)->field_1cc);
+    if (((actor_t *)actor)->field_09d != '\0') {
+      if (((actor_t *)actor)->field_1d0 == -1) {
+        if (*(short *)(actor + 0xaa) == 0) {
+          *(short *)(actor + 0xaa) = 0x96;
+        }
+      } else if (game_time_get() >= *(int *)(actor + 0xa4) + 0xa8c) {
+        *(char *)(actor + 0x9c) = 1;
       }
     } else {
-      actor_move_halt(actor_handle);
+      *(char *)(actor + 0x9c) = 1;
+      if (((actor_t *)actor)->field_1d0 != -1) {
+        prop = (int)datum_get(prop_data, ((actor_t *)actor)->field_1d0);
+        if ((((actor_t *)actor)->field_09e == '\0' ||
+             ((actor_t *)actor)->field_0a0 != '\0') &&
+            (*(short *)(prop + 0x32) < 2 ||
+             !(*(float *)(prop + 0x11c) < *(const float *)0x253f78))) {
+          *(char *)(actor + 0x9c) = 1;
+        } else {
+          ((actor_t *)actor)->field_09f =
+              ((actor_t *)actor)->field_0a0 == '\0' &&
+              *(float *)(prop + 0x11c) > *(const float *)0x253f30;
+          *(char *)(actor + 0x9c) = 0;
+        }
+      }
+    }
+    /* shape: PAL 2342 source/ai/action_wait.c:57-115 (structured, single
+     * return; 2276 keeps the 0x253f78/0x253f30 rdata constants). */
+    if (*(char *)(actor + 6) == '\0') {
+      if (((actor_t *)actor)->field_09f != '\0') {
+        if (actor_move_to_prop(actor_handle, ((actor_t *)actor)->field_1d0,
+                               8.0f) == '\0') {
+          ((actor_t *)actor)->field_0a0 = 1;
+        }
+      } else {
+        actor_move_halt(actor_handle);
+      }
     }
   }
   return *(char *)(actor + 0x9c);
 }
+/* Line-count padding: keeps the __LINE__ values of later asserts
+ * identical after the action_wait_perform rewrite.
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
 
 /* action_wait_control (0x1c030) — Initialize actor guard state based on combat status.
  * Sets guard mode (0x3e8) to 3/5/1 depending on whether the actor is a
@@ -1979,11 +1975,8 @@ char actor_action_handle_surprise(int actor_handle, short type)
   actor = (char *)datum_get(actor_data, actor_handle);
   actv_tag = (char *)tag_get(0x61637476, ((actor_t *)actor)->field_05c);
 
-  if (((actor_t *)actor)->field_160 != '\0') {
-    ((actor_t *)actor)->field_2ee = 0;
-    return 0;
-  }
-  if (((actor_t *)actor)->field_2ee < type) {
+  if (((actor_t *)actor)->field_160 != '\0' ||
+      ((actor_t *)actor)->field_2ee < type) {
     ((actor_t *)actor)->field_2ee = 0;
     return 0;
   }
@@ -2205,15 +2198,11 @@ char actor_action_handle_vehicle_entry(int actor_handle)
   actr_tag = (int *)tag_get(0x61637472, ((actor_t *)actor)->field_058);
   now = game_time_get();
   result = 0;
-  if (((actor_t *)actor)->state_action == _actor_action_flee &&
-      ((actor_t *)actor)->field_0a8 > 0) {
-    return result;
-  }
-  if (((actor_t *)actor)->state_action == _actor_action_obey) {
-    return result;
-  }
-  if (((actor_t *)actor)->field_384 != -1 &&
-      ((actor_t *)actor)->field_384 + 0x2d >= now) {
+  if ((((actor_t *)actor)->state_action == _actor_action_flee &&
+       ((actor_t *)actor)->field_0a8 > 0) ||
+      ((actor_t *)actor)->state_action == _actor_action_obey ||
+      (((actor_t *)actor)->field_384 != -1 &&
+       ((actor_t *)actor)->field_384 + 0x2d >= now)) {
     return result;
   }
   ((actor_t *)actor)->field_384 = now;
@@ -3716,8 +3705,8 @@ int actor_pursuit_find_nearby_actors(int actor_handle, char flag)
   count = 0;
   best_index = -1;
   best_dist = 3.4028235e+38f;
-  prop_iterator_new(iter1, actor_handle);
   threshold_raw = (flag != '\0') + 1;
+  prop_iterator_new(iter1, actor_handle);
   rec = prop_iterator_next(iter1);
   while (rec != 0) {
     if (*(char *)(rec + 0x60) == '\0' && *(char *)(rec + 0x127) == '\0' &&

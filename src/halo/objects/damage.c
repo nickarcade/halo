@@ -1934,6 +1934,49 @@ float FUN_00138f10(float base, float a, float b, float t1, float t2)
   return base + (a - base) * t1 + (b - base) * t2;
 }
 
+/* FUN_00138fd0 (0x138fd0) — Sample a material lightmap at an interpolated
+ * texture coordinate and convert the pixel to float RGB.
+ * Source: c:\halo\SOURCE\objects\object_lights.c:0x8f
+ */
+void FUN_00138fd0(int material, int lightmap, unsigned short *vertex_indices,
+                  float u, float v, float *out_rgb)
+{
+  float vertex0[2];
+  float vertex1[2];
+  float vertex2[2];
+  float point[2];
+
+  if (*(short *)(material + 0xc4) != 2 &&
+      *(short *)(material + 0xc4) != 3) {
+    display_assert(
+      "material->lightmap_vertices.type==_rasterizer_vertex_type_environment_"
+      "lightmap_uncompressed || material->lightmap_vertices.type==_rasterizer_"
+      "vertex_type_environment_lightmap_compressed",
+      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x8f, 1);
+    system_exit(-1);
+  }
+
+  FUN_001806e0(*(int *)(material + 0xf8) +
+                  ((unsigned int)vertex_indices[0] +
+                   *(int *)(material + 0xb4) * 4) * 8,
+                vertex0);
+  FUN_001806e0(*(int *)(material + 0xf8) +
+                  ((unsigned int)vertex_indices[1] +
+                   *(int *)(material + 0xb4) * 4) * 8,
+                vertex1);
+  FUN_001806e0(*(int *)(material + 0xf8) +
+                  ((unsigned int)vertex_indices[2] +
+                   *(int *)(material + 0xb4) * 4) * 8,
+                vertex2);
+
+  point[0] = (vertex2[0] - vertex0[0]) * v +
+             (vertex1[0] - vertex0[0]) * u + vertex0[0];
+  point[1] = (vertex2[1] - vertex0[1]) * v +
+             (vertex1[1] - vertex0[1]) * u + vertex0[1];
+  pixel32_to_real_rgb_color(
+    bitmap_2d_get_pixel((void *)lightmap, point, 1.0f), out_rgb);
+}
+
 /*
  * FUN_001390d0 — Sample a material lightmap at a barycentrically interpolated
  * UV position and write the result as float RGB.

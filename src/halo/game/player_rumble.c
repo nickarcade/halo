@@ -39,6 +39,7 @@ void rumble_player_set_scale(float scale)
 void rumble_player_impulse(short unit_index, float *rumble_def,
                            float damage_amount, float scale)
 {
+  struct rumble_definition_copy { float values[15]; };
   char *slot_base;
   float *dest;
   float max_timer;
@@ -79,7 +80,7 @@ void rumble_player_impulse(short unit_index, float *rumble_def,
     dest = (float *)(slot_base + 0x1a4);
   }
 
-  csmemcpy(dest, rumble_def, 0x3c);
+  *(struct rumble_definition_copy *)dest = *(struct rumble_definition_copy *)rumble_def;
 
   t = (*(float *)0x2533c8 - rumble_def[10]) * damage_amount + rumble_def[10];
   dest[0] *= t;
@@ -220,21 +221,21 @@ void rumble_update(void)
     *(float *)(slot + 0x1f8) += *(float *)0x2546a4;
     *(float *)(slot + 0x1fc) += *(float *)0x2546a4;
     player_handle = local_player_get_player_index(i);
-    if (player_handle == NONE) {
-      input_set_rumble(i, 0, 0);
-    } else {
+    if (player_handle != NONE) {
       player = (char *)datum_get(player_data, player_handle);
       local_player_index = *(int16_t *)(player + 2);
       if (local_player_index != NONE) {
         controller = player_ui_get_single_player_local_player_from_controller(
           local_player_index);
-        if (player_ui_rumble_disabled(controller)) {
-          input_set_rumble(local_player_index, 0, 0);
-        } else {
+        if (!player_ui_rumble_disabled(controller)) {
           input_set_rumble(local_player_index, (uint16_t)rumble,
                            (uint16_t)(rumble >> 16));
+        } else {
+          input_set_rumble(local_player_index, 0, 0);
         }
       }
+    } else {
+      input_set_rumble(i, 0, 0);
     }
   }
 }

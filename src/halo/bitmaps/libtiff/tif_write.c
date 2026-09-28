@@ -564,12 +564,13 @@ long TIFFReadEncodedTile(void *tif_, unsigned int tile, void *buf, long size)
 {
   tiff_t *tif = (tiff_t *)tif_;
   tiff_directory_t *td = &tif->tif_dir;
+  unsigned long tilesize = (unsigned long)tif->tif_tilesize;
 
   if (tif->tif_mode == O_WRONLY) {
     FUN_00068a30(tif->tif_name, "File not open for reading");
     return (-1);
   }
-  if (!isTiled(tif)) {
+  if (1 ^ isTiled(tif)) {
     FUN_00068a30(tif->tif_name, "Can not read tiles from a stripped image");
     return (-1);
   }
@@ -578,9 +579,10 @@ long TIFFReadEncodedTile(void *tif_, unsigned int tile, void *buf, long size)
                  td->td_nstrips);
     return (-1);
   }
-  if (size == (long)-1 ||
-      (unsigned long)size > (unsigned long)tif->tif_tilesize)
-    size = tif->tif_tilesize;
+  if (size == (long)-1)
+    size = (long)tilesize;
+  else if ((unsigned long)size > tilesize)
+    size = (long)tilesize;
   return ((TIFFFillTile(tif, tile) &&
            (*tif->tif_decodetile)(tif, (char *)buf, (int)size,
                                   (int)(tile / td->td_stripsperimage))) ?
@@ -643,12 +645,12 @@ unsigned long TIFFNumberOfStrips(void *tif_)
 {
   tiff_t *tif = (tiff_t *)tif_;
   tiff_directory_t *td = &tif->tif_dir;
+  unsigned long rowsperstrip = td->td_rowsperstrip;
 
-  if (td->td_rowsperstrip == (unsigned long)-1) {
+  if (rowsperstrip == (unsigned long)-1) {
     return (td->td_imagelength != 0);
   }
-  return ((td->td_imagelength + (td->td_rowsperstrip - 1)) /
-          td->td_rowsperstrip);
+  return ((td->td_imagelength + (rowsperstrip - 1)) / rowsperstrip);
 }
 
 /* 0x6f150 -- upstream libtiff tif_strip.c TIFFVStripSize (no YCbCr
@@ -666,7 +668,7 @@ unsigned long TIFFVStripSize(void *tif_, unsigned long nrows)
 /* 0x6f180 -- strip size in bytes: rowsperstrip (+0x48), or imagelength
  * (+0x20) when rowsperstrip == -1, times TIFFScanlineSize(tif). Binary
  * computes IMUL scanline_size, rows (call result first operand). */
-unsigned long TIFFStripSize(void *tif_)
+__declspec(noinline) unsigned long TIFFStripSize(void *tif_)
 {
   tiff_t *tif = (tiff_t *)tif_;
   unsigned long rps = tif->tif_dir.td_rowsperstrip;
@@ -2176,6 +2178,186 @@ void bitmap_fill_rectangle(void *destination, unsigned int color,
   }
 }
 
+/* 0x72f70 -- tile the frames of one sequence of a 'bitm' tag into a
+ * rectangle of the destination bitmap. cdecl, seven stack args:
+ * destination ([EBP+8]; int16 +4/+6 give the default rectangle {0,0,+6,+4}
+ * when rectangle [EBP+0x14] is NULL), bitmap tag index ([EBP+0xc], -1 does
+ * nothing), sequence index ([EBP+0x10], checked against the block count at
+ * tag+0x54, element size 0x40, frame count int16 at element+0x22), optional
+ * clip rectangle ([EBP+0x18], intersect_rectangles2d(clip, bounds, bounds)),
+ * param_6 ([EBP+0x1c], forwarded as FUN_00072490's sixth arg and ORs 2 into
+ * its seventh) and param_7 ([EBP+0x20], a mask tested with bit
+ * table_261564[i]*2 to select a frame and bit table_261564[i]*2+1 to set 1 in
+ * FUN_00072490's seventh arg). For each of 9 entries i, flags come from the
+ * dword table at 0x2edae8: bits 4/8/1/2 place the frame's height (+6) or
+ * width (+4) against one rectangle edge, 0x20 clamps with the running
+ * limits, 0x10 selects the clipped copy and updates the limits. Each flag
+ * slot is reused for a later value (0x732e1/0x732e6/0x732fe), kept as found.
+ * Meanings of the tables and param_6/param_7 are unproven. */
+void bitmap_tile_and_bevel_rectangle(void *destination, int bitmap_tag_index,
+                                     short sequence_index, short *rectangle,
+                                     short *clip_rectangle, int param_6,
+                                     unsigned int param_7)
+{
+  short default_rectangle[4];
+  short bounds[4];
+  short clipped[4];
+  short limit_max[4];
+  short limit_min[4];
+  short tile[4];
+  short point[2];
+  int edge4;
+  void *sequence;
+  int edge8;
+  int i;
+  int edge2;
+  int frame;
+  int edge1;
+  void *tag;
+  void *frame_bitmap;
+  unsigned int flags;
+  short *limits;
+  short width;
+  short height;
+  short columns;
+  short column;
+
+  if (rectangle == NULL) {
+    rectangle = default_rectangle;
+    default_rectangle[1] = 0;
+    default_rectangle[0] = 0;
+    default_rectangle[3] = *(short *)((char *)destination + 4);
+    default_rectangle[2] = *(short *)((char *)destination + 6);
+  }
+  *(unsigned long *)&bounds[0] = *(unsigned long *)&rectangle[0];
+  *(unsigned long *)&bounds[2] = *(unsigned long *)&rectangle[2];
+  limit_min[2] = rectangle[1];
+  limit_min[0] = rectangle[1];
+  limit_max[2] = rectangle[3];
+  limit_max[0] = rectangle[3];
+  limit_min[3] = rectangle[0];
+  limit_min[1] = rectangle[0];
+  limit_max[3] = rectangle[2];
+  limit_max[1] = rectangle[2];
+  if (bitmap_tag_index == -1) {
+    return;
+  }
+  if (clip_rectangle != NULL &&
+      !intersect_rectangles2d(clip_rectangle, bounds, bounds)) {
+    return;
+  }
+  tag = tag_get(0x6269746d, bitmap_tag_index);
+  if (sequence_index >= *(int *)((char *)tag + 0x54)) {
+    return;
+  }
+  sequence = tag_block_get_element((char *)tag + 0x54, sequence_index, 0x40);
+  i = 0;
+  frame = 0;
+  do {
+    if ((short)frame >= *(short *)((char *)sequence + 0x22)) {
+      return;
+    }
+    if ((param_7 & (1 << (((unsigned short *)0x261564)[(short)i] << 1))) != 0) {
+      frame_bitmap =
+        FUN_00077040(bitmap_tag_index, sequence_index, (short)frame);
+      frame++;
+      if (frame_bitmap != NULL) {
+        *(unsigned long *)&clipped[0] = *(unsigned long *)&bounds[0];
+        flags = ((unsigned int *)0x2edae8)[(short)i];
+        *(unsigned long *)&tile[2] = *(unsigned long *)&rectangle[2];
+        *(unsigned long *)&tile[0] = *(unsigned long *)&rectangle[0];
+        *(unsigned long *)&clipped[2] = *(unsigned long *)&bounds[2];
+        edge4 = flags & 4;
+        if (edge4 != 0) {
+          tile[2] = *(short *)((char *)frame_bitmap + 6) + rectangle[0];
+        }
+        edge8 = flags & 8;
+        if (edge8 != 0) {
+          tile[0] = rectangle[2] - *(short *)((char *)frame_bitmap + 6);
+        }
+        edge1 = flags & 1;
+        if (edge1 != 0) {
+          tile[3] = *(short *)((char *)frame_bitmap + 4) + rectangle[1];
+        }
+        edge2 = flags & 2;
+        if (edge2 != 0) {
+          tile[1] = rectangle[3] - *(short *)((char *)frame_bitmap + 4);
+        }
+        if ((flags & 0x20) != 0) {
+          limits = (flags & 0x10) != 0 ? clipped : tile;
+          if (edge4 != 0) {
+            limits[1] = limit_min[0] > limits[1] ? limit_min[0] : limits[1];
+            limits[3] = limit_max[0] > limits[3] ? limits[3] : limit_max[0];
+          }
+          if (edge8 != 0) {
+            limits[1] = limit_min[2] > limits[1] ? limit_min[2] : limits[1];
+            limits[3] = limit_max[2] > limits[3] ? limits[3] : limit_max[2];
+          }
+          if (edge1 != 0) {
+            limits[0] = limit_min[1] > limits[0] ? limit_min[1] : limits[0];
+            limits[2] = limit_max[1] > limits[2] ? limits[2] : limit_max[1];
+          }
+          if (edge2 != 0) {
+            limits[0] = limit_min[3] > limits[0] ? limit_min[3] : limits[0];
+            limits[2] = limit_max[3] > limits[2] ? limits[2] : limit_max[3];
+          }
+        }
+        if ((flags & 0x10) != 0) {
+          if (edge4 != 0 && edge1 != 0) {
+            limit_min[0] = tile[3];
+            limit_min[1] = tile[2];
+          }
+          if (edge8 != 0 && edge1 != 0) {
+            limit_min[2] = tile[3];
+            limit_max[1] = tile[0];
+          }
+          if (edge4 != 0 && edge2 != 0) {
+            limit_max[0] = tile[1];
+            limit_min[3] = tile[2];
+          }
+          if (edge8 != 0 && edge2 != 0) {
+            limit_max[2] = tile[1];
+            limit_max[3] = tile[0];
+          }
+        }
+        if (intersect_rectangles2d(tile, clipped, clipped)) {
+          width = (short)rect2d_width(tile);
+          height = (short)rect2d_height(tile);
+          columns = (short)((width + *(short *)((char *)frame_bitmap + 4) - 1) /
+                            *(short *)((char *)frame_bitmap + 4));
+          /* edge4 now holds the row count, edge1 the FUN_00072490 mode
+           * and edge2 the row counter (same stack slots in the binary). */
+          edge4 = (height + *(short *)((char *)frame_bitmap + 6) - 1) /
+                  *(short *)((char *)frame_bitmap + 6);
+          edge1 = 0;
+          if ((param_7 &
+               (1 << (((unsigned short *)0x261564)[(short)i] * 2 + 1))) != 0) {
+            edge1 = 1;
+          }
+          if (param_6 != 0) {
+            edge1 |= 2;
+          }
+          for (edge2 = 0; (short)edge2 < (short)edge4; edge2++) {
+            for (column = 0; column < columns; column++) {
+              set_point2d(
+                point,
+                (short)(tile[1] +
+                        (short)(*(unsigned short *)((char *)frame_bitmap + 4) *
+                                column)),
+                (short)(tile[0] +
+                        (short)(*(unsigned short *)((char *)frame_bitmap + 6) *
+                                (short)edge2)));
+              FUN_00072490(destination, point, (int)clipped, frame_bitmap, 0,
+                           param_6, edge1);
+            }
+          }
+        }
+      }
+    }
+    i++;
+  } while ((short)i < 9);
+}
+
 /* 0x73770 -- draw the four edges of a float rectangle with bitmap_draw_line
  * (0x73390). cdecl, four stack args: destination ([EBP+8]), color
  * ([EBP+0xc]), rectangle ([EBP+0x10], four floats; [1] and [3] are reduced
@@ -2356,30 +2538,31 @@ void FUN_00073a80(short y)
  * unproven. */
 bool extract_plateless_cube_map(void *bitmap)
 {
-  bool success;
+  bool result;
   short width;
-  short size;
+  short face_size;
   short face_index;
-  short row;
-  short column;
-  short x;
-  short y;
+  short destination_y;
+  short destination_x;
+  short source_x;
+  short source_y;
   short *face;
   char *entry;
   void *source;
   void *temporary;
   short faces[48];
+  /* names: PAL 2342 bitmaps/bitmap_extract.c:759-862 */
 
-  success = 1;
+  result = 1;
   assert_halt_msg_at("bitmap_verify(bitmap, TRUE)",
                      "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x2c2,
                      bitmap_verify(bitmap, 1));
   width = *(short *)((char *)bitmap + 4);
   if (width % 4 == 0 &&
-      (size = (short)(width / 4),
+      (face_size = (short)(width / 4),
        *(short *)((char *)bitmap + 6) >= width / 4 * 3) &&
       (width & (width - 1)) == 0) {
-    if (*(short *)0x334138 + 6 <= 0x400) {
+    if (unknown_334138 + 6 <= 0x400) {
       faces[0] = 0;
       faces[1] = 1;
       faces[2] = 1;
@@ -2430,24 +2613,27 @@ bool extract_plateless_cube_map(void *bitmap)
       faces[47] = 0;
       face = faces;
       for (face_index = 6; face_index != 0; face_index--) {
-        entry = *(char **)0x334134 + *(short *)0x334138 * 0x10;
-        (*(short *)0x334138)++;
-        temporary = bitmap_2d_new(size, size, 0, 0xb);
+        entry = (char *)unknown_334134 + unknown_334138 * 0x10;
+        unknown_334138++;
+        temporary = bitmap_2d_new(face_size, face_size, 0, 0xb);
         *(void **)entry = temporary;
         if (temporary != NULL) {
-          for (row = 0; row < size; row++) {
-            x = (short)((unsigned short)(face[0] * size) +
-                        (unsigned short)(face[2] * (size - 1)) +
-                        (unsigned short)(face[6] * row));
-            y = (short)((unsigned short)(face[1] * size) +
-                        (unsigned short)(face[3] * (size - 1)) +
-                        (unsigned short)(face[7] * row));
-            for (column = 0; column < size; column++) {
-              source = bitmap_2d_address(bitmap, x, y, 0);
-              *(unsigned long *)bitmap_2d_address(*(void **)entry, column, row,
+          for (destination_y = 0; destination_y < face_size;
+               destination_y++) {
+            source_x = (short)((unsigned short)(face[0] * face_size) +
+                        (unsigned short)(face[2] * (face_size - 1)) +
+                        (unsigned short)(face[6] * destination_y));
+            source_y = (short)((unsigned short)(face[1] * face_size) +
+                        (unsigned short)(face[3] * (face_size - 1)) +
+                        (unsigned short)(face[7] * destination_y));
+            for (destination_x = 0; destination_x < face_size;
+                 destination_x++) {
+              source = bitmap_2d_address(bitmap, source_x, source_y, 0);
+              *(unsigned long *)bitmap_2d_address(*(void **)entry,
+                                                  destination_x, destination_y,
                                                   0) = *(unsigned long *)source;
-              x += face[4];
-              y += face[5];
+              source_x += face[4];
+              source_y += face[5];
             }
           }
           *(short *)(entry + 4) = *(short *)0x33415c;
@@ -2456,11 +2642,11 @@ bool extract_plateless_cube_map(void *bitmap)
           *(long *)(entry + 0xc) = -1;
         } else {
           error(2, "### ERROR extract: failed to allocate temporary bitmap");
-          success = 0;
+          result = 0;
         }
         face += 8;
       }
-      return success;
+      return result;
     } else {
       error(2,
             "### ERROR extract: can't handle more than (#%d) temporary bitmaps",

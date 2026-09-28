@@ -88,6 +88,39 @@ class StubCallRecord:
     # body the emulator is executing natively.  0 = not captured (older records,
     # or an unreadable stack) and must never be treated as "outside".
     caller_addr: int = 0
+    # Per arg: the C string it points to, or None.  Each side keeps its string
+    # literals at its own address (XBE .rdata vs the relocated candidate
+    # .rdata), so a literal argument is compared by content.
+    arg_strings: Optional[List[Optional[bytes]]] = None
+
+
+def _read_c_string(uc, addr: int, limit: int = 256) -> Optional[bytes]:
+    """The printable NUL-terminated string at addr (2+ chars), else None."""
+    try:
+        data = bytes(uc.mem_read(addr, limit))
+    except Exception:
+        return None
+    end = data.find(b"\0")
+    if end < 2 or not all(0x20 <= b < 0x7f for b in data[:end]):
+        return None
+    return data[:end]
+
+
+def _stdcall_release_args(uc, caller_esp: int, n_stack_params: int) -> None:
+    """Make a stdcall stub's return pop its own arguments.
+
+    execute_stub's callers pop the return address from [ESP] after it returns.
+    Moving ESP past the args without moving the return address made that pop
+    read the last argument as the return target (WaitForSingleObject(h, -1)
+    returned to 0xffffffff).  Copy the return address to the slot just below
+    the caller's post-call ESP; the args are dead once the callee returns.
+    """
+    from unicorn.x86_const import UC_X86_REG_ESP
+    if n_stack_params <= 0:
+        return
+    new_esp = caller_esp + n_stack_params * 4
+    uc.mem_write(new_esp, bytes(uc.mem_read(caller_esp, 4)))
+    uc.reg_write(UC_X86_REG_ESP, new_esp)
 
 
 @dataclass
@@ -103,6 +136,8 @@ class StubArgTracer:
     # natively-executed callee, not by the function under test.  None = no
     # attribution available, compare everything (historical behaviour).
     target_range: Optional[Tuple[int, int]] = None
+    # True on the lifted side: C callers push @<reg> params like any other.
+    reg_params_on_stack: bool = False
 
     def reset(self):
         self.records = []
@@ -447,6 +482,11 @@ def _is_byte_fill_equivalent(name: str, arg_index: int, o_val: int, c_val: int) 
             and (o_val & 0xFF) == (c_val & 0xFF))
 
 
+def _norm_callee_name(name: str) -> str:
+    """`_WaitForSingleObject@8` and `WaitForSingleObject` -> `waitforsingleobject`."""
+    return (name or "").lstrip("_").split("@", 1)[0].lower()
+
+
 def compare_stub_arg_traces(oracle_tracer: StubArgTracer,
                              cand_tracer: StubArgTracer,
                              seed_label: str = "",
@@ -533,8 +573,18 @@ def compare_stub_arg_traces(oracle_tracer: StubArgTracer,
     # bounds the arg comparison below.  Skipping it (as this did before) left
     # seq_diverge_idx = min(len) while the real divergence could be at index 0,
     # so misaligned pairs before it were still arg-compared.
+    # The oracle's raw-XBE intercept of an import and the candidate's
+    # decorated reloc name (`WaitForSingleObject` / `_WaitForSingleObject@8`)
+    # land on different sentinels for the same callee; a matching normalized
+    # name is the same call.
+    def _same_callee(o, c):
+        if o.callee_addr == c.callee_addr:
+            return True
+        return (_norm_callee_name(o.callee_name) != ""
+                and _norm_callee_name(o.callee_name) == _norm_callee_name(c.callee_name))
+
     for i, (o, c) in enumerate(zip(oc, cc)):
-        if o.callee_addr != c.callee_addr:
+        if not _same_callee(o, c):
             if not seq_diverged or i < seq_diverge_idx:
                 seq_diverge_idx = i
             seq_diverged = True
@@ -601,6 +651,15 @@ def compare_stub_arg_traces(oracle_tracer: StubArgTracer,
                 soft_semantic += 1
                 soft_reasons["memset-fill"] = \
                     soft_reasons.get("memset-fill", 0) + 1
+                continue
+            o_str = (o_rec.arg_strings[ai]
+                     if o_rec.arg_strings and ai < len(o_rec.arg_strings) else None)
+            c_str = (c_rec.arg_strings[ai]
+                     if c_rec.arg_strings and ai < len(c_rec.arg_strings) else None)
+            if o_str is not None and o_str == c_str:
+                soft_semantic += 1
+                soft_reasons["same-string"] = \
+                    soft_reasons.get("same-string", 0) + 1
                 continue
             arg_mismatches += 1
             details.append((seed_label, o_rec.seq, o_rec.callee_name, ai, o_val, c_val))
@@ -947,6 +1006,18 @@ class StubManager:
         self._stubs: dict[int, CalleeStub] = {}
         self._stub_names: dict[int, str] = {}
         self._canonical_names: dict[int, str] = {}
+        # Normalized names of callees whose kb.json decl is __noreturn
+        # (system_exit).  A stub has to return, but clang emits nothing after
+        # a noreturn call, so the two sides cannot be compared past one;
+        # --stop-at-call ends the run there.  By name, not sentinel: the
+        # oracle's raw-XBE intercept of the same callee may have no kb decl.
+        self.noreturn_names: set[str] = set()
+        # Serve every synthetic stub through execute_stub (set by
+        # --stop-at-call).  A static trampoline returns without the argument
+        # tracer seeing the call, so a never-returning function's calls to
+        # CloseHandle/SetEvent/QueryPerformanceCounter -- its main outputs --
+        # went uncompared.
+        self.trace_all_synthetic = False
         self._depth = 0
         # Real-callee sub-emulation state (populated by prepare_stubs when
         # real_callees is enabled): DIR32 slots the loaded callee code reads
@@ -1149,6 +1220,21 @@ class StubManager:
                 return key, self.stub_write_overrides[key]
         return None, None
 
+    def _same_name_stub(self, address: int):
+        """A registered stub for the same callee under another spelling.
+
+        `WaitForSingleObject` and `_WaitForSingleObject@8` name one function;
+        returns the first sibling sentinel's CalleeStub, or None.
+        """
+        _norm = _norm_callee_name
+        key = _norm(self._stub_names.get(address, ""))
+        if not key:
+            return None
+        for other, stub in self._stubs.items():
+            if other != address and _norm(self._stub_names.get(other, "")) == key:
+                return stub
+        return None
+
     def _register_stub(self, sentinel_addr: int, symbol_name: str):
         """Create a trampoline CalleeStub (+ canonical name) for a sentinel.
 
@@ -1172,6 +1258,8 @@ class StubManager:
         stub = CalleeStub(name=symbol_name, code=b"", abi=abi,
                           sentinel_addr=sentinel_addr, has_real_code=False)
         self._stubs[sentinel_addr] = stub
+        if re.search(r'\b__noreturn\b|\bnoreturn\b', decl):
+            self.noreturn_names.add(_norm_callee_name(symbol_name))
         self._check_convention(symbol_name, kb_entry, decl, abi, sentinel_addr)
         return stub, kb_entry
 
@@ -1555,7 +1643,7 @@ class StubManager:
         # Real-code stubs execute natively via Unicorn; their RET pops the return addr.
         if stub is not None and stub.has_real_code:
             return False
-        return False
+        return self.trace_all_synthetic
 
     def get_stub_code(self, address: int) -> bytes:
         """Return machine code to write at a sentinel address.
@@ -1626,6 +1714,10 @@ class StubManager:
         if address not in self._stub_names or self._depth >= MAX_RECURSION_DEPTH:
             return False
         stub = self._stubs.get(address)
+        if stub is None and self.trace_all_synthetic:
+            # A raw-XBE intercept under its bare import name may lack a kb
+            # decl; without an ABI its stdcall args would never be popped.
+            stub = self._same_name_stub(address)
         self._depth += 1
 
         try:
@@ -1692,10 +1784,12 @@ class StubManager:
                     _is_varargs = any(
                         getattr(p, "c_type", "") == "..." for p in params
                     )
+                    _regs_on_stack = getattr(self._tracer,
+                                             "reg_params_on_stack", False)
                     # Register args first (in parameter order)
                     for p in params:
                         p_reg = getattr(p, "reg", "")
-                        if p_reg:
+                        if p_reg and not _regs_on_stack:
                             reg_id = _reg_map.get(p_reg.lower())
                             if reg_id is not None:
                                 _args.append(uc.reg_read(reg_id) & 0xFFFFFFFF)
@@ -1704,6 +1798,23 @@ class StubManager:
                                     if not getattr(p, "reg", "")
                                     and getattr(p, "c_type", "") != "..."]
                     _n_stack = len(stack_params)
+                    if _regs_on_stack:
+                        # Every fixed param has a stack slot in decl order;
+                        # report the @<reg> ones first, as the oracle does.
+                        _fixed = [p for p in params
+                                  if getattr(p, "c_type", "") != "..."]
+                        _slots = ([i for i, p in enumerate(_fixed)
+                                   if getattr(p, "reg", "")]
+                                  + [i for i, p in enumerate(_fixed)
+                                     if not getattr(p, "reg", "")])
+                        _n_stack = 0
+                        for _si in _slots:
+                            try:
+                                _dw = bytes(uc.mem_read(
+                                    caller_esp + 4 + _si * 4, 4))
+                                _args.append(int.from_bytes(_dw, "little"))
+                            except Exception:
+                                _args.append(0)
                 for _si in range(_n_stack):
                     try:
                         _dw = bytes(uc.mem_read(caller_esp + 4 + _si * 4, 4))
@@ -1725,6 +1836,7 @@ class StubManager:
                     args=_args,
                     is_varargs=_is_varargs,
                     caller_addr=_ra,
+                    arg_strings=[_read_c_string(uc, a) for a in _args],
                 ))
             # --- end arg capture ---
 
@@ -1779,6 +1891,13 @@ class StubManager:
                 _idx = self._seq_counters.get(_seq_key, 0)
                 self._seq_counters[_seq_key] = _idx + 1
                 _val = _seq_val[_idx] if _idx < len(_seq_val) else _seq_val[-1]
+                # The oracle's raw-XBE intercept of an import registers under
+                # its bare name (`WaitForSingleObject`), which kb lookup can
+                # miss, while the candidate's `_WaitForSingleObject@8` has the
+                # decl.  Without an ABI a stdcall callee returned here with a
+                # plain RET, leaving its args on the caller's stack.
+                if stub is None:
+                    stub = self._same_name_stub(address)
                 if stub is not None:
                     _seq_st0 = stub.abi.get('ret_st0', False)
                     _seq_conv = stub.abi.get('conv', 'cdecl')
@@ -1792,7 +1911,7 @@ class StubManager:
                 else:
                     uc.reg_write(UC_X86_REG_EAX, int(_val) & 0xFFFFFFFF)
                 if _seq_conv == 'stdcall':
-                    uc.reg_write(UC_X86_REG_ESP, caller_esp + _seq_nsp * 4)
+                    _stdcall_release_args(uc, caller_esp, _seq_nsp)
                 return True
 
             if symbol_name in ("fabs", "fabsf"):
@@ -2204,7 +2323,7 @@ class StubManager:
 
             # Clean up stack based on calling convention
             if conv == 'stdcall':
-                uc.reg_write(UC_X86_REG_ESP, caller_esp + n_stack_params * 4)
+                _stdcall_release_args(uc, caller_esp, n_stack_params)
 
         finally:
             self._depth -= 1
