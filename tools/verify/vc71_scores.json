@@ -91366,16 +91366,16 @@
     "rasterizer_vertex_shaders_initialize": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 95.7,
+      "abi_modeled_mnemonic_pct": 86.8,
       "addr": "0x178850",
       "end": "0x178aaa",
       "kind": "auto",
       "n_r": 140,
-      "opnd_percent": 77.3,
-      "raw_mnemonic_pct": 95.7,
+      "opnd_percent": 84.0,
+      "raw_mnemonic_pct": 86.8,
       "ref": "synth",
       "ref_sha": "748ee5a7b191470e",
-      "score": 95.7,
+      "score": 86.8,
       "source": "src/halo/rasterizer/xbox/rasterizer_xbox_vertex_shaders_initialize.c"
     },
     "rasterizer_widget_get_occlusion_test_result": {

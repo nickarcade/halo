@@ -155,8 +155,6 @@ bool rasterizer_vertex_shaders_initialize(void)
   vertex_shader_table[36].declaration = VERTEX_SHADER_DECLARATION_2ADADC;
   vertex_shader_table[50].declaration = VERTEX_SHADER_DECLARATION_2ADADC;
   vertex_shader_table[20].declaration = VERTEX_SHADER_DECLARATION_2ADB28;
-  entry->declaration++;
-  entry->declaration--;
   vertex_shader_table[23].declaration = VERTEX_SHADER_DECLARATION_2ADB28;
   vertex_shader_table[18].declaration = VERTEX_SHADER_DECLARATION_2ADADC;
   vertex_shader_table[14].declaration = VERTEX_SHADER_DECLARATION_2ADADC;
