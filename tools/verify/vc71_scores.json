@@ -86326,16 +86326,16 @@
     "playlist_profile_initialize_item_options": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 91.5,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0xee500",
       "end": "0xee7cd",
       "kind": "auto",
       "n_r": 220,
-      "opnd_percent": 91.0,
-      "raw_mnemonic_pct": 91.5,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "9a212ff5c11a5493",
-      "score": 91.5,
+      "score": 100.0,
       "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     "playlist_profile_initialize_name": {
@@ -86386,16 +86386,16 @@
     "playlist_profile_initialize_racing_rules": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 99.3,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0xedcd0",
       "end": "0xedf6d",
       "kind": "auto",
       "n_r": 215,
-      "opnd_percent": 99.3,
-      "raw_mnemonic_pct": 99.3,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "4d5d66e04465fd20",
-      "score": 99.3,
+      "score": 100.0,
       "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     "playlist_profile_initialize_slayer_rules": {
@@ -94696,16 +94696,16 @@
     "set_textbox_to_build_number": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 98.8,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0xf0ea0",
       "end": "0xf0f22",
       "kind": "auto",
       "n_r": 41,
-      "opnd_percent": 91.6,
-      "raw_mnemonic_pct": 98.8,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "7a43700ca7ec289c",
-      "score": 98.8,
+      "score": 100.0,
       "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     "set_ui_plasma_effect_color": {
@@ -95176,16 +95176,16 @@
     "solo_level_initialize_list_single_player": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 90.5,
+      "abi_modeled_mnemonic_pct": 97.3,
       "addr": "0xf0790",
       "end": "0xf0a29",
       "kind": "auto",
       "n_r": 202,
-      "opnd_percent": 83.6,
-      "raw_mnemonic_pct": 90.5,
+      "opnd_percent": 91.3,
+      "raw_mnemonic_pct": 97.3,
       "ref": "synth",
       "ref_sha": "14d69252aa0ee3c4",
-      "score": 90.5,
+      "score": 97.3,
       "source": "src/halo/interface/ui_widget_game_data_input_functions.c"
     },
     "solo_level_select_list_update_displayed_items": {
