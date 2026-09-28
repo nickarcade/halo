@@ -1012,6 +1012,7 @@ void actor_stimulus_noticed_danger_zone(int actor_handle, short param_2, short p
   float mag;
   int unit_handle;
   int type;
+  short danger_type; /* name: PAL 2342 actor_stimulus.c:397 */
 
   (void)param_4;
 
@@ -1021,14 +1022,20 @@ void actor_stimulus_noticed_danger_zone(int actor_handle, short param_2, short p
   if (unit_handle == -1)
     return;
 
-  if (param_2 == 2) {
+  danger_type = param_2;
+  if (danger_type == 2) {
     type = -1;
-    if (param_3 == 0)
+    switch (param_3) {
+    case 0:
       type = 3;
-    else if (param_3 == 1)
+      break;
+    case 1:
       type = 2;
-    else if (param_3 == 2)
+      break;
+    case 2:
       type = 1;
+      break;
+    }
     ai_communication_event(0xb, unit_handle, -1, type, -1, -1, 0);
   }
 
@@ -1037,7 +1044,7 @@ void actor_stimulus_noticed_danger_zone(int actor_handle, short param_2, short p
   delta[2] = param_5[2] - ((actor_t *)actor)->field_128;
   mag = normalize3d(delta);
   if (((actor_t *)actor)->field_06a < 3 && mag < *(float *)(tag + 0x2b0) &&
-      param_2 == 2) {
+      danger_type == 2) {
     actor_stimulus_surprise(actor_handle, 4, -1, (int *)delta);
   }
   actor_stimulus_combat(actor_handle, NULL, 4, (int *)delta, -1, 0, 0, -1, 0, 0);
