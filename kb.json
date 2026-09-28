@@ -35656,7 +35656,9 @@
     {
      "addr": "0xfcec0",
      "decl": "void weapon_trigger_recover(int trigger_index@<eax>, int weapon_handle@<ebx>);",
-     "name": "weapon_trigger_recover"
+     "name": "weapon_trigger_recover",
+     "ported": true,
+     "source_path": "src/halo/items/weapons.c"
     },
     {
      "addr": "0xfcf20",
