@@ -25,99 +25,103 @@
  * written as an int16 pen pair (draw_string_compute_bounds passes
  * &screen_pos there) and `flags` is added to the line pitch.
  */
-void draw_string(void *callback, void *screen_pos, const void *color,
-                 void *clip_bounds, int flags, char *text)
+void draw_string(void *draw_character, void *bounds, const void *cursor_reference,
+                 void *clip, int height_adjust, char *string)
 {
+  /* names: PAL 2342 source/text/draw_string.c:981 */
   char state[0x1c];
-  int16_t rect[4];
-  int16_t pen[2];
-  void *glyph;
-  short first;
+  int16_t line_bounds[4];
+  int16_t cursor[2];
+  void *character;
+  short segment_start_index;
   short justification;
-  short saved_width;
-  short prev_token;
-  short saved_pos;
-  short max_wrap;
-  short last;
-  short line;
-  short tab;
-  short wrap;
-  short width;
+  short break_line_width;
+  short previous_result;
+  short break_string_index;
+  short maximum_wrapped_line_index;
+  short segment_end_index;
+  short paragraph_line_index;
+  short tab_stop_index;
+  short wrapped_line_index;
+  short line_width;
   short y;
   char done;
-  char rewound;
+  char wrapped;
 
-  tab = 0;
-  line = 0;
-  wrap = 0;
-  max_wrap = 0;
-  if (screen_pos == 0) {
+  tab_stop_index = 0;
+  paragraph_line_index = 0;
+  wrapped_line_index = 0;
+  maximum_wrapped_line_index = 0;
+  if (bounds == 0) {
     display_assert("bounds", "c:\\halo\\SOURCE\\text\\draw_string.c", 0x27f, 1);
     system_exit(-1);
   }
-  if (text == 0) {
+  if (string == 0) {
     display_assert("string", "c:\\halo\\SOURCE\\text\\draw_string.c", 0x280, 1);
     system_exit(-1);
   }
-  FUN_0019bd30(*(short *)0x4d9b14, state, (int *)text, *(int *)0x4d9b0c,
+  FUN_0019bd30(*(short *)0x4d9b14, state, (int *)string, *(int *)0x4d9b0c,
                *(short *)0x4d9b16, (float *)0x4d9b18);
 
   do {
-    first = *(int16_t *)(state + 0xc);
+    short tab_stop_count;
+
+    segment_start_index = *(int16_t *)(state + 0xc);
     justification = *(int16_t *)(state + 0x10);
-    width = 0;
-    saved_pos = 0;
-    prev_token = -1;
+    previous_result = -1;
+    ((int *)line_bounds)[0] = ((int *)bounds)[0];
+    ((int *)line_bounds)[1] = ((int *)bounds)[1];
+    line_width = 0;
+    break_string_index = 0;
     done = 0;
-    ((int *)rect)[0] = ((int *)screen_pos)[0];
-    ((int *)rect)[1] = ((int *)screen_pos)[1];
-    if (*(short *)0x4d9b28 > 0) {
-      if (tab < 0 || tab > *(short *)0x4d9b28) {
+    tab_stop_count = *(short *)0x4d9b28;
+    if (tab_stop_count > 0) {
+      if (tab_stop_index < 0 || tab_stop_index > tab_stop_count) {
         display_assert("tab_stop_index>=0 && "
                        "tab_stop_index<=font_drawing_globals.tab_stop_count",
                        "c:\\halo\\SOURCE\\text\\draw_string.c", 0x2a0, 1);
         system_exit(-1);
       }
-      if (tab != 0)
-        rect[1] = ((short *)0x4d9b28)[tab];
-      else if (line != 0)
-        rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b50);
+      if (tab_stop_index != 0)
+        line_bounds[1] = ((short *)0x4d9b28)[(int)tab_stop_index];
+      else if (paragraph_line_index != 0)
+        line_bounds[1] = (int16_t)(line_bounds[1] + *(short *)0x4d9b50);
       else
-        rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b4e);
-      if (tab < *(short *)0x4d9b28)
-        rect[3] = ((short *)0x4d9b2a)[tab];
-    } else if (line != 0) {
-      rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b50);
+        line_bounds[1] = (int16_t)(line_bounds[1] + *(short *)0x4d9b4e);
+      if (tab_stop_index < *(short *)0x4d9b28)
+        line_bounds[3] = ((short *)0x4d9b2a)[(int)tab_stop_index];
+    } else if (paragraph_line_index != 0) {
+      line_bounds[1] = (int16_t)(line_bounds[1] + *(short *)0x4d9b50);
     } else {
-      rect[1] = (int16_t)(rect[1] + *(short *)0x4d9b4e);
+      line_bounds[1] = (int16_t)(line_bounds[1] + *(short *)0x4d9b4e);
     }
 
-    pen[0] = (int16_t)(*(int16_t *)(*(char **)(state + 4) + 0xa) + rect[1]);
+    cursor[0] = (int16_t)(*(int16_t *)(*(char **)(state + 4) + 0xa) + line_bounds[1]);
     y = (short)((*(uint16_t *)(*(char **)(state + 4) + 8) +
                  *(uint16_t *)(*(char **)(state + 4) + 6) +
-                 *(uint16_t *)(*(char **)(state + 4) + 4) + flags) *
-                  (wrap + line) +
-                *(uint16_t *)(*(char **)(state + 4) + 4) + rect[0]);
-    pen[1] = y;
+                 *(uint16_t *)(*(char **)(state + 4) + 4) + height_adjust) *
+                  (wrapped_line_index + paragraph_line_index) +
+                *(uint16_t *)(*(char **)(state + 4) + 4) + line_bounds[0]);
+    cursor[1] = y;
 
     do {
-      rewound = 0;
+      wrapped = 0;
       parse_string(state);
       if (*(int16_t *)(state + 0x14) == 2 || *(int16_t *)(state + 0x14) == 6) {
-        glyph =
+        character =
           FUN_0019cff0(*(void **)(state + 4), *(uint16_t *)(state + 0x12));
-        if (glyph != 0) {
-          if (*(int16_t *)(state + 0x14) != 2 && prev_token == 2) {
-            saved_pos = last;
-            saved_width = width;
+        if (character != 0) {
+          if (*(int16_t *)(state + 0x14) != 2 && previous_result == 2) {
+            break_string_index = segment_end_index;
+            break_line_width = line_width;
           }
-          if (*(int16_t *)((char *)glyph + 4) + pen[0] + width < rect[3]) {
-            width = (short)(width + *(int16_t *)((char *)glyph + 2));
+          if (*(int16_t *)((char *)character + 4) + cursor[0] + line_width < line_bounds[3]) {
+            line_width = (short)(line_width + *(int16_t *)((char *)character + 2));
           } else if (*(int *)0x4d9b10 & 1) {
-            if (saved_pos > 0) {
-              last = saved_pos;
-              width = saved_width;
-              rewound = 1;
+            if (break_string_index > 0) {
+              segment_end_index = break_string_index;
+              line_width = break_line_width;
+              wrapped = 1;
             }
             done = 1;
           }
@@ -125,52 +129,52 @@ void draw_string(void *callback, void *screen_pos, const void *color,
       } else {
         done = 1;
       }
-      if (!rewound)
-        last = *(int16_t *)(state + 0xc);
-      prev_token = *(int16_t *)(state + 0x14);
+      if (!wrapped)
+        segment_end_index = *(int16_t *)(state + 0xc);
+      previous_result = *(int16_t *)(state + 0x14);
     } while (!done);
 
     switch (justification) {
     case 1:
-      pen[0] = (int16_t)(rect2d_width(rect) +
-                         (int16_t)(rect[1] -
+      cursor[0] = (int16_t)(rect2d_width(line_bounds) +
+                         (int16_t)(line_bounds[1] -
                                    *(int16_t *)(*(char **)(state + 4) + 0xa)) -
-                         width);
+                         line_width);
       break;
     case 2:
-      pen[0] = (int16_t)((((short)rect2d_width(rect) - width) >> 1) + rect[1]);
+      cursor[0] = (int16_t)((((short)rect2d_width(line_bounds) - line_width) >> 1) + line_bounds[1]);
       break;
     }
 
-    if ((*(int *)0x4d9b10 & 2) || y < rect[2])
-      FUN_0019c1b0((const uint16_t *)rect, (draw_string_emit_proc)callback, pen,
-                   (const uint16_t *)clip_bounds, *(int *)(state + 0x18),
-                   (int *)text, first, last);
+    if ((*(int *)0x4d9b10 & 2) || y < line_bounds[2])
+      FUN_0019c1b0((const uint16_t *)line_bounds, (draw_string_emit_proc)draw_character, cursor,
+                   (const uint16_t *)clip, *(int *)(state + 0x18),
+                   (int *)string, segment_start_index, segment_end_index);
 
-    *(int16_t *)(state + 0xc) = last;
+    *(int16_t *)(state + 0xc) = segment_end_index;
     switch (*(int16_t *)(state + 0x14)) {
     case 0:
     case 5:
       break;
     case 2:
     case 6:
-      wrap++;
-      if (wrap > max_wrap)
-        max_wrap = wrap;
+      wrapped_line_index++;
+      if (wrapped_line_index > maximum_wrapped_line_index)
+        maximum_wrapped_line_index = wrapped_line_index;
       break;
     case 3:
-      if (tab < *(short *)0x4d9b28) {
-        tab++;
-        wrap = 0;
+      if (tab_stop_index < *(short *)0x4d9b28) {
+        tab_stop_index++;
+        wrapped_line_index = 0;
       }
       break;
     case 4:
-      wrap = 0;
+      wrapped_line_index = 0;
       break;
     case 1:
-      tab = 0;
-      wrap = 0;
-      line = (short)(line + max_wrap + 1);
+      tab_stop_index = 0;
+      wrapped_line_index = 0;
+      paragraph_line_index = (short)(paragraph_line_index + maximum_wrapped_line_index + 1);
       break;
     default:
       display_assert(0, "c:\\halo\\SOURCE\\text\\draw_string.c", 0x328, 1);
@@ -180,8 +184,8 @@ void draw_string(void *callback, void *screen_pos, const void *color,
 
   *(short *)0x4d9b4c = 0;
   *(short *)0x4d9b4a = 0;
-  if (color != 0)
-    *(int *)color = *(int *)pen;
+  if (cursor_reference != 0)
+    *(int *)cursor_reference = *(int *)cursor;
 }
 
 /* 0x19c960 — Wide-string (unsigned short text) draw_string: lay `text` out
