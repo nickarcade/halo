@@ -1230,6 +1230,49 @@ __declspec(noinline) int FUN_00069180(void *tif_ /* @<edx> */)
   return (int)nonzero;
 }
 
+/* One 6-byte run-length code table entry as putspan reads it: +0 goes to
+ * FUN_00069200 in EAX, +2 is its stack argument, +4 is sign-extended
+ * (movsx) and subtracted from the span. Shape matches upstream libtiff's
+ * tableentry {length, code, runlen}; the field names stay mechanical. */
+typedef struct tiff_fax_span_entry_s {
+  unsigned short field_00;
+  unsigned short field_02;
+  short field_04;
+} tiff_fax_span_entry_t;
+
+/**
+ * Emit a run of `span` pixels using a run-length code table.
+ *
+ * Shape matches upstream libtiff tif_fax3.c `putspan` (name is T1 from the
+ * 2276 symbol dump): repeated makeup codes for spans >= 2624 via the fixed
+ * entry 103 (0x26a = 103*6), one makeup code from entry 63 + (span >> 6) for
+ * spans >= 64, then the terminating code tab[span].
+ *
+ * ABI (0x69310): span in EAX (`mov esi,eax`), table in EBX (read as
+ * [ebx+...] throughout, never saved), and the TIFF handle in ECX, which is
+ * read at 0x6931e (`mov edi,ecx`) before any write and handed to every
+ * FUN_00069200 call in EDI.
+ */
+void putspan(int span /* @<eax> */, void *tif /* @<ecx> */,
+             void *table /* @<ebx> */)
+{
+  tiff_fax_span_entry_t *tab;
+  tiff_fax_span_entry_t *te;
+
+  tab = (tiff_fax_span_entry_t *)table;
+  while (span >= 2624) {
+    te = &tab[63 + (2560 >> 6)];
+    FUN_00069200(te->field_00, te->field_02, tif);
+    span -= te->field_04;
+  }
+  if (span >= 64) {
+    te = &tab[63 + (span >> 6)];
+    FUN_00069200(te->field_00, te->field_02, tif);
+    span -= te->field_04;
+  }
+  FUN_00069200(tab[span].field_00, tab[span].field_02, tif);
+}
+
 /**
  * Emit the fax codec's per-row terminator and update its state through the
  * shared bit-output helper.

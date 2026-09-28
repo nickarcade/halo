@@ -38700,9 +38700,9 @@
     },
     {
      "addr": "0x69310",
-     "decl": "void putspan(int span@<eax>, void *table@<ebx>);",
+     "decl": "void putspan(int span@<eax>, void *tif@<ecx>, void *table@<ebx>);",
      "comment": "[NAME: putspan \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x693b0",
@@ -40674,13 +40674,15 @@
      "addr": "0x24890",
      "decl": "char firing_position_post_evaluate(int actor_handle, void *state, char *actor @<edi>);",
      "comment": "[NAME: firing_position_post_evaluate \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "firing_position_post_evaluate"
+     "name": "firing_position_post_evaluate",
+     "ported": true
     },
     {
      "addr": "0x24900",
      "decl": "char firing_positions_get_post_evaluation_bound(int actor_handle, void *query_buf @<edi>);",
      "comment": "[NAME: firing_positions_get_post_evaluation_bound \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "firing_positions_get_post_evaluation_bound"
+     "name": "firing_positions_get_post_evaluation_bound",
+     "ported": true
     },
     {
      "addr": "0x24950",
