@@ -1358,6 +1358,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x31a90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x32ac0": {
       "kind": "function",
       "status": "ported"

@@ -1665,6 +1665,69 @@ void actor_berserk(int actor_handle, int berserk_flag)
   }
 }
 
+/* actor_perception_find_sense_position (0x31a90): copy the actor's cached
+ * 14-dword input block for a normal actor.  For a swarm actor, select the
+ * swarm unit whose component position is closest to position and sample that
+ * unit's input block.  param_3 is not read by the original. */
+void actor_perception_find_sense_position(int actor_handle, float *position,
+                                          int param_3,
+                                          void *input_block_out)
+{
+  char *actor;
+  char *swarm;
+  char *component;
+  float dx;
+  float dy;
+  float dz;
+  float distance_squared;
+  float best_distance_squared;
+  int best_unit_handle;
+  int i;
+
+  (void)param_3;
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (*(char *)(actor + 0x6) != 0) {
+    swarm =
+      (char *)datum_get(*(data_t **)0x6325a0, *(int *)(actor + 0x28));
+    best_distance_squared = 3.4028235e+38f;
+    best_unit_handle = -1;
+
+    if (*(short *)(actor + 0x1e) <= 0) {
+      display_assert("actor->meta.swarm_unit_count > 0",
+                     "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x665, true);
+      system_exit(-1);
+    }
+    if (*(int *)(actor + 0x24) == -1) {
+      display_assert("actor->meta.swarm_unit_index != NONE",
+                     "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x666, true);
+      system_exit(-1);
+    }
+
+    for (i = 0; (short)i < *(short *)(swarm + 0x2); i++) {
+      component = (char *)datum_get(
+        *(data_t **)0x63259c, *(int *)(swarm + 0x58 + (short)i * 4));
+      dx = position[0] - *(float *)(component + 0x4);
+      dy = position[1] - *(float *)(component + 0x8);
+      dz = position[2] - *(float *)(component + 0xc);
+      distance_squared = dx * dx + dy * dy + dz * dz;
+      if (distance_squared < best_distance_squared) {
+        best_unit_handle = *(int *)(swarm + 0x18 + (short)i * 4);
+        best_distance_squared = distance_squared;
+      }
+    }
+
+    if (best_unit_handle == -1) {
+      display_assert("best_unit_index != NONE",
+                     "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x677, true);
+      system_exit(-1);
+    }
+    actor_input_sample_position(actor_handle, best_unit_handle,
+                                (char *)input_block_out);
+  } else {
+    memcpy(input_block_out, actor + 0x120, 0x38);
+  }
+}
+
 /* actor_expected_acknowledgement (0x32940): walk the actor's props looking
  * for another prop that is "close" to prop_handle.
  *

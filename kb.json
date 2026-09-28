@@ -36238,7 +36238,8 @@
     },
     {
      "addr": "0x31a90",
-     "decl": "void actor_perception_find_sense_position(int actor_handle, float *position, int param_3, void *input_block_out);"
+     "decl": "void actor_perception_find_sense_position(int actor_handle, float *position, int param_3, void *input_block_out);",
+     "ported": true
     },
     {
      "addr": "0x31c00",

@@ -40186,17 +40186,17 @@
     "actor_perception_find_sense_position": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 6.2,
+      "abi_modeled_mnemonic_pct": 98.4,
       "addr": "0x31a90",
       "end": "0x31bfb",
       "kind": "auto",
       "n_r": 124,
-      "opnd_percent": 4.7,
-      "raw_mnemonic_pct": 6.2,
+      "opnd_percent": 81.5,
+      "raw_mnemonic_pct": 98.4,
       "ref": "synth",
       "ref_sha": "a47150c485ee3bbc",
-      "score": 6.2,
-      "source": "src/halo/unported_thunks.c"
+      "score": 98.4,
+      "source": "src/halo/ai/actor_perception.c"
     },
     "actor_perception_forget_recent_damage": {
       "abi_model": "raw",
