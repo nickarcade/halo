@@ -62,8 +62,9 @@
  * Ghidra's decompile of this function is misleading in three ways: the stale
  * void(void) kb prototype turned all five parameters into in_stack_* pseudo-
  * args, it dropped every return value, and it sized the buffer as char[4]. */
-int structure_surface_index_from_point(int scenario, unsigned char bsp_idx, float *origin,
-                 int node_handle, float *target)
+int structure_surface_index_from_point(int scenario, unsigned char bsp_idx,
+                                       float *origin, int node_handle,
+                                       float *target)
 {
   char result_buf[0x1c];
   int status;
@@ -114,6 +115,126 @@ void props_initialize_for_new_map(void)
 void props_dispose_from_old_map(void)
 {
   data_make_invalid(prop_data);
+}
+
+/* 0x64170 — prop_add (@eax=unit_handle, stack: actor_handle, prop_handle).
+ *
+ * Name: CEA PDB line containment; TU from props.c __FILE__ asserts (0xe8,
+ * 0xe9).  The kb decl carries unit_handle@<eax> (MOV EBX,EAX at 0x64181).
+ *
+ * prop_handle == NONE: throttled "knowledge database full" warning.  The
+ * last-warning time lives at 0x2c97b8 (not in kb.json; raw address).
+ *
+ * Otherwise: initialise the prop datum, fill unit-derived fields when
+ * unit_handle != NONE, then push the prop onto the actor's chain at
+ * actor+0x50 (prop+0x8 is the next link, same as prop_remove).
+ *
+ * Call-site table (disasm 0x64170-0x643c1):
+ *   0x64185 game_time_get()                      -> ESI (time)
+ *   0x641ae error(2, fmt, 0x300)                  PUSH 0x300/fmt/2
+ *   0x641ce datum_get(actor_data, [EBP+8])       -> [EBP-4] actor
+ *   0x641de datum_get(prop_data, ESI=[EBP+0xc])  -> ESI prop
+ *   0x6423c object_get_and_verify_type(EBX, 3)   -> EDI unit
+ *   0x6424b tag_get('unit', [EDI])               -> [EBP-8] unit_tag
+ *   0x64271/0x64298 display_assert(..., 0xe8/0xe9, 1); system_exit(-1)
+ *   0x642bc game_allegiance_get_team_is_friendly(actor+0x3e, team) -> +0x60
+ *           (team is the AX just loaded from unit+0x68, not a reload)
+ *   0x642d5 game_team_is_ally(actor+0x3e, prop+0x12)                -> +0x61
+ *   0x642eb game_team_ally_status_changed(actor+0x3e, prop+0x12)    -> +0x62
+ *   0x64363 game_time_get()                      -> prop+0x28
+ *   0x64396 datum_get(actor_data, prop+0x1c)     -> +0x4 short -> prop+0x10
+ *
+ * prop_t / actor_t fields beyond those already in types.h are unproven here,
+ * so they are accessed by raw offset. */
+void prop_add(int unit_handle, int actor_handle, int prop_handle)
+{
+  int time;
+  actor_t *actor;
+  char *prop;
+  char *unit;
+  char *unit_tag;
+  char dead;
+
+  if (prop_handle == -1) {
+    time = game_time_get();
+    if (*(int *)0x2c97b8 == -1 || time >= *(int *)0x2c97b8 + 900) {
+      error(
+        2,
+        "AI knowledge database (%d entries) is full (warns once every 30 sec)",
+        0x300);
+      *(int *)0x2c97b8 = time;
+    }
+    return;
+  }
+
+  actor = (actor_t *)datum_get(actor_data, actor_handle);
+  prop = (char *)datum_get(prop_data, prop_handle);
+  *(int *)(prop + 0x4) = actor_handle;
+  *(int16_t *)(prop + 0x66) = -1;
+  *(int16_t *)(prop + 0x6c) = -1;
+  ((prop_t *)prop)->unit_index = unit_handle;
+  *(char *)(prop + 0x74) = 0;
+  *(int *)(prop + 0x70) = 0;
+  *(int16_t *)(prop + 0xb0) = -1;
+  *(char *)(prop + 0xb8) = 0;
+  *(int *)(prop + 0xb4) = -1;
+  *(int *)(prop + 0x7c) = -1;
+  *(int *)(prop + 0x8c) = -1;
+  *(char *)(prop + 0x4e) = 0;
+  *(int *)(prop + 0x1c) = -1;
+  *(int *)(prop + 0xc) = -1;
+  *(int16_t *)(prop + 0x6a) = 0;
+  *(int *)(prop + 0xa0) = -1;
+
+  if (unit_handle != -1) {
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
+    unit_tag = (char *)tag_get(0x756e6974, *(int *)unit);
+    if (unit_handle == actor->meta_unit_index) {
+      display_assert("unit_index != actor->meta.unit_index",
+                     "c:\\halo\\SOURCE\\ai\\props.c", 0xe8, 1);
+      system_exit(-1);
+    }
+    if (*(int16_t *)(unit + 0x64) != 0) {
+      display_assert("prop_unit->object.type == _object_type_biped",
+                     "c:\\halo\\SOURCE\\ai\\props.c", 0xe9, 1);
+      system_exit(-1);
+    }
+    *(int16_t *)(prop + 0x12) = *(int16_t *)(unit + 0x68);
+    *(char *)(prop + 0x60) = game_allegiance_get_team_is_friendly(
+      actor->field_03e, *(int16_t *)(unit + 0x68));
+    *(char *)(prop + 0x61) =
+      game_team_is_ally(actor->field_03e, *(int16_t *)(prop + 0x12));
+    *(char *)(prop + 0x62) = game_team_ally_status_changed(
+      actor->field_03e, *(int16_t *)(prop + 0x12));
+    dead = (char)((*(unsigned char *)(unit + 0xb6) >> 2) & 1);
+    *(char *)(prop + 0x127) = dead;
+    *(int *)(prop + 0x20) = *(int *)(unit_tag + 0x284);
+    if (dead != 0 && *(int16_t *)(unit + 0x3d0) == 0) {
+      *(char *)(prop + 0x128) = 1;
+    } else {
+      *(char *)(prop + 0x128) = 0;
+    }
+    *(int16_t *)(prop + 0x76) = (int16_t)(dead != 0 ? 1000 : 0);
+    *(char *)(prop + 0x12e) = *(int *)(unit + 0x70) != -1;
+    if (*(int *)(unit + 0x1a8) != -1) {
+      *(char *)(prop + 0x14) = 1;
+      *(int *)(prop + 0x1c) = *(int *)(unit + 0x1a8);
+      *(int *)(prop + 0x28) = game_time_get();
+    } else {
+      *(int *)(prop + 0x1c) = *(int *)(unit + 0x1a4);
+    }
+    if (*(char *)(prop + 0x12e) != 0) {
+      *(int16_t *)(prop + 0x10) = 6;
+    } else if (*(int *)(prop + 0x1c) != -1) {
+      *(int16_t *)(prop + 0x10) =
+        *(int16_t *)((char *)datum_get(actor_data, *(int *)(prop + 0x1c)) + 4);
+    } else {
+      *(int16_t *)(prop + 0x10) = -1;
+    }
+  }
+
+  *(int *)(prop + 0x8) = actor->field_050;
+  actor->field_050 = prop_handle;
 }
 
 /* 0x643d0 — allocate a prop and attach it to an actor.
@@ -282,7 +403,8 @@ void prop_remove(int actor_handle, int prop_handle) /* @<eax>, @<edi> */
  * into out[1] (out+4).  The caller (e.g. 0x12350) then passes *out to
  * prop_iterator_next to step through props one at a time.
  *
- * out[0] (out+0) is NOT written here — prop_iterator_next likely owns that slot.
+ * out[0] (out+0) is NOT written here — prop_iterator_next likely owns that
+ * slot.
  *
  * Store-offset table (derived from disasm, not decompiler):
  *   out+0: not written by this function
@@ -357,8 +479,8 @@ int prop_iterator_next(int *iter)
  *   the nearest rejected prop wins; otherwise the nearest accepted prop wins
  *   but only if at least `flag ? 6 : 4` flag-matching candidates were seen;
  *   otherwise a brand-new prop datum is allocated.  A reused prop is
- *   unlinked from the actor (actor_switch_props + prop_remove) and cleared to zero
- *   except for its datum identifier before being re-added.
+ *   unlinked from the actor (actor_switch_props + prop_remove) and cleared to
+ * zero except for its datum identifier before being re-added.
  *
  * Ghidra's decompile of this function must NOT be transcribed: the stale
  * `void prop_new_unacknowledged(void)` kb prototype hid all three parameters
@@ -612,8 +734,8 @@ int prop_orphan_transition(int actor_handle, int prop_handle)
  *   0x649cb datum_get:         PUSH EDX = prop_data, PUSH ECX = [EBP+0x10]
  *                              -> [EBP-8] = friend_prop
  *                              (one coalesced ADD ESP,0x18 covers all three)
- *   0x64a28 prop_setup_orphan:      MOV EAX,[EBP+0x10] (@eax friend_prop_handle),
- *                              PUSH EBX -> actor_handle, PUSH ESI -> orphan
+ *   0x64a28 prop_setup_orphan:      MOV EAX,[EBP+0x10] (@eax
+ * friend_prop_handle), PUSH EBX -> actor_handle, PUSH ESI -> orphan
  *
  * Store offsets (from disasm, not the decompiler):
  *   [EDI+0x0c]      = ESI          parent_prop+0x0c = orphan_handle
@@ -662,8 +784,8 @@ int prop_orphan_from_friend(int actor_handle, int prop_handle,
 
 /* 0x64a60 — prop_orphan_update_information.
  *
- * Thin cdecl forwarder onto prop_setup_orphan (the orphan-information copy shared
- * with prop_orphan_transition at 0x648a0 and prop_orphan_from_friend at
+ * Thin cdecl forwarder onto prop_setup_orphan (the orphan-information copy
+ * shared with prop_orphan_transition at 0x648a0 and prop_orphan_from_friend at
  * 0x64970).  The wrapper exists only to re-order the three handles into that
  * callee's mixed register/stack ABI.
  *
@@ -874,8 +996,8 @@ int prop_get_active_by_unit_index(int actor_handle, int object_handle)
  * agrees with the already-lifted callers in actor_perception.c
  * (`char position_data_a[0x38]`).  The frame reserves 0x4c with a 4-byte hole
  * at EBP-0x10 that this function never touches. */
-int prop_get_base_by_unit_index(int actor_handle, int object_handle, bool create_if_missing,
-                 bool acknowledge)
+int prop_get_base_by_unit_index(int actor_handle, int object_handle,
+                                bool create_if_missing, bool acknowledge)
 {
   int target; /* [EBP-0x04] */
   char *actor; /* [EBP-0x08] */

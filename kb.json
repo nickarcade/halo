@@ -38298,7 +38298,9 @@
     },
     {
      "addr": "0x64170",
-     "decl": "void prop_add(int unit_handle@<eax>, int actor_handle, int prop_handle);"
+     "decl": "void prop_add(int unit_handle@<eax>, int actor_handle, int prop_handle);",
+     "ported": true,
+     "name": "prop_add"
     },
     {
      "addr": "0x643d0",
