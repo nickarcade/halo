@@ -39414,7 +39414,7 @@
      "addr": "0x705b0",
      "decl": "void RGBToColor(unsigned short *rgb@<eax>, unsigned char *color);",
      "comment": "[NAME: RGBToColor \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "ported": true
+     "ported": false
     },
     {
      "addr": "0x70610",
