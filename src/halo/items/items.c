@@ -749,6 +749,63 @@ char virtual_keyboard_cancel(void)
   return 1;
 }
 
+/* virtual_keyboard_get_character (0xf5800)
+ * Resolves the wide character for configurable key `key` (arrives in SI,
+ * kb.json @<si>; result returned in AX) under the current modifier toggles.
+ * Asserts the keyboard definition (0x46cef4) is loaded (l.0x3da) and that
+ * key < NUMBER_OF_CONFIGURABLE_VIRTUAL_KEYS (0x24; CMP SI,0x24 / JC, so the
+ * compare is unsigned) (l.0x3db).
+ * The key table pointer is keyboard+0x34 with a 0x50-byte stride (MOVZX SI,
+ * LEA *5, SHL 4). Word selected by the modifier bytes 0x46cef1/2/3:
+ *   cef1 && cef2        -> +0x0a     !cef1 && cef2 && cef3 -> +0x0e
+ *   cef1 && cef3        -> +0x0c     !cef1 && cef2         -> +0x06
+ *   cef1                -> +0x04     !cef1 && cef3         -> +0x08
+ *                                    otherwise             -> +0x02
+ * A zero character maps to 0x7f (MOV EAX,0x7f). Field meanings unproven. */
+unsigned short virtual_keyboard_get_character(short key /* @<si> */)
+{
+  char *entry;
+  unsigned short character;
+
+  if (*(void **)0x46cef4 == (void *)0) {
+    display_assert("virtual_keyboard_globals.keyboard != NULL",
+                   "c:\\halo\\SOURCE\\interface\\virtual_keyboard.c", 0x3da,
+                   true);
+    system_exit(-1);
+  }
+  if ((unsigned short)key >= 0x24) {
+    display_assert("keycode < NUMBER_OF_CONFIGURABLE_VIRTUAL_KEYS",
+                   "c:\\halo\\SOURCE\\interface\\virtual_keyboard.c", 0x3db,
+                   true);
+    system_exit(-1);
+  }
+  entry = *(char **)(*(char **)0x46cef4 + 0x34) +
+          (unsigned int)(unsigned short)key * 0x50;
+  if (*(char *)0x46cef1 != 0) {
+    if (*(char *)0x46cef2 != 0) {
+      character = *(unsigned short *)(entry + 0xa);
+    } else if (*(char *)0x46cef3 != 0) {
+      character = *(unsigned short *)(entry + 0xc);
+    } else {
+      character = *(unsigned short *)(entry + 0x4);
+    }
+  } else if (*(char *)0x46cef2 != 0) {
+    if (*(char *)0x46cef3 != 0) {
+      character = *(unsigned short *)(entry + 0xe);
+    } else {
+      character = *(unsigned short *)(entry + 0x6);
+    }
+  } else if (*(char *)0x46cef3 != 0) {
+    character = *(unsigned short *)(entry + 0x8);
+  } else {
+    character = *(unsigned short *)(entry + 0x2);
+  }
+  if (character == 0) {
+    character = 0x7f;
+  }
+  return character;
+}
+
 /* Virtual keyboard free-room check (0xf5f10).
  * Returns the number of free bytes remaining in the edit buffer: buffer
  * capacity (0x46cefc, unsigned 16-bit, loaded via MOVZX) minus the byte

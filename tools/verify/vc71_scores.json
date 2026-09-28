@@ -72794,18 +72794,18 @@
       "source": "src/halo/items/items.c"
     },
     "item_adjust_for_angular_velocity_change": {
-      "abi_model": "regparam_stripped",
-      "abi_model_items": 1,
-      "abi_modeled_mnemonic_pct": 92.9,
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 96.3,
       "addr": "0xf6b80",
       "end": "0xf6c31",
       "kind": "auto",
       "n_r": 53,
-      "opnd_percent": 92.9,
-      "raw_mnemonic_pct": 92.0,
+      "opnd_percent": 96.3,
+      "raw_mnemonic_pct": 96.3,
       "ref": "synth",
       "ref_sha": "26dd308348e3bf21",
-      "score": 92.9,
+      "score": 96.3,
       "source": "src/halo/items/items.c"
     },
     "item_detonate": {
@@ -105884,18 +105884,18 @@
       "source": "src/halo/game/players.c"
     },
     "valid_real_vector3d_axes3": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 92.2,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 2,
+      "abi_modeled_mnemonic_pct": 93.4,
       "addr": "0xf6c40",
       "end": "0xf6cf7",
       "kind": "auto",
       "n_r": 75,
-      "opnd_percent": 90.9,
+      "opnd_percent": 92.1,
       "raw_mnemonic_pct": 92.2,
       "ref": "synth",
       "ref_sha": "33c287c7e156eb6a",
-      "score": 92.2,
+      "score": 93.4,
       "source": "src/halo/items/items.c"
     },
     "validate_real_vector3d_axes3": {
@@ -106465,6 +106465,21 @@
       "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "27d2a64b6d0e73c8",
+      "score": 100.0,
+      "source": "src/halo/items/items.c"
+    },
+    "virtual_keyboard_get_character": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 100.0,
+      "addr": "0xf5800",
+      "end": "0xf58c6",
+      "kind": "auto",
+      "n_r": 60,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
+      "ref": "synth",
+      "ref_sha": "9157ca102c9144b0",
       "score": 100.0,
       "source": "src/halo/items/items.c"
     },

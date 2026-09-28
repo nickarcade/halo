@@ -14593,7 +14593,8 @@
     {
      "addr": "0xf5800",
      "decl": "unsigned short virtual_keyboard_get_character(short key@<si>);",
-     "name": "virtual_keyboard_get_character"
+     "name": "virtual_keyboard_get_character",
+     "ported": true
     },
     {
      "addr": "0xf5900",
