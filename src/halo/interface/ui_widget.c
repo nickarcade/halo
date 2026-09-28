@@ -553,7 +553,35 @@ void ui_widgets_disable_pause_game(int duration_ticks)
   dword_46CC44 = duration_ticks;
 }
 
-void push_widget(int *head, void *record);
+/* push_widget (0xe46f0) — allocates a 0x10-byte node from the widget
+ * stack memory pool at [0x31e04c] (ui_widget.c:0x9e4) BEFORE asserting
+ * head and record are non-NULL (ui_widget.c:0x9e6). On success copies the
+ * first 3 dwords of *record into the node, links node+0xc to the old *head,
+ * and stores the node into *head. On allocation failure emits a
+ * non-halting display_assert (ui_widget.c:0x9f0). head arrives in EBX and
+ * record in EDI (kb.json @<ebx>/@<edi>). */
+void push_widget(int *head, void *record)
+{
+  int *node;
+
+  node = (int *)stack_memory_pool_allocate(
+    *(void **)0x31e04c, 0x10, "c:\\halo\\SOURCE\\interface\\ui_widget.c",
+    0x9e4);
+  assert_halt_msg_at("top && data", "c:\\halo\\SOURCE\\interface\\ui_widget.c",
+                     0x9e6, head != NULL && record != NULL);
+
+  if (node != NULL) {
+    node[0] = ((int *)record)[0];
+    node[1] = ((int *)record)[1];
+    node[2] = ((int *)record)[2];
+    node[3] = *head;
+    *head = (int)node;
+    return;
+  }
+
+  display_assert("out of memory! the UI screen history will be hosed.",
+                 "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x9f0, false);
+}
 
 /* pop_widget (0xe4770) — pops the head node off the intrusive list at
  * *head, copies its first 3 dwords into *output, relinks *head to the
@@ -674,6 +702,25 @@ int *widget_instance_find_by_tag_index_recursive(int *widget, int tag_handle)
   }
 
   return result;
+}
+
+/* widget_instance_get_cumulative_alpha_modifier (0xe4960) — product of the
+ * float at +0x24 over widget and every ancestor on the +0x30 parent chain.
+ * Widget arrives in EAX; result returned in ST0.
+ * 0xe4960-0xe497a: FLD [EAX+0x24]; MOV EAX,[EAX+0x30]; loop FMUL [EAX+0x24];
+ * MOV EAX,[EAX+0x30] while EAX!=0; RET. */
+float widget_instance_get_cumulative_alpha_modifier(void *widget)
+{
+  float alpha;
+
+  alpha = *(float *)((char *)widget + 0x24);
+  widget = *(void **)((char *)widget + 0x30);
+  while (widget != NULL) {
+    alpha *= *(float *)((char *)widget + 0x24);
+    widget = *(void **)((char *)widget + 0x30);
+  }
+
+  return alpha;
 }
 
 /* widget_instance_can_receive_events (0xe4980) — widget ancestor-chain check,
@@ -946,6 +993,28 @@ void render_state_text(short *dst_rect, void *text, short *src_rect)
   *dst_rect = *src_rect;
 }
 
+/* string_has_icons_to_draw (0xe4ce0) — scans a wide string for '%' (0x25)
+ * markers and returns true as soon as the text following a marker is a
+ * recognised icon name (get_icon_type() != -1). Assert text "string" at
+ * 0x27b838, line 0x1055. ABI: @eax = string (kb decl names it text).
+ * get_icon_type takes its argument @<ebx> (kb.json). */
+bool string_has_icons_to_draw(const wchar_t *string)
+{
+  assert_halt_at("c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x1055, string);
+
+  while (string != NULL) {
+    string = _wcschr(string, 0x25);
+    if (string == NULL) {
+      break;
+    }
+    string = string + 1;
+    if (get_icon_type(string) != -1) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /* should_flip_sticks_for_local_player (0xe4d40) — evaluates whether a local
  * player's input preferences select control scheme 1 or 3. If
  * local_player_index is -1 (unspecified), resolves it via
@@ -1202,6 +1271,93 @@ int search_and_replace(const wchar_t *search, const wchar_t *replace,
 
   *text = buffer;
   return count;
+}
+
+/* column_list_update (0xe5380) — walks the child list starting at
+ * [widget+0x34] via next-sibling [child+0x2c]. For each child whose
+ * word at +0x56 equals 2, stores word +0x50 = 1 when the child is the
+ * one at [widget+0x38], else 0. definition is never read (0xe5380-0xe53b6:
+ * no EDX/stack access besides MOV EDX,2). Fields are unproven; raw
+ * offsets kept. */
+void column_list_update(void *widget, void *definition)
+{
+  char *child;
+
+  (void)definition;
+  for (child = *(char **)((char *)widget + 0x34); child != NULL;
+       child = *(char **)(child + 0x2c)) {
+    if (child == *(char **)((char *)widget + 0x38)) {
+      if (*(short *)(child + 0x56) == 2) {
+        *(short *)(child + 0x50) = 1;
+      }
+    } else if (*(short *)(child + 0x56) == 2) {
+      *(short *)(child + 0x50) = 0;
+    }
+  }
+}
+
+/* widget_instance_tab_to_previous_valid_widget (0xe5440) — widget@<edi>.
+ * Starting from the focused child [widget+0x38], steps backwards via the
+ * previous-sibling link [child+0x28], wrapping to the last child of the
+ * list at [widget+0x34] (walked via [child+0x2c]). With no focused child
+ * the candidate is [first+0x28], else first itself (first is dereferenced
+ * without a NULL test, 0xe546c-0xe546f). Stops when it returns to the
+ * focused child; otherwise the first candidate whose DeLa definition has
+ * [def+0x54] > 0 or bit 0 of byte [def+0x2c] set, or whose widget word
+ * +0xe is 2 or 3, becomes the new focused child. Fields unproven; raw
+ * offsets kept. */
+void widget_instance_tab_to_previous_valid_widget(void *widget)
+{
+  int *focused;
+  int *candidate;
+  int *next;
+  char *definition;
+
+  focused = *(int **)((char *)widget + 0x38);
+  if (focused != NULL) {
+    candidate = (int *)focused[10];
+    if (candidate == NULL) {
+      candidate = *(int **)((char *)widget + 0x34);
+      if (candidate == NULL) {
+        return;
+      }
+      for (next = (int *)candidate[11]; next != NULL; next = (int *)next[11]) {
+        candidate = next;
+      }
+    }
+  } else {
+    next = *(int **)((char *)widget + 0x34);
+    candidate = (int *)next[10];
+    if (candidate == NULL) {
+      candidate = next;
+    }
+  }
+  if (candidate == NULL) {
+    return;
+  }
+  while (candidate != *(int **)((char *)widget + 0x38)) {
+    definition = (char *)tag_get(0x44654c61, *candidate);
+    if (*(int *)(definition + 0x54) > 0 ||
+        (*(unsigned char *)(definition + 0x2c) & 1) != 0 ||
+        *(short *)((char *)widget + 0xe) == 2 ||
+        *(short *)((char *)widget + 0xe) == 3) {
+      *(int **)((char *)widget + 0x38) = candidate;
+      return;
+    }
+    candidate = (int *)candidate[10];
+    if (candidate == NULL) {
+      candidate = *(int **)((char *)widget + 0x34);
+      if (candidate != NULL) {
+        for (next = (int *)candidate[11]; next != NULL;
+             next = (int *)next[11]) {
+          candidate = next;
+        }
+      }
+      if (candidate == NULL) {
+        return;
+      }
+    }
+  }
 }
 
 /* Local shape-only float3, not a claimed Bungie struct: mirrors the
@@ -3972,9 +4128,9 @@ bool multiplayer_level_list_initialize(void *widget, void *event_data,
   if (saved_game_file_retrieve_last_used_multiplayer_map(saved_map_name)) {
     *(int16_t *)((char *)widget + 0x3c) = 0;
     while (*(int16_t *)((char *)widget + 0x3c) < level_count &&
-           crt_stricmp(saved_map_name,
-                       ((char **)0x31e4c8)[*(int16_t *)((char *)widget +
-                                                        0x3c)]) != 0) {
+           crt_stricmp(
+             saved_map_name,
+             ((char **)0x31e4c8)[*(int16_t *)((char *)widget + 0x3c)]) != 0) {
       (*(int16_t *)((char *)widget + 0x3c))++;
     }
 
@@ -4590,8 +4746,7 @@ bool player_profile_set_for_game_3wide(void *widget, void *event_data,
           *(int16_t *)((char *)event_data + 2));
       player_ui_set_active_player_profile(
         (short)local_player_index,
-        profile_indices[*(int16_t *)((char *)spinner + 0x3c)],
-        profile);
+        profile_indices[*(int16_t *)((char *)spinner + 0x3c)], profile);
       return true;
     }
 
@@ -4631,11 +4786,13 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
                                        bool *widget_deleted)
 {
   wchar_t profile[24];
-  int *available_profiles; /* name: PAL 2342 ui_widget_event_handler_functions.c:4044 */
+  int *available_profiles; /* name: PAL 2342
+                              ui_widget_event_handler_functions.c:4044 */
   int16_t controller_index;
   short selected_index;
   short *widget_definition;
-  void *spinner_list; /* name: PAL 2342 ui_widget_event_handler_functions.c:4041 */
+  void
+    *spinner_list; /* name: PAL 2342 ui_widget_event_handler_functions.c:4041 */
 
   (void)widget_deleted;
 
@@ -4650,7 +4807,8 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
   controller_index = *(int16_t *)((char *)event_data + 2);
 
   spinner_list = *(void **)((char *)widget + 0x34);
-  while (spinner_list != NULL && *(int16_t *)((char *)spinner_list + 0xe) != 2) {
+  while (spinner_list != NULL &&
+         *(int16_t *)((char *)spinner_list + 0xe) != 2) {
     spinner_list = *(void **)((char *)spinner_list + 0x2c);
   }
   if (spinner_list == NULL) {
@@ -4692,11 +4850,11 @@ bool player_profile_set_for_game_1wide(void *widget, void *event_data,
   }
 
   if (player_profile_new(
-        available_profiles[*(int16_t *)((char *)spinner_list + 0x3c)], profile)) {
+        available_profiles[*(int16_t *)((char *)spinner_list + 0x3c)],
+        profile)) {
     player_ui_set_active_player_profile(
       (short)controller_index,
-      available_profiles[*(int16_t *)((char *)spinner_list + 0x3c)],
-      profile);
+      available_profiles[*(int16_t *)((char *)spinner_list + 0x3c)], profile);
     return true;
   }
 
@@ -4727,7 +4885,8 @@ bool playlist_profile_begin_editing(void *widget, void *event_data,
   int *list_widget;
   short *list_tag;
   short list_index;
-  int profile_index; /* name: PAL 2342 ui_widget_event_handler_functions.c:3108 */
+  int
+    profile_index; /* name: PAL 2342 ui_widget_event_handler_functions.c:3108 */
   int widget_tag_id;
   bool result;
 
@@ -4781,7 +4940,7 @@ bool playlist_profile_begin_editing(void *widget, void *event_data,
   }
 
   profile_index = (*(int **)((char *)list_widget +
-                              0x40))[*(short *)((char *)list_widget + 0x3c)];
+                             0x40))[*(short *)((char *)list_widget + 0x3c)];
 
   if (profile_index != -1) {
     if (profile_index & 0x80000000) {

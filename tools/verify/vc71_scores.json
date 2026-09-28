@@ -50953,6 +50953,21 @@
       "score": 91.7,
       "source": "src/halo/physics/collision_bsp.c"
     },
+    "column_list_update": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 97.1,
+      "addr": "0xe5380",
+      "end": "0xe53b7",
+      "kind": "auto",
+      "n_r": 18,
+      "opnd_percent": 97.1,
+      "raw_mnemonic_pct": 97.1,
+      "ref": "synth",
+      "ref_sha": "3b75f123feca9d8c",
+      "score": 97.1,
+      "source": "src/halo/interface/ui_widget.c"
+    },
     "compare_messages": {
       "abi_model": "raw",
       "abi_model_items": 0,

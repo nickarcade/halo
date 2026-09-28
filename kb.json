@@ -28737,7 +28737,7 @@
     {
      "addr": "0xe5380",
      "decl": "void column_list_update(void *widget@<ecx>, void *definition);",
-     "ported": false,
+     "ported": true,
      "name": "column_list_update"
     },
     {
