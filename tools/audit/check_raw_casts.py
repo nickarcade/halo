@@ -53,6 +53,32 @@ def write_baseline(count):
         f.write(f'{count}\n')
 
 
+def truncated_tracked_sources():
+    """Tracked src/*.c files that are missing or empty on disk.
+
+    A campaign worktree once held a 0-byte actor_perception.c mid-run; the
+    auto-ratchet below lowered the baseline 195->182 during that window, and
+    every later lift failed the gate once the file came back (campaign 09-27
+    run 3). Never ratchet down while the tree is in that state.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(['git', '-C', ROOT_DIR, 'ls-files', '-s', '--', 'src/*.c'],
+                             capture_output=True, text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return []
+    empty_blob = 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391'
+    bad = []
+    for line in out.splitlines():
+        meta, rel = line.split('\t', 1)
+        if meta.split()[1] == empty_blob:
+            continue  # empty in the index too: an intentional placeholder
+        path = os.path.join(ROOT_DIR, rel)
+        if not os.path.exists(path) or os.path.getsize(path) == 0:
+            bad.append(rel)
+    return bad
+
+
 def main():
     update = '--update' in sys.argv
 
@@ -79,6 +105,15 @@ def main():
         return 1
 
     if current < baseline:
+        truncated = truncated_tracked_sources()
+        if truncated:
+            print(
+                f'WARNING: raw-cast count {current} < baseline {baseline}, but '
+                f'tracked sources are missing or empty: {", ".join(truncated)}. '
+                f'Baseline NOT lowered.',
+                file=sys.stderr,
+            )
+            return 0
         write_baseline(current)
         print(f'raw-cast count decreased {baseline} -> {current}, baseline updated')
     else:
