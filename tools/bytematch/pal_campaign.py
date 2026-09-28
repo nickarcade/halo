@@ -27,6 +27,7 @@ workers never read whole files or re-derive state.
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sqlite3
@@ -46,8 +47,12 @@ PROPOSALS = ROOT / "artifacts" / "punpckhdq_import" / "name_proposals.json"
 RECORDS = ROOT / "artifacts" / "raw_xbe_structural"
 CACHE = ROOT / "artifacts" / "bytematch" / "record_cache.json"
 ATTEMPTED = ROOT / "artifacts" / "byte_campaign" / "attempted.json"
-# Ledger results that mean "another shape attempt will not help".
-SKIP_RESULTS = frozenset(("no_gain", "reverted", "behavior_risk", "regarg_ceiling"))
+CAMPAIGNS = ROOT / "artifacts" / "byte_campaign" / "campaigns.jsonl"
+# Retry ordinary failed shape attempts after two completed runs. Evidence-backed
+# ceilings remain parked until their classification is explicitly changed.
+RECENT_SKIP_RESULTS = frozenset(("no_gain", "reverted"))
+SKIP_RESULTS = RECENT_SKIP_RESULTS | frozenset(("behavior_risk", "regarg_ceiling"))
+DEPENDENCY_PATHS = (ROOT / "src" / "types.h", ROOT / "build" / "generated" / "decl.h")
 STATUS_WEIGHT = {"Matching": 1.0, "NonMatching": 0.4}
 
 
@@ -115,10 +120,13 @@ def _slim(record):
     return {"function": record.get("function"), "address": record.get("address"),
             "lane": record.get("lane"), "generated_at": record.get("generated_at", ""),
             "verdict": record.get("verdict"), "source": record.get("source"),
+            "register_argument_residual": record.get("register_argument_residual"),
             "matching_non_relocation_bytes": record.get("matching_non_relocation_bytes"),
             "aligned_byte_match": {key: block.get(key) for key in (
-                "status", "byte_accuracy", "matching_bytes", "compared_bytes",
-                "difference_classes")}}
+                "status", "byte_accuracy", "byte_accuracy_upper_bound",
+                "matching_bytes", "compared_bytes", "uncertain_relocation_bytes",
+                "mismatched_relocations", "candidate_only_instructions",
+                "reference_only_instructions", "difference_classes")}}
 
 
 def load_records():
@@ -169,24 +177,160 @@ def relative_source(record):
 
 # ---------------------------------------------------------------- commands
 
+def dependency_fingerprint(source):
+    """Digest the TU and generated declarations/types that constrain codegen."""
+    digest = hashlib.sha256()
+    for path in (ROOT / source,) + DEPENDENCY_PATHS:
+        digest.update(str(path.relative_to(ROOT)).encode("utf-8"))
+        try:
+            digest.update(path.read_bytes())
+        except OSError:
+            digest.update(b"<missing>")
+    return digest.hexdigest()
+
+
+def recent_campaign_runs(limit=2):
+    """Names of the newest completed campaign runs."""
+    try:
+        lines = CAMPAIGNS.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return frozenset()
+    runs = []
+    for line in reversed(lines):
+        try:
+            run = json.loads(line).get("run")
+        except ValueError:
+            continue
+        if run and run not in runs:
+            runs.append(run)
+        if len(runs) == limit:
+            break
+    return frozenset(runs)
+
+
+def skip_attempt(attempt, recent_runs, fingerprint=None):
+    """Whether a prior result should suppress this queue entry."""
+    result = attempt.get("result")
+    if result not in SKIP_RESULTS:
+        return False
+    recorded_fingerprint = attempt.get("dependency_fingerprint")
+    if recorded_fingerprint and fingerprint != recorded_fingerprint:
+        return False
+    if result in RECENT_SKIP_RESULTS:
+        run = attempt.get("run")
+        return run in recent_runs if run else False
+    return True
+
+
+def cmd_fingerprint(args):
+    """Print the dependency fingerprint stored with an attempt result."""
+    value = dependency_fingerprint(args.source)
+    if args.json:
+        print(json.dumps({"source": args.source, "dependency_fingerprint": value}, indent=1))
+    else:
+        print(value)
+    return 0
+
+
+def cmd_metrics(args):
+    """Print the raw-byte metrics used to judge campaign progress."""
+    summary_path = RECORDS / "summary.json"
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print("cannot read %s: %s" % (summary_path, exc), file=sys.stderr)
+        return 1
+    aligned_totals = summary.get("aligned_byte_totals") or {}
+    function_totals = summary.get("function_totals") or {}
+    metrics = {
+        "generated_at": summary.get("generated_at"),
+        "audited_functions": summary.get("audited_function_count", 0),
+        "comparable_functions": (function_totals.get("structural_exact", 0) +
+                                 function_totals.get("structural_differ", 0)),
+        "structural_exact_functions": function_totals.get("structural_exact", 0),
+        "structural_differ_functions": function_totals.get("structural_differ", 0),
+        "exact_function_coverage": summary.get("exact_among_comparable"),
+        "exact_byte_coverage": summary.get("exact_byte_coverage_of_comparable"),
+        "aligned_byte_accuracy_lower": aligned_totals.get("byte_accuracy_lower"),
+        "aligned_byte_accuracy_upper": aligned_totals.get("byte_accuracy_upper"),
+    }
+    if args.json:
+        print(json.dumps(metrics, indent=1))
+    else:
+        print("Raw-XBE exact coverage")
+        print("  exact functions: %d/%d (%.2f%%)" % (
+            metrics["structural_exact_functions"], metrics["comparable_functions"],
+            100.0 * (metrics["exact_function_coverage"] or 0.0)))
+        print("  exact bytes:     %.2f%% of comparable bytes" %
+              (100.0 * (metrics["exact_byte_coverage"] or 0.0)))
+        print("  aligned bytes:   %.2f%%..%.2f%%" % (
+            100.0 * (metrics["aligned_byte_accuracy_lower"] or 0.0),
+            100.0 * (metrics["aligned_byte_accuracy_upper"] or 0.0)))
+    return 0
+
+
+def classify_residual(record):
+    """Choose the cheapest evidence lane for a non-exact function."""
+    block = record.get("aligned_byte_match") or {}
+    classes = block.get("difference_classes") or {}
+    abi = record.get("register_argument_residual") or {}
+    if abi.get("status") == "exact_except_register_abi":
+        return "abi", 0.05
+    if (block.get("uncertain_relocation_bytes", 0) and
+            not block.get("mismatched_relocations") and
+            not classes):
+        return "relocation", 0.0
+    candidate_only = sum(count for kind, count in classes.items()
+                         if kind.startswith("candidate_only:"))
+    reference_only = sum(count for kind, count in classes.items()
+                         if kind.startswith("reference_only:"))
+    structural = candidate_only + reference_only
+    shape = sum(classes.get(kind, 0) for kind in
+                ("operand_order", "immediate", "encoding_size", "encoding"))
+    type_like = sum(classes.get(kind, 0) for kind in
+                    ("operands", "displacement", "stack_offset"))
+    register = classes.get("register", 0) + sum(
+        count for kind, count in classes.items() if kind.endswith(":register_save"))
+    total = sum(classes.values()) or 1
+    if structural > max(shape + type_like + register, total // 3):
+        return "relift", 0.15
+    if type_like > shape + register:
+        return "types", 0.30
+    if register > shape and register >= total // 3:
+        return "frame", 0.20
+    return "shape", 0.65
+
+
+def queue_priority(missing, pal_status, lane, probability, accuracy):
+    """Expected byte gain per unit effort; deterministic lanes rank first."""
+    lane_cost = {"shape": 1.0, "types": 4.0, "frame": 5.0, "relift": 8.0,
+                 "abi": 10.0, "relocation": 100.0}
+    exact_bonus = 1.5 if accuracy >= 0.95 else 1.0
+    return (missing * STATUS_WEIGHT.get(pal_status, 0.1) * probability * exact_bonus /
+            lane_cost[lane])
+
+
 def cmd_queue(args):
     index = PalIndex()
     try:
         attempted = json.loads(ATTEMPTED.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         attempted = {}
+    recent_runs = recent_campaign_runs()
     rows = []
     for record in load_records().values():
         measured = aligned(record)
         if measured is None:
-            continue
-        if attempted.get(record["function"], {}).get("result") in SKIP_RESULTS:
             continue
         matching, compared, accuracy = measured
         if accuracy >= args.max_accuracy or accuracy < args.min_accuracy:
             continue
         source = relative_source(record)
         if args.tu and source not in args.tu:
+            continue
+        fingerprint = dependency_fingerprint(source)
+        if skip_attempt(attempted.get(record["function"], {}), recent_runs,
+                        fingerprint):
             continue
         hits = index.lookup(record["function"])
         if len(hits) != 1:
@@ -198,16 +342,21 @@ def cmd_queue(args):
         if args.matching_only and hit["status"] != "Matching":
             continue
         missing = compared - matching
-        weight = STATUS_WEIGHT.get(hit["status"], 0.1)
+        lane, probability = classify_residual(record)
+        score = queue_priority(missing, hit["status"], lane, probability, accuracy)
         rows.append({"function": record["function"], "address": record["address"],
                      "source": source, "accuracy": round(accuracy, 4),
                      "missing_bytes": missing, "pal_file": hit["file"],
                      "pal_lines": [hit.get("start"), hit.get("end")],
-                     "pal_status": hit["status"], "score": round(missing * weight, 1),
+                     "pal_status": hit["status"], "lane": lane,
+                     "fix_probability": probability, "score": round(score, 2),
                      "causes": raw_causes(record)})
-    rows.sort(key=lambda row: -row["score"])
+    rows.sort(key=lambda row: (-row["score"], -row["missing_bytes"]))
+    selected = rows
+    if args.lane:
+        selected = [row for row in rows if row["lane"] in args.lane]
     by_tu = {}
-    for row in rows:
+    for row in selected:
         by_tu.setdefault(row["source"], []).append(row)
     tus = sorted(by_tu.items(), key=lambda item: -sum(row["score"] for row in item[1]))
     if args.max_tus:
@@ -217,13 +366,19 @@ def cmd_queue(args):
     if args.json:
         Path(args.json).write_text(json.dumps(plan, indent=1) + "\n", encoding="utf-8")
     total = sum(len(tu["targets"]) for tu in plan)
-    print("%d TUs, %d targets (of %d mapped candidates)" % (len(plan), total, len(rows)))
+    lane_counts = {}
+    for row in rows:
+        lane_counts[row["lane"]] = lane_counts.get(row["lane"], 0) + 1
+    print("%d TUs, %d targets (of %d mapped candidates; %s)" % (
+        len(plan), total, len(rows),
+        ", ".join("%s=%d" % item for item in sorted(lane_counts.items()))))
     for tu in plan:
         print("%7.1f  %s" % (tu["score"], tu["source"]))
         for row in tu["targets"]:
-            print("         %-40s %5.1f%%  -%-5d %-11s %s" % (
+            print("         %-36s %5.1f%%  -%-5d %-10s %-8s %s" % (
                 row["function"], 100 * row["accuracy"], row["missing_bytes"],
-                row["pal_status"], ",".join(sorted(row["causes"]))[:40]))
+                row["pal_status"], row["lane"],
+                ",".join(sorted(row["causes"]))[:40]))
     return 0
 
 
@@ -318,7 +473,15 @@ def main(argv=None):
     q.add_argument("--per-tu", type=int, default=8)
     q.add_argument("--matching-only", action="store_true")
     q.add_argument("--include-unmapped", action="store_true")
+    q.add_argument("--lane", action="append",
+                   choices=("shape", "types", "frame", "relift", "abi", "relocation"),
+                   help="restrict to a classified residual lane; repeatable")
     q.add_argument("--json")
+    m = sub.add_parser("metrics")
+    m.add_argument("--json", action="store_true")
+    f = sub.add_parser("fingerprint")
+    f.add_argument("--source", required=True)
+    f.add_argument("--json", action="store_true")
     p = sub.add_parser("pal")
     p.add_argument("function")
     s = sub.add_parser("snapshot")
@@ -330,8 +493,9 @@ def main(argv=None):
     g.add_argument("--target", action="append")
     g.add_argument("--neutral", action="store_true")
     args = parser.parse_args(argv)
-    return {"queue": cmd_queue, "pal": cmd_pal, "snapshot": cmd_snapshot,
-            "gate": cmd_gate}[args.command](args)
+    return {"queue": cmd_queue, "metrics": cmd_metrics,
+            "fingerprint": cmd_fingerprint, "pal": cmd_pal,
+            "snapshot": cmd_snapshot, "gate": cmd_gate}[args.command](args)
 
 
 if __name__ == "__main__":

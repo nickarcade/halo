@@ -146,9 +146,14 @@ When all workers return (or as each returns — land in completion order):
 Append per run to `artifacts/byte_campaign/campaigns.jsonl`:
 `{ts, run, tus, targets, functions_improved, bytes_gained, reverted,
 behavior_risk, tokens, wall_s, bytes_per_ktok}`. Per function in
-`artifacts/byte_campaign/attempted.json`: `{name: {ts, result, before,
-after}}`; the next queue run should skip names with `no_gain`/`reverted`
-from the last 2 runs. Force-add both (`rtk git add -f`) in a chore commit.
+`artifacts/byte_campaign/attempted.json`: `{name: {ts, run, result, before,
+after, dependency_fingerprint}}`; obtain the fingerprint with
+`pal_campaign.py fingerprint --source <TU>`. The next queue run skips
+`no_gain`/`reverted` only when they occurred in either of the last two completed
+runs. A changed TU, `types.h`, or generated `decl.h` fingerprint reopens every
+result, including an ABI ceiling. Legacy rows without `run` or fingerprint age
+out instead of becoming permanent. Force-add both ledgers (`rtk git add -f`) in
+a chore commit.
 
 ## Stop conditions
 
