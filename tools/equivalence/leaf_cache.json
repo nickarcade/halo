@@ -14603,9 +14603,12 @@
     "call_count": 35
   },
   "0x1c660": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "moderate",
+    "coverage_pct": 31.6,
+    "oracle": "xbe"
   },
   "0x1c6870": {
     "class": "stubbable",
@@ -14902,9 +14905,12 @@
     "call_count": 2
   },
   "0x1c8d0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 2
+    "call_count": 2,
+    "confidence": "moderate",
+    "coverage_pct": 54.4,
+    "oracle": "xbe"
   },
   "0x1c8d10": {
     "class": "stubbable",
@@ -15051,9 +15057,12 @@
     "call_count": 22
   },
   "0x1ca00": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 2
+    "call_count": 2,
+    "confidence": "moderate",
+    "coverage_pct": 43.0,
+    "oracle": "xbe"
   },
   "0x1ca130": {
     "class": "stubbable",
@@ -22038,9 +22047,12 @@
     "call_count": 10
   },
   "0x378e0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "none",
+    "coverage_pct": 85.2,
+    "oracle": "xbe"
   },
   "0x379f0": {
     "class": "stubbable",
@@ -36775,14 +36787,20 @@
     "call_count": 24
   },
   "0xed7c0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 38,
-    "call_count": 36
+    "call_count": 36,
+    "confidence": "none",
+    "coverage_pct": 4.6,
+    "oracle": "xbe"
   },
   "0xedcd0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 20,
-    "call_count": 20
+    "call_count": 20,
+    "confidence": "none",
+    "coverage_pct": 8.4,
+    "oracle": "xbe"
   },
   "0xedfb0": {
     "class": "stubbable",
@@ -36971,9 +36989,12 @@
     "call_count": 2
   },
   "0xf0790": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 35,
-    "call_count": 19
+    "call_count": 19,
+    "confidence": "moderate",
+    "coverage_pct": 50.4,
+    "oracle": "xbe"
   },
   "0xf0a30": {
     "class": "stubbable",
@@ -37006,9 +37027,12 @@
     "call_count": 9
   },
   "0xf0ea0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 5,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "high",
+    "coverage_pct": 68.5,
+    "oracle": "xbe"
   },
   "0xf0f30": {
     "class": "stubbable",

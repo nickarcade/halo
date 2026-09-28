@@ -1,2455 +1,2607 @@
 {
- "object_compute_function_values": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 88.1,
-  "after": 88.1
- },
- "find_objects_from_point_vector": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 90.7,
-  "after": 100
- },
- "attachments_new": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 93.0,
-  "after": 93.0
- },
- "object_get_orientation": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "improved",
-  "before": 77.2,
-  "after": 100.0
- },
- "objects_get_activating_cluster_index": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 93.3,
-  "after": 93.3
- },
- "object_types_place_all": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "no_gain",
-  "before": 80.0,
-  "after": 80.0
- },
- "object_new_from_scenario": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 94.7867298578199,
-  "after": 94.7867298578199,
-  "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
- },
- "object_names_postprocess": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "improved",
-  "before": 80.3,
-  "after": 100.0
- },
- "network_game_client_leave_game": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 94.6,
-  "after": 94.6
- },
- "network_game_client_request_remove_player": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 93.4,
-  "after": 93.4
- },
- "network_game_client_add_player": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 93.6,
-  "after": 93.6
- },
- "network_game_client_handle_game_update": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "improved",
-  "before": 78.4,
-  "after": 100.0
- },
- "network_game_client_add_player_to_game": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "improved",
-  "before": 75.9,
-  "after": 100.0
- },
- "network_game_client_idle_ingame": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "regarg_ceiling",
-  "before": 83.7,
-  "after": 83.7
- },
- "network_game_client_idle_joining": {
-  "ts": "2026-09-26",
-  "run": "run-20260926-1928",
-  "result": "regarg_ceiling",
-  "before": 84.7,
-  "after": 84.7
- },
- "network_game_client_handle_message_server_game_settings_update": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.8,
-  "after": 85.8
- },
- "playlist_profile_change_player_options": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "no_gain",
-  "before": 89.9,
-  "after": 89.9
- },
- "playlist_profile_change_item_options": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 88.4,
-  "after": 88.4
- },
- "playlist_profile_change_oddball_rules": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 93.8,
-  "after": 93.8
- },
- "playlist_profile_begin_editing": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 77.4,
-  "after": 100
- },
- "multiplayer_profile_set_for_game": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 89.4,
-  "after": 100
- },
- "playlist_profile_change_ctf_rules": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 92.4,
-  "after": 92.4
- },
- "multiplayer_level_list_initialize": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 81.4,
-  "after": 100
- },
- "playlist_profile_set_game_engine": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "no_gain",
-  "before": 84.9,
-  "after": 84.9
- },
- "network_game_client_handle_message_server_pregame_countdown": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 78.4,
-  "after": 78.4
- },
- "network_game_client_update_precache_status": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 78.7,
-  "after": 96.8
- },
- "network_game_client_idle_pregame": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 80.7,
-  "after": 80.7
- },
- "network_game_client_reset": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 85.1,
-  "after": 94.5
- },
- "network_game_client_idle_postgame": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 78.1,
-  "after": 78.1
- },
- "network_game_client_idle_searching": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 96.2,
-  "after": 98.1
- },
- "network_game_client_update_local_player_data": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 87.2,
-  "after": 93.5
- },
- "network_game_client_request_start_time_change": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 87.3,
-  "after": 92.9
- },
- "network_game_client_accepted_into_game": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 99.0,
-  "after": 100
- },
- "network_game_server_idle_pregame_tasks": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.8827,
-  "after": 0.8827
- },
- "network_game_server_update_ticks": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 76.1,
-  "after": 100
- },
- "network_game_server_update_countdown": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.9416,
-  "after": 0.9416
- },
- "network_game_server_handle_client_machines": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.9441,
-  "after": 0.9441
- },
- "network_game_server_add_new_client": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "regarg_ceiling",
-  "before": 82.0,
-  "after": 84.7
- },
- "network_game_server_remove_machine_from_game": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 79.1,
-  "after": 100
- },
- "network_game_server_handle_client_update_packet": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 85.8,
-  "after": 97.5
- },
- "network_game_server_get_client_machine_at_address": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 81.8,
-  "after": 100
- },
- "object_get_function_value": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 76.5,
-  "after": 100
- },
- "object_delete_recursive": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 92.2,
-  "after": 92.2
- },
- "object_types_initialize": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 84.7,
-  "after": 100
- },
- "object_pvs_set_camera_point": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "improved",
-  "before": 82.1,
-  "after": 100
- },
- "attachments_delete": {
-  "ts": "2026-09-26T21:30:36+02:00",
-  "result": "no_gain",
-  "before": 86.1,
-  "after": 86.1
- },
- "network_game_server_idle": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 89.9,
-  "after": 89.9
- },
- "network_game_server_client_machine_game_loading_complete": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 83.4,
-  "after": 100
- },
- "server_has_a_player_on_each_machine": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 82.3,
-  "after": 100
- },
- "network_game_server_change_game_variant": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 78.6,
-  "after": 100
- },
- "network_game_server_get_machine_connection": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 82.0,
-  "after": 100
- },
- "network_game_server_send_rejection_message": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 81.1,
-  "after": 83.2
- },
- "network_game_server_invalidate_network_machine": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 78.4,
-  "after": 100
- },
- "network_game_server_get_connection": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 72.5,
-  "after": 100
- },
- "network_game_server_game_can_start": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 81.9,
-  "after": 100
- },
- "network_game_server_pause_countdown": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 84.1,
-  "after": 100
- },
- "countdown_timer_get_time_remaining": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 81.3,
-  "after": 100
- },
- "network_game_server_switch_machine_from_postgame_to_pregame": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "no_gain",
-  "before": 77.4,
-  "after": 77.4
- },
- "get_unique_random_name": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 85.4,
-  "after": 100
- },
- "get_unique_random_color": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 88.2,
-  "after": 100
- },
- "server_needs_more_teams": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 86.1,
-  "after": 100
- },
- "network_game_server_dump": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 89.3,
-  "after": 89.3
- },
- "network_game_server_dispose": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.9202,
-  "after": 0.9202
- },
- "network_game_server_open_game": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 82.4,
-  "after": 100
- },
- "network_game_server_close_game": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 82.4,
-  "after": 100
- },
- "server_ok_to_countdown": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 85.9,
-  "after": 100
- },
- "network_game_server_all_machines_have_loaded": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 89.9,
-  "after": 100
- },
- "network_game_server_reset_to_pregame": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 72.4,
-  "after": 73.2
- },
- "network_game_server_stalled_on_client": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 67.2,
-  "after": 98.4
- },
- "network_game_server_create": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.9237,
-  "after": 0.9237
- },
- "network_game_server_accept_client_machine_into_game": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.9018,
-  "after": 0.9018
- },
- "network_game_server_add_player_to_game": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 92.9,
-  "after": 92.9
- },
- "network_game_server_handle_public_endpoint": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 88.1,
-  "after": 88.1
- },
- "object_translate": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 83.5,
-  "after": 100
- },
- "object_determine_variant_number": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 89.55223880597015,
-  "after": 89.55223880597015,
-  "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
- },
- "object_type_postprocess_node_matrices": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 77.1,
-  "after": 91.3
- },
- "object_type_handle_region_destroyed": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 78.2,
-  "after": 89.3
- },
- "object_update": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 96.46017699115043,
-  "after": 96.46017699115043,
-  "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
- },
- "object_add_to_dump": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 88.7,
-  "after": 88.7
- },
- "recursive_object_adder": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "no_gain",
-  "before": 86.4,
-  "after": 86.4
- },
- "grunt_decide_action": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 87.8,
-  "after": 87.8,
-  "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
- },
- "elite_decide_action": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 88.7,
-  "after": 88.7,
-  "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
- },
- "marine_decide_action": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 84.9,
-  "after": 84.9,
-  "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
- },
- "actor_type_swarm_aim_jump": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 81.0,
-  "after": 81.0
- },
- "actor_type_initialize": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 77.5,
-  "after": 77.5
- },
- "actor_type_decide_action": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.2,
-  "after": 85.2
- },
- "actor_type_swarm_control": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 89.3,
-  "after": 89.3
- },
- "actor_type_get_race": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 76.5,
-  "after": 76.5
- },
- "inflate_codes": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 91.8,
-  "after": 91.8
- },
- "uncompress": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 75.9,
-  "after": 100
- },
- "inflate_trees_bits": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 89.6,
-  "after": 89.6
- },
- "inflateSync": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "no_gain",
-  "before": 87.7,
-  "after": 87.7
- },
- "circular_queue_new": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 82.9,
-  "after": 82.9
- },
- "inflate_set_dictionary": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "improved",
-  "before": 90.0,
-  "after": 100
- },
- "circular_queue_delete": {
-  "ts": "2026-09-26T22:22:21+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.7,
-  "after": 85.7
- },
- "network_game_client_get_state": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 83.8,
-  "after": 92.3
- },
- "network_game_client_handle_message_server_pregame_keep_alive": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.5,
-  "after": 85.5
- },
- "network_game_client_handle_message_server_machine_accepted": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.5,
-  "after": 85.5
- },
- "network_game_client_handle_message_server_machine_rejected": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 85.5,
-  "after": 85.5
- },
- "extract_pixels_from_mipmap": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 75.1,
-  "after": 75.1
- },
- "extract_plateless_cube_map": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 97.36,
-  "after": 97.36
- },
- "TIFFReadEncodedTile": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 76.6,
-  "after": 100
- },
- "TIFFReadEncodedStrip": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 78.1,
-  "after": 100
- },
- "TIFFReadRawTile1": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 75.4,
-  "after": 75.4
- },
- "TIFFStartStrip": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 81.7,
-  "after": 81.7
- },
- "TIFFStartTile": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 89.2,
-  "after": 89.2
- },
- "TIFFNumberOfStrips": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 80,
-  "after": 100
- },
- "create_network_game_message": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 85.5,
-  "after": 87.1
- },
- "data_packet_group_decode_packet": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 86.3,
-  "after": 97.9
- },
- "verify_lra_cache": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "regarg_ceiling",
-  "before": 75,
-  "after": 75
- },
- "data_encode_string": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 84.2,
-  "after": 100
- },
- "hashtable_get": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 85.6,
-  "after": 97.9
- },
- "default_hash_function": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 77.0,
-  "after": 77.0
- },
- "data_decode_short": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 90.8,
-  "after": 100
- },
- "data_decode_byte": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 90,
-  "after": 100
- },
- "object_type_reset": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 76.9,
-  "after": 100
- },
- "objects_reconnect_to_structure_bsp": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "no_gain",
-  "before": 93.5,
-  "after": 93.5
- },
- "object_type_handle_parent_destroyed": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 81.8,
-  "after": 100
- },
- "object_type_delete": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 81,
-  "after": 100
- },
- "object_type_export_function_values": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 81,
-  "after": 100
- },
- "object_type_disconnect_from_structure_bsp": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 81,
-  "after": 100
- },
- "object_type_new": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 69.3,
-  "after": 100
- },
- "object_type_update": {
-  "ts": "2026-09-27T00:30:00+02:00",
-  "result": "improved",
-  "before": 88.6,
-  "after": 96.6
- },
- "point_physics_update": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 80.4,
-  "after": 91.3
- },
- "player_profile_set_for_game_3wide": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 90.7,
-  "after": 100
- },
- "player_profile_set_for_game_1wide": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 88.2,
-  "after": 94.8
- },
- "playlist_profile_change_racing_rules": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "no_gain",
-  "before": 94.5,
-  "after": 94.5
- },
- "playlist_profile_initialize_name": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "no_gain",
-  "before": 89.92,
-  "after": 89.92,
-  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
- },
- "playlist_profile_change_slayer_rules": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "no_gain",
-  "before": 95.8,
-  "after": 95.8
- },
- "playlist_profile_initialize_game_engine": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "improved",
-  "before": 98.36,
-  "after": 100.0,
-  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
- },
- "player_profile_change_controller_settings": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 77.8,
-  "after": 86.8
- },
- "delete_player_profile_request": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 95.3,
-  "after": 95.3,
-  "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
- },
- "create_and_begin_editing_new_gametype_profile": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 89.1,
-  "after": 100
- },
- "player_profile_color_picker_select_color": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 83.2,
-  "after": 100
- },
- "network_game_start_slower": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 80.5,
-  "after": 100
- },
- "network_game_start_faster": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 95.0,
-  "after": 100
- },
- "playlist_profile_initialize_indicator_options": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 96.1,
-  "after": 100
- },
- "difficulty_menu_initialize": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 91.1,
-  "after": 100
- },
- "start_network_game_if_no_advertised_servers": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 86.8,
-  "after": 100
- },
- "action_fight_perform": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 96.5,
-  "after": 96.5
- },
- "action_search_update": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 84.8,
-  "after": 100
- },
- "action_fight_control": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 84.0,
-  "after": 100
- },
- "action_search_setup_target": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 84.7,
-  "after": 90.7
- },
- "action_search_setup_undirected": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 83.2,
-  "after": 89.8
- },
- "action_wait_perform": {
-  "ts": "2026-09-27T10:01:25+02:00",
-  "result": "improved",
-  "before": 86.4,
-  "after": 93.3
- },
- "actor_action_handle_vehicle_entry": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 86.25,
-  "after": 88.61,
-  "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
- },
- "action_vehicle_setup_impromptu": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 81.24,
-  "after": 83.41,
-  "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
- },
- "actor_pursuit_find_nearby_actors": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 86.8,
-  "after": 87.7,
-  "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
- },
- "actor_action_handle_surprise": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 83.91,
-  "after": 93.28,
-  "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
- },
- "actor_new": {
-  "ts": "2026-09-27T10:01:25+02:00",
-  "result": "reverted",
-  "before": 75.75,
-  "after": 75.75
- },
- "jackal_decide_action": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 80.8,
-  "after": 80.8,
-  "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
- },
- "actor_died": {
-  "ts": "2026-09-27T10:01:25+02:00",
-  "result": "reverted",
-  "before": 78.19,
-  "after": 78.19
- },
- "unit_scripting_set_current_vitality": {
-  "ts": "2026-09-27T10:01:25+02:00",
-  "result": "behavior_risk",
-  "before": 76.9,
-  "after": 76.9
- },
- "unit_impact_melee_damage": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "frame_ceiling",
-  "before": 75.67,
-  "after": 75.67,
-  "dependency_fingerprint": "171bdaa072c9ee3b11cd1d52ee76a1d66477a5451135b6a23dd7f0e9c841baf0"
- },
- "unit_exit_seat_end": {
-  "ts": "2026-09-27T10:01:25+02:00",
-  "result": "behavior_risk",
-  "before": 85.38,
-  "after": 85.38
- },
- "choose_random_array_element": {
-  "ts": "2026-09-27T10:01:25+02:00",
-  "result": "reverted",
-  "before": 83.1,
-  "after": 83.1
- },
- "ai_profile_render_spray": {
-  "ts": "2026-09-27T10:01:25+02:00",
-  "result": "reverted",
-  "before": 87.97,
-  "after": 87.97
- },
- "encounter_get_actor_starting_location": {
-  "ts": "2026-09-27T10:01:25+02:00",
-  "result": "reverted",
-  "before": 85.05,
-  "after": 85.05
- },
- "encounter_test_rule": {
-  "ts": "2026-09-27T10:01:25+02:00",
-  "result": "regarg_ceiling",
-  "before": 86.57,
-  "after": 86.57
- },
- "inflate_blocks": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 94.15,
-  "after": 94.15
- },
- "pill_intersects_triangle3d": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 81.35,
-  "after": 81.35
- },
- "vector_intersects_triangle3d": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 80.52,
-  "after": 80.52
- },
- "sphere_test_vector3d": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 79.07,
-  "after": 79.07
- },
- "point_in_triangle3d": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "improved",
-  "before": 85.35,
-  "after": 86.79
- },
- "point_to_line_distance_squared3d": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 75.81,
-  "after": 75.81
- },
- "fast_vector_intersects_sphere": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "improved",
-  "before": 83.4,
-  "after": 90.16
- },
- "accerate_to_position3d": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "reverted",
-  "before": 84.12,
-  "after": 84.12
- },
- "action_flee_perform": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 75.62,
-  "after": 75.62
- },
- "action_guard_setup_from_fleeing": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 78.99,
-  "after": 78.99
- },
- "action_guard_perform": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 80.3,
-  "after": 80.3
- },
- "action_guard_control": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 84.07,
-  "after": 84.07
- },
- "action_obey_individuals_iterate": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 76.49,
-  "after": 76.49
- },
- "action_uncover_setup_pursuit": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 76.47,
-  "after": 76.47
- },
- "actor_look_secondary": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 89.65,
-  "after": 89.65
- },
- "object_export_function_values": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 81.41176470588235,
-  "after": 81.41176470588235,
-  "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
- },
- "lights_illumination_at_point": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "frame_ceiling",
-  "before": 75.28,
-  "after": 75.28,
-  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
- },
- "glow_trailing_particle_new": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 80.85,
-  "after": 80.85,
-  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
- },
- "render_debug_light": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "frame_ceiling",
-  "before": 76.19,
-  "after": 76.19,
-  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
- },
- "find_point_lights_for_object_in_cluster": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 86.96,
-  "after": 86.96
- },
- "light_volume_interpolate_frames": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 88.45,
-  "after": 88.45,
-  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
- },
- "light_volume_submit": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "improved",
-  "before": 79.1,
-  "after": 82.58,
-  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
- },
- "light_get_bounding_sphere": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 75.45,
-  "after": 75.45
- },
- "ai_scripting_migrate_internal": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 75.78,
-  "after": 75.78
- },
- "ai_scripting_count_internal": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "regarg_ceiling",
-  "before": 79.78,
-  "after": 79.78
- },
- "ai_scripting_attach_unit": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 79.72,
-  "after": 79.72
- },
- "ai_index_from_string": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 81.37,
-  "after": 81.37
- },
- "ai_index_squad_iterator_next": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 75.13,
-  "after": 75.13
- },
- "ai_index_platoon_iterator_new": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 86.06,
-  "after": 86.06
- },
- "ai_index_actor_iterator_new": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 82.45,
-  "after": 82.45
- },
- "ai_scripting_maneuver_enable": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
-  "before": 76.09,
-  "after": 76.09
- },
- "ai_conversation": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "behavior_risk",
-  "before": 77.95,
-  "after": 77.95
- },
- "ai_conversation_line_perform": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "improved",
-  "before": 75.43,
-  "after": 81.0,
-  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
- },
- "ai_conversation_line_begin": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 78.54,
-  "after": 78.54,
-  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
- },
- "extract_pixels_to_mipmap": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 80.08,
-  "after": 80.08
- },
- "bitmap_step_line": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 83.02,
-  "after": 83.02
- },
- "AllSame": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "reverted",
-  "before": 92.78,
-  "after": 92.78
- },
- "TIFFComputeTile": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 96.67,
-  "after": 96.67
- },
- "ColorToRGB": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 92.45,
-  "after": 92.45
- },
- "object_beautify": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 80.95,
-  "after": 80.95
- },
- "objects_paparazzi": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 86.3,
-  "after": 86.3
- },
- "glow_new": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "infra_skipped",
-  "before": 76.65,
-  "after": 76.65
- },
- "glow_particles_initialize": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "infra_skipped",
-  "before": 78.98,
-  "after": 78.98
- },
- "lightning_offset_marker_position": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 77.84,
-  "after": 77.84,
-  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
- },
- "glow_normal_particle_new": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "infra_skipped",
-  "before": 92.18,
-  "after": 92.18
- },
- "encounter_update_platoons": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 78.1,
-  "after": 78.1
- },
- "ai_scripting_migrate_by_unit": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 77.12,
-  "after": 77.12
- },
- "encounter_find_pursuit": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 75.8,
-  "after": 75.8
- },
- "ai_scripting_go_to_vehicle_internal": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 85.39,
-  "after": 85.39
- },
- "encounter_post_combat_select_random_behavior": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "no_gain",
-  "before": 81.62,
-  "after": 81.62
- },
- "first_person_weapon_update": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.752,
-  "after": 0.8472
- },
- "first_person_weapon_draw": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.7929,
-  "after": 0.8243
- },
- "first_person_weapon_predict": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8021,
-  "after": 0.9355
- },
- "weapon_play_first_person_weapon_sound": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8308,
-  "after": 0.8308
- },
- "first_person_animation_type_from_weapon_state": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8187,
-  "after": 0.8187
- },
- "first_person_weapon_start_interpolation": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8758,
-  "after": 0.8758
- },
- "first_person_weapon_index_from_weapon_index": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8105,
-  "after": 0.8105
- },
- "first_person_weapon_new_unit": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.7922,
-  "after": 0.7922
- },
- "render_contrail": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.9764,
-  "after": 0.9776
- },
- "render_camera_mirror": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8712,
-  "after": 0.9244
- },
- "render_frustum_sphere_visible": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8405,
-  "after": 0.8592
- },
- "render_camera_debug_frustum": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8647,
-  "after": 0.9549
- },
- "render_frustum_cube_view_fraction": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "no_gain",
-  "before": 0.9089,
-  "after": 0.9089
- },
- "render_frustum_cube_visible": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "no_gain",
-  "before": 0.899,
-  "after": 0.899
- },
- "render_frustum_build_point_flags": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "no_gain",
-  "before": 0.7814,
-  "after": 0.7814
- },
- "render_camera_check_warning_condition": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.7984,
-  "after": 0.7984
- },
- "weapon_export_function_values": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8221,
-  "after": 0.8271
- },
- "weapon_build_weapon_interface_state": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8241,
-  "after": 1.0
- },
- "weapon_trigger_release_charge": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.783,
-  "after": 0.8244
- },
- "weapon_trigger_can_fire_again": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.84,
-  "after": 0.84
- },
- "weapon_trigger_overload": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.7848,
-  "after": 0.7848
- },
- "weapon_magazine_start_chamber": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8047,
-  "after": 0.8047
- },
- "weapon_trigger_start_ejection_port": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.7563,
-  "after": 0.7563
- },
- "weapon_owner_update": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "no_gain",
-  "before": 0.7829,
-  "after": 0.7829
- },
- "bitmap_3d_slice_extract": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8005,
-  "after": 1.0
- },
- "bitmap_cube_map_face_extract": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8005,
-  "after": 1.0
- },
- "bitmap_format_to_a8r8g8b8": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8266,
-  "after": 0.9753
- },
- "bitmap_2d_address": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8152,
-  "after": 0.9636
- },
- "bitmap_3d_slice_insert": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8173,
-  "after": 1.0
- },
- "bitmap_cube_map_face_insert": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8173,
-  "after": 1.0
- },
- "bitmap_cube_map_address": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.8635,
-  "after": 0.9444
- },
- "bitmap_mipmap_get_pixel_data_size": {
-  "ts": "2026-09-27T14:24:51+02:00",
-  "result": "improved",
-  "before": 0.7583,
-  "after": 1.0
- },
- "actor_situation_update": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "no_gain",
-  "before": 80.51,
-  "after": 80.51,
-  "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
- },
- "actor_compute_prop_target_weight": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 94.8,
-  "after": 95.5,
-  "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
- },
- "actor_situation_update_target_status": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "no_gain",
-  "before": 94.78,
-  "after": 94.78,
-  "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
- },
- "actor_perception_find_recent_damaging_prop_index": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.8131,
-  "after": 0.9596
- },
- "actor_perception_friend_prop_is_attacking": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.9059,
-  "after": 0.9893
- },
- "actor_perception_find_killer_prop_index": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.8278,
-  "after": 1.0
- },
- "actor_get_perception_knowledge": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.8685,
-  "after": 1.0
- },
- "actor_situation_try_new_target": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.8684,
-  "after": 1.0
- },
- "network_game_client_idle": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.7619,
-  "after": 0.8283
- },
- "network_game_client_process_incoming_messages": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.875,
-  "after": 0.875
- },
- "network_game_client_create": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.8654,
-  "after": 1.0
- },
- "network_game_client_handle_message_server_game_advertise": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.9028,
-  "after": 0.9028
- },
- "network_game_client_handle_message_server_pong": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8889,
-  "after": 0.8889
- },
- "unstrip_player_index": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.8442,
-  "after": 0.8659
- },
- "particle_system_render": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8063,
-  "after": 0.8063
- },
- "particle_system_new_particles": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.7597,
-  "after": 0.7597
- },
- "particle_system_new_particle_explosion": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.7681,
-  "after": 1.0
- },
- "particle_system_next_type_state_index": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8736,
-  "after": 0.8736
- },
- "randomize_particle_variables": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8957,
-  "after": 0.8957
- },
- "particle_system_update_particle_default": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "no_gain",
-  "before": 0.9405,
-  "after": 0.9405
- },
- "particle_systems_render": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.8246,
-  "after": 0.9057
- },
- "particle_system_next_particle_state_index": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "regarg_ceiling",
-  "before": 0.8896,
-  "after": 0.8896
- },
- "decal_projection_create": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "reverted",
-  "before": 0.7684,
-  "after": 0.7684
- },
- "decals_disconnect_from_structure_bsp": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.8101,
-  "after": 0.8558
- },
- "decal_update": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.7795,
-  "after": 0.8497
- },
- "decal_delete": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.7741,
-  "after": 0.8185
- },
- "decal_new": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.8227,
-  "after": 1.0
- },
- "project_point2d": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "improved",
-  "before": 0.804,
-  "after": 0.9465
- },
- "decals_reconnect_to_structure_bsp": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "no_gain",
-  "before": 0.9012,
-  "after": 0.9012
- },
- "decals_unlock": {
-  "ts": "2026-09-27T15:33:40+02:00",
-  "result": "no_gain",
-  "before": 0.875,
-  "after": 0.875
- },
- "datastore_read": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.7772,
-  "after": 0.7772
- },
- "file_references_equal": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "improved",
-  "before": 0.7581,
-  "after": 1.0
- },
- "file_printf": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "reverted",
-  "before": 0.8219,
-  "after": 0.8219
- },
- "file_reference_set_name": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "reverted",
-  "before": 0.8734,
-  "after": 0.8734
- },
- "file_exists": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "improved",
-  "before": 0.7692,
-  "after": 0.8291
- },
- "file_rename": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "improved",
-  "before": 0.896,
-  "after": 0.9941
- },
- "file_close": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "improved",
-  "before": 0.7654,
-  "after": 1.0
- },
- "file_get_size": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.8639,
-  "after": 0.8639
- },
- "dump_network_game_data": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.8976,
-  "after": 0.8976
- },
- "network_game_server_remove_client_machine_from_game": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.9595,
-  "after": 0.9595
- },
- "player_profile_1wide_list_update": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.7772,
-  "after": 0.7772
- },
- "multiplayer_game_set_text_box_for_map_name": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.83,
-  "after": 0.83
- },
- "settings_menu_update_extended_description": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.7867,
-  "after": 0.7867
- },
- "difficulty_select_menu_update_extended_description": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.7867,
-  "after": 0.7867
- },
- "solo_game_objective_text": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.8687,
-  "after": 0.8687
- },
- "get_active_player_profile_display_name": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.7656,
-  "after": 0.7656
- },
- "close_calling_widget_if_not_editing_profile": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.8077,
-  "after": 0.8077
- },
- "set_textbox_to_build_number": {
-  "ts": "2026-09-27T16:04:30+02:00",
-  "result": "no_gain",
-  "before": 0.7664,
-  "after": 0.7664
- },
- "crew_decide_action": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 83.7,
-  "after": 83.7,
-  "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
- },
- "engineer_decide_action": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 83.7,
-  "after": 83.7,
-  "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
- },
- "hunter_decide_action": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 79.0,
-  "after": 79.0,
-  "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
- },
- "sentinel_decide_action": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 82.8,
-  "after": 82.8
- },
- "carrier_decide_action": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 85.2,
-  "after": 85.2
- },
- "mounted_weapon_decide_action": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 77.0,
-  "after": 77.0,
-  "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
- },
- "solo_level_initialize_list_single_player": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 80.6,
-  "after": 80.6,
-  "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
- },
- "player_profile_initialize_advanced_controller_settings": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "reverted",
-  "before": 86.5,
-  "after": 86.5,
-  "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
- },
- "player_profile_change_advanced_controller_settings": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 97.5,
-  "after": 97.5,
-  "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
- },
- "display_error_if_no_network_connection": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "reverted",
-  "before": 85.5,
-  "after": 85.5,
-  "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
- },
- "new_campaign_if_no_custom_player_profiles_exist": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 89.9,
-  "after": 89.9
- },
- "playlist_profile_save_changes": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 97.2,
-  "after": 97.2
- },
- "scenario_get_sound_environment": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 90.0,
-  "after": 90.0
- },
- "scenario_load": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 86.7,
-  "after": 86.7
- },
- "scenario_debug_to_file": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 76.4,
-  "after": 76.4
- },
- "scenario_test_pas": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 86.3,
-  "after": 86.3
- },
- "scenario_location_potentially_visible_local": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 87.7,
-  "after": 87.7
- },
- "scenario_location_underwater": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 90.3,
-  "after": 90.3
- },
- "action_alert_next_position": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "improved",
-  "before": 77.5,
-  "after": 82.7
- },
- "action_alert_perform": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "no_gain",
-  "before": 93.2,
-  "after": 93.2
- },
- "action_alert_update": {
-  "ts": "2026-09-27T17:00:00+02:00",
-  "result": "improved",
-  "before": 98.2,
-  "after": 99.6
- },
- "rasterizer_widget_submit_occlusion_test": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 76.1,
-  "after": 76.1
- },
- "rasterizer_frame_begin": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 75.7,
-  "after": 75.7
- },
- "object_header_block_allocate": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 95.1,
-  "after": 95.1
- },
- "object_find_region_permutations_available_with_variant": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 88.2,
-  "after": 88.2
- },
- "object_get_world_matrix": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 84.6,
-  "after": 84.6
- },
- "scripted_camera_set_animation": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "no_gain",
-  "before": 95.4,
-  "after": 95.4
- },
- "TIFFPrintDirectory": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 91.61603888213853,
-  "after": 91.61603888213853,
-  "dependency_fingerprint": "80985c267e2edbcd1ce1a17d0b08d6afd4d44897aa5a7135267dd3b1d7317e54"
- },
- "TIFFIsTiled": {
-  "ts": "2026-09-27T18:00:00+02:00",
-  "result": "behavior_risk",
-  "before": 85.0,
-  "after": 85.0
- },
- "playlist_profile_initialize_oddball_rules": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "reverted",
-  "before": 79.6,
-  "after": 79.6,
-  "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
- },
- "playlist_profile_initialize_item_options": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "improved",
-  "before": 82.46,
-  "after": 100.0
- },
- "playlist_profile_initialize_player_options": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 96.4,
-  "after": 96.4,
-  "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
- },
- "playlist_profile_initialize_racing_rules": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "no_gain",
-  "before": 97.9,
-  "after": 97.9,
-  "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
- },
- "data_compact": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 82.35,
-  "after": 82.35
- },
- "datum_get": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 83.13,
-  "after": 83.13
- },
- "data_next_index": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 82.76,
-  "after": 82.76
- },
- "data_verify": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 85.27,
-  "after": 85.27
- },
- "data_make_valid": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 87.18,
-  "after": 87.18
- },
- "data_prev_index": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 91.8,
-  "after": 91.8
- },
- "datum_delete": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 97.33,
-  "after": 97.33
- },
- "network_game_client_handle_message_server_postgame_keep_alive": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 85.45,
-  "after": 85.45
- },
- "network_game_client_handle_message_server_graceful_game_exit_pregame": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 84.17,
-  "after": 84.17
- },
- "network_game_client_handle_message_server_begin_game": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 88.54,
-  "after": 88.54
- },
- "network_game_client_handle_message_server_switch_to_pregame": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 88.96,
-  "after": 88.96
- },
- "network_game_client_handle_message_server_game_over": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 88.28,
-  "after": 88.28
- },
- "network_game_client_handle_message_server_graceful_game_exit_postgame": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 88.81,
-  "after": 88.81
- },
- "rasterizer_vertex_shaders_initialize": {
-  "ts": "2026-09-28T12:25:26+02:00",
-  "result": "no_gain",
-  "before": 81.22,
-  "after": 81.22
- },
- "widgets_initialize": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "improved",
-  "before": 98.14814814814815,
-  "after": 100.0,
-  "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
- },
- "widgets_initialize_for_new_map": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "improved",
-  "before": 97.01492537313433,
-  "after": 100.0,
-  "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
- },
- "widgets_dispose_from_old_map": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "improved",
-  "before": 97.2972972972973,
-  "after": 100.0,
-  "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
- },
- "widgets_dispose": {
-  "ts": "2026-09-28T16:13:07+02:00",
-  "run": "run-20260928-01",
-  "result": "improved",
-  "before": 96.875,
-  "after": 100.0,
-  "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
- },
- "draw_string": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 76.99,
-  "after": 82.1,
-  "dependency_fingerprint": "037775f6866ca3072e3b1215cd20a59ea6ad66beaafd916f01d6cf3aa547e7dd"
- },
- "bitmap_draw_string": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "frame_ceiling",
-  "before": 87.26,
-  "after": 87.26,
-  "dependency_fingerprint": "037775f6866ca3072e3b1215cd20a59ea6ad66beaafd916f01d6cf3aa547e7dd"
- },
- "actor_emotion_unopposable_retreat": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "frame_ceiling",
-  "before": 79.39,
-  "after": 79.39,
-  "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
- },
- "actor_emotion_update": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 87.13,
-  "after": 90.43,
-  "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
- },
- "actor_perception_desire_prop": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "no_gain",
-  "before": 93.46,
-  "after": 93.46,
-  "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
- },
- "actor_compute_prop_unopposable": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 96.46,
-  "after": 100.0,
-  "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
- },
- "actor_emotion_flee_with_friends": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 98.68,
-  "after": 100.0,
-  "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
- },
- "unit_update_animation": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "frame_ceiling",
-  "before": 76.51,
-  "after": 76.51,
-  "dependency_fingerprint": "171bdaa072c9ee3b11cd1d52ee76a1d66477a5451135b6a23dd7f0e9c841baf0"
- },
- "unit_clip_to_aiming_bounds": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "frame_ceiling",
-  "before": 75.3,
-  "after": 75.3,
-  "dependency_fingerprint": "171bdaa072c9ee3b11cd1d52ee76a1d66477a5451135b6a23dd7f0e9c841baf0"
- },
- "unit_test_speech": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "frame_ceiling",
-  "before": 77.5,
-  "after": 77.5,
-  "dependency_fingerprint": "171bdaa072c9ee3b11cd1d52ee76a1d66477a5451135b6a23dd7f0e9c841baf0"
- },
- "unit_render_debug": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "reverted",
-  "before": 81.14,
-  "after": 91.3,
-  "dependency_fingerprint": "171bdaa072c9ee3b11cd1d52ee76a1d66477a5451135b6a23dd7f0e9c841baf0"
- },
- "unit_leap_begin": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "reverted",
-  "before": 77.14,
-  "after": 81.55,
-  "dependency_fingerprint": "171bdaa072c9ee3b11cd1d52ee76a1d66477a5451135b6a23dd7f0e9c841baf0"
- },
- "units_debug_get_closest_unit": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "reverted",
-  "before": 88.11,
-  "after": 100.0,
-  "dependency_fingerprint": "171bdaa072c9ee3b11cd1d52ee76a1d66477a5451135b6a23dd7f0e9c841baf0"
- },
- "unit_scripting_impervious": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "reverted",
-  "before": 87.64,
-  "after": 100.0,
-  "dependency_fingerprint": "171bdaa072c9ee3b11cd1d52ee76a1d66477a5451135b6a23dd7f0e9c841baf0"
- },
- "actor_action_change": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "no_gain",
-  "before": 81.76,
-  "after": 81.76,
-  "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
- },
- "actor_action_handle_vehicle_exit": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 84.92,
-  "after": 87.54,
-  "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
- },
- "actor_action_can_stop_guarding": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "improved",
-  "before": 83.87,
-  "after": 89.52,
-  "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
- },
- "action_wait_setup": {
-  "ts": "2026-09-28T20:03:02+02:00",
-  "run": "run-20260928-02",
-  "result": "no_gain",
-  "before": 87.32,
-  "after": 87.32,
-  "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
- },
- "actor_communication_update": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "improved",
-  "before": 82.51,
-  "after": 89.09,
-  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
- },
- "ai_communication_find_actor_to_reply_to_player": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "frame_ceiling",
-  "before": 83.79,
-  "after": 83.79,
-  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
- },
- "ai_communication_find_global_actor_to_talk": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 82.94,
-  "after": 82.94,
-  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
- },
- "ai_communication_look_secondary_at_unit": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 75.0,
-  "after": 75.0,
-  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
- },
- "ai_conversation_update": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "frame_ceiling",
-  "before": 92.86,
-  "after": 92.86,
-  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
- },
- "ai_conversation_advance": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "frame_ceiling",
-  "before": 84.31,
-  "after": 84.31,
-  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
- },
- "glow_trailing_particle_update_color": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 78.03,
-  "after": 78.03,
-  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
- },
- "glow_submit": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 95.45,
-  "after": 95.45,
-  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
- },
- "actor_move_avoidance_setup": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "reverted",
-  "before": 75.04,
-  "after": 83.9,
-  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
- },
- "actor_get_stopping_distances": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "no_gain",
-  "before": 97.67,
-  "after": 97.67,
-  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
- },
- "actor_aim_jump": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "reverted",
-  "before": 97.42,
-  "after": 97.42,
-  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
- },
- "actor_move_try_evasion_vector": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "no_gain",
-  "before": 93.77,
-  "after": 93.77,
-  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
- },
- "actor_move_calculate_free": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 83.61,
-  "after": 83.61,
-  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
- },
- "actor_move_transform_avoidance_vector": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "reverted",
-  "before": 75.34,
-  "after": 75.34,
-  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
- },
- "actor_destination_update": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "frame_ceiling",
-  "before": 83.7,
-  "after": 83.7,
-  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
- },
- "actor_move_force_stop": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "frame_ceiling",
-  "before": 80.49,
-  "after": 80.49,
-  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
- },
- "ui_widgets_inhibit_processing": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "improved",
-  "before": 82.46,
-  "after": 100.0,
-  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
- },
- "render_ui_widgets_postgame": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "no_gain",
-  "before": 81.27,
-  "after": 81.27,
-  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
- },
- "perform_filesystem_initialization": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "improved",
-  "before": 75.41,
-  "after": 97.33,
-  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
- },
- "split_screen_game_initialize": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "improved",
-  "before": 78.33,
-  "after": 100.0,
-  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
- },
- "should_flip_sticks_for_local_player": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "regarg_ceiling",
-  "before": 78.31,
-  "after": 78.31,
-  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
- },
- "ui_widgets_close_all_for_local_player": {
-  "ts": "2026-09-28T21:11:41+02:00",
-  "run": "run-20260928-03",
-  "result": "frame_ceiling",
-  "before": 85.59,
-  "after": 85.59,
-  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
- }
+  "object_compute_function_values": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 88.1,
+    "after": 88.1
+  },
+  "find_objects_from_point_vector": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 90.7,
+    "after": 100
+  },
+  "attachments_new": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 93.0,
+    "after": 93.0
+  },
+  "object_get_orientation": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "improved",
+    "before": 77.2,
+    "after": 100.0
+  },
+  "objects_get_activating_cluster_index": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 93.3,
+    "after": 93.3
+  },
+  "object_types_place_all": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "no_gain",
+    "before": 80.0,
+    "after": 80.0
+  },
+  "object_new_from_scenario": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 94.8,
+    "after": 94.8,
+    "dependency_fingerprint": "1c08892351097fb850d096113d5daf53210a27b0d16a488e02156ec116b7ef82"
+  },
+  "object_names_postprocess": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "improved",
+    "before": 80.3,
+    "after": 100.0
+  },
+  "network_game_client_leave_game": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 94.6,
+    "after": 94.6
+  },
+  "network_game_client_request_remove_player": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 93.4,
+    "after": 93.4
+  },
+  "network_game_client_add_player": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 93.6,
+    "after": 93.6
+  },
+  "network_game_client_handle_game_update": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "improved",
+    "before": 78.4,
+    "after": 100.0
+  },
+  "network_game_client_add_player_to_game": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "improved",
+    "before": 75.9,
+    "after": 100.0
+  },
+  "network_game_client_idle_ingame": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "regarg_ceiling",
+    "before": 83.7,
+    "after": 83.7
+  },
+  "network_game_client_idle_joining": {
+    "ts": "2026-09-26",
+    "run": "run-20260926-1928",
+    "result": "regarg_ceiling",
+    "before": 84.7,
+    "after": 84.7
+  },
+  "network_game_client_handle_message_server_game_settings_update": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.8,
+    "after": 85.8
+  },
+  "playlist_profile_change_player_options": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "no_gain",
+    "before": 89.9,
+    "after": 89.9
+  },
+  "playlist_profile_change_item_options": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 88.4,
+    "after": 88.4
+  },
+  "playlist_profile_change_oddball_rules": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 93.8,
+    "after": 93.8
+  },
+  "playlist_profile_begin_editing": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 77.4,
+    "after": 100
+  },
+  "multiplayer_profile_set_for_game": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 89.4,
+    "after": 100
+  },
+  "playlist_profile_change_ctf_rules": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 92.4,
+    "after": 92.4
+  },
+  "multiplayer_level_list_initialize": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 81.4,
+    "after": 100
+  },
+  "playlist_profile_set_game_engine": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "no_gain",
+    "before": 84.9,
+    "after": 84.9
+  },
+  "network_game_client_handle_message_server_pregame_countdown": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 78.4,
+    "after": 78.4
+  },
+  "network_game_client_update_precache_status": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 78.7,
+    "after": 96.8
+  },
+  "network_game_client_idle_pregame": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 80.7,
+    "after": 80.7
+  },
+  "network_game_client_reset": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 85.1,
+    "after": 94.5
+  },
+  "network_game_client_idle_postgame": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 78.1,
+    "after": 78.1
+  },
+  "network_game_client_idle_searching": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 96.2,
+    "after": 98.1
+  },
+  "network_game_client_update_local_player_data": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 87.2,
+    "after": 93.5
+  },
+  "network_game_client_request_start_time_change": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 87.3,
+    "after": 92.9
+  },
+  "network_game_client_accepted_into_game": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 99.0,
+    "after": 100
+  },
+  "network_game_server_idle_pregame_tasks": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.8827,
+    "after": 0.8827
+  },
+  "network_game_server_update_ticks": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 76.1,
+    "after": 100
+  },
+  "network_game_server_update_countdown": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.9416,
+    "after": 0.9416
+  },
+  "network_game_server_handle_client_machines": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.9441,
+    "after": 0.9441
+  },
+  "network_game_server_add_new_client": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "regarg_ceiling",
+    "before": 82.0,
+    "after": 84.7
+  },
+  "network_game_server_remove_machine_from_game": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 79.1,
+    "after": 100
+  },
+  "network_game_server_handle_client_update_packet": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 85.8,
+    "after": 97.5
+  },
+  "network_game_server_get_client_machine_at_address": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 81.8,
+    "after": 100
+  },
+  "object_get_function_value": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 76.5,
+    "after": 100
+  },
+  "object_delete_recursive": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 92.2,
+    "after": 92.2
+  },
+  "object_types_initialize": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 84.7,
+    "after": 100
+  },
+  "object_pvs_set_camera_point": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "improved",
+    "before": 82.1,
+    "after": 100
+  },
+  "attachments_delete": {
+    "ts": "2026-09-26T21:30:36+02:00",
+    "result": "no_gain",
+    "before": 86.1,
+    "after": 86.1
+  },
+  "network_game_server_idle": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 89.9,
+    "after": 89.9
+  },
+  "network_game_server_client_machine_game_loading_complete": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 83.4,
+    "after": 100
+  },
+  "server_has_a_player_on_each_machine": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 82.3,
+    "after": 100
+  },
+  "network_game_server_change_game_variant": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 78.6,
+    "after": 100
+  },
+  "network_game_server_get_machine_connection": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 82.0,
+    "after": 100
+  },
+  "network_game_server_send_rejection_message": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 81.1,
+    "after": 83.2
+  },
+  "network_game_server_invalidate_network_machine": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 78.4,
+    "after": 100
+  },
+  "network_game_server_get_connection": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 72.5,
+    "after": 100
+  },
+  "network_game_server_game_can_start": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 81.9,
+    "after": 100
+  },
+  "network_game_server_pause_countdown": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 84.1,
+    "after": 100
+  },
+  "countdown_timer_get_time_remaining": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 81.3,
+    "after": 100
+  },
+  "network_game_server_switch_machine_from_postgame_to_pregame": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "no_gain",
+    "before": 77.4,
+    "after": 77.4
+  },
+  "get_unique_random_name": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 85.4,
+    "after": 100
+  },
+  "get_unique_random_color": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 88.2,
+    "after": 100
+  },
+  "server_needs_more_teams": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 86.1,
+    "after": 100
+  },
+  "network_game_server_dump": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 89.3,
+    "after": 89.3
+  },
+  "network_game_server_dispose": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.9202,
+    "after": 0.9202
+  },
+  "network_game_server_open_game": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 82.4,
+    "after": 100
+  },
+  "network_game_server_close_game": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 82.4,
+    "after": 100
+  },
+  "server_ok_to_countdown": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 85.9,
+    "after": 100
+  },
+  "network_game_server_all_machines_have_loaded": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 89.9,
+    "after": 100
+  },
+  "network_game_server_reset_to_pregame": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 72.4,
+    "after": 73.2
+  },
+  "network_game_server_stalled_on_client": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 67.2,
+    "after": 98.4
+  },
+  "network_game_server_create": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.9237,
+    "after": 0.9237
+  },
+  "network_game_server_accept_client_machine_into_game": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.9018,
+    "after": 0.9018
+  },
+  "network_game_server_add_player_to_game": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 92.9,
+    "after": 92.9
+  },
+  "network_game_server_handle_public_endpoint": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 88.1,
+    "after": 88.1
+  },
+  "object_translate": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 83.5,
+    "after": 100
+  },
+  "object_determine_variant_number": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "regarg_ceiling",
+    "before": 89.5,
+    "after": 89.5,
+    "dependency_fingerprint": "1c08892351097fb850d096113d5daf53210a27b0d16a488e02156ec116b7ef82"
+  },
+  "object_type_postprocess_node_matrices": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 77.1,
+    "after": 91.3
+  },
+  "object_type_handle_region_destroyed": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 78.2,
+    "after": 89.3
+  },
+  "object_update": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "regarg_ceiling",
+    "before": 96.5,
+    "after": 96.5,
+    "dependency_fingerprint": "1c08892351097fb850d096113d5daf53210a27b0d16a488e02156ec116b7ef82"
+  },
+  "object_add_to_dump": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 88.7,
+    "after": 88.7
+  },
+  "recursive_object_adder": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "no_gain",
+    "before": 86.4,
+    "after": 86.4
+  },
+  "grunt_decide_action": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 87.81,
+    "after": 87.81,
+    "dependency_fingerprint": "94a4e93f8633350d2a447ef27652bcfeaba7344d0d7734e5c412b0c29df9a122"
+  },
+  "elite_decide_action": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 88.69,
+    "after": 88.69,
+    "dependency_fingerprint": "94a4e93f8633350d2a447ef27652bcfeaba7344d0d7734e5c412b0c29df9a122"
+  },
+  "marine_decide_action": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 84.88,
+    "after": 84.88,
+    "dependency_fingerprint": "94a4e93f8633350d2a447ef27652bcfeaba7344d0d7734e5c412b0c29df9a122"
+  },
+  "actor_type_swarm_aim_jump": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 81.0,
+    "after": 81.0
+  },
+  "actor_type_initialize": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 77.5,
+    "after": 77.5
+  },
+  "actor_type_decide_action": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.2,
+    "after": 85.2
+  },
+  "actor_type_swarm_control": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 89.3,
+    "after": 89.3
+  },
+  "actor_type_get_race": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 76.5,
+    "after": 76.5
+  },
+  "inflate_codes": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 91.8,
+    "after": 91.8
+  },
+  "uncompress": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 75.9,
+    "after": 100
+  },
+  "inflate_trees_bits": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 89.6,
+    "after": 89.6
+  },
+  "inflateSync": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "no_gain",
+    "before": 87.7,
+    "after": 87.7
+  },
+  "circular_queue_new": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 82.9,
+    "after": 82.9
+  },
+  "inflate_set_dictionary": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "improved",
+    "before": 90.0,
+    "after": 100
+  },
+  "circular_queue_delete": {
+    "ts": "2026-09-26T22:22:21+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.7,
+    "after": 85.7
+  },
+  "network_game_client_get_state": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 83.8,
+    "after": 92.3
+  },
+  "network_game_client_handle_message_server_pregame_keep_alive": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.5,
+    "after": 85.5
+  },
+  "network_game_client_handle_message_server_machine_accepted": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.5,
+    "after": 85.5
+  },
+  "network_game_client_handle_message_server_machine_rejected": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 85.5,
+    "after": 85.5
+  },
+  "extract_pixels_from_mipmap": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 75.1,
+    "after": 75.1
+  },
+  "extract_plateless_cube_map": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 97.36,
+    "after": 97.36
+  },
+  "TIFFReadEncodedTile": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 76.6,
+    "after": 100
+  },
+  "TIFFReadEncodedStrip": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 78.1,
+    "after": 100
+  },
+  "TIFFReadRawTile1": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 75.4,
+    "after": 75.4
+  },
+  "TIFFStartStrip": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 81.7,
+    "after": 81.7
+  },
+  "TIFFStartTile": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 89.2,
+    "after": 89.2
+  },
+  "TIFFNumberOfStrips": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 80,
+    "after": 100
+  },
+  "create_network_game_message": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 85.5,
+    "after": 87.1
+  },
+  "data_packet_group_decode_packet": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 86.3,
+    "after": 97.9
+  },
+  "verify_lra_cache": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "regarg_ceiling",
+    "before": 75,
+    "after": 75
+  },
+  "data_encode_string": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 84.2,
+    "after": 100
+  },
+  "hashtable_get": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 85.6,
+    "after": 97.9
+  },
+  "default_hash_function": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 77.0,
+    "after": 77.0
+  },
+  "data_decode_short": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 90.8,
+    "after": 100
+  },
+  "data_decode_byte": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 90,
+    "after": 100
+  },
+  "object_type_reset": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 76.9,
+    "after": 100
+  },
+  "objects_reconnect_to_structure_bsp": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "no_gain",
+    "before": 93.5,
+    "after": 93.5
+  },
+  "object_type_handle_parent_destroyed": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 81.8,
+    "after": 100
+  },
+  "object_type_delete": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 81,
+    "after": 100
+  },
+  "object_type_export_function_values": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 81,
+    "after": 100
+  },
+  "object_type_disconnect_from_structure_bsp": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 81,
+    "after": 100
+  },
+  "object_type_new": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 69.3,
+    "after": 100
+  },
+  "object_type_update": {
+    "ts": "2026-09-27T00:30:00+02:00",
+    "result": "improved",
+    "before": 88.6,
+    "after": 96.6
+  },
+  "point_physics_update": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 80.4,
+    "after": 91.3
+  },
+  "player_profile_set_for_game_3wide": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 90.7,
+    "after": 100
+  },
+  "player_profile_set_for_game_1wide": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 88.2,
+    "after": 94.8
+  },
+  "playlist_profile_change_racing_rules": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "no_gain",
+    "before": 94.5,
+    "after": 94.5
+  },
+  "playlist_profile_initialize_name": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "no_gain",
+    "before": 89.92,
+    "after": 89.92,
+    "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+  },
+  "playlist_profile_change_slayer_rules": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "no_gain",
+    "before": 95.8,
+    "after": 95.8
+  },
+  "playlist_profile_initialize_game_engine": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "improved",
+    "before": 98.36,
+    "after": 100.0,
+    "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+  },
+  "player_profile_change_controller_settings": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 77.8,
+    "after": 86.8
+  },
+  "delete_player_profile_request": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "no_gain",
+    "before": 95.3,
+    "after": 95.3,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
+  },
+  "create_and_begin_editing_new_gametype_profile": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 89.1,
+    "after": 100
+  },
+  "player_profile_color_picker_select_color": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 83.2,
+    "after": 100
+  },
+  "network_game_start_slower": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 80.5,
+    "after": 100
+  },
+  "network_game_start_faster": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 95.0,
+    "after": 100
+  },
+  "playlist_profile_initialize_indicator_options": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 96.1,
+    "after": 100
+  },
+  "difficulty_menu_initialize": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 91.1,
+    "after": 100
+  },
+  "start_network_game_if_no_advertised_servers": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 86.8,
+    "after": 100
+  },
+  "action_fight_perform": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 96.5,
+    "after": 96.5
+  },
+  "action_search_update": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 84.8,
+    "after": 100
+  },
+  "action_fight_control": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 84.0,
+    "after": 100
+  },
+  "action_search_setup_target": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 84.7,
+    "after": 90.7
+  },
+  "action_search_setup_undirected": {
+    "ts": "2026-09-27T01:30:00+02:00",
+    "result": "improved",
+    "before": 83.2,
+    "after": 89.8
+  },
+  "action_wait_perform": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 93.31,
+    "after": 93.31,
+    "dependency_fingerprint": "c7d4c36fe1395a9492b37b9029b7ef55c4cc57c644b261002fdd1cfada320614"
+  },
+  "actor_action_handle_vehicle_entry": {
+    "ts": "2026-09-28T20:03:02+02:00",
+    "run": "run-20260928-02",
+    "result": "improved",
+    "before": 86.25,
+    "after": 88.61,
+    "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
+  },
+  "action_vehicle_setup_impromptu": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 83.41,
+    "after": 83.41,
+    "dependency_fingerprint": "c7d4c36fe1395a9492b37b9029b7ef55c4cc57c644b261002fdd1cfada320614"
+  },
+  "actor_pursuit_find_nearby_actors": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "improved",
+    "before": 87.7,
+    "after": 88.14,
+    "dependency_fingerprint": "c7d4c36fe1395a9492b37b9029b7ef55c4cc57c644b261002fdd1cfada320614"
+  },
+  "actor_action_handle_surprise": {
+    "ts": "2026-09-28T20:03:02+02:00",
+    "run": "run-20260928-02",
+    "result": "improved",
+    "before": 83.91,
+    "after": 93.28,
+    "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
+  },
+  "actor_new": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 75.75,
+    "after": 75.75
+  },
+  "jackal_decide_action": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "no_gain",
+    "before": 80.8,
+    "after": 80.8,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
+  },
+  "actor_died": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 78.19,
+    "after": 78.19
+  },
+  "unit_scripting_set_current_vitality": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "behavior_risk",
+    "before": 76.9,
+    "after": 76.9
+  },
+  "unit_impact_melee_damage": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 75.7,
+    "after": 75.7,
+    "dependency_fingerprint": "c132e116d1f795ea3950417c7d2130d26837257fe30fff024197a4fe7723cdf7"
+  },
+  "unit_exit_seat_end": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "behavior_risk",
+    "before": 85.38,
+    "after": 85.38
+  },
+  "choose_random_array_element": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 83.1,
+    "after": 83.1
+  },
+  "ai_profile_render_spray": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 87.97,
+    "after": 87.97
+  },
+  "encounter_get_actor_starting_location": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "reverted",
+    "before": 85.05,
+    "after": 85.05
+  },
+  "encounter_test_rule": {
+    "ts": "2026-09-27T10:01:25+02:00",
+    "result": "regarg_ceiling",
+    "before": 86.57,
+    "after": 86.57
+  },
+  "inflate_blocks": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 94.15,
+    "after": 94.15
+  },
+  "pill_intersects_triangle3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 81.35,
+    "after": 81.35
+  },
+  "vector_intersects_triangle3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 80.52,
+    "after": 80.52
+  },
+  "sphere_test_vector3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 79.07,
+    "after": 79.07
+  },
+  "point_in_triangle3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "improved",
+    "before": 85.35,
+    "after": 86.79
+  },
+  "point_to_line_distance_squared3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.81,
+    "after": 75.81
+  },
+  "fast_vector_intersects_sphere": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "improved",
+    "before": 83.4,
+    "after": 90.16
+  },
+  "accerate_to_position3d": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "reverted",
+    "before": 84.12,
+    "after": 84.12
+  },
+  "action_flee_perform": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.62,
+    "after": 75.62
+  },
+  "action_guard_setup_from_fleeing": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 78.99,
+    "after": 78.99
+  },
+  "action_guard_perform": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 80.3,
+    "after": 80.3
+  },
+  "action_guard_control": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 84.07,
+    "after": 84.07
+  },
+  "action_obey_individuals_iterate": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 76.49,
+    "after": 76.49
+  },
+  "action_uncover_setup_pursuit": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 76.47,
+    "after": 76.47
+  },
+  "actor_look_secondary": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 89.65,
+    "after": 89.65
+  },
+  "object_export_function_values": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 81.4,
+    "after": 81.4,
+    "dependency_fingerprint": "1c08892351097fb850d096113d5daf53210a27b0d16a488e02156ec116b7ef82"
+  },
+  "lights_illumination_at_point": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 75.3,
+    "after": 86.0,
+    "dependency_fingerprint": "1c08892351097fb850d096113d5daf53210a27b0d16a488e02156ec116b7ef82"
+  },
+  "glow_trailing_particle_new": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 80.85,
+    "after": 80.85,
+    "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
+  },
+  "render_debug_light": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 76.2,
+    "after": 87.3,
+    "dependency_fingerprint": "1c08892351097fb850d096113d5daf53210a27b0d16a488e02156ec116b7ef82"
+  },
+  "find_point_lights_for_object_in_cluster": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 87.0,
+    "after": 87.0,
+    "dependency_fingerprint": "1c08892351097fb850d096113d5daf53210a27b0d16a488e02156ec116b7ef82"
+  },
+  "light_volume_interpolate_frames": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 88.45,
+    "after": 88.45,
+    "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
+  },
+  "light_volume_submit": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 82.6,
+    "after": 82.6,
+    "dependency_fingerprint": "1c08892351097fb850d096113d5daf53210a27b0d16a488e02156ec116b7ef82"
+  },
+  "light_get_bounding_sphere": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.45,
+    "after": 75.45
+  },
+  "ai_scripting_migrate_internal": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.78,
+    "after": 75.78
+  },
+  "ai_scripting_count_internal": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "regarg_ceiling",
+    "before": 79.78,
+    "after": 79.78
+  },
+  "ai_scripting_attach_unit": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 79.72,
+    "after": 79.72
+  },
+  "ai_index_from_string": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 81.37,
+    "after": 81.37
+  },
+  "ai_index_squad_iterator_next": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 75.13,
+    "after": 75.13
+  },
+  "ai_index_platoon_iterator_new": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 86.06,
+    "after": 86.06
+  },
+  "ai_index_actor_iterator_new": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 82.45,
+    "after": 82.45
+  },
+  "ai_scripting_maneuver_enable": {
+    "ts": "2026-09-27T10:40:58+02:00",
+    "result": "no_gain",
+    "before": 76.09,
+    "after": 76.09
+  },
+  "ai_conversation": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "behavior_risk",
+    "before": 77.95,
+    "after": 77.95
+  },
+  "ai_conversation_line_perform": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "improved",
+    "before": 75.43,
+    "after": 81.0,
+    "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+  },
+  "ai_conversation_line_begin": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 78.54,
+    "after": 78.54,
+    "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+  },
+  "extract_pixels_to_mipmap": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 80.08,
+    "after": 80.08
+  },
+  "bitmap_step_line": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 83.02,
+    "after": 83.02
+  },
+  "AllSame": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "reverted",
+    "before": 92.78,
+    "after": 92.78
+  },
+  "TIFFComputeTile": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 96.67,
+    "after": 96.67
+  },
+  "ColorToRGB": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 92.45,
+    "after": 92.45
+  },
+  "object_beautify": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 80.95,
+    "after": 80.95
+  },
+  "objects_paparazzi": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 86.3,
+    "after": 86.3
+  },
+  "glow_new": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "infra_skipped",
+    "before": 76.65,
+    "after": 76.65
+  },
+  "glow_particles_initialize": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "infra_skipped",
+    "before": 78.98,
+    "after": 78.98
+  },
+  "lightning_offset_marker_position": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 77.84,
+    "after": 77.84,
+    "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
+  },
+  "glow_normal_particle_new": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "infra_skipped",
+    "before": 92.18,
+    "after": 92.18
+  },
+  "encounter_update_platoons": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 78.1,
+    "after": 78.1
+  },
+  "ai_scripting_migrate_by_unit": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 77.12,
+    "after": 77.12
+  },
+  "encounter_find_pursuit": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 75.8,
+    "after": 75.8
+  },
+  "ai_scripting_go_to_vehicle_internal": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 85.39,
+    "after": 85.39
+  },
+  "encounter_post_combat_select_random_behavior": {
+    "ts": "2026-09-27T11:12:51+02:00",
+    "result": "no_gain",
+    "before": 81.62,
+    "after": 81.62
+  },
+  "first_person_weapon_update": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.752,
+    "after": 0.8472
+  },
+  "first_person_weapon_draw": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.7929,
+    "after": 0.8243
+  },
+  "first_person_weapon_predict": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8021,
+    "after": 0.9355
+  },
+  "weapon_play_first_person_weapon_sound": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8308,
+    "after": 0.8308
+  },
+  "first_person_animation_type_from_weapon_state": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8187,
+    "after": 0.8187
+  },
+  "first_person_weapon_start_interpolation": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8758,
+    "after": 0.8758
+  },
+  "first_person_weapon_index_from_weapon_index": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8105,
+    "after": 0.8105
+  },
+  "first_person_weapon_new_unit": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.7922,
+    "after": 0.7922
+  },
+  "render_contrail": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.9764,
+    "after": 0.9776
+  },
+  "render_camera_mirror": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8712,
+    "after": 0.9244
+  },
+  "render_frustum_sphere_visible": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8405,
+    "after": 0.8592
+  },
+  "render_camera_debug_frustum": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8647,
+    "after": 0.9549
+  },
+  "render_frustum_cube_view_fraction": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "no_gain",
+    "before": 0.9089,
+    "after": 0.9089
+  },
+  "render_frustum_cube_visible": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "no_gain",
+    "before": 0.899,
+    "after": 0.899
+  },
+  "render_frustum_build_point_flags": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "no_gain",
+    "before": 0.7814,
+    "after": 0.7814
+  },
+  "render_camera_check_warning_condition": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.7984,
+    "after": 0.7984
+  },
+  "weapon_export_function_values": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8221,
+    "after": 0.8271
+  },
+  "weapon_build_weapon_interface_state": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8241,
+    "after": 1.0
+  },
+  "weapon_trigger_release_charge": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.783,
+    "after": 0.8244
+  },
+  "weapon_trigger_can_fire_again": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.84,
+    "after": 0.84
+  },
+  "weapon_trigger_overload": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.7848,
+    "after": 0.7848
+  },
+  "weapon_magazine_start_chamber": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8047,
+    "after": 0.8047
+  },
+  "weapon_trigger_start_ejection_port": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.7563,
+    "after": 0.7563
+  },
+  "weapon_owner_update": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "no_gain",
+    "before": 0.7829,
+    "after": 0.7829
+  },
+  "bitmap_3d_slice_extract": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8005,
+    "after": 1.0
+  },
+  "bitmap_cube_map_face_extract": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8005,
+    "after": 1.0
+  },
+  "bitmap_format_to_a8r8g8b8": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8266,
+    "after": 0.9753
+  },
+  "bitmap_2d_address": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8152,
+    "after": 0.9636
+  },
+  "bitmap_3d_slice_insert": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8173,
+    "after": 1.0
+  },
+  "bitmap_cube_map_face_insert": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8173,
+    "after": 1.0
+  },
+  "bitmap_cube_map_address": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.8635,
+    "after": 0.9444
+  },
+  "bitmap_mipmap_get_pixel_data_size": {
+    "ts": "2026-09-27T14:24:51+02:00",
+    "result": "improved",
+    "before": 0.7583,
+    "after": 1.0
+  },
+  "actor_situation_update": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 80.5,
+    "after": 80.5,
+    "dependency_fingerprint": "6792111458b3888ac511d69c8b14671708fd4ce7fe15c9160f8d256ed35d60c1"
+  },
+  "actor_compute_prop_target_weight": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 95.5,
+    "after": 95.5,
+    "dependency_fingerprint": "6792111458b3888ac511d69c8b14671708fd4ce7fe15c9160f8d256ed35d60c1"
+  },
+  "actor_situation_update_target_status": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 94.8,
+    "after": 94.8,
+    "dependency_fingerprint": "6792111458b3888ac511d69c8b14671708fd4ce7fe15c9160f8d256ed35d60c1"
+  },
+  "actor_perception_find_recent_damaging_prop_index": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.8131,
+    "after": 0.9596
+  },
+  "actor_perception_friend_prop_is_attacking": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.9059,
+    "after": 0.9893
+  },
+  "actor_perception_find_killer_prop_index": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.8278,
+    "after": 1.0
+  },
+  "actor_get_perception_knowledge": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.8685,
+    "after": 1.0
+  },
+  "actor_situation_try_new_target": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.8684,
+    "after": 1.0
+  },
+  "network_game_client_idle": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.7619,
+    "after": 0.8283
+  },
+  "network_game_client_process_incoming_messages": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.875,
+    "after": 0.875
+  },
+  "network_game_client_create": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.8654,
+    "after": 1.0
+  },
+  "network_game_client_handle_message_server_game_advertise": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.9028,
+    "after": 0.9028
+  },
+  "network_game_client_handle_message_server_pong": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8889,
+    "after": 0.8889
+  },
+  "unstrip_player_index": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.8442,
+    "after": 0.8659
+  },
+  "particle_system_render": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8063,
+    "after": 0.8063
+  },
+  "particle_system_new_particles": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.7597,
+    "after": 0.7597
+  },
+  "particle_system_new_particle_explosion": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.7681,
+    "after": 1.0
+  },
+  "particle_system_next_type_state_index": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8736,
+    "after": 0.8736
+  },
+  "randomize_particle_variables": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8957,
+    "after": 0.8957
+  },
+  "particle_system_update_particle_default": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "no_gain",
+    "before": 0.9405,
+    "after": 0.9405
+  },
+  "particle_systems_render": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.8246,
+    "after": 0.9057
+  },
+  "particle_system_next_particle_state_index": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "regarg_ceiling",
+    "before": 0.8896,
+    "after": 0.8896
+  },
+  "decal_projection_create": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "reverted",
+    "before": 0.7684,
+    "after": 0.7684
+  },
+  "decals_disconnect_from_structure_bsp": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.8101,
+    "after": 0.8558
+  },
+  "decal_update": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.7795,
+    "after": 0.8497
+  },
+  "decal_delete": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.7741,
+    "after": 0.8185
+  },
+  "decal_new": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.8227,
+    "after": 1.0
+  },
+  "project_point2d": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "improved",
+    "before": 0.804,
+    "after": 0.9465
+  },
+  "decals_reconnect_to_structure_bsp": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "no_gain",
+    "before": 0.9012,
+    "after": 0.9012
+  },
+  "decals_unlock": {
+    "ts": "2026-09-27T15:33:40+02:00",
+    "result": "no_gain",
+    "before": 0.875,
+    "after": 0.875
+  },
+  "datastore_read": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.7772,
+    "after": 0.7772
+  },
+  "file_references_equal": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "improved",
+    "before": 0.7581,
+    "after": 1.0
+  },
+  "file_printf": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "reverted",
+    "before": 0.8219,
+    "after": 0.8219
+  },
+  "file_reference_set_name": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "reverted",
+    "before": 0.8734,
+    "after": 0.8734
+  },
+  "file_exists": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "improved",
+    "before": 0.7692,
+    "after": 0.8291
+  },
+  "file_rename": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "improved",
+    "before": 0.896,
+    "after": 0.9941
+  },
+  "file_close": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "improved",
+    "before": 0.7654,
+    "after": 1.0
+  },
+  "file_get_size": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.8639,
+    "after": 0.8639
+  },
+  "dump_network_game_data": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.8976,
+    "after": 0.8976
+  },
+  "network_game_server_remove_client_machine_from_game": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.9595,
+    "after": 0.9595
+  },
+  "player_profile_1wide_list_update": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "frame_ceiling",
+    "before": 77.72,
+    "after": 77.72,
+    "dependency_fingerprint": "270a1680046525300e6015e22c9d5c4cca4fbfde6e87ddc1df8938cee28e4605"
+  },
+  "multiplayer_game_set_text_box_for_map_name": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.83,
+    "after": 0.83
+  },
+  "settings_menu_update_extended_description": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.7867,
+    "after": 0.7867
+  },
+  "difficulty_select_menu_update_extended_description": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.7867,
+    "after": 0.7867
+  },
+  "solo_game_objective_text": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.8687,
+    "after": 0.8687
+  },
+  "get_active_player_profile_display_name": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.7656,
+    "after": 0.7656
+  },
+  "close_calling_widget_if_not_editing_profile": {
+    "ts": "2026-09-27T16:04:30+02:00",
+    "result": "no_gain",
+    "before": 0.8077,
+    "after": 0.8077
+  },
+  "set_textbox_to_build_number": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "improved",
+    "before": 76.64,
+    "after": 100,
+    "dependency_fingerprint": "270a1680046525300e6015e22c9d5c4cca4fbfde6e87ddc1df8938cee28e4605"
+  },
+  "crew_decide_action": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 83.71,
+    "after": 83.71,
+    "dependency_fingerprint": "94a4e93f8633350d2a447ef27652bcfeaba7344d0d7734e5c412b0c29df9a122"
+  },
+  "engineer_decide_action": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 83.71,
+    "after": 83.71,
+    "dependency_fingerprint": "94a4e93f8633350d2a447ef27652bcfeaba7344d0d7734e5c412b0c29df9a122"
+  },
+  "hunter_decide_action": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "no_gain",
+    "before": 79.0,
+    "after": 79.0,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
+  },
+  "sentinel_decide_action": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 82.8,
+    "after": 82.8
+  },
+  "carrier_decide_action": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 85.2,
+    "after": 85.2
+  },
+  "mounted_weapon_decide_action": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 77.04,
+    "after": 77.04,
+    "dependency_fingerprint": "94a4e93f8633350d2a447ef27652bcfeaba7344d0d7734e5c412b0c29df9a122"
+  },
+  "solo_level_initialize_list_single_player": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "improved",
+    "before": 80.59,
+    "after": 93.88,
+    "dependency_fingerprint": "270a1680046525300e6015e22c9d5c4cca4fbfde6e87ddc1df8938cee28e4605"
+  },
+  "player_profile_initialize_advanced_controller_settings": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "frame_ceiling",
+    "before": 86.45,
+    "after": 86.45,
+    "dependency_fingerprint": "270a1680046525300e6015e22c9d5c4cca4fbfde6e87ddc1df8938cee28e4605"
+  },
+  "player_profile_change_advanced_controller_settings": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "no_gain",
+    "before": 97.5,
+    "after": 97.5,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
+  },
+  "display_error_if_no_network_connection": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "reverted",
+    "before": 85.5,
+    "after": 85.5,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
+  },
+  "new_campaign_if_no_custom_player_profiles_exist": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 89.9,
+    "after": 89.9
+  },
+  "playlist_profile_save_changes": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 97.2,
+    "after": 97.2
+  },
+  "scenario_get_sound_environment": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 90.0,
+    "after": 90.0
+  },
+  "scenario_load": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 86.7,
+    "after": 86.7
+  },
+  "scenario_debug_to_file": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 76.4,
+    "after": 76.4
+  },
+  "scenario_test_pas": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 86.3,
+    "after": 86.3
+  },
+  "scenario_location_potentially_visible_local": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 87.7,
+    "after": 87.7
+  },
+  "scenario_location_underwater": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 90.3,
+    "after": 90.3
+  },
+  "action_alert_next_position": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "improved",
+    "before": 77.5,
+    "after": 82.7
+  },
+  "action_alert_perform": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "no_gain",
+    "before": 93.2,
+    "after": 93.2
+  },
+  "action_alert_update": {
+    "ts": "2026-09-27T17:00:00+02:00",
+    "result": "improved",
+    "before": 98.2,
+    "after": 99.6
+  },
+  "rasterizer_widget_submit_occlusion_test": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 76.1,
+    "after": 76.1
+  },
+  "rasterizer_frame_begin": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 75.7,
+    "after": 75.7
+  },
+  "object_header_block_allocate": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 95.1,
+    "after": 95.1
+  },
+  "object_find_region_permutations_available_with_variant": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 88.2,
+    "after": 88.2
+  },
+  "object_get_world_matrix": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 84.6,
+    "after": 84.6
+  },
+  "scripted_camera_set_animation": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "no_gain",
+    "before": 95.4,
+    "after": 95.4
+  },
+  "TIFFPrintDirectory": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "improved",
+    "before": 91.62,
+    "after": 99.44,
+    "dependency_fingerprint": "b935c2d36d0023075566e9891947353ecfaee8390669bb0915f16e0036c1cd78"
+  },
+  "TIFFIsTiled": {
+    "ts": "2026-09-27T18:00:00+02:00",
+    "result": "behavior_risk",
+    "before": 85.0,
+    "after": 85.0
+  },
+  "playlist_profile_initialize_oddball_rules": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "reverted",
+    "before": 79.62,
+    "after": 85.86,
+    "dependency_fingerprint": "270a1680046525300e6015e22c9d5c4cca4fbfde6e87ddc1df8938cee28e4605"
+  },
+  "playlist_profile_initialize_item_options": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "improved",
+    "before": 82.46,
+    "after": 100.0
+  },
+  "playlist_profile_initialize_player_options": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "no_gain",
+    "before": 96.4,
+    "after": 96.4,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
+  },
+  "playlist_profile_initialize_racing_rules": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "improved",
+    "before": 97.85,
+    "after": 100,
+    "dependency_fingerprint": "270a1680046525300e6015e22c9d5c4cca4fbfde6e87ddc1df8938cee28e4605"
+  },
+  "data_compact": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 82.35,
+    "after": 82.35
+  },
+  "datum_get": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 83.13,
+    "after": 83.13
+  },
+  "data_next_index": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 82.76,
+    "after": 82.76
+  },
+  "data_verify": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 85.27,
+    "after": 85.27
+  },
+  "data_make_valid": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 87.18,
+    "after": 87.18
+  },
+  "data_prev_index": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 91.8,
+    "after": 91.8
+  },
+  "datum_delete": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 97.33,
+    "after": 97.33
+  },
+  "network_game_client_handle_message_server_postgame_keep_alive": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 85.45,
+    "after": 85.45
+  },
+  "network_game_client_handle_message_server_graceful_game_exit_pregame": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 84.17,
+    "after": 84.17
+  },
+  "network_game_client_handle_message_server_begin_game": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 88.54,
+    "after": 88.54
+  },
+  "network_game_client_handle_message_server_switch_to_pregame": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 88.96,
+    "after": 88.96
+  },
+  "network_game_client_handle_message_server_game_over": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 88.28,
+    "after": 88.28
+  },
+  "network_game_client_handle_message_server_graceful_game_exit_postgame": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 88.81,
+    "after": 88.81
+  },
+  "rasterizer_vertex_shaders_initialize": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 81.22,
+    "after": 81.22
+  },
+  "widgets_initialize": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "improved",
+    "before": 98.14814814814815,
+    "after": 100.0,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
+  },
+  "widgets_initialize_for_new_map": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "improved",
+    "before": 97.01492537313433,
+    "after": 100.0,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
+  },
+  "widgets_dispose_from_old_map": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "improved",
+    "before": 97.2972972972973,
+    "after": 100.0,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
+  },
+  "widgets_dispose": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "improved",
+    "before": 96.875,
+    "after": 100.0,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
+  },
+  "draw_string": {
+    "ts": "2026-09-28T20:03:02+02:00",
+    "run": "run-20260928-02",
+    "result": "improved",
+    "before": 76.99,
+    "after": 82.1,
+    "dependency_fingerprint": "037775f6866ca3072e3b1215cd20a59ea6ad66beaafd916f01d6cf3aa547e7dd"
+  },
+  "bitmap_draw_string": {
+    "ts": "2026-09-28T20:03:02+02:00",
+    "run": "run-20260928-02",
+    "result": "frame_ceiling",
+    "before": 87.26,
+    "after": 87.26,
+    "dependency_fingerprint": "037775f6866ca3072e3b1215cd20a59ea6ad66beaafd916f01d6cf3aa547e7dd"
+  },
+  "actor_emotion_unopposable_retreat": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 79.4,
+    "after": 80.2,
+    "dependency_fingerprint": "6792111458b3888ac511d69c8b14671708fd4ce7fe15c9160f8d256ed35d60c1"
+  },
+  "actor_emotion_update": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 90.4,
+    "after": 90.4,
+    "dependency_fingerprint": "6792111458b3888ac511d69c8b14671708fd4ce7fe15c9160f8d256ed35d60c1"
+  },
+  "actor_perception_desire_prop": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 93.5,
+    "after": 93.5,
+    "dependency_fingerprint": "6792111458b3888ac511d69c8b14671708fd4ce7fe15c9160f8d256ed35d60c1"
+  },
+  "actor_compute_prop_unopposable": {
+    "ts": "2026-09-28T20:03:02+02:00",
+    "run": "run-20260928-02",
+    "result": "improved",
+    "before": 96.46,
+    "after": 100.0,
+    "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
+  },
+  "actor_emotion_flee_with_friends": {
+    "ts": "2026-09-28T20:03:02+02:00",
+    "run": "run-20260928-02",
+    "result": "improved",
+    "before": 98.68,
+    "after": 100.0,
+    "dependency_fingerprint": "58d38952938871442245ffd8f0c408d9b4cee0d727752c36708ee42e68f41bff"
+  },
+  "unit_update_animation": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 76.5,
+    "after": 76.5,
+    "dependency_fingerprint": "c132e116d1f795ea3950417c7d2130d26837257fe30fff024197a4fe7723cdf7"
+  },
+  "unit_clip_to_aiming_bounds": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 75.3,
+    "after": 75.3,
+    "dependency_fingerprint": "c132e116d1f795ea3950417c7d2130d26837257fe30fff024197a4fe7723cdf7"
+  },
+  "unit_test_speech": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 77.5,
+    "after": 91.4,
+    "dependency_fingerprint": "c132e116d1f795ea3950417c7d2130d26837257fe30fff024197a4fe7723cdf7"
+  },
+  "unit_render_debug": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 81.1,
+    "after": 87.2,
+    "dependency_fingerprint": "c132e116d1f795ea3950417c7d2130d26837257fe30fff024197a4fe7723cdf7"
+  },
+  "unit_leap_begin": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 77.1,
+    "after": 81.6,
+    "dependency_fingerprint": "c132e116d1f795ea3950417c7d2130d26837257fe30fff024197a4fe7723cdf7"
+  },
+  "units_debug_get_closest_unit": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 88.1,
+    "after": 97.7,
+    "dependency_fingerprint": "c132e116d1f795ea3950417c7d2130d26837257fe30fff024197a4fe7723cdf7"
+  },
+  "unit_scripting_impervious": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 87.6,
+    "after": 100.0,
+    "dependency_fingerprint": "c132e116d1f795ea3950417c7d2130d26837257fe30fff024197a4fe7723cdf7"
+  },
+  "actor_action_change": {
+    "ts": "2026-09-28T20:03:02+02:00",
+    "run": "run-20260928-02",
+    "result": "no_gain",
+    "before": 81.76,
+    "after": 81.76,
+    "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
+  },
+  "actor_action_handle_vehicle_exit": {
+    "ts": "2026-09-28T20:03:02+02:00",
+    "run": "run-20260928-02",
+    "result": "improved",
+    "before": 84.92,
+    "after": 87.54,
+    "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
+  },
+  "actor_action_can_stop_guarding": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 89.52,
+    "after": 89.52,
+    "dependency_fingerprint": "c7d4c36fe1395a9492b37b9029b7ef55c4cc57c644b261002fdd1cfada320614"
+  },
+  "action_wait_setup": {
+    "ts": "2026-09-28T20:03:02+02:00",
+    "run": "run-20260928-02",
+    "result": "no_gain",
+    "before": 87.32,
+    "after": 87.32,
+    "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
+  },
+  "actor_communication_update": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "improved",
+    "before": 82.51,
+    "after": 89.09,
+    "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+  },
+  "ai_communication_find_actor_to_reply_to_player": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "frame_ceiling",
+    "before": 83.79,
+    "after": 83.79,
+    "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+  },
+  "ai_communication_find_global_actor_to_talk": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 82.94,
+    "after": 82.94,
+    "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+  },
+  "ai_communication_look_secondary_at_unit": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 75.0,
+    "after": 75.0,
+    "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+  },
+  "ai_conversation_update": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "frame_ceiling",
+    "before": 92.86,
+    "after": 92.86,
+    "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+  },
+  "ai_conversation_advance": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "frame_ceiling",
+    "before": 84.31,
+    "after": 84.31,
+    "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+  },
+  "glow_trailing_particle_update_color": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 78.03,
+    "after": 78.03,
+    "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
+  },
+  "glow_submit": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 95.45,
+    "after": 95.45,
+    "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
+  },
+  "actor_move_avoidance_setup": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "reverted",
+    "before": 75.04,
+    "after": 83.9,
+    "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+  },
+  "actor_get_stopping_distances": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "no_gain",
+    "before": 97.67,
+    "after": 97.67,
+    "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+  },
+  "actor_aim_jump": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "reverted",
+    "before": 97.42,
+    "after": 97.42,
+    "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+  },
+  "actor_move_try_evasion_vector": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "no_gain",
+    "before": 93.77,
+    "after": 93.77,
+    "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+  },
+  "actor_move_calculate_free": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 83.61,
+    "after": 83.61,
+    "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+  },
+  "actor_move_transform_avoidance_vector": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "reverted",
+    "before": 75.34,
+    "after": 75.34,
+    "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+  },
+  "actor_destination_update": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "frame_ceiling",
+    "before": 83.7,
+    "after": 83.7,
+    "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+  },
+  "actor_move_force_stop": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "frame_ceiling",
+    "before": 80.49,
+    "after": 80.49,
+    "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+  },
+  "ui_widgets_inhibit_processing": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "improved",
+    "before": 82.46,
+    "after": 100.0,
+    "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+  },
+  "render_ui_widgets_postgame": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "no_gain",
+    "before": 81.27,
+    "after": 81.27,
+    "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+  },
+  "perform_filesystem_initialization": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "improved",
+    "before": 75.41,
+    "after": 97.33,
+    "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+  },
+  "split_screen_game_initialize": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "improved",
+    "before": 78.33,
+    "after": 100.0,
+    "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+  },
+  "should_flip_sticks_for_local_player": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "regarg_ceiling",
+    "before": 78.31,
+    "after": 78.31,
+    "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+  },
+  "ui_widgets_close_all_for_local_player": {
+    "ts": "2026-09-28T21:11:41+02:00",
+    "run": "run-20260928-03",
+    "result": "frame_ceiling",
+    "before": 85.59,
+    "after": 85.59,
+    "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+  },
+  "actor_stimulus_noticed_danger_zone": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "improved",
+    "before": 82.47,
+    "after": 94.51,
+    "dependency_fingerprint": "94a4e93f8633350d2a447ef27652bcfeaba7344d0d7734e5c412b0c29df9a122"
+  },
+  "actor_set_dormant": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 88.56,
+    "after": 88.56,
+    "dependency_fingerprint": "94a4e93f8633350d2a447ef27652bcfeaba7344d0d7734e5c412b0c29df9a122"
+  },
+  "actor_action_handle_panic_from_damage": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "improved",
+    "before": 93,
+    "after": 95.5,
+    "dependency_fingerprint": "c7d4c36fe1395a9492b37b9029b7ef55c4cc57c644b261002fdd1cfada320614"
+  },
+  "actor_action_handle_berserking_from_damage": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "improved",
+    "before": 95.12,
+    "after": 100,
+    "dependency_fingerprint": "c7d4c36fe1395a9492b37b9029b7ef55c4cc57c644b261002fdd1cfada320614"
+  },
+  "actor_action_handle_berserking_from_attacking_mode": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "improved",
+    "before": 93.41,
+    "after": 100,
+    "dependency_fingerprint": "c7d4c36fe1395a9492b37b9029b7ef55c4cc57c644b261002fdd1cfada320614"
+  },
+  "actor_action_handle_combat_selection": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "no_gain",
+    "before": 76.03,
+    "after": 76.03,
+    "dependency_fingerprint": "c7d4c36fe1395a9492b37b9029b7ef55c4cc57c644b261002fdd1cfada320614"
+  },
+  "network_pregame_status_screen_update": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "frame_ceiling",
+    "before": 84.18,
+    "after": 84.18,
+    "dependency_fingerprint": "270a1680046525300e6015e22c9d5c4cca4fbfde6e87ddc1df8938cee28e4605"
+  },
+  "server_list_menu_update": {
+    "ts": "2026-09-28T22:34:41+02:00",
+    "run": "run-20260928-04",
+    "result": "frame_ceiling",
+    "before": 88.48,
+    "after": 88.48,
+    "dependency_fingerprint": "270a1680046525300e6015e22c9d5c4cca4fbfde6e87ddc1df8938cee28e4605"
+  },
+  "hud_draw_weapon_overlays": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 80.1,
+    "after": 92.1,
+    "dependency_fingerprint": "7421ccf20f5d48dd9f4f5d0d36fc1a5d05248c3b4bd990c676a7888552189f91"
+  },
+  "hud_play_sound": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 96.0,
+    "after": 100.0,
+    "dependency_fingerprint": "7421ccf20f5d48dd9f4f5d0d36fc1a5d05248c3b4bd990c676a7888552189f91"
+  },
+  "hud_play_unit_sounds": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 91.3,
+    "after": 91.3,
+    "dependency_fingerprint": "7421ccf20f5d48dd9f4f5d0d36fc1a5d05248c3b4bd990c676a7888552189f91"
+  },
+  "hud_update_unit": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "regarg_ceiling",
+    "before": 77.8,
+    "after": 77.8,
+    "dependency_fingerprint": "7421ccf20f5d48dd9f4f5d0d36fc1a5d05248c3b4bd990c676a7888552189f91"
+  },
+  "hud_unit_activate_nav_point_with_flag": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "regarg_ceiling",
+    "before": 92.1,
+    "after": 92.1,
+    "dependency_fingerprint": "7421ccf20f5d48dd9f4f5d0d36fc1a5d05248c3b4bd990c676a7888552189f91"
+  },
+  "hud_unit_activate_nav_point_with_object": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "regarg_ceiling",
+    "before": 91.9,
+    "after": 91.9,
+    "dependency_fingerprint": "7421ccf20f5d48dd9f4f5d0d36fc1a5d05248c3b4bd990c676a7888552189f91"
+  },
+  "hud_activate_nav_point_with_game_engine_flag": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "regarg_ceiling",
+    "before": 92.9,
+    "after": 92.9,
+    "dependency_fingerprint": "7421ccf20f5d48dd9f4f5d0d36fc1a5d05248c3b4bd990c676a7888552189f91"
+  },
+  "hud_activate_nav_point_with_flag": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "regarg_ceiling",
+    "before": 92.9,
+    "after": 92.9,
+    "dependency_fingerprint": "7421ccf20f5d48dd9f4f5d0d36fc1a5d05248c3b4bd990c676a7888552189f91"
+  },
+  "actor_perception_find_sense_position": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "improved",
+    "before": 88.3,
+    "after": 95.3,
+    "dependency_fingerprint": "6792111458b3888ac511d69c8b14671708fd4ce7fe15c9160f8d256ed35d60c1"
+  },
+  "actor_perception_become_acknowledged": {
+    "ts": "2026-09-29T01:23:05+02:00",
+    "run": "run-20260928-05",
+    "result": "no_gain",
+    "before": 95.9,
+    "after": 95.9,
+    "dependency_fingerprint": "6792111458b3888ac511d69c8b14671708fd4ce7fe15c9160f8d256ed35d60c1"
+  }
 }
