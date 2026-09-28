@@ -84106,16 +84106,16 @@
     "perform_filesystem_initialization": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 97.3,
+      "abi_modeled_mnemonic_pct": 98.2,
       "addr": "0xe6980",
       "end": "0xe6a5c",
       "kind": "auto",
       "n_r": 56,
-      "opnd_percent": 95.6,
-      "raw_mnemonic_pct": 97.3,
+      "opnd_percent": 98.2,
+      "raw_mnemonic_pct": 98.2,
       "ref": "synth",
       "ref_sha": "44e05cfd9ab523d2",
-      "score": 97.3,
+      "score": 98.2,
       "source": "src/halo/interface/ui_widget.c"
     },
     "periodic_functions_initialize": {
@@ -97546,16 +97546,16 @@
     "split_screen_game_initialize": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 88.6,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0xea010",
       "end": "0xea080",
       "kind": "auto",
       "n_r": 36,
-      "opnd_percent": 88.6,
-      "raw_mnemonic_pct": 88.6,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "aea1c6c61ad2c14a",
-      "score": 88.6,
+      "score": 100.0,
       "source": "src/halo/interface/ui_widget.c"
     },
     "splitscreen_pregame_status_screen_update": {

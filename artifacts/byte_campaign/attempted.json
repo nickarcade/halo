@@ -781,10 +781,12 @@
   "after": 94.5
  },
  "playlist_profile_initialize_name": {
-  "ts": "2026-09-27T01:30:00+02:00",
-  "result": "improved",
-  "before": 75.2,
-  "after": 89.9
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "no_gain",
+  "before": 89.92,
+  "after": 89.92,
+  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
  },
  "playlist_profile_change_slayer_rules": {
   "ts": "2026-09-27T01:30:00+02:00",
@@ -793,10 +795,12 @@
   "after": 95.8
  },
  "playlist_profile_initialize_game_engine": {
-  "ts": "2026-09-27T01:30:00+02:00",
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
   "result": "improved",
-  "before": 81.3,
-  "after": 83.3
+  "before": 98.36,
+  "after": 100.0,
+  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
  },
  "player_profile_change_controller_settings": {
   "ts": "2026-09-27T01:30:00+02:00",
@@ -1085,22 +1089,28 @@
   "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
  },
  "lights_illumination_at_point": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "frame_ceiling",
   "before": 75.28,
-  "after": 75.28
+  "after": 75.28,
+  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
  },
  "glow_trailing_particle_new": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
   "before": 80.85,
-  "after": 80.85
+  "after": 80.85,
+  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
  },
  "render_debug_light": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "frame_ceiling",
   "before": 76.19,
-  "after": 76.19
+  "after": 76.19,
+  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
  },
  "find_point_lights_for_object_in_cluster": {
   "ts": "2026-09-27T10:40:58+02:00",
@@ -1109,16 +1119,20 @@
   "after": 86.96
  },
  "light_volume_interpolate_frames": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
   "before": 88.45,
-  "after": 88.45
+  "after": 88.45,
+  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
  },
  "light_volume_submit": {
-  "ts": "2026-09-27T10:40:58+02:00",
-  "result": "no_gain",
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "improved",
   "before": 79.1,
-  "after": 79.1
+  "after": 82.58,
+  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
  },
  "light_get_bounding_sphere": {
   "ts": "2026-09-27T10:40:58+02:00",
@@ -1181,16 +1195,20 @@
   "after": 77.95
  },
  "ai_conversation_line_perform": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "reverted",
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "improved",
   "before": 75.43,
-  "after": 75.43
+  "after": 81.0,
+  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
  },
  "ai_conversation_line_begin": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "reverted",
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
   "before": 78.54,
-  "after": 78.54
+  "after": 78.54,
+  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
  },
  "extract_pixels_to_mipmap": {
   "ts": "2026-09-27T11:12:51+02:00",
@@ -1247,10 +1265,12 @@
   "after": 78.98
  },
  "lightning_offset_marker_position": {
-  "ts": "2026-09-27T11:12:51+02:00",
-  "result": "infra_skipped",
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
   "before": 77.84,
-  "after": 77.84
+  "after": 77.84,
+  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
  },
  "glow_normal_particle_new": {
   "ts": "2026-09-27T11:12:51+02:00",
@@ -2255,5 +2275,181 @@
   "before": 87.32,
   "after": 87.32,
   "dependency_fingerprint": "4ab4f4d3e1e586a436e3f24bf0e8f5bfba161b3ab950fdc991fab792f30a7c7a"
+ },
+ "actor_communication_update": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "improved",
+  "before": 82.51,
+  "after": 89.09,
+  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+ },
+ "ai_communication_find_actor_to_reply_to_player": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "frame_ceiling",
+  "before": 83.79,
+  "after": 83.79,
+  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+ },
+ "ai_communication_find_global_actor_to_talk": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
+  "before": 82.94,
+  "after": 82.94,
+  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+ },
+ "ai_communication_look_secondary_at_unit": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
+  "before": 75.0,
+  "after": 75.0,
+  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+ },
+ "ai_conversation_update": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "frame_ceiling",
+  "before": 92.86,
+  "after": 92.86,
+  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+ },
+ "ai_conversation_advance": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "frame_ceiling",
+  "before": 84.31,
+  "after": 84.31,
+  "dependency_fingerprint": "b526240f258efd827275df83086fda945a1708ec0ccd7d736c2227020b8ac088"
+ },
+ "glow_trailing_particle_update_color": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
+  "before": 78.03,
+  "after": 78.03,
+  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
+ },
+ "glow_submit": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
+  "before": 95.45,
+  "after": 95.45,
+  "dependency_fingerprint": "7c4387ca252b9da3fa4213833eefaaa1d1139cd7432132429e73ac59081d7e4c"
+ },
+ "actor_move_avoidance_setup": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "reverted",
+  "before": 75.04,
+  "after": 83.9,
+  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+ },
+ "actor_get_stopping_distances": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "no_gain",
+  "before": 97.67,
+  "after": 97.67,
+  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+ },
+ "actor_aim_jump": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "reverted",
+  "before": 97.42,
+  "after": 97.42,
+  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+ },
+ "actor_move_try_evasion_vector": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "no_gain",
+  "before": 93.77,
+  "after": 93.77,
+  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+ },
+ "actor_move_calculate_free": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
+  "before": 83.61,
+  "after": 83.61,
+  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+ },
+ "actor_move_transform_avoidance_vector": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "reverted",
+  "before": 75.34,
+  "after": 75.34,
+  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+ },
+ "actor_destination_update": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "frame_ceiling",
+  "before": 83.7,
+  "after": 83.7,
+  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+ },
+ "actor_move_force_stop": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "frame_ceiling",
+  "before": 80.49,
+  "after": 80.49,
+  "dependency_fingerprint": "00ce89ba7dfbb26d77cd5b843f9511b620a01cf461a9a291b80688b085f9e22b"
+ },
+ "ui_widgets_inhibit_processing": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "improved",
+  "before": 82.46,
+  "after": 100.0,
+  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+ },
+ "render_ui_widgets_postgame": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "no_gain",
+  "before": 81.27,
+  "after": 81.27,
+  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+ },
+ "perform_filesystem_initialization": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "improved",
+  "before": 75.41,
+  "after": 97.33,
+  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+ },
+ "split_screen_game_initialize": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "improved",
+  "before": 78.33,
+  "after": 100.0,
+  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+ },
+ "should_flip_sticks_for_local_player": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "regarg_ceiling",
+  "before": 78.31,
+  "after": 78.31,
+  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
+ },
+ "ui_widgets_close_all_for_local_player": {
+  "ts": "2026-09-28T21:11:41+02:00",
+  "run": "run-20260928-03",
+  "result": "frame_ceiling",
+  "before": 85.59,
+  "after": 85.59,
+  "dependency_fingerprint": "e364ca023bb10a593d333ce86335aeff4fa913d3705855266888e01781f9926b"
  }
 }
