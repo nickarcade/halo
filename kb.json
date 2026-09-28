@@ -37372,7 +37372,8 @@
      "addr": "0x57330",
      "decl": "short ai_scripting_command_list_status_internal(int16_t scenario_index@<eax>, void *record@<esi>, int field_1a8_val, int child_handle, int reserved);",
      "comment": "[NAME: ai_scripting_command_list_status_internal \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "ai_scripting_command_list_status_internal"
+     "name": "ai_scripting_command_list_status_internal",
+     "ported": true
     },
     {
      "addr": "0x57380",

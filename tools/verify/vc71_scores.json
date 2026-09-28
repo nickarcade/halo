@@ -43648,21 +43648,6 @@
       "score": 100.0,
       "source": "src/halo/ai/ai.c"
     },
-    "ai_renew": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 97.4,
-      "addr": "0x58d40",
-      "end": "0x58ea9",
-      "kind": "auto",
-      "n_r": 116,
-      "opnd_percent": 91.4,
-      "raw_mnemonic_pct": 97.4,
-      "ref": "synth",
-      "ref_sha": "2f3abad8f8eb39ee",
-      "score": 97.4,
-      "source": "src/halo/ai/ai_script.c"
-    },
     "ai_script_dispose": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -44176,16 +44161,31 @@
     "ai_scripting_command_list_status": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 88.8,
+      "abi_modeled_mnemonic_pct": 85.1,
       "addr": "0x57380",
       "end": "0x575ce",
       "kind": "auto",
       "n_r": 188,
-      "opnd_percent": 77.9,
-      "raw_mnemonic_pct": 88.8,
+      "opnd_percent": 62.0,
+      "raw_mnemonic_pct": 85.1,
       "ref": "synth",
       "ref_sha": "c9cd36c8bc465c88",
-      "score": 88.8,
+      "score": 85.1,
+      "source": "src/halo/ai/ai_script.c"
+    },
+    "ai_scripting_command_list_status_internal": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 98.2,
+      "addr": "0x57330",
+      "end": "0x5737e",
+      "kind": "auto",
+      "n_r": 29,
+      "opnd_percent": 98.2,
+      "raw_mnemonic_pct": 98.2,
+      "ref": "synth",
+      "ref_sha": "c072c8a7caf05c96",
+      "score": 98.2,
       "source": "src/halo/ai/ai_script.c"
     },
     "ai_scripting_conversation": {
@@ -44503,21 +44503,6 @@
       "score": 96.4,
       "source": "src/halo/ai/encounters.c"
     },
-    "ai_scripting_follow_distance": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 95.0,
-      "addr": "0x58cc0",
-      "end": "0x58d33",
-      "kind": "auto",
-      "n_r": 43,
-      "opnd_percent": 82.5,
-      "raw_mnemonic_pct": 95.0,
-      "ref": "synth",
-      "ref_sha": "b1c24ccf25d96932",
-      "score": 96.6,
-      "source": "src/halo/ai/ai_script.c"
-    },
     "ai_scripting_follow_target_ai": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -44729,9 +44714,9 @@
       "source": "src/halo/ai/encounters.c"
     },
     "ai_scripting_go_to_vehicle_override": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 96.6,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 2,
+      "abi_modeled_mnemonic_pct": 98.9,
       "addr": "0x58cc0",
       "end": "0x58d33",
       "kind": "auto",
@@ -44740,7 +44725,7 @@
       "raw_mnemonic_pct": 96.6,
       "ref": "synth",
       "ref_sha": "b1c24ccf25d96932",
-      "score": 96.6,
+      "score": 98.9,
       "source": "src/halo/ai/ai_script.c"
     },
     "ai_scripting_go_to_vehicle_override_evaluate": {
