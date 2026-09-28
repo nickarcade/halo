@@ -1913,5 +1913,113 @@
     "result": "behavior_risk",
     "before": 85.0,
     "after": 85.0
+  },
+  "playlist_profile_initialize_oddball_rules": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 79.62,
+    "after": 79.62
+  },
+  "playlist_profile_initialize_item_options": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "improved",
+    "before": 82.46,
+    "after": 100.0
+  },
+  "playlist_profile_initialize_player_options": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 96.39,
+    "after": 96.39
+  },
+  "playlist_profile_initialize_racing_rules": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 97.85,
+    "after": 97.85
+  },
+  "data_compact": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 82.35,
+    "after": 82.35
+  },
+  "datum_get": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 83.13,
+    "after": 83.13
+  },
+  "data_next_index": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 82.76,
+    "after": 82.76
+  },
+  "data_verify": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 85.27,
+    "after": 85.27
+  },
+  "data_make_valid": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 87.18,
+    "after": 87.18
+  },
+  "data_prev_index": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 91.8,
+    "after": 91.8
+  },
+  "datum_delete": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 97.33,
+    "after": 97.33
+  },
+  "network_game_client_handle_message_server_postgame_keep_alive": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 85.45,
+    "after": 85.45
+  },
+  "network_game_client_handle_message_server_graceful_game_exit_pregame": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 84.17,
+    "after": 84.17
+  },
+  "network_game_client_handle_message_server_begin_game": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 88.54,
+    "after": 88.54
+  },
+  "network_game_client_handle_message_server_switch_to_pregame": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 88.96,
+    "after": 88.96
+  },
+  "network_game_client_handle_message_server_game_over": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 88.28,
+    "after": 88.28
+  },
+  "network_game_client_handle_message_server_graceful_game_exit_postgame": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 88.81,
+    "after": 88.81
+  },
+  "rasterizer_vertex_shaders_initialize": {
+    "ts": "2026-09-28T12:25:26+02:00",
+    "result": "no_gain",
+    "before": 81.22,
+    "after": 81.22
   }
 }
