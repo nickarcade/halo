@@ -1859,7 +1859,7 @@ void replacement_animation_apply(void *animation, short frame_index,
   if (*(short *)(anim + 0x20) == 2) {
     node_index = 0;
     if (frame_index >= node_index && frame_index < *(short *)(anim + 0x22)) {
-      compressed = animation_is_compressed((int)anim);
+      compressed = FUN_00120620((int)anim);
       data = (int *)FUN_00120500(animation, frame_index);
       rotation_count = 0;
       translation_count = 0;
@@ -2003,7 +2003,7 @@ void overlay_animation_apply(void *anim_entry, int frame, void *node_data)
   if (*(short *)(anim + 0x20) == 1) {
     node_index = 0;
     if (frame_index >= node_index && frame_index < *(short *)(anim + 0x22)) {
-      compressed = animation_is_compressed((int)anim);
+      compressed = FUN_00120620((int)anim);
       data = (int *)FUN_00120500(anim_entry, frame_index);
       rotation_count = 0;
       translation_count = 0;
