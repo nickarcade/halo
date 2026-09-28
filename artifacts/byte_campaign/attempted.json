@@ -38,10 +38,12 @@
     "after": 80.0
   },
   "object_new_from_scenario": {
-    "ts": "2026-09-27T18:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
-    "before": 94.8,
-    "after": 94.8
+    "before": 94.7867298578199,
+    "after": 94.7867298578199,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
   },
   "object_names_postprocess": {
     "ts": "2026-09-26",
@@ -451,10 +453,12 @@
     "after": 100
   },
   "object_determine_variant_number": {
-    "ts": "2026-09-27T11:12:51+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
-    "before": 89.55,
-    "after": 89.55
+    "before": 89.55223880597015,
+    "after": 89.55223880597015,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
   },
   "object_type_postprocess_node_matrices": {
     "ts": "2026-09-26T22:22:21+02:00",
@@ -469,10 +473,12 @@
     "after": 89.3
   },
   "object_update": {
-    "ts": "2026-09-27T18:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
-    "before": 96.5,
-    "after": 96.5
+    "before": 96.46017699115043,
+    "after": 96.46017699115043,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
   },
   "object_add_to_dump": {
     "ts": "2026-09-27T00:30:00+02:00",
@@ -487,22 +493,28 @@
     "after": 86.4
   },
   "grunt_decide_action": {
-    "ts": "2026-09-27T17:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
     "before": 87.8,
-    "after": 87.8
+    "after": 87.8,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
   },
   "elite_decide_action": {
-    "ts": "2026-09-27T17:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
     "before": 88.7,
-    "after": 88.7
+    "after": 88.7,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
   },
   "marine_decide_action": {
-    "ts": "2026-09-26T22:22:21+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
-    "before": 75.3,
-    "after": 75.3
+    "before": 84.9,
+    "after": 84.9,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
   },
   "actor_type_swarm_aim_jump": {
     "ts": "2026-09-26T22:22:21+02:00",
@@ -793,10 +805,12 @@
     "after": 86.8
   },
   "delete_player_profile_request": {
-    "ts": "2026-09-27T17:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
     "before": 95.3,
-    "after": 95.3
+    "after": 95.3,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
   },
   "create_and_begin_editing_new_gametype_profile": {
     "ts": "2026-09-27T01:30:00+02:00",
@@ -907,10 +921,12 @@
     "after": 75.75
   },
   "jackal_decide_action": {
-    "ts": "2026-09-27T10:01:25+02:00",
-    "result": "reverted",
-    "before": 80.85,
-    "after": 80.85
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "no_gain",
+    "before": 80.8,
+    "after": 80.8,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
   },
   "actor_died": {
     "ts": "2026-09-27T10:01:25+02:00",
@@ -1051,10 +1067,12 @@
     "after": 89.65
   },
   "object_export_function_values": {
-    "ts": "2026-09-27T10:40:58+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
-    "before": 81.41,
-    "after": 81.41
+    "before": 81.41176470588235,
+    "after": 81.41176470588235,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
   },
   "lights_illumination_at_point": {
     "ts": "2026-09-27T10:40:58+02:00",
@@ -1741,22 +1759,28 @@
     "after": 0.7664
   },
   "crew_decide_action": {
-    "ts": "2026-09-27T17:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
     "before": 83.7,
-    "after": 83.7
+    "after": 83.7,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
   },
   "engineer_decide_action": {
-    "ts": "2026-09-27T17:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
     "before": 83.7,
-    "after": 83.7
+    "after": 83.7,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
   },
   "hunter_decide_action": {
-    "ts": "2026-09-27T17:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
     "before": 79.0,
-    "after": 79.0
+    "after": 79.0,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
   },
   "sentinel_decide_action": {
     "ts": "2026-09-27T17:00:00+02:00",
@@ -1771,34 +1795,44 @@
     "after": 85.2
   },
   "mounted_weapon_decide_action": {
-    "ts": "2026-09-27T17:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
     "before": 77.0,
-    "after": 77.0
+    "after": 77.0,
+    "dependency_fingerprint": "efd78b3c5ad1a7acff33bf1d541a5b3b3ba876d445b25300011b2ab1172c34ff"
   },
   "solo_level_initialize_list_single_player": {
-    "ts": "2026-09-27T17:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
     "before": 80.6,
-    "after": 80.6
+    "after": 80.6,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
   },
   "player_profile_initialize_advanced_controller_settings": {
-    "ts": "2026-09-27T17:00:00+02:00",
-    "result": "no_gain",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "reverted",
     "before": 86.5,
-    "after": 86.5
+    "after": 86.5,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
   },
   "player_profile_change_advanced_controller_settings": {
-    "ts": "2026-09-27T17:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
     "before": 97.5,
-    "after": 97.5
+    "after": 97.5,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
   },
   "display_error_if_no_network_connection": {
-    "ts": "2026-09-27T17:00:00+02:00",
-    "result": "no_gain",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "reverted",
     "before": 85.5,
-    "after": 85.5
+    "after": 85.5,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
   },
   "new_campaign_if_no_custom_player_profiles_exist": {
     "ts": "2026-09-27T17:00:00+02:00",
@@ -1903,10 +1937,12 @@
     "after": 95.4
   },
   "TIFFPrintDirectory": {
-    "ts": "2026-09-27T18:00:00+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
-    "before": 91.6,
-    "after": 91.6
+    "before": 91.61603888213853,
+    "after": 91.61603888213853,
+    "dependency_fingerprint": "80985c267e2edbcd1ce1a17d0b08d6afd4d44897aa5a7135267dd3b1d7317e54"
   },
   "TIFFIsTiled": {
     "ts": "2026-09-27T18:00:00+02:00",
@@ -1915,10 +1951,12 @@
     "after": 85.0
   },
   "playlist_profile_initialize_oddball_rules": {
-    "ts": "2026-09-28T12:25:26+02:00",
-    "result": "no_gain",
-    "before": 79.62,
-    "after": 79.62
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "reverted",
+    "before": 79.6,
+    "after": 79.6,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
   },
   "playlist_profile_initialize_item_options": {
     "ts": "2026-09-28T12:25:26+02:00",
@@ -1927,16 +1965,20 @@
     "after": 100.0
   },
   "playlist_profile_initialize_player_options": {
-    "ts": "2026-09-28T12:25:26+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
-    "before": 96.39,
-    "after": 96.39
+    "before": 96.4,
+    "after": 96.4,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
   },
   "playlist_profile_initialize_racing_rules": {
-    "ts": "2026-09-28T12:25:26+02:00",
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
     "result": "no_gain",
-    "before": 97.85,
-    "after": 97.85
+    "before": 97.9,
+    "after": 97.9,
+    "dependency_fingerprint": "721f44b8be91af8efd64991c79589f39d11883df5c70178d695b958693482433"
   },
   "data_compact": {
     "ts": "2026-09-28T12:25:26+02:00",
@@ -2021,5 +2063,37 @@
     "result": "no_gain",
     "before": 81.22,
     "after": 81.22
+  },
+  "widgets_initialize": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "improved",
+    "before": 98.14814814814815,
+    "after": 100.0,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
+  },
+  "widgets_initialize_for_new_map": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "improved",
+    "before": 97.01492537313433,
+    "after": 100.0,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
+  },
+  "widgets_dispose_from_old_map": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "improved",
+    "before": 97.2972972972973,
+    "after": 100.0,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
+  },
+  "widgets_dispose": {
+    "ts": "2026-09-28T16:13:07+02:00",
+    "run": "run-20260928-01",
+    "result": "improved",
+    "before": 96.875,
+    "after": 100.0,
+    "dependency_fingerprint": "29fd30dda57b4bd9031a607013e3fcd205f64c5a29943c8b703e5810949d0934"
   }
 }

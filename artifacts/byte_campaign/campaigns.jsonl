@@ -12,3 +12,4 @@
 {"ts":"2026-09-27T17:30:00+02:00","run":"run-20260927-01","tus":4,"targets":24,"functions_improved":2,"bytes_gained":37,"reverted":0,"behavior_risk":0,"tokens":60400,"wall_s":1150,"bytes_per_ktok":0.61,"landed":["a8c05ecad"]}
 {"ts":"2026-09-27T18:30:00+02:00","run":"run-20260927-02","tus":4,"targets":14,"functions_improved":0,"bytes_gained":0,"reverted":0,"behavior_risk":1,"tokens":20500,"wall_s":1149,"bytes_per_ktok":0.0,"landed":[]}
 {"ts":"2026-09-28T12:25:26+02:00","run":"run-20260928","tus":4,"targets":18,"functions_improved":1,"bytes_gained":50,"reverted":0,"behavior_risk":0,"tokens":3629,"wall_s":2145,"bytes_per_ktok":13.78,"landed":["94e2afa45"]}
+{"ts":"2026-09-28T16:13:07+02:00","run":"run-20260928-01","tus":4,"targets":25,"functions_improved":4,"bytes_gained":8,"reverted":3,"behavior_risk":0,"tokens":60500,"wall_s":1560,"bytes_per_ktok":0.13,"landed":["80f3e0a3c"]}

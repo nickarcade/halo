@@ -2820,33 +2820,32 @@ void light_volume_render(int object_handle, int light_volume_datum)
  * buf+0x60/+0x64/ +0x68 (FLD [EBP-0xc/-0x8/-0x4]); &buf[0x60] passed as
  * position to FUN_0017cfb0.
  */
-void light_volume_submit(int object_handle, int light_volume_datum, int param_3,
-                         int param_4)
+void light_volume_submit(int object_handle, int light_volume_datum, int lighting,
+                         int animation) /* name: PAL 2342 light_volumes.c:370 */
 {
   unsigned char marker_buf[0x6c];
   int light_tag;
-  short fn_index;
+  short source; /* name: PAL 2342 source/objects/widgets/light_volumes.c:382 */
   float *marker_pos;
   float diff[3];
 
-  (void)param_3;
+  (void)lighting; /* name: PAL 2342 source/objects/widgets/light_volumes.c:369 */
   if ((object_handle != -1) && (light_volume_datum != -1)) {
     light_tag = (int)tag_get(
       0x6d677332,
       *(int *)((int)datum_get(*(data_t **)0x46f020, light_volume_datum) + 4));
-    fn_index = *(short *)(light_tag + 0x44);
     if ((0 < *(short *)(light_tag + 0x6e)) &&
-        (0 < *(int *)(light_tag + 0x120)) &&
-        ((fn_index == 0) || (param_4 == 0) ||
-         (*(float *)(*(int *)(param_4 + 4) - 4 + fn_index * 4) >
-          *(float *)0x2533c0))) {
+        (0 < *(int *)(light_tag + 0x120))) {
+      source = *(short *)(light_tag + 0x44);
+      if ((source == 0) || (animation == 0) ||
+          (*(float *)(*(int *)(animation + 4) - 4 + source * 4) >
+           *(float *)0x2533c0)) {
       object_get_markers_by_string_id(object_handle, (void *)light_tag,
                                       marker_buf, 1);
       marker_pos = (float *)(marker_buf + 0x60);
-      /* diff[] as an array (not scalars) forces VC71 to compute all three
-       * marker-minus-camera subtractions eagerly and keep them x87-resident
-       * across the near==0 branch, matching the reference (scalars get sunk
-       * into the || short-circuit). Match-sensitive: do not scalarize. */
+      /* diff[] as an array (not scalars) forces the three subs to stay eager
+       * across the near==0 branch (scalars sink into the || short-circuit).
+       * Match-sensitive: do not scalarize. */
       diff[0] = marker_pos[0] - *(float *)0x506550;
       diff[1] = marker_pos[1] - *(float *)0x506554;
       diff[2] = marker_pos[2] - *(float *)0x506558;
@@ -2857,6 +2856,7 @@ void light_volume_submit(int object_handle, int light_volume_datum, int param_3,
         FUN_0017cfb0(object_handle, light_volume_datum, marker_pos,
                      (int)light_volume_render);
       }
+    }
     }
   }
 }
@@ -3544,7 +3544,7 @@ void widgets_initialize(void)
   sVar1 = 0;
   ppuVar2 = (void **)0x323530;
   do {
-    if ((sVar1 < 0) || (4 < sVar1)) {
+    if ((sVar1 < 0) || (sVar1 >= 5)) {
       display_assert("type>=0 && type<NUMBER_OF_WIDGET_TYPES",
                      "c:\\halo\\source\\objects\\widgets\\widget_types.h", 0x96,
                      1);
@@ -3575,7 +3575,7 @@ void widgets_initialize_for_new_map(void)
   sVar1 = 0;
   ppuVar2 = (void **)0x323534;
   do {
-    if ((sVar1 < 0) || (4 < sVar1)) {
+    if ((sVar1 < 0) || (sVar1 >= 5)) {
       display_assert("type>=0 && type<NUMBER_OF_WIDGET_TYPES",
                      "c:\\halo\\source\\objects\\widgets\\widget_types.h", 0x96,
                      1);
@@ -3600,7 +3600,7 @@ void widgets_dispose_from_old_map(void)
   sVar1 = 0;
   ppuVar2 = (void **)0x323538;
   do {
-    if ((sVar1 < 0) || (4 < sVar1)) {
+    if ((sVar1 < 0) || (sVar1 >= 5)) {
       display_assert("type>=0 && type<NUMBER_OF_WIDGET_TYPES",
                      "c:\\halo\\source\\objects\\widgets\\widget_types.h", 0x96,
                      1);
@@ -3626,7 +3626,7 @@ void widgets_dispose(void)
   sVar1 = 0;
   ppuVar2 = (void **)0x32353c;
   do {
-    if ((sVar1 < 0) || (4 < sVar1)) {
+    if ((sVar1 < 0) || (sVar1 >= 5)) {
       display_assert("type>=0 && type<NUMBER_OF_WIDGET_TYPES",
                      "c:\\halo\\source\\objects\\widgets\\widget_types.h", 0x96,
                      1);
@@ -4070,11 +4070,11 @@ void render_debug_light(int param_1)
 
   iVar2 = (int)datum_get(*(data_t **)0x5a90bc, param_1);
   pbVar3 = (unsigned char *)tag_get(0x6c696768, *(int *)(iVar2 + 4));
-  *(int *)&ctx[0] = *(int *)(*(int *)0x2ee6f0);
+  *(int *)&ctx[0] = *(int *)(iVar1 = *(int *)0x2ee6f0);
   ctx[4] = *(float *)(pbVar3 + 0xc) * *(float *)(pbVar3 + 4);
-  ctx[1] = *(float *)(*(int *)0x2ee6f0 + 4);
-  ctx[2] = *(float *)(*(int *)0x2ee6f0 + 8);
-  ctx[3] = *(float *)(*(int *)0x2ee6f0 + 0xc);
+  ctx[1] = *(float *)(iVar1 + 4);
+  ctx[2] = *(float *)(iVar1 + 8);
+  ctx[3] = *(float *)(iVar1 + 0xc);
   iVar1 = iVar2 + 0x30;
   FUN_00189540(1, (void *)iVar1, *(float *)(pbVar3 + 0x18), *(void **)0x2ee6c4);
   FUN_00189540(1, (void *)iVar1, *(float *)((char *)iVar2 + 0x54), ctx);
@@ -4762,18 +4762,21 @@ done:
  * 3 cdecl params.
  */
 /* 0x13a740 */
-void lights_illumination_at_point(int param_1, int param_2, float *param_3)
+void lights_illumination_at_point(int point, int location, float *color) /* name: PAL 2342 object_lights.c:1882 */
 {
   float fVar1;
   char *puVar2;
-  float *pfVar3;
+  float *color_out;
   char cVar4;
   int iVar5;
   short *psVar6;
   int uVar7;
   int iVar8;
   unsigned int uVar9;
-  float local_34[3];
+  union {
+    float point[3];
+    int light_indices[2];
+  } slot;
   float local_28;
   unsigned short *local_24;
   int local_20;
@@ -4783,34 +4786,31 @@ void lights_illumination_at_point(int param_1, int param_2, float *param_3)
   void *local_10;
   int local_c;
   short local_8[2];
-  /*
-   * Marker-light output arrays for the find_point_lights_for_object_in_cluster
-   * call below. max_count is 2 (PUSH 0x2 at 0x13a8a2), and the accumulation
-   * loop at 0x13a915/0x13a934 indexes both bases with EDI stepping by 4 — so
-   * all three are 2-element arrays, not scalars. In the original frame MSVC
-   * overlaps them with the now-dead lightmap locals (indices at EBP-0x1c/-0x18
-   * = local_20/local_1c, attenuations at EBP-0x24/-0x20 = local_28/local_24,
-   * weights at EBP-0x14/-0x10 = local_18/local_14); Ghidra split every slot
-   * into its own scalar. Reading element 1 through a scalar picked up an
-   * adjacent float (observed handle 0x3f54ebf5) and tripped the "lights index
-   * is unused" datum_get assert.
-   */
-  int light_indices[2];
+  /* light_indices reuse point's slot; the trace ends before the gather. */
+  /* max_count is 2 (PUSH 0x2 at 0x13a8a2); both arrays are indexed by 4. */
+  /* The 8-byte overlap puts the point at EBP-0x30, matching the reference. */
+  /* Element 1 is only read through the array, never through a scalar. */
+  /* Weights and attenuations stay separate 2-element arrays. */
+  /* color home is reused as the short light count (EBP+0x10 / +0x12). */
+  /* color_out holds the color pointer across that reuse. */
+  /* name: PAL 2342 source/objects/object_lights.c:1882 */
+  /* shape only; 2276 behavior (max 2 lights, marker globals) stays. */
+  /* real_vector3d assignment is the 12-byte copy (three dword moves). */
+  /* Direct calls replace XCALL so the rel32 matches the reference. */
+  /* Union lifetime: point is dead before light_indices is written. */
   float light_weights[2];
   float light_attenuations[2];
 
-  pfVar3 = param_3;
+  color_out = color;
   puVar2 = *(char **)0x2ee710;
-  *param_3 = *(float *)puVar2;
-  param_3[1] = *(float *)(puVar2 + 4);
-  param_3[2] = *(float *)(puVar2 + 8);
-  cVar4 = CALL_FUN_00198cb0(param_1, (void *)0x29b204, local_34,
-                            (void *)((int)&param_3 + 2), local_8, &local_c,
+  *(real_vector3d *)color_out = *(real_vector3d *)puVar2;
+  cVar4 = structure_test_vector((float *)point, (float *)0x29b204, slot.point,
+                            (int16_t *)((int)&color + 2), local_8, &local_c,
                             &local_1c, &local_14);
   if (cVar4 != '\0') {
     iVar5 = (int)scenario_get();
     psVar6 = (short *)tag_block_get_element(
-      (void *)(iVar5 + 0x104), (int)*(short *)((int)&param_3 + 2), 0x20);
+      (void *)(iVar5 + 0x104), (int)*(short *)((int)&color + 2), 0x20);
     local_10 = tag_block_get_element(psVar6 + 10, (int)local_8[0], 0x100);
     if (*(int *)(iVar5 + 0xc) != -1 && *psVar6 != -1) {
       uVar7 = (int)FUN_00076ff0(*(int *)(iVar5 + 0xc), *psVar6);
@@ -4824,49 +4824,49 @@ void lights_illumination_at_point(int param_1, int param_2, float *param_3)
                        "material->lightmap_vertices.type==_rasterizer_vertex_"
                        "type_environment_lightmap_compressed",
                        "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x356, 1);
-        CALL_thunk_FUN_001029a0(-1);
+        system_exit(-1);
       }
-      iVar8 = CALL_FUN_001bf570(uVar7, 0, 0);
+      iVar8 = (int)xbox_texture_cache_get_hardware_format((void *)uVar7, 0, 0);
       if (iVar8 != 0) {
-        FUN_00138fd0(iVar5, uVar7, local_24, local_1c, local_14, pfVar3);
+        FUN_00138fd0(iVar5, uVar7, local_24, local_1c, local_14, color_out);
       }
     }
   }
-  if (*(short *)(param_2 + 4) != -1) {
-    param_3 = (float *)0;
+  if (*(short *)(location + 4) != -1) {
+    color = (float *)0;
     if (*(char *)0x5a8d60 != '\0') {
       display_assert("!lights_globals.marker_initialized",
                      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x664, 1);
-      CALL_thunk_FUN_001029a0(-1);
+      system_exit(-1);
     }
     *(int *)0x5a8d64 = *(int *)0x5a8d64 + 1;
     *(char *)0x5a8d60 = '\x01';
     find_point_lights_for_object_in_cluster(
-      -1, (int16_t) * (unsigned short *)(param_2 + 4), (float *)param_1, 0.0f,
-      (int)light_indices, light_weights, (int)light_attenuations,
-      (int16_t *)&param_3, 2);
+      -1, (int16_t) * (unsigned short *)(location + 4), (float *)point, 0.0f,
+      (int)slot.light_indices, light_weights, (int)light_attenuations,
+      (int16_t *)&color, 2);
     if (*(char *)0x5a8d60 == '\0') {
       display_assert("lights_globals.marker_initialized",
                      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x68e, 1);
-      CALL_thunk_FUN_001029a0(-1);
+      system_exit(-1);
     }
     *(char *)0x5a8d60 = '\0';
-    if (0 < (short)(int)param_3) {
+    if (0 < (short)(int)color) {
       iVar5 = 0;
-      uVar9 = (unsigned short)(unsigned int)param_3;
+      uVar9 = (unsigned short)(unsigned int)color;
       do {
         iVar8 = (int)datum_get(*(void **)0x5a90bc,
-                               *(int *)((char *)light_indices + iVar5));
+                               *(int *)((char *)slot.light_indices + iVar5));
         if ((*(unsigned char *)(iVar8 + 2) & 1) != 0) {
-          *pfVar3 = *(float *)(iVar8 + 0x14) *
+          *color_out = *(float *)(iVar8 + 0x14) *
                       *(float *)((char *)light_attenuations + iVar5) +
-                    *pfVar3;
-          pfVar3[1] = *(float *)(iVar8 + 0x18) *
+                    *color_out;
+          color_out[1] = *(float *)(iVar8 + 0x18) *
                         *(float *)((char *)light_attenuations + iVar5) +
-                      pfVar3[1];
-          pfVar3[2] = *(float *)(iVar8 + 0x1c) *
+                      color_out[1];
+          color_out[2] = *(float *)(iVar8 + 0x1c) *
                         *(float *)((char *)light_attenuations + iVar5) +
-                      pfVar3[2];
+                      color_out[2];
         }
         iVar5 = iVar5 + 4;
         uVar9 = uVar9 - 1;
@@ -4874,32 +4874,32 @@ void lights_illumination_at_point(int param_1, int param_2, float *param_3)
     }
   }
   /* clamp each channel to [0, 1] */
-  if (*pfVar3 < *(float *)0x2533c0) {
+  if (*color_out < *(float *)0x2533c0) {
     fVar1 = *(float *)0x2533c0;
-  } else if (*pfVar3 > *(float *)0x2533c8) {
+  } else if (*color_out > *(float *)0x2533c8) {
     fVar1 = *(float *)0x2533c8;
   } else {
-    fVar1 = *pfVar3;
+    fVar1 = *color_out;
   }
-  *pfVar3 = fVar1;
+  *color_out = fVar1;
 
-  if (pfVar3[1] < *(float *)0x2533c0) {
+  if (color_out[1] < *(float *)0x2533c0) {
     fVar1 = *(float *)0x2533c0;
-  } else if (pfVar3[1] > *(float *)0x2533c8) {
+  } else if (color_out[1] > *(float *)0x2533c8) {
     fVar1 = *(float *)0x2533c8;
   } else {
-    fVar1 = pfVar3[1];
+    fVar1 = color_out[1];
   }
-  pfVar3[1] = fVar1;
+  color_out[1] = fVar1;
 
-  if (pfVar3[2] < *(float *)0x2533c0) {
+  if (color_out[2] < *(float *)0x2533c0) {
     fVar1 = 0.0f;
-  } else if (pfVar3[2] > *(float *)0x2533c8) {
+  } else if (color_out[2] > *(float *)0x2533c8) {
     fVar1 = 1.0f;
   } else {
-    fVar1 = pfVar3[2];
+    fVar1 = color_out[2];
   }
-  pfVar3[2] = fVar1;
+  color_out[2] = fVar1;
 }
 
 /* 0x13aa10: gather the light markers that illuminate an object.  Computes the
@@ -4908,7 +4908,7 @@ void lights_illumination_at_point(int param_1, int param_2, float *param_3)
  * (object_get_first_cluster / object_get_next_cluster over iter_state
  * local_10).  For each cluster it calls find_point_lights_for_object_in_cluster
  * to select the strongest point lights into the caller's marker array
- * (param_2+0x44), capped at 2 (count at param_2+0x40).  Finally it converts
+ * (location+0x44), capped at 2 (count at location+0x40).  Finally it converts
  * each stored light datum handle into the light's object field (light+0x8) in
  * place.  Guarded by lights_globals.marker_initialized (0x5a8d60) and a
  * recursion/use counter (0x5a8d64). */
