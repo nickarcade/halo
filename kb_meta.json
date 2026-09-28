@@ -17183,6 +17183,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x123c70": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x123e20": {
       "kind": "function",
       "status": "ported"
@@ -18498,6 +18502,10 @@
       "status": "ported"
     },
     "0x138f10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x138fd0": {
       "kind": "function",
       "status": "ported"
     },

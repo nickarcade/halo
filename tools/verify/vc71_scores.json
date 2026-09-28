@@ -19036,17 +19036,17 @@
     "FUN_00123c70": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 8.5,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x123c70",
       "end": "0x123d77",
       "kind": "auto",
       "n_r": 89,
-      "opnd_percent": 6.4,
-      "raw_mnemonic_pct": 8.5,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "5b5ddb0e82e27ca5",
-      "score": 8.5,
-      "source": "src/halo/unported_thunks.c"
+      "score": 100.0,
+      "source": "src/halo/models/model_animations.c"
     },
     "FUN_00123d80": {
       "abi_model": "raw",
@@ -19604,48 +19604,48 @@
       "source": "src/halo/objects/damage.c"
     },
     "FUN_00136890": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 90.0,
+      "abi_model": "regparam_stripped_anyreg",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 91.5,
       "addr": "0x136890",
       "end": "0x1368d6",
       "kind": "auto",
       "n_r": 30,
-      "opnd_percent": 80.0,
+      "opnd_percent": 81.4,
       "raw_mnemonic_pct": 90.0,
       "ref": "synth",
       "ref_sha": "1cfbb48da98e4015",
-      "score": 90.0,
+      "score": 91.5,
       "source": "src/halo/objects/damage.c"
     },
     "FUN_001369e0": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 96.8,
+      "abi_model": "regparam_stripped_anyreg",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x1369e0",
       "end": "0x1369fd",
       "kind": "auto",
       "n_r": 15,
-      "opnd_percent": 96.8,
+      "opnd_percent": 100.0,
       "raw_mnemonic_pct": 96.8,
       "ref": "synth",
       "ref_sha": "c1cd171f810fc125",
-      "score": 96.8,
+      "score": 100.0,
       "source": "src/halo/objects/damage.c"
     },
     "FUN_00136a00": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 95.2,
+      "abi_model": "regparam_stripped_anyreg",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 96.2,
       "addr": "0x136a00",
       "end": "0x136a7e",
       "kind": "auto",
       "n_r": 51,
-      "opnd_percent": 93.3,
+      "opnd_percent": 94.2,
       "raw_mnemonic_pct": 95.2,
       "ref": "synth",
       "ref_sha": "ced1ad94b5bb4c1f",
-      "score": 95.2,
+      "score": 96.2,
       "source": "src/halo/objects/damage.c"
     },
     "FUN_00136f40": {
@@ -19771,17 +19771,17 @@
     "FUN_00138fd0": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 9.1,
+      "abi_modeled_mnemonic_pct": 100.0,
       "addr": "0x138fd0",
       "end": "0x1390cf",
       "kind": "auto",
       "n_r": 83,
-      "opnd_percent": 6.8,
-      "raw_mnemonic_pct": 9.1,
+      "opnd_percent": 100.0,
+      "raw_mnemonic_pct": 100.0,
       "ref": "synth",
       "ref_sha": "467cdcdd1d047f16",
-      "score": 9.1,
-      "source": "src/halo/unported_thunks.c"
+      "score": 100.0,
+      "source": "src/halo/objects/damage.c"
     },
     "FUN_001390d0": {
       "abi_model": "raw",
@@ -80174,18 +80174,18 @@
       "source": "src/halo/game/players.c"
     },
     "object_cause_damage": {
-      "abi_model": "regarg_call_stripped",
-      "abi_model_items": 4,
-      "abi_modeled_mnemonic_pct": 95.1,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 9,
+      "abi_modeled_mnemonic_pct": 95.4,
       "addr": "0x137d20",
       "end": "0x1384d3",
       "kind": "auto",
       "n_r": 641,
-      "opnd_percent": 81.2,
+      "opnd_percent": 81.4,
       "raw_mnemonic_pct": 94.9,
       "ref": "synth",
       "ref_sha": "b792c4a9a0b5c69b",
-      "score": 95.1,
+      "score": 95.4,
       "source": "src/halo/objects/damage.c"
     },
     "object_child_list_remove": {
@@ -80309,9 +80309,9 @@
       "source": "src/halo/objects/objects.c"
     },
     "object_damage_update": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 88.3,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 2,
+      "abi_modeled_mnemonic_pct": 88.6,
       "addr": "0x1384e0",
       "end": "0x1388f2",
       "kind": "auto",
@@ -80320,7 +80320,7 @@
       "raw_mnemonic_pct": 88.3,
       "ref": "synth",
       "ref_sha": "f06f0200b67c20e7",
-      "score": 88.3,
+      "score": 88.6,
       "source": "src/halo/objects/damage.c"
     },
     "object_deactivate": {
@@ -80444,9 +80444,9 @@
       "source": "src/halo/objects/damage.c"
     },
     "object_deplete_shield": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 95.7,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 97.8,
       "addr": "0x136b40",
       "end": "0x136bbe",
       "kind": "auto",
@@ -80455,7 +80455,7 @@
       "raw_mnemonic_pct": 95.7,
       "ref": "synth",
       "ref_sha": "7511fffd0bbe93c2",
-      "score": 95.7,
+      "score": 97.8,
       "source": "src/halo/objects/damage.c"
     },
     "object_destroy": {
@@ -92759,18 +92759,18 @@
       "source": "src/halo/sound/sound_manager.c"
     },
     "render_debug_object_damage": {
-      "abi_model": "raw",
-      "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 87.5,
+      "abi_model": "regarg_mixed_stripped",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 87.8,
       "addr": "0x137370",
       "end": "0x137537",
       "kind": "auto",
       "n_r": 125,
-      "opnd_percent": 57.0,
+      "opnd_percent": 55.7,
       "raw_mnemonic_pct": 87.5,
       "ref": "synth",
       "ref_sha": "26689357473932fa",
-      "score": 87.5,
+      "score": 87.8,
       "source": "src/halo/objects/damage.c"
     },
     "render_debug_recording": {

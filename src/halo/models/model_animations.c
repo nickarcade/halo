@@ -2232,6 +2232,54 @@ void model_get_node_matrices(void *mode_tag, float *node_matrices,
   } while ((short)read_index != (short)write_index);
 }
 
+/* FUN_00123c70 (0x123c70) — Build world node matrices from node orientation
+ * data by walking the mode-tag node tree breadth-first. */
+void FUN_00123c70(void *mode_tag, void *out_matrices, void *node_data,
+                  float *position, float *forward, float *up)
+{
+  short node_indices[64];
+  float node_matrix[13];
+  float root_matrix[13];
+  void *node_block;
+  void *node;
+  float *parent_matrix;
+  short node_index;
+  int read_index;
+  int write_index;
+
+  matrix4x3_from_forward_up_position(root_matrix, position, forward, up);
+  read_index = 0;
+  node_block = (char *)mode_tag + 0xb8;
+  if (0 < *(int *)((char *)mode_tag + 0xb8)) {
+    write_index = 1;
+    node_indices[0] = 0;
+    do {
+      node_index = node_indices[(short)read_index];
+      read_index = read_index + 1;
+      node = tag_block_get_element(node_block, (int)node_index, 0x9c);
+      if (node_index == 0) {
+        parent_matrix = root_matrix;
+      } else {
+        parent_matrix = (float *)((char *)out_matrices +
+                                  *(short *)((char *)node + 0x24) * 0x34);
+      }
+      FUN_00109500(node_matrix,
+                   (float *)((char *)node_data + (int)node_index * 0x20));
+      matrix4x3_multiply(
+        parent_matrix, node_matrix,
+        (float *)((char *)out_matrices + (int)node_index * 0x34));
+      if (*(short *)((char *)node + 0x20) != -1) {
+        node_indices[(short)write_index] = *(short *)((char *)node + 0x20);
+        write_index = write_index + 1;
+      }
+      if (*(short *)((char *)node + 0x22) != -1) {
+        node_indices[(short)write_index] = *(short *)((char *)node + 0x22);
+        write_index = write_index + 1;
+      }
+    } while ((short)read_index != (short)write_index);
+  }
+}
+
 /* FUN_00123d80 (0x123d80) — Binary-search a mode-tag block (+0xac, element
  * size 0x40) for an element whose name (element+0x0) matches marker_name
  * case-insensitively; returns the int16 index or -1. PAL calls this

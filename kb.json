@@ -40126,7 +40126,8 @@
     },
     {
      "addr": "0x123c70",
-     "decl": "void FUN_00123c70(void *mode_tag, void *out_matrices, void *node_data, float *position, float *forward, float *up);"
+     "decl": "void FUN_00123c70(void *mode_tag, void *out_matrices, void *node_data, float *position, float *forward, float *up);",
+     "ported": true
     },
     {
      "addr": "0x123d80",
@@ -40907,7 +40908,8 @@
     },
     {
      "addr": "0x138fd0",
-     "decl": "void FUN_00138fd0(int material, int lightmap, unsigned short *vertex_indices, float u, float v, float *out_rgb);"
+     "decl": "void FUN_00138fd0(int material, int lightmap, unsigned short *vertex_indices, float u, float v, float *out_rgb);",
+     "ported": true
     },
     {
      "addr": "0x1390d0",
