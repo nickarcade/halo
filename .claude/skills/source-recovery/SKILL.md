@@ -59,7 +59,8 @@ recovery lane does not change bytes.
 **Comments and layout**
 7. **No function header comments by default.** The address, object, and
    signature live in kb.json. Delete comments that restate the code, name the
-   address, or transcribe disassembly (`Confirmed: PUSH …`). Evidence belongs in
+   address, transcribe disassembly (`Confirmed: PUSH …`), or cite another
+   decompilation (PAL is grounding, never cited). Evidence belongs in
    `recovery/evidence/` or the commit message. Keep only a comment that holds
    knowledge the code cannot: an ABI quirk, a match-sensitive construct, an
    open uncertainty (`re-comment-capture`). One line if possible.

@@ -43,7 +43,9 @@ Argument: $ARGUMENTS
   `differences`). Ghidra is optional; run `tools/audit/check_ghidra_mcp.py`
   first (CLAUDE.md rule 8).
 - **Names:** a name in the PAL source is T2 evidence (`naming-confidence`).
-  Cite it: `/* name: PAL 2342 <file>:<line> */`.
+  PAL is a grounding source, not something the output mentions. Do not add
+  source comments or commit text that cite PAL files, lines, or "PAL 2342".
+  Where a note is needed, record it in the run's report JSON.
 - **Layouts:** never copy a PAL struct layout. Field offsets come from
   `src/types.h` only. A struct field rewrite is allowed only when the struct
   and field already exist in our tree.
@@ -101,7 +103,7 @@ sonnet on cost and quality; no fable). Each owns exactly one `.c` file. Brief
 > 4. Readability pass (skip if `--no-readability`), only on functions you
 >    touched: replace raw `*(T *)(p + 0xNN)` with an **existing** struct field
 >    whose offset `src/types.h` proves; rename locals/params using PAL names
->    (cite them). Gate each edit with `gate --neutral` (nothing may drop).
+>    (no citation comments). Gate each edit with `gate --neutral` (nothing may drop).
 >    Revert on REJECT.
 > 5. Equivalence for every function with an accepted byte change:
 >    `rtk .venv/bin/python tools/equivalence/unicorn_diff.py <fn> --allow-stubs -q`
@@ -135,7 +137,7 @@ When all workers return (or as each returns — land in completion order):
    per function: `- <fn> @ <addr>: <before>% -> <after>% aligned (+N bytes), equiv <verdict>`.
 3. Readability commit (if the full file differs from the bytes checkpoint):
    `cp /tmp/<stem>.full.c <TU>`, commit
-   `Readability: <tu stem> struct fields and PAL-cited names (byte-neutral)`.
+   `Readability: <tu stem> struct fields and names (byte-neutral)`.
 4. Refresh records for landed TUs so the next queue sees them:
    `rtk .venv/bin/python tools/verify/raw_xbe_structural.py populate --source <TU>` for
    each, then **one** full `populate --workers 6` at campaign end (restores
