@@ -90,6 +90,7 @@ static const int _scenario_type_main_menu = 2;
 #define TAG_GROUP_HUDG 0x68756467 /* 'hudg' */
 #define TAG_GROUP_ITEM 0x6974656d /* 'item' */
 #define TAG_GROUP_ITMC 0x69746d63 /* 'itmc' */
+#define TAG_GROUP_LIGH 0x6c696768 /* 'ligh' */
 #define TAG_GROUP_SHDR 0x73686472 /* 'shdr' */
 #define TAG_GROUP_SND  0x736e6421 /* 'snd!' */
 #define TAG_GROUP_WEAP 0x77656170 /* 'weap' */

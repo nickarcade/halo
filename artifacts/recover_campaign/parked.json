@@ -1,0 +1,30 @@
+{
+ "src/halo/objects/objects.c::lights_queue_lens_flare": {
+  "reason": "permuter artifact; readable rewrite lost raw bytes",
+  "run": "run-20260929-01"
+ },
+ "src/halo/objects/objects.c::lights_render_diffuse": {
+  "reason": "scene_point_lights[i] array access moves codegen",
+  "run": "run-20260929-01"
+ },
+ "src/halo/objects/objects.c::lights_render_specular": {
+  "reason": "scene_point_lights[i] array access moves codegen",
+  "run": "run-20260929-01"
+ },
+ "src/halo/objects/objects.c::lights_illumination_at_point": {
+  "reason": "marker-field stores move codegen",
+  "run": "run-20260929-01"
+ },
+ "src/halo/objects/objects.c::light_new_unattached": {
+  "reason": "float stores move codegen",
+  "run": "run-20260929-01"
+ },
+ "src/halo/objects/objects.c::lights_preprocess_scene": {
+  "reason": "needs a local split to go typed",
+  "run": "run-20260929-01"
+ },
+ "src/halo/objects/objects.c::object_vitality/family-shadow fns": {
+  "reason": "need object_data_t fields in types.h (orchestrator-only)",
+  "run": "run-20260929-01"
+ }
+}

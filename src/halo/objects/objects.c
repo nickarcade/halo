@@ -3801,7 +3801,7 @@ void widgets_delete(int object_handle)
  * match — matches the original's EAX: the leftover -1 chain handle in the
  * high three bytes with AL cleared to 0.
  */
-int widgets_need_lighting(int param_1)
+int widgets_need_lighting(int widget_index)
 {
   int widget_type_table;
   data_t **widget_data;
@@ -3809,8 +3809,8 @@ int widgets_need_lighting(int param_1)
   int16_t type;
 
   widget_data = (data_t **)0x5a90c4;
-  while (param_1 != -1) {
-    widget = (char *)datum_get(*widget_data, param_1);
+  while (widget_index != -1) {
+    widget = (char *)datum_get(*widget_data, widget_index);
     type = *(int16_t *)(widget + 0x2);
     widget_type_table = 0x323528;
 
@@ -3825,32 +3825,11 @@ int widgets_need_lighting(int param_1)
     if (*(char *)(widget_type_table + (int)type * 0x28 + 0x4) != '\0') {
       return 1;
     }
-    param_1 = *(int *)(widget + 0x8);
+    widget_index = *(int *)(widget + 0x8);
   }
   return (int)0xffffff00;
 }
 
-/*
- * object_initialize_vitality (0x1365d0 / objects.obj) — initialise an object's
- * maximum body vitality and maximum shield vitality from its collision-model
- * tag, with optional caller overrides.
- *
- * Reads the object's 'obje' definition (object+0); if the definition has a
- * collision model ('coll') tag (objtag+0x7c != NONE), pulls the default body
- * vitality from coll+0x8 and the default shield vitality from coll+0xcc.
- * Either default may be replaced by a non-NULL override pointer argument.
- *
- * The four float results are stored into the object data:
- *   object+0x88 = max body vitality
- *   object+0x8c = max shield vitality
- *   object+0x90 = 1.0 if body vitality > 0 else 0.0   (has-body flag, as float)
- *   object+0x94 = 1.0 if shield vitality > 0 else 0.0  (has-shield flag, float)
- *
- * Confirmed (disasm 0x1365d0): tag_get(0x6f626a65 'obje', *obj); coll tag from
- * objtag+0x7c; vit from coll+0x8 (ECX store to +0x88), shield from coll+0xcc
- * (FST to +0x8c); compares against FLOAT 0.0 (0x2533c0) using AH&0x41 (<=0
- * set).
- */
 void object_initialize_vitality(int object_handle,
                                 float *body_vitality_override,
                                 float *shield_vitality_override)
@@ -3888,25 +3867,6 @@ void object_initialize_vitality(int object_handle,
     *(int *)((char *)obj + 0x94) = 0;
 }
 
-/*
- * object_get_maximum_body_vitality (0x1366b0 / objects.obj) — return an
- * object's effective maximum body vitality.
- *
- * Resolves the object and reads its stored max body vitality (object+0x88,
- * set by object_initialize_vitality). If use_raw_max (param_2) is non-zero,
- * returns that value unmodified. Otherwise scales it by the per-team /
- * game-mode vitality multiplier returned by FUN_000b55b0(1,
- * object->team@+0x68).
- *
- * §7 note: Ghidra mis-groups object_get_and_verify_type as taking 3 args; the
- * disassembly shows PUSH -1, PUSH handle -> (handle, -1); the char flag stays
- * in [EBP+0xc].
- *
- * Confirmed: CALL 0x13d680 (object_get_and_verify_type, mask -1).
- * Confirmed: float load from object+0x88 (max body vitality).
- * Confirmed: flag byte at [EBP+0xc]; non-zero -> return raw object+0x88.
- * Confirmed: zero -> FUN_000b55b0(1, (uint16)object+0x68) * object+0x88.
- */
 float object_get_maximum_body_vitality(int object_handle, char use_raw_max)
 {
   char *obj;
@@ -3922,71 +3882,41 @@ float object_get_maximum_body_vitality(int object_handle, char use_raw_max)
   return max_vitality;
 }
 
-/*
- * object_wake — disconnect a point light from the cluster partition.
- * (from c:\halo\SOURCE\objects\object_lights.c, line 0x4d0)
- *
- * Looks up the light datum in the point-light data table at 0x5a90bc.
- * If the light is active (flags bit 1) and connected to the map (flags bit 2),
- * removes it from the cluster partition at 0x5a90b0, then clears the
- * connected_to_map flag.
- *
- * Confirmed: datum_get(*(data_t**)0x5a90bc, object_handle) — 2 cdecl args.
- * Confirmed: TEST AL,0x2 for active flag, TEST AL,0x4 for connected_to_map.
- * Confirmed: cluster_partition_remove_object(0x5a90b0, handle, light+0x10).
- * Confirmed: AND byte ptr [ESI+0x2],0xfb clears bit 2.
- */
+/* Disconnects a point light from the map (assert text); the kb name predates that. */
 void object_wake(int object_handle)
 {
-  char *light;
-  uint16_t flags;
+  light_datum_t *light = light_get(object_handle);
+  uint16_t flags = light->flags;
 
-  light = (char *)datum_get(*(data_t **)0x5a90bc, object_handle);
-  flags = *(uint16_t *)(light + 0x2);
-
-  if ((flags & 0x2) == 0)
+  if ((flags & POINT_LIGHT_FLAG_CONNECTS_TO_MAP) == 0)
     return;
-
-  if ((flags & 0x4) == 0) {
+  if ((flags & POINT_LIGHT_FLAG_CONNECTED_TO_MAP) == 0) {
     display_assert("TEST_FLAG(light->flags, _point_light_connected_to_map_bit)",
                    "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x4d0, 1);
     system_exit(-1);
   }
 
-  cluster_partition_remove_object((void *)0x5a90b0, object_handle,
-                                  (void *)(light + 0x10));
-  *(uint8_t *)(light + 0x2) &= ~0x4;
+  cluster_partition_remove_object(light_cluster_partition, object_handle,
+                                  &light->cluster_reference);
+  *(uint8_t *)&light->flags &= ~POINT_LIGHT_FLAG_CONNECTED_TO_MAP;
 }
 
-/* Returns 1.0 minus the ratio of param_2 squared to param_1 squared. */
-float light_attenuation(float param_1, float param_2)
+float light_attenuation(float radius, float distance)
 {
-  return 1.0f - (param_2 * param_2) / (param_1 * param_1);
+  return 1.0f - (distance * distance) / (radius * radius);
 }
 
-/* 0x139810 / objects.obj — Scale a light color (RGB float triple) by a delta.
- * Finds the max component, computes a scale factor clamped between
- * DAT_002533c8 (epsilon) and the input scale, then multiplies all 3.
- * __thiscall: color pointer in ECX.
- * Confirmed: FLD [ECX+4], FCOMP [ECX+8] picks max of G/B.
- * Confirmed: FCOMP [ECX] picks max of R vs (max of G,B).
- * Confirmed: clamp scale to [epsilon/max_comp, scale/max_comp].
- * Confirmed: final multiply of all 3 components by clamped factor. */
 void brighten_real_rgb_color(float *color /* @<ecx> */, float scale)
 {
   float max_comp;
   float factor;
 
-  /* Find the maximum of the three color components */
   max_comp = (color[0] > ((color[1] > color[2]) ? color[1] : color[2])) ?
                color[0] :
                ((color[1] > color[2]) ? color[1] : color[2]);
 
-  /* Compute the desired scale factor */
   factor = scale + 1.0f;
 
-  /* Clamp: if factor*max_comp > 1.0f, use 1.0f/max_comp;
-   *        if factor*max_comp < scale, use scale/max_comp */
   if (factor * max_comp > 1.0f) {
     factor = 1.0f / max_comp;
   } else if (factor * max_comp < scale) {
@@ -3998,159 +3928,104 @@ void brighten_real_rgb_color(float *color /* @<ecx> */, float scale)
   color[2] = color[2] * factor;
 }
 
-/* Call cluster_partition_iter_first on the object cluster partition at
- * 0x5a90b0. 0x1398b0 / objects.obj
- */
-void cluster_get_first_light(int *param_1, int param_2)
+void cluster_get_first_light(int *iterator, int cluster_index)
 {
-  cluster_partition_iter_first((void *)0x5a90b0, param_1, (int16_t)param_2);
+  cluster_partition_iter_first(light_cluster_partition, iterator,
+                               (int16_t)cluster_index);
 }
 
-/* Call cluster_partition_iter_next on the object cluster partition at 0x5a90b0.
- * 0x1398d0 / objects.obj
- */
-void cluster_get_next_light(int *param_1)
+void cluster_get_next_light(int *iterator)
 {
-  cluster_partition_iter_next((void *)0x5a90b0, param_1);
+  cluster_partition_iter_next(light_cluster_partition, iterator);
 }
 
-/* Light analog of object_markers_need_update: return whether this light's
- * cached marker generation (light+0xc) differs from the global marker counter
- * (lights_globals at 0x5a8d64). Unlike its sibling light_mark, this is a
- * pure getter and does NOT write the cached value back. Asserts that the
- * lights marker system has been initialized (0x5a8d60). The result is a bool
- * (CONCAT31/SETNZ).
- * 0x139930 / objects.obj
- */
-int light_unmarked(int light_handle)
+int light_unmarked(int light_index)
 {
-  int light;
+  light_datum_t *light = light_get(light_index);
 
-  light = (int)datum_get(*(data_t **)0x5a90bc, light_handle);
-  if (*(char *)0x5a8d60 == '\0') {
+  if (!lights_globals.marker_initialized) {
     display_assert("lights_globals.marker_initialized",
                    "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x66f, 1);
     system_exit(-1);
   }
-  return *(int *)(light + 0xc) != *(int *)0x5a8d64;
+  return light->marker != lights_globals.marker;
 }
 
-/* Check if the lights marker global has changed; update it and return 1 if so.
- * 0x139990 / objects.obj
- */
-int light_mark(int param_1)
+int light_mark(int light_index)
 {
-  int iVar1;
+  light_datum_t *light = light_get(light_index);
 
-  iVar1 = (int)datum_get(*(data_t **)0x5a90bc, param_1);
-  if (*(char *)0x5a8d60 == '\0') {
+  if (!lights_globals.marker_initialized) {
     display_assert("lights_globals.marker_initialized",
                    "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x67f, 1);
     system_exit(-1);
   }
-  if (*(int *)(iVar1 + 0xc) != *(int *)0x5a8d64) {
-    *(int *)(iVar1 + 0xc) = *(int *)0x5a8d64;
+  if (light->marker != lights_globals.marker) {
+    light->marker = lights_globals.marker;
     return 1;
   }
   return 0;
 }
 
-/* Update dynamic lighting for a single light object (object_lights.c).
- * Reads the light tag, builds a 5-float color/scale buffer, and submits
- * it to FUN_00189540 for each active channel. */
-void render_debug_light(int param_1)
+void render_debug_light(int light_index)
 {
-  int iVar1;
-  int iVar2;
-  unsigned char *pbVar3;
-  float ctx[5]; /* contiguous: [local_18,local_14,local_10,local_c,local_8] */
+  light_datum_t *light;
+  light_definition_t *definition;
+  real_argb_color color;
+  real radius;
 
-  if (*(char *)0x5a8d58 == '\0')
+  if (!debug_lights)
     return;
 
-  iVar2 = (int)datum_get(*(data_t **)0x5a90bc, param_1);
-  pbVar3 = (unsigned char *)tag_get(0x6c696768, *(int *)(iVar2 + 4));
-  *(int *)&ctx[0] = *(int *)(iVar1 = *(int *)0x2ee6f0);
-  ctx[4] = *(float *)(pbVar3 + 0xc) * *(float *)(pbVar3 + 4);
-  ctx[1] = *(float *)(iVar1 + 4);
-  ctx[2] = *(float *)(iVar1 + 8);
-  ctx[3] = *(float *)(iVar1 + 0xc);
-  iVar1 = iVar2 + 0x30;
-  FUN_00189540(1, (void *)iVar1, *(float *)(pbVar3 + 0x18), *(void **)0x2ee6c4);
-  FUN_00189540(1, (void *)iVar1, *(float *)((char *)iVar2 + 0x54), ctx);
-  ctx[1] = ctx[1] * *(float *)0x2533f0;
-  ctx[2] = ctx[2] * *(float *)0x2533f0;
-  ctx[3] = ctx[3] * *(float *)0x2533f0;
-  if ((*pbVar3 & 2) == 0) {
-    ctx[4] = ctx[4] * *(float *)(pbVar3 + 0x24);
-    FUN_00189540(1, (void *)iVar1,
-                 *(float *)(pbVar3 + 0x24) * *(float *)((char *)iVar2 + 0x54),
-                 ctx);
+  light = light_get(light_index);
+  definition = light_definition_get(light->definition_index);
+  color = *global_real_argb_orange;
+  radius = definition->radius_modifier_upper * definition->radius;
+  FUN_00189540(1, &light->position, definition->lens_flare_only_radius,
+               global_real_argb_white);
+  FUN_00189540(1, &light->position, light->radius, &color);
+  color.red *= REAL_0_8_POOL;
+  color.green *= REAL_0_8_POOL;
+  color.blue *= REAL_0_8_POOL;
+  if (!(definition->flags & LIGHT_DEFINITION_FLAG_NO_SPECULAR)) {
+    radius *= definition->specular_radius_multiplier;
+    FUN_00189540(1, &light->position,
+                 definition->specular_radius_multiplier * light->radius, &color);
   }
-  ctx[1] = ctx[1] * *(float *)0x2533f0;
-  ctx[2] = ctx[2] * *(float *)0x2533f0;
-  ctx[3] = ctx[3] * *(float *)0x2533f0;
-  FUN_00189540(1, (void *)iVar1, ctx[4], ctx);
+  color.red *= REAL_0_8_POOL;
+  color.green *= REAL_0_8_POOL;
+  color.blue *= REAL_0_8_POOL;
+  FUN_00189540(1, &light->position, radius, &color);
 }
 
-/* 0x139b40 (object_lights.c) — register one lens-flare/light marker record
- * into the per-frame light marker array at 0x5a8f6c (count at 0x5a90ac, max 8
- * entries, 0x28-byte stride).
- *
- * Early-out if the array is already full (count >= 8) OR if all three color
- * components in param_5 equal 0 (the FCOMP vs FLOAT_002533c0 == 0.0 guard:
- * when color[0]==0 && color[1]==0 && color[2]==0 the record is skipped).
- *
- * Record layout filled at base = 0x5a8f6c + count*0x28:
- *   +0x00 : tag_get('lens', param_1)               (lens tag definition)
- *   +0x04 : param_2[0]                              (vec3 word 0)
- *   +0x08 : param_2[1]                              (vec3 word 1)
- *   +0x0c : param_2[2]                              (vec3 word 2)
- *   +0x10 : FUN_00180b10(param_3)                   (compressed normal)
- *   +0x14 : FUN_00180b10(param_4)                   (compressed normal)
- *   +0x18 : real_a_rgb_color_to_pixel32(1.0f, param_5)  (pixel32 color)
- *   +0x1c : 0xffff (short)
- *   +0x1e : 0xffff (short)
- *   +0x20 : (short)count                            (this record's index)
- *   +0x22 : byte at global 0x50654a (0x506548+2)
- *   +0x23 : (byte)FUN_00180770(param_6)             (alpha/intensity quantized)
- * Then count++ at 0x5a90ac.
- *
- * Confirmed (disasm 0x139b40): cdecl 6 stack args, RET (no RET N); ADD ESP,0x1c
- * = 8(rgb)+4(180770)+8(tag_get)+4(180b10)+4(180b10). param_6 is a float passed
- * raw to FUN_00180770 (caller MOV+PUSH, no FILD; callee FLD [EBP+8]). param_3
- * and param_4 are vec3 pointers passed as int (FUN_00180b10 derefs them);
- * kept as int to match the existing int(*)(int) thunk.
- */
-/* 0x139b40 */
-void lights_queue_lens_flare(int param_1, int *param_2, int param_3,
-                             int param_4, float *param_5, float param_6)
+void lights_queue_lens_flare(int definition_index, int *position, int direction,
+                             int up, float *color, float scale)
 {
   int iVar1;
   char *base;
   int *vec;
 
-  if ((*(short *)0x5a90ac < 8) &&
-      ((param_5[0] != *(float *)0x2533c0 || param_5[1] != *(float *)0x2533c0) ||
-       param_5[2] != *(float *)0x2533c0)) {
+  if ((*(short *)0x5a90ac < MAXIMUM_QUEUED_LENS_FLARES) &&
+      ((color[0] != REAL_ZERO_POOL || color[1] != REAL_ZERO_POOL) ||
+       color[2] != REAL_ZERO_POOL)) {
     iVar1 = *(short *)0x5a90ac * 0x28;
     base = (char *)0x5a8f6c + iVar1;
 
-    *(unsigned int *)(base + 0x18) = real_a_rgb_color_to_pixel32(1.0f, param_5);
-    base[0x23] = (char)CALL_FUN_00180770(param_6);
-    *(void **)(base + 0x00) = tag_get(0x6c656e73, param_1);
+    *(unsigned int *)(base + 0x18) = real_a_rgb_color_to_pixel32(1.0f, color);
+    base[0x23] = (char)CALL_FUN_00180770(scale);
+    *(void **)(base + 0x00) = tag_get(0x6c656e73, definition_index);
     vec = (int *)(base + 0x04);
-    vec[0] = param_2[0];
-    vec[1] = param_2[1];
-    vec[2] = param_2[2];
+    vec[0] = position[0];
+    vec[1] = position[1];
+    vec[2] = position[2];
     /* permuter 20260721 (+4.2pp raw): offset 0x14 and the counter address
      * held in iVar1 across uses (register-role reuse, value-identical).
      * NB: rank-1 winner also mutated the +0x1c fill to 0xFF — REJECTED as a
      * semantic corruption; 0xffff kept. */
     iVar1 = 0x14;
-    *(int *)(base + 0x10) = CALL_FUN_00180b10((float *)param_3);
-    *(int *)(base + iVar1) = CALL_FUN_00180b10((float *)param_4);
-    base[0x22] = *(char *)0x50654a;
+    *(int *)(base + 0x10) = CALL_FUN_00180b10((float *)direction);
+    *(int *)(base + iVar1) = CALL_FUN_00180b10((float *)up);
+    base[0x22] = render_window_index;
     iVar1 = 0x5a90ac;
     *(short *)(base + 0x1e) = (short)0xffff;
     *(short *)(base + 0x1c) = (short)0xffff;
@@ -4159,274 +4034,225 @@ void lights_queue_lens_flare(int param_1, int *param_2, int param_3,
   }
 }
 
-/* 0x139e50 — light_fill_structure: fills a light output structure from
- * intensity, color, and position data. Heavy FPU with many clamp operations.
- *
- * Register args: EBX=color_ptr, ESI=output_ptr, EDI=intensity_ptr
- * Stack params: param_1(byte flags), param_2(float* position),
- *               param_3(float* direction), param_4(float distance_scale)
- *
- * Source: c:\halo\SOURCE\objects\object_lights.c
- */
-/*
- * find_point_lights_for_object_in_cluster (0x139c20 / object_lights.c) — gather
- * the strongest point lights influencing a position and accumulate the
- * brightest up to max_count into three parallel caller arrays.
- *
- * Iterates the connected-light cluster partition (0x5a90b0) for the cluster of
- * the query position (cluster_idx = marker_index). For each light datum:
- *   - skip if already visited this frame (light+0xc == lights_globals.frame_id
- *     at 0x5a8d64), marking it visited afterward;
- *   - skip if disconnected (light+0x8 == NONE);
- *   - skip self-shadowing: if the light belongs to the excluding object
- *     (light+0x2c == object_handle) and its 'ligh' tag has flag bit 2 set;
- *   - skip if outside falloff: distance(position, light+0x30) >=
- *     bias + light_radius (light+0x54).
- * The attenuation is 1.0 - dist^2 / radius^2, and the weight is
- * brightness(light+0x14) * attenuation.
- *
- * Selection (priority insertion with eviction):
- *   - if the array is not yet full (*count < max_count) take the next slot and
- *     increment *count;
- *   - otherwise scan the existing weights (out_weights) for the dimmest entry;
- *     if the new weight exceeds that minimum, evict it (slot = argmin),
- *     else slot stays == *count and the store is skipped.
- * On a kept slot: out_index[slot]=light_index, out_weights[slot]=weight,
- * out_atten[slot]=attenuation.
- *
- * NOTE: out_index_base and out_atten_base alias the same caller buffer at
- * different word offsets (caller passes local_28+2 and local_28); preserved as
- * separate base pointers indexed by slot*4.
- *
- * Confirmed (disasm 0x139c20): cdecl 9 stack args; FSQRT distance; atten via
- * 1.0(0x2533c8) - dist^2/radius^2; eviction slot register (ECX) ends at *count
- * after the min-search loop and is only reassigned to argmin on evict; final
- * CMP CX,max_count / JGE skips the store when no eviction occurs.
- */
+/* light_indices and light_attenuations may alias one caller buffer. */
 void find_point_lights_for_object_in_cluster(
-  int object_handle, int16_t marker_index, float *position, float bias,
-  int out_index_base, float *out_weights, int out_atten_base, int16_t *count,
-  int16_t max_count)
+  int object_handle, int16_t cluster_index, float *center, float bias,
+  int light_indices, float *light_intensities, int light_attenuations,
+  int16_t *light_count, int16_t maximum_light_count)
 {
-  int state;
+  int reference_index;
   float attenuation;
   int light_index;
-  int light;
+  light_datum_t *light;
   int16_t i;
   int16_t slot;
-  int16_t argmin;
+  int16_t dimmest_index;
   int16_t cur_count;
   float dx, dy, dz, dist, radius;
-  float brightness, min_weight, weight;
+  float brightness, minimum_intensity, intensity;
   float *wp;
   int slot_offset;
 
-  if (*(char *)0x5a8d60 == '\0') {
+  if (!lights_globals.marker_initialized) {
     display_assert("lights_globals.marker_initialized",
                    "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x544, 1);
     system_exit(-1);
   }
 
-  light_index =
-    cluster_partition_iter_first((void *)0x5a90b0, &state, marker_index);
+  light_index = cluster_partition_iter_first(light_cluster_partition,
+                                             &reference_index, cluster_index);
   while (light_index != -1) {
-    light = (int)datum_get(*(data_t **)0x5a90bc, light_index);
-    if (*(char *)0x5a8d60 == '\0') {
+    light = light_get(light_index);
+    if (!lights_globals.marker_initialized) {
       display_assert("lights_globals.marker_initialized",
                      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x66f, 1);
       system_exit(-1);
     }
-    if (*(int *)(light + 0xc) != *(int *)0x5a8d64) {
-      light = (int)datum_get(*(data_t **)0x5a90bc, light_index);
-      if (*(int *)(light + 0x8) != -1 &&
-          ((*(int *)(light + 0x2c) != object_handle ||
-            (*(unsigned char *)tag_get(0x6c696768, *(int *)(light + 0x4)) &
-             4) == 0))) {
-        dx = position[0] - *(float *)(light + 0x30);
-        dy = position[1] - *(float *)(light + 0x34);
-        dz = position[2] - *(float *)(light + 0x38);
+    if (light->marker != lights_globals.marker) {
+      light = light_get(light_index);
+      if (light->rasterizer_light_index != -1 &&
+          (light->object_index != object_handle ||
+           !(light_definition_get(light->definition_index)->flags &
+             LIGHT_DEFINITION_FLAG_DONT_LIGHT_OWN_OBJECT))) {
+        dx = center[0] - light->position.x;
+        dy = center[1] - light->position.y;
+        dz = center[2] - light->position.z;
         dist = sqrtf(dx * dx + dy * dy + dz * dz);
-        radius = *(float *)(light + 0x54);
-        if (dist < bias + *(float *)(light + 0x54)) {
+        radius = light->radius;
+        if (dist < bias + light->radius) {
           attenuation = 1.0f - (dist * dist) / (radius * radius);
-          brightness = real_rgb_color_brightness((float *)(light + 0x14));
-          weight = brightness * attenuation;
+          brightness = real_rgb_color_brightness(&light->color.red);
+          intensity = brightness * attenuation;
 
-          cur_count = *count;
-          if (cur_count < max_count) {
+          cur_count = *light_count;
+          if (cur_count < maximum_light_count) {
             slot = cur_count;
             cur_count++;
-            *count = cur_count;
+            *light_count = cur_count;
           } else {
-            min_weight = *(float *)0x2548fc;
-            argmin = -1;
+            minimum_intensity = REAL_MAX_POOL;
+            dimmest_index = -1;
             slot = 0;
             if (cur_count > 0) {
               i = 0;
-              wp = out_weights;
+              wp = light_intensities;
               do {
-                if (*wp < min_weight) {
-                  min_weight = *wp;
-                  argmin = i;
+                if (*wp < minimum_intensity) {
+                  minimum_intensity = *wp;
+                  dimmest_index = i;
                 }
                 i++;
                 wp++;
-              } while (i < *count);
-              slot = i; /* slot ends at *count after the search loop */
+              } while (i < *light_count);
+              slot = i; /* slot ends at *light_count after the search loop */
             }
-            if (min_weight < weight)
-              slot = argmin;
+            if (minimum_intensity < intensity)
+              slot = dimmest_index;
           }
 
-          if (slot < max_count) {
+          if (slot < maximum_light_count) {
             slot_offset = slot * 4;
-            *(int *)(out_index_base + slot_offset) = light_index;
-            out_weights[slot] = weight;
-            *(float *)(out_atten_base + slot_offset) = attenuation;
+            *(int *)(light_indices + slot_offset) = light_index;
+            light_intensities[slot] = intensity;
+            *(float *)(light_attenuations + slot_offset) = attenuation;
           }
         }
       }
-      light = (int)datum_get(*(data_t **)0x5a90bc, light_index);
-      if (*(char *)0x5a8d60 == '\0') {
+      light = light_get(light_index);
+      if (!lights_globals.marker_initialized) {
         display_assert("lights_globals.marker_initialized",
                        "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x67f, 1);
         system_exit(-1);
       }
-      if (*(int *)(light + 0xc) != *(int *)0x5a8d64)
-        *(int *)(light + 0xc) = *(int *)0x5a8d64;
+      if (light->marker != lights_globals.marker)
+        light->marker = lights_globals.marker;
     }
-    light_index = cluster_partition_iter_next((void *)0x5a90b0, &state);
+    light_index = cluster_partition_iter_next(light_cluster_partition,
+                                              &reference_index);
   }
 }
 
-/* 0x139e50 */
-void build_distant_lights(unsigned int param_1, float *param_2, float *param_3,
-                          float param_4, float *color_ptr, float *output_ptr,
+void build_distant_lights(unsigned int flags, float *position, float *direction,
+                          float distance_scale, float *color_ptr, float *output_ptr,
                           float *intensity_ptr)
 {
-  float fVar1;
-  float fVar2;
-  float fVar3;
-  float fVar4;
-  float fVar5;
-  float fVar6;
+  float value;
+  float red;
+  float green;
+  float blue;
+  float factor;
+  float clamped;
   float gel_intensity;
   float half_scale;
   float sq;
 
   gel_intensity = real_rgb_color_brightness(intensity_ptr);
 
-  /* gel * intensity + base */
-  output_ptr[0] = intensity_ptr[0] * *(float *)0x323bfc + *(float *)0x323bf8;
-  output_ptr[1] = intensity_ptr[1] * *(float *)0x323bfc + *(float *)0x323bf8;
-  fVar1 = intensity_ptr[2] * *(float *)0x323bfc + *(float *)0x323bf8;
+  output_ptr[0] = intensity_ptr[0] * object_light_ambient_scale + object_light_ambient_base;
+  output_ptr[1] = intensity_ptr[1] * object_light_ambient_scale + object_light_ambient_base;
+  value = intensity_ptr[2] * object_light_ambient_scale + object_light_ambient_base;
   *(short *)(output_ptr + 3) = 2;
-  output_ptr[2] = fVar1;
+  output_ptr[2] = value;
   output_ptr[4] = intensity_ptr[0];
   output_ptr[5] = intensity_ptr[1];
   output_ptr[6] = intensity_ptr[2];
-  output_ptr[7] = -param_3[0];
-  output_ptr[8] = -param_3[1];
-  output_ptr[9] = -param_3[2];
-  output_ptr[10] = color_ptr[0] * *(float *)0x323c00 * gel_intensity;
-  output_ptr[11] = color_ptr[1] * *(float *)0x323c00 * gel_intensity;
-  output_ptr[12] = color_ptr[2] * *(float *)0x323c00 * gel_intensity;
-  output_ptr[13] = param_2[0];
-  output_ptr[14] = param_2[1];
-  output_ptr[15] = param_2[2];
+  output_ptr[7] = -direction[0];
+  output_ptr[8] = -direction[1];
+  output_ptr[9] = -direction[2];
+  output_ptr[10] = color_ptr[0] * object_light_secondary_scale * gel_intensity;
+  output_ptr[11] = color_ptr[1] * object_light_secondary_scale * gel_intensity;
+  output_ptr[12] = color_ptr[2] * object_light_secondary_scale * gel_intensity;
+  output_ptr[13] = position[0];
+  output_ptr[14] = position[1];
+  output_ptr[15] = position[2];
 
-  /* clamp gel_intensity * 0x2533ec + 0x25337c to [0,1] */
-  fVar6 = gel_intensity * *(float *)0x2533ec + *(float *)0x25337c;
-  if (fVar6 < 0.0f)
-    fVar6 = 0.0f;
-  else if (fVar6 > 1.0f)
-    fVar6 = 1.0f;
-  output_ptr[0x13] = fVar6;
+  clamped = gel_intensity * REAL_1_5_POOL + REAL_0_25_POOL;
+  if (clamped < 0.0f)
+    clamped = 0.0f;
+  else if (clamped > 1.0f)
+    clamped = 1.0f;
+  output_ptr[0x13] = clamped;
 
-  /* specular color channels: color[i] * scale + bias, clamped */
-  fVar2 = color_ptr[0] * *(float *)0x254644 + *(float *)0x253398;
-  if (fVar2 < 0.0f)
-    fVar2 = 0.0f;
-  else if (fVar2 > 1.0f)
-    fVar2 = 1.0f;
-  output_ptr[0x14] = fVar2;
+  red = color_ptr[0] * REAL_3_0_POOL + REAL_0_5_POOL;
+  if (red < 0.0f)
+    red = 0.0f;
+  else if (red > 1.0f)
+    red = 1.0f;
+  output_ptr[0x14] = red;
 
-  fVar3 = color_ptr[1] * *(float *)0x254644 + *(float *)0x253398;
-  if (fVar3 < 0.0f)
-    fVar3 = 0.0f;
-  else if (fVar3 > 1.0f)
-    fVar3 = 1.0f;
-  output_ptr[0x15] = fVar3;
+  green = color_ptr[1] * REAL_3_0_POOL + REAL_0_5_POOL;
+  if (green < 0.0f)
+    green = 0.0f;
+  else if (green > 1.0f)
+    green = 1.0f;
+  output_ptr[0x15] = green;
 
-  fVar4 = color_ptr[2] * *(float *)0x254644 + *(float *)0x253398;
-  if (fVar4 < 0.0f)
-    fVar4 = 0.0f;
-  else if (fVar4 > 1.0f)
-    fVar4 = 1.0f;
-  output_ptr[0x16] = fVar4;
+  blue = color_ptr[2] * REAL_3_0_POOL + REAL_0_5_POOL;
+  if (blue < 0.0f)
+    blue = 0.0f;
+  else if (blue > 1.0f)
+    blue = 1.0f;
+  output_ptr[0x16] = blue;
 
-  /* intensity double + bias, clamped, multiply specular */
-  fVar5 = intensity_ptr[0] + intensity_ptr[0] + *(float *)0x25337c;
-  if (fVar5 < 0.0f)
-    fVar5 = 0.0f;
-  else if (fVar5 > 1.0f)
-    fVar5 = 1.0f;
-  output_ptr[0x14] = fVar5 * fVar2;
+  factor = intensity_ptr[0] + intensity_ptr[0] + REAL_0_25_POOL;
+  if (factor < 0.0f)
+    factor = 0.0f;
+  else if (factor > 1.0f)
+    factor = 1.0f;
+  output_ptr[0x14] = factor * red;
 
-  fVar5 = intensity_ptr[1] + intensity_ptr[1] + *(float *)0x25337c;
-  if (fVar5 < 0.0f)
-    fVar5 = 0.0f;
-  else if (fVar5 > 1.0f)
-    fVar5 = 1.0f;
-  output_ptr[0x15] = fVar5 * fVar3;
+  factor = intensity_ptr[1] + intensity_ptr[1] + REAL_0_25_POOL;
+  if (factor < 0.0f)
+    factor = 0.0f;
+  else if (factor > 1.0f)
+    factor = 1.0f;
+  output_ptr[0x15] = factor * green;
 
-  fVar5 = intensity_ptr[2] + intensity_ptr[2] + *(float *)0x25337c;
-  if (fVar5 < 0.0f)
-    fVar5 = 0.0f;
-  else if (fVar5 > 1.0f)
-    fVar5 = 1.0f;
-  output_ptr[0x16] = fVar5 * fVar4;
+  factor = intensity_ptr[2] + intensity_ptr[2] + REAL_0_25_POOL;
+  if (factor < 0.0f)
+    factor = 0.0f;
+  else if (factor > 1.0f)
+    factor = 1.0f;
+  output_ptr[0x16] = factor * blue;
 
-  /* pow(param_4, exponent) for ground shadow direction */
-  half_scale = (float)pow((double)param_4, *(double *)0x28c8d8);
+  half_scale = (float)pow((double)distance_scale, DOUBLE_0_25_POOL);
   output_ptr[0x17] = half_scale * output_ptr[7];
   output_ptr[0x18] = half_scale * output_ptr[8];
 
   sq = sqrtf(output_ptr[0x18] * output_ptr[0x18] +
              output_ptr[0x17] * output_ptr[0x17]);
-  if (*(float *)0x29b4d0 <= sq) {
-    fVar1 = *(float *)0x29b4d0 / sq;
+  if (REAL_0_707_POOL <= sq) {
+    value = REAL_0_707_POOL / sq;
     output_ptr[0x19] = -0.707f;
-    output_ptr[0x17] = half_scale * output_ptr[7] * fVar1;
-    output_ptr[0x18] = half_scale * output_ptr[8] * fVar1;
+    output_ptr[0x17] = half_scale * output_ptr[7] * value;
+    output_ptr[0x18] = half_scale * output_ptr[8] * value;
   } else {
-    output_ptr[0x19] = -sqrtf(*(float *)0x2533c8 - sq * sq);
+    output_ptr[0x19] = -sqrtf(REAL_ONE_POOL - sq * sq);
   }
 
-  /* distance attenuation per channel */
-  fVar1 = (*(float *)0x2533c8 - param_4) * *(float *)0x253398;
-  fVar2 = (*(float *)0x2533c8 - output_ptr[4] * *(float *)0x255b9c) + fVar1;
-  if (fVar2 < *(float *)0x323bf8)
-    fVar2 = *(float *)0x323bf8;
-  else if (fVar2 > 1.0f)
-    fVar2 = 1.0f;
-  output_ptr[0x1a] = fVar2;
+  value = (REAL_ONE_POOL - distance_scale) * REAL_0_5_POOL;
+  red = (REAL_ONE_POOL - output_ptr[4] * REAL_1_3_POOL) + value;
+  if (red < object_light_ambient_base)
+    red = object_light_ambient_base;
+  else if (red > 1.0f)
+    red = 1.0f;
+  output_ptr[0x1a] = red;
 
-  fVar2 = (*(float *)0x2533c8 - output_ptr[5] * *(float *)0x255b9c) + fVar1;
-  if (fVar2 < *(float *)0x323bf8)
-    fVar2 = *(float *)0x323bf8;
-  else if (fVar2 > 1.0f)
-    fVar2 = 1.0f;
-  output_ptr[0x1b] = fVar2;
+  red = (REAL_ONE_POOL - output_ptr[5] * REAL_1_3_POOL) + value;
+  if (red < object_light_ambient_base)
+    red = object_light_ambient_base;
+  else if (red > 1.0f)
+    red = 1.0f;
+  output_ptr[0x1b] = red;
 
-  fVar2 = (*(float *)0x2533c8 - output_ptr[6] * *(float *)0x255b9c) + fVar1;
-  if (fVar2 < *(float *)0x323bf8)
-    fVar2 = *(float *)0x323bf8;
-  else if (fVar2 > 1.0f)
-    fVar2 = 1.0f;
-  output_ptr[0x1c] = fVar2;
+  red = (REAL_ONE_POOL - output_ptr[6] * REAL_1_3_POOL) + value;
+  if (red < object_light_ambient_base)
+    red = object_light_ambient_base;
+  else if (red > 1.0f)
+    red = 1.0f;
+  output_ptr[0x1c] = red;
 
-  if ((param_1 & 4) != 0) {
+  if ((flags & 4) != 0) {
     brighten_real_rgb_color(output_ptr, 0.2f);
     brighten_real_rgb_color(output_ptr + 7, 0.3f);
     brighten_real_rgb_color(output_ptr + 10, 0.2f);
@@ -4435,145 +4261,104 @@ void build_distant_lights(unsigned int param_1, float *param_2, float *param_3,
   }
 }
 
-/* 0x13a250 / objects.obj — Compute a light's world-space position and
- * effective radius. Reads the light datum (from light data table 0x5a90bc)
- * and the 'ligh' tag to determine how to compute the radius. Supports three
- * modes based on the tag's shape_radius field at +0x14:
- *   1. shape_radius >= 2568bc (1.0): use position directly, radius = stored
- * radius
- *   2. shape_radius >= 254a58 (0.001): compute position from direction *
- * inner*outer, radius = stored_radius * outer_radius
- *   3. shape_radius < 0.001: compute position from direction * (radius/inner),
- *      radius = radius/inner
- * Also handles a minimum radius check when param_3 is set.
- * light_handle in EAX, out_position in EDI, out_radius in EBX (register args).
- * Confirmed: PUSH EAX; PUSH [5a90bc]; CALL datum_get.
- * Confirmed: ESI = light datum after datum_get.
- * Confirmed: writes to [EDI], [EDI+4], [EDI+8] for position and [EBX] for
- * radius. */
 void light_compute_bounding_sphere(int light_handle /* @<eax> */,
                                    float *out_position /* @<edi> */,
-                                   float *out_radius /* @<ebx> */, char param_1,
-                                   char param_2, char param_3)
+                                   float *out_radius /* @<ebx> */,
+                                   char use_maximum_radius, char include_specular,
+                                   char clamp_to_lens_flare_radius)
 {
-  char *light;
-  char *tag;
+  light_datum_t *light = light_get(light_handle);
+  light_definition_t *definition = light_definition_get(light->definition_index);
   float radius;
 
-  light = (char *)datum_get(*(data_t **)0x5a90bc, light_handle);
-  tag = (char *)tag_get(0x6c696768, *(int *)(light + 0x4));
-
-  /* Compute initial radius */
-  if (param_1 != '\0') {
-    radius = *(float *)(tag + 0xc) * *(float *)(tag + 0x4);
+  if (use_maximum_radius != '\0') {
+    radius = definition->radius_modifier_upper * definition->radius;
   } else {
-    radius = *(float *)(light + 0x54);
+    radius = light->radius;
   }
 
-  /* Apply specular multiplier if not a specular-only light */
-  if ((*(unsigned char *)tag & 2) == 0) {
-    if (param_2 != '\0' || param_1 != '\0') {
-      radius = radius * *(float *)(tag + 0x24);
+  if ((*(unsigned char *)&definition->flags &
+       LIGHT_DEFINITION_FLAG_NO_SPECULAR) == 0) {
+    if (include_specular != '\0' || use_maximum_radius != '\0') {
+      radius = radius * definition->specular_radius_multiplier;
     }
   }
 
-  /* Check minimum radius */
-  if (param_3 != '\0' && radius < *(float *)(tag + 0x18)) {
-    light += 0x30;
-    out_position[0] = *(float *)(light + 0x0);
-    out_position[1] = *(float *)(light + 0x4);
-    out_position[2] = *(float *)(light + 0x8);
-    *out_radius = *(float *)(tag + 0x18);
+  if (clamp_to_lens_flare_radius != '\0' &&
+      radius < definition->lens_flare_only_radius) {
+    out_position[0] = light->position.x;
+    out_position[1] = light->position.y;
+    out_position[2] = light->position.z;
+    *out_radius = definition->lens_flare_only_radius;
     return;
   }
 
-  if (*(float *)(tag + 0x14) < *(float *)0x2568bc) {
-    if (*(float *)(tag + 0x14) < *(float *)0x254a58) {
-      *out_radius = (radius = radius / *(float *)(tag + 0x20));
+  if (definition->cutoff_angle < REAL_HALF_PI_POOL) {
+    if (definition->cutoff_angle < REAL_QUARTER_PI_POOL) {
+      *out_radius = (radius = radius / definition->cosine_cutoff_angle);
     } else {
-      *out_radius = radius * *(float *)(tag + 0x28);
-      radius = radius * *(float *)(tag + 0x20);
+      *out_radius = radius * definition->sine_cutoff_angle;
+      radius = radius * definition->cosine_cutoff_angle;
     }
-    out_position[0] =
-      radius * *(float *)(light + 0x3c) + *(float *)(light + 0x30);
-    out_position[1] =
-      radius * *(float *)(light + 0x40) + *(float *)(light + 0x34);
-    out_position[2] =
-      radius * *(float *)(light + 0x44) + *(float *)(light + 0x38);
+    out_position[0] = radius * light->forward.i + light->position.x;
+    out_position[1] = radius * light->forward.j + light->position.y;
+    out_position[2] = radius * light->forward.k + light->position.z;
   } else {
-    light += 0x30;
-    out_position[0] = *(float *)(light + 0x0);
-    out_position[1] = *(float *)(light + 0x4);
-    out_position[2] = *(float *)(light + 0x8);
+    out_position[0] = light->position.x;
+    out_position[1] = light->position.y;
+    out_position[2] = light->position.z;
     *out_radius = radius;
   }
 }
 
-/* 0x13a340: compute a light's effective world position and radius from its
- * datum (pool 0x5a90bc) and 'ligh' tag.  Intensity v scales by cutoff/falloff
- * angles; near lights return the raw position + radius, others project along
- * the light's forward axis (+0x3c..+0x44). */
-void light_get_bounding_sphere(int param_1, float *param_2, float *param_3)
+void light_get_bounding_sphere(int light_index, float *out_center,
+                               float *out_radius)
 {
-  int e;
-  unsigned char *L;
-  float v;
+  light_datum_t *light = light_get(light_index);
+  light_definition_t *definition = light_definition_get(light->definition_index);
+  float radius = definition->radius_modifier_upper * definition->radius;
 
-  e = (int)datum_get(*(data_t **)0x5a90bc, param_1);
-  L = (unsigned char *)tag_get(0x6c696768, *(int *)(e + 4));
-  v = *(float *)(L + 0xc) * *(float *)(L + 4);
-  if ((*L & 2) == 0) {
-    v = v * *(float *)(L + 0x24);
+  if (!(definition->flags & LIGHT_DEFINITION_FLAG_NO_SPECULAR)) {
+    radius = radius * definition->specular_radius_multiplier;
   }
-  if (v < *(float *)(L + 0x18)) {
-    param_2[0] = *(float *)(e + 0x30);
-    param_2[1] = *(float *)(e + 0x34);
-    param_2[2] = *(float *)(e + 0x38);
-    param_3[0] = *(float *)(L + 0x18);
+  if (radius < definition->lens_flare_only_radius) {
+    out_center[0] = light->position.x;
+    out_center[1] = light->position.y;
+    out_center[2] = light->position.z;
+    out_radius[0] = definition->lens_flare_only_radius;
     return;
   }
-  if (*(float *)(L + 0x14) < 1.5707964f) {
-    if (*(float *)(L + 0x14) < 0.7853982f) {
-      v = v / *(float *)(L + 0x20);
-      param_3[0] = v;
+  if (definition->cutoff_angle < 1.5707964f) {
+    if (definition->cutoff_angle < 0.7853982f) {
+      radius = radius / definition->cosine_cutoff_angle;
+      out_radius[0] = radius;
     } else {
-      param_3[0] = v * *(float *)(L + 0x28);
-      v = v * *(float *)(L + 0x20);
+      out_radius[0] = radius * definition->sine_cutoff_angle;
+      radius = radius * definition->cosine_cutoff_angle;
     }
-    param_2[0] = v * *(float *)(e + 0x3c) + *(float *)(e + 0x30);
-    param_2[1] = v * *(float *)(e + 0x40) + *(float *)(e + 0x34);
-    param_2[2] = v * *(float *)(e + 0x44) + *(float *)(e + 0x38);
+    out_center[0] = radius * light->forward.i + light->position.x;
+    out_center[1] = radius * light->forward.j + light->position.y;
+    out_center[2] = radius * light->forward.k + light->position.z;
     return;
   }
-  param_2[0] = *(float *)(e + 0x30);
-  param_2[1] = *(float *)(e + 0x34);
-  param_2[2] = *(float *)(e + 0x38);
-  param_3[0] = v;
+  out_center[0] = light->position.x;
+  out_center[1] = light->position.y;
+  out_center[2] = light->position.z;
+  out_radius[0] = radius;
 }
 
-/* 0x13a420 / objects.obj — Render point and spot lights.
- * Iterates through the active lights array, computes position/radius for
- * each enabled light, optionally gathers gel objects via
- * light_build_cluster_array, and dispatches to FUN_00196060 for rasterizer
- * rendering. No params (void). Bounded by profiling enter/exit calls.
- * Confirmed: loop counter is int16_t, iterates DAT_005a8d68 entries.
- * Confirmed: SUB ESP,0x41c for local buffer (1024 bytes for gel objects).
- * Confirmed: light_build_cluster_array called with EAX=handle, EBX=buf,
- * EDI=0x200. Confirmed: FUN_00196060(obj_handle, &position, radius, gel_count,
- * gel_buf).
- */
 void lights_render_diffuse(void)
 {
   int16_t i;
   int loop_idx;
-  char *light;
-  char *light_reloaded;
-  char *tag_data;
+  light_datum_t *light;
+  light_datum_t *light_reloaded;
+  light_definition_t *definition;
   char is_specular;
   int gel_count;
   float position[3];
   float radius;
-  int16_t gel_buffer[512];
+  int16_t gel_buffer[MAXIMUM_CLUSTERS_PER_LIGHT];
 
   FUN_0017cc50();
 
@@ -4583,7 +4368,7 @@ void lights_render_diffuse(void)
     goto done;
 
   loop_idx = 0;
-  if (*(int16_t *)0x5a8d68 <= 0)
+  if (lights_globals.scene_point_light_count <= 0)
     goto done;
 
   do {
@@ -4591,20 +4376,19 @@ void lights_render_diffuse(void)
     saved_idx = loop_idx;
     i = (int16_t)loop_idx;
 
-    light =
-      (char *)datum_get(*(data_t **)0x5a90bc, *(int *)(0x5a8d6c + (int)i * 4));
+    light = light_get(*(int *)(0x5a8d6c + (int)i * 4));
 
-    if ((*(unsigned short *)(light + 0x2) & 1) == 0 ||
-        *(int *)(light + 0x8) == -1) {
+    if ((light->flags & POINT_LIGHT_FLAG_DYNAMIC) == 0 ||
+        light->rasterizer_light_index == -1) {
       loop_idx = saved_idx + 1;
       continue;
     }
 
-    /* Check if this is a specular light */
-    if ((*(unsigned short *)(light + 0x2) & 8) != 0) {
-      tag_data = (char *)tag_get(0x6c696768, *(int *)(light + 0x4));
+    if ((light->flags & POINT_LIGHT_FLAG_ATTACHED_TO_FIRST_PERSON_WEAPON) != 0) {
+      definition = light_definition_get(light->definition_index);
       is_specular = 1;
-      if ((*(unsigned char *)tag_data & 8) == 0) {
+      if ((*(unsigned char *)&definition->flags &
+           LIGHT_DEFINITION_FLAG_SUPERSIZE_IN_FIRST_PERSON) == 0) {
         is_specular = 0;
       }
     } else {
@@ -4614,73 +4398,62 @@ void lights_render_diffuse(void)
     gel_count = 0;
     if (is_specular == '\0') {
       gel_count = light_build_cluster_array(*(int *)(0x5a8d6c + (int)i * 4),
-                                            gel_buffer, 0x200);
+                                            gel_buffer,
+                                            MAXIMUM_CLUSTERS_PER_LIGHT);
     }
 
-    light_reloaded =
-      (char *)datum_get(*(data_t **)0x5a90bc, *(int *)(0x5a8d6c + (int)i * 4));
-    tag_data = (char *)tag_get(0x6c696768, *(int *)(light_reloaded + 0x4));
-    radius = *(float *)(light_reloaded + 0x54);
+    light_reloaded = light_get(*(int *)(0x5a8d6c + (int)i * 4));
+    definition = light_definition_get(light_reloaded->definition_index);
+    radius = light_reloaded->radius;
 
-    if (*(float *)(tag_data + 0x14) < *(float *)0x2568bc) {
-      if (*(float *)(tag_data + 0x14) < *(float *)0x254a58) {
-        radius = radius / *(float *)(tag_data + 0x20);
-        position[0] = radius * *(float *)(light_reloaded + 0x3c) +
-                      *(float *)(light_reloaded + 0x30);
-        position[1] = radius * *(float *)(light_reloaded + 0x40) +
-                      *(float *)(light_reloaded + 0x34);
-        position[2] = radius * *(float *)(light_reloaded + 0x44) +
-                      *(float *)(light_reloaded + 0x38);
+    if (definition->cutoff_angle < REAL_HALF_PI_POOL) {
+      if (definition->cutoff_angle < REAL_QUARTER_PI_POOL) {
+        radius = radius / definition->cosine_cutoff_angle;
+        position[0] = radius * light_reloaded->forward.i +
+                      light_reloaded->position.x;
+        position[1] = radius * light_reloaded->forward.j +
+                      light_reloaded->position.y;
+        position[2] = radius * light_reloaded->forward.k +
+                      light_reloaded->position.z;
       } else {
         float inner_scale;
-        radius = radius * *(float *)(tag_data + 0x28);
-        inner_scale =
-          *(float *)(light_reloaded + 0x54) * *(float *)(tag_data + 0x20);
-        position[0] = inner_scale * *(float *)(light_reloaded + 0x3c) +
-                      *(float *)(light_reloaded + 0x30);
-        position[1] = inner_scale * *(float *)(light_reloaded + 0x40) +
-                      *(float *)(light_reloaded + 0x34);
-        position[2] = inner_scale * *(float *)(light_reloaded + 0x44) +
-                      *(float *)(light_reloaded + 0x38);
+        radius = radius * definition->sine_cutoff_angle;
+        inner_scale = light_reloaded->radius * definition->cosine_cutoff_angle;
+        position[0] = inner_scale * light_reloaded->forward.i +
+                      light_reloaded->position.x;
+        position[1] = inner_scale * light_reloaded->forward.j +
+                      light_reloaded->position.y;
+        position[2] = inner_scale * light_reloaded->forward.k +
+                      light_reloaded->position.z;
       }
     } else {
-      position[0] = *(float *)(light_reloaded + 0x30);
-      position[1] = *(float *)(light_reloaded + 0x34);
-      position[2] = *(float *)(light_reloaded + 0x38);
+      position[0] = light_reloaded->position.x;
+      position[1] = light_reloaded->position.y;
+      position[2] = light_reloaded->position.z;
     }
 
-    FUN_00196060(*(int *)(light + 0x8), position, radius, gel_count,
+    FUN_00196060(light->rasterizer_light_index, position, radius, gel_count,
                  (int)((unsigned int)((is_specular != '\0') - 1) &
                        (unsigned int)gel_buffer));
 
     loop_idx = saved_idx + 1;
-  } while ((int16_t)loop_idx < *(int16_t *)0x5a8d68);
+  } while ((int16_t)loop_idx < lights_globals.scene_point_light_count);
 
 done:
   FUN_0017cc90();
 }
 
-/* 0x13a5f0 / objects.obj — Render specular lights.
- * Similar to lights_render_diffuse but for specular lighting pass. Skips lights
- * with the specular-only flag (tag byte 0 bit 2). Uses
- * light_compute_bounding_sphere to compute position/radius and FUN_00195f30 for
- * the rasterizer pass. No params (void). Confirmed: same loop structure as
- * 0x13a420 over DAT_005a8d68 lights. Confirmed: calls
- * light_compute_bounding_sphere(handle, position, &radius, 0, 1, 0). Confirmed:
- * calls FUN_00195f30(obj_handle, &position, radius, gel_count, gel_buf).
- * Confirmed: profiling enter 0x17cd50, exit 0x17cd90. */
 void lights_render_specular(void)
 {
   int16_t i;
   int loop_idx;
-  long light_stride;
-  char *light;
-  char *tag_data;
+  light_datum_t *light;
+  light_definition_t *definition;
   char is_specular;
   int gel_count;
   float position[3];
   float radius;
-  int16_t gel_buffer[512];
+  int16_t gel_buffer[MAXIMUM_CLUSTERS_PER_LIGHT];
 
   FUN_0017cd50();
 
@@ -4690,7 +4463,7 @@ void lights_render_specular(void)
     goto done;
 
   loop_idx = 0;
-  if (*(int16_t *)0x5a8d68 <= 0)
+  if (lights_globals.scene_point_light_count <= 0)
     goto done;
 
   do {
@@ -4698,43 +4471,37 @@ void lights_render_specular(void)
     saved_idx = loop_idx;
     i = (int16_t)loop_idx;
 
-    light =
-      (char *)datum_get(*(data_t **)0x5a90bc, *(int *)(0x5a8d6c + (int)i * 4));
+    light = light_get(*(int *)(0x5a8d6c + (int)i * 4));
 
-    if ((*(unsigned char *)(light + 0x2) & 1) == 0 ||
-        *(int *)(light + 0x8) == -1) {
+    if ((light->flags & POINT_LIGHT_FLAG_DYNAMIC) == 0 ||
+        light->rasterizer_light_index == -1) {
       goto next;
     }
 
-    /* Skip specular-only lights (tag flag bit 2) */
-    tag_data = (char *)tag_get(0x6c696768, *(int *)(light + 0x4));
-    if ((*(unsigned char *)tag_data & 2) != 0) {
+    definition = light_definition_get(light->definition_index);
+    if ((*(unsigned char *)&definition->flags & LIGHT_DEFINITION_FLAG_NO_SPECULAR) != 0) {
       goto next;
     }
 
-    /* Check if this is a gel light */
-    if ((*(unsigned char *)(light + 0x2) & 8) != 0) {
-      tag_data = (char *)tag_get(0x6c696768, *(int *)(light + 0x4));
+    if ((light->flags & POINT_LIGHT_FLAG_ATTACHED_TO_FIRST_PERSON_WEAPON) != 0) {
+      definition = light_definition_get(light->definition_index);
       is_specular = 1;
-      if ((*(unsigned char *)tag_data & 8) == 0) {
+      if ((*(unsigned char *)&definition->flags & LIGHT_DEFINITION_FLAG_SUPERSIZE_IN_FIRST_PERSON) == 0) {
         is_specular = 0;
       }
     } else {
       is_specular = 0;
     }
 
-    /* Gather gel objects if needed */
     gel_count = 0;
     if (is_specular == '\0') {
       gel_count = (int)light_build_cluster_array(
-        *(int *)(0x5a8d6c + (int)i * (light_stride = 4)), gel_buffer, 0x200);
+        *(int *)(0x5a8d6c + (int)i * 4), gel_buffer, MAXIMUM_CLUSTERS_PER_LIGHT);
     }
 
-    /* Compute position and radius using light_compute_bounding_sphere */
-    light_compute_bounding_sphere(*(int *)(0x5a8d6c + (int)i * light_stride),
+    light_compute_bounding_sphere(*(int *)(0x5a8d6c + (int)i * 4),
                                   position, &radius, 0, 1, 0);
 
-    /* Dispatch to specular rasterizer */
     {
       int gel_buf_arg;
       if (is_specular != '\0') {
@@ -4742,83 +4509,67 @@ void lights_render_specular(void)
       } else {
         gel_buf_arg = (int)gel_buffer;
       }
-      FUN_00195f30(*(int *)(light + 0x8), position, radius, gel_count,
+      FUN_00195f30(light->rasterizer_light_index, position, radius, gel_count,
                    gel_buf_arg);
     }
 
     loop_idx = saved_idx;
   next:
     loop_idx = loop_idx + 1;
-  } while ((int16_t)loop_idx < *(int16_t *)0x5a8d68);
+  } while ((int16_t)loop_idx < lights_globals.scene_point_light_count);
 
 done:
   FUN_0017cd90();
 }
 
-/* 0x13a740 — compute_object_lighting_from_bsp: computes BSP-based lighting
- * for an object, including lightmap sampling and dynamic light accumulation.
- *
- * Source: c:\halo\SOURCE\objects\object_lights.c
- * 3 cdecl params.
- */
-/* 0x13a740 */
-void lights_illumination_at_point(int point, int location, float *color) /* name: PAL 2342 object_lights.c:1882 */
+void lights_illumination_at_point(int point, int location, float *color)
 {
-  float fVar1;
-  char *puVar2;
+  float value;
+  char *black;
   float *color_out;
-  char cVar4;
+  char hit;
   int iVar5;
-  short *psVar6;
-  int uVar7;
+  short *lightmap;
+  int bitmap;
   int iVar8;
-  unsigned int uVar9;
+  unsigned int remaining;
   union {
     float point[3];
     int light_indices[2];
   } slot;
   float local_28;
-  unsigned short *local_24;
+  unsigned short *surface;
   int local_20;
-  float local_1c;
+  float s;
   float local_18;
-  float local_14;
-  void *local_10;
-  int local_c;
-  short local_8[2];
-  /* light_indices reuse point's slot; the trace ends before the gather. */
-  /* max_count is 2 (PUSH 0x2 at 0x13a8a2); both arrays are indexed by 4. */
-  /* The 8-byte overlap puts the point at EBP-0x30, matching the reference. */
-  /* Element 1 is only read through the array, never through a scalar. */
-  /* Weights and attenuations stay separate 2-element arrays. */
-  /* color home is reused as the short light count (EBP+0x10 / +0x12). */
-  /* color_out holds the color pointer across that reuse. */
-  /* name: PAL 2342 source/objects/object_lights.c:1882 */
-  /* shape only; 2276 behavior (max 2 lights, marker globals) stays. */
-  /* real_vector3d assignment is the 12-byte copy (three dword moves). */
-  /* Direct calls replace XCALL so the rel32 matches the reference. */
-  /* Union lifetime: point is dead before light_indices is written. */
+  float t;
+  void *material;
+  int surface_index;
+  short material_index[2];
+  /* slot: point is dead before the gather writes light_indices into it. */
+  /* color's stack home is reused as the short light count. */
   float light_weights[2];
   float light_attenuations[2];
+  light_datum_t *light;
 
   color_out = color;
-  puVar2 = *(char **)0x2ee710;
-  *(real_vector3d *)color_out = *(real_vector3d *)puVar2;
-  cVar4 = structure_test_vector((float *)point, (float *)0x29b204, slot.point,
-                            (int16_t *)((int)&color + 2), local_8, &local_c,
-                            &local_1c, &local_14);
-  if (cVar4 != '\0') {
+  black = *(char **)0x2ee710;
+  *(real_vector3d *)color_out = *(real_vector3d *)black;
+  hit = structure_test_vector((float *)point, (float *)0x29b204, slot.point,
+                            (int16_t *)((int)&color + 2), material_index, &surface_index,
+                            &s, &t);
+  if (hit != '\0') {
     iVar5 = (int)scenario_get();
-    psVar6 = (short *)tag_block_get_element(
+    lightmap = (short *)tag_block_get_element(
       (void *)(iVar5 + 0x104), (int)*(short *)((int)&color + 2), 0x20);
-    local_10 = tag_block_get_element(psVar6 + 10, (int)local_8[0], 0x100);
-    if (*(int *)(iVar5 + 0xc) != -1 && *psVar6 != -1) {
-      uVar7 = (int)FUN_00076ff0(*(int *)(iVar5 + 0xc), *psVar6);
-      local_24 = (unsigned short *)tag_block_get_element((void *)(iVar5 + 0xf8),
-                                                         local_c, 6);
-      iVar5 = (int)local_10;
-      if (*(short *)((char *)local_10 + 0xc4) != 2 &&
-          *(short *)((char *)local_10 + 0xc4) != 3) {
+    material = tag_block_get_element(lightmap + 10, (int)material_index[0], 0x100);
+    if (*(int *)(iVar5 + 0xc) != -1 && *lightmap != -1) {
+      bitmap = (int)FUN_00076ff0(*(int *)(iVar5 + 0xc), *lightmap);
+      surface = (unsigned short *)tag_block_get_element((void *)(iVar5 + 0xf8),
+                                                         surface_index, 6);
+      iVar5 = (int)material;
+      if (*(short *)((char *)material + 0xc4) != 2 &&
+          *(short *)((char *)material + 0xc4) != 3) {
         display_assert("material->lightmap_vertices.type==_rasterizer_vertex_"
                        "type_environment_lightmap_uncompressed || "
                        "material->lightmap_vertices.type==_rasterizer_vertex_"
@@ -4826,15 +4577,15 @@ void lights_illumination_at_point(int point, int location, float *color) /* name
                        "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x356, 1);
         system_exit(-1);
       }
-      iVar8 = (int)xbox_texture_cache_get_hardware_format((void *)uVar7, 0, 0);
+      iVar8 = (int)xbox_texture_cache_get_hardware_format((void *)bitmap, 0, 0);
       if (iVar8 != 0) {
-        FUN_00138fd0(iVar5, uVar7, local_24, local_1c, local_14, color_out);
+        FUN_00138fd0(iVar5, bitmap, surface, s, t, color_out);
       }
     }
   }
   if (*(short *)(location + 4) != -1) {
     color = (float *)0;
-    if (*(char *)0x5a8d60 != '\0') {
+    if (lights_globals.marker_initialized != '\0') {
       display_assert("!lights_globals.marker_initialized",
                      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x664, 1);
       system_exit(-1);
@@ -4844,8 +4595,8 @@ void lights_illumination_at_point(int point, int location, float *color) /* name
     find_point_lights_for_object_in_cluster(
       -1, (int16_t) * (unsigned short *)(location + 4), (float *)point, 0.0f,
       (int)slot.light_indices, light_weights, (int)light_attenuations,
-      (int16_t *)&color, 2);
-    if (*(char *)0x5a8d60 == '\0') {
+      (int16_t *)&color, MAXIMUM_RENDERED_POINT_LIGHTS);
+    if (lights_globals.marker_initialized == '\0') {
       display_assert("lights_globals.marker_initialized",
                      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x68e, 1);
       system_exit(-1);
@@ -4853,139 +4604,119 @@ void lights_illumination_at_point(int point, int location, float *color) /* name
     *(char *)0x5a8d60 = '\0';
     if (0 < (short)(int)color) {
       iVar5 = 0;
-      uVar9 = (unsigned short)(unsigned int)color;
+      remaining = (unsigned short)(unsigned int)color;
       do {
-        iVar8 = (int)datum_get(*(void **)0x5a90bc,
-                               *(int *)((char *)slot.light_indices + iVar5));
-        if ((*(unsigned char *)(iVar8 + 2) & 1) != 0) {
-          *color_out = *(float *)(iVar8 + 0x14) *
+        light = light_get(*(int *)((char *)slot.light_indices + iVar5));
+        if ((light->flags & POINT_LIGHT_FLAG_DYNAMIC) != 0) {
+          *color_out = light->color.red *
                       *(float *)((char *)light_attenuations + iVar5) +
                     *color_out;
-          color_out[1] = *(float *)(iVar8 + 0x18) *
+          color_out[1] = light->color.green *
                         *(float *)((char *)light_attenuations + iVar5) +
                       color_out[1];
-          color_out[2] = *(float *)(iVar8 + 0x1c) *
+          color_out[2] = light->color.blue *
                         *(float *)((char *)light_attenuations + iVar5) +
                       color_out[2];
         }
         iVar5 = iVar5 + 4;
-        uVar9 = uVar9 - 1;
-      } while (uVar9 != 0);
+        remaining = remaining - 1;
+      } while (remaining != 0);
     }
   }
-  /* clamp each channel to [0, 1] */
-  if (*color_out < *(float *)0x2533c0) {
-    fVar1 = *(float *)0x2533c0;
-  } else if (*color_out > *(float *)0x2533c8) {
-    fVar1 = *(float *)0x2533c8;
+  if (*color_out < REAL_ZERO_POOL) {
+    value = REAL_ZERO_POOL;
+  } else if (*color_out > REAL_ONE_POOL) {
+    value = REAL_ONE_POOL;
   } else {
-    fVar1 = *color_out;
+    value = *color_out;
   }
-  *color_out = fVar1;
+  *color_out = value;
 
-  if (color_out[1] < *(float *)0x2533c0) {
-    fVar1 = *(float *)0x2533c0;
-  } else if (color_out[1] > *(float *)0x2533c8) {
-    fVar1 = *(float *)0x2533c8;
+  if (color_out[1] < REAL_ZERO_POOL) {
+    value = REAL_ZERO_POOL;
+  } else if (color_out[1] > REAL_ONE_POOL) {
+    value = REAL_ONE_POOL;
   } else {
-    fVar1 = color_out[1];
+    value = color_out[1];
   }
-  color_out[1] = fVar1;
+  color_out[1] = value;
 
-  if (color_out[2] < *(float *)0x2533c0) {
-    fVar1 = 0.0f;
-  } else if (color_out[2] > *(float *)0x2533c8) {
-    fVar1 = 1.0f;
+  if (color_out[2] < REAL_ZERO_POOL) {
+    value = 0.0f;
+  } else if (color_out[2] > REAL_ONE_POOL) {
+    value = 1.0f;
   } else {
-    fVar1 = color_out[2];
+    value = color_out[2];
   }
-  color_out[2] = fVar1;
+  color_out[2] = value;
 }
 
-/* 0x13aa10: gather the light markers that illuminate an object.  Computes the
- * object's bounding sphere (center local_2c, radius local_8) via
- * object_get_bounding_sphere, then iterates the object's cluster set
- * (object_get_first_cluster / object_get_next_cluster over iter_state
- * local_10).  For each cluster it calls find_point_lights_for_object_in_cluster
- * to select the strongest point lights into the caller's marker array
- * (location+0x44), capped at 2 (count at location+0x40).  Finally it converts
- * each stored light datum handle into the light's object field (light+0x8) in
- * place.  Guarded by lights_globals.marker_initialized (0x5a8d60) and a
- * recursion/use counter (0x5a8d64). */
-void lights_prepare_for_object_dynamic(int param_1, int param_2)
+void lights_prepare_for_object_dynamic(int object_index, int lighting)
 {
   float center[3];
   float radius;
-  unsigned int iter_state[2];
-  float weights[2];
-  float atten[2];
-  short *count;
-  short marker;
+  unsigned int iterator[2];
+  float light_intensities[2];
+  float light_attenuations[2];
+  short *light_count;
+  short cluster_index;
   short i;
-  int light;
+  light_datum_t *light;
 
-  object_get_bounding_sphere(param_1, center, &radius);
-  count = (short *)(param_2 + 0x40);
-  *count = 0;
+  object_get_bounding_sphere(object_index, center, &radius);
+  light_count = (short *)(lighting + 0x40);
+  *light_count = 0;
 
-  if (*(char *)0x5a8d60 != '\0') {
+  if (lights_globals.marker_initialized != '\0') {
     display_assert("!lights_globals.marker_initialized",
                    "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x664, 1);
-    CALL_thunk_FUN_001029a0(-1);
+    system_exit(-1);
   }
-  *(int *)0x5a8d64 = *(int *)0x5a8d64 + 1;
-  *(char *)0x5a8d60 = '\x01';
+  lights_globals.marker = lights_globals.marker + 1;
+  lights_globals.marker_initialized = '\x01';
 
-  marker = object_get_first_cluster(iter_state, param_1);
-  if (marker != -1) {
+  cluster_index = object_get_first_cluster(iterator, object_index);
+  if (cluster_index != -1) {
     do {
-      find_point_lights_for_object_in_cluster(param_1, marker, center, radius,
-                                              param_2 + 0x44, weights,
-                                              (int)atten, count, 2);
-      marker = object_get_next_cluster(iter_state, param_1);
-    } while (marker != -1);
+      find_point_lights_for_object_in_cluster(object_index, cluster_index, center, radius,
+                                              lighting + 0x44, light_intensities,
+                                              (int)light_attenuations, light_count, MAXIMUM_RENDERED_POINT_LIGHTS);
+      cluster_index = object_get_next_cluster(iterator, object_index);
+    } while (cluster_index != -1);
   }
 
-  if (*(char *)0x5a8d60 == '\0') {
+  if (lights_globals.marker_initialized == '\0') {
     display_assert("lights_globals.marker_initialized",
                    "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x68e, 1);
-    CALL_thunk_FUN_001029a0(-1);
+    system_exit(-1);
   }
   i = 0;
-  *(char *)0x5a8d60 = '\0';
+  lights_globals.marker_initialized = '\0';
 
-  if (*count > 0) {
+  if (*light_count > 0) {
     do {
-      light = (int)datum_get(*(data_t **)0x5a90bc,
-                             *(int *)(param_2 + 0x44 + (int)i * 4));
-      *(int *)(param_2 + 0x44 + (int)i * 4) = *(int *)(light + 8);
+      light = light_get(*(int *)(lighting + 0x44 + (int)i * 4));
+      *(int *)(lighting + 0x44 + (int)i * 4) = light->rasterizer_light_index;
       i++;
-    } while (i < *count);
+    } while (i < *light_count);
   }
 }
 
-/* 0x13ab20 — compute_dynamic_object_lighting: computes dynamic lighting for
- * objects using BSP ray casting, lightmap sampling, and shader lookups.
- *
- * Source: c:\halo\SOURCE\objects\object_lights.c
- * 3 cdecl params. Returns char (bool).
- */
-/* 0x13ab20 */
-char lights_distant_lighting_at_point(unsigned int param_1, int param_2,
-                                      int *param_3)
+char lights_distant_lighting_at_point(unsigned int flags, int point,
+                                      int *lighting)
 {
-  char cVar1;
-  int iVar2;
-  short *psVar3;
+  char hit;
+  int structure;
+  short *lightmap;
   int iVar4;
-  unsigned short *puVar5;
+  unsigned short *surface;
   int iVar6;
-  short sVar7;
-  short sVar8;
-  int *puVar9;
-  int *puVar10;
-  char *puVar11;
-  char local_94[12];
+  short ray_count;
+  short ray_index;
+  int *source;
+  int *dest;
+  char *rays;
+  char collision_point[12];
   char local_88[12];
   char local_7c[12];
   char local_70[12];
@@ -4993,99 +4724,99 @@ char lights_distant_lighting_at_point(unsigned int param_1, int param_2,
   char local_58[12];
   char local_4c[12];
   float local_40[3];
-  int local_34;
+  int surface_index;
   int local_30;
   float local_2c;
   float local_28;
   float local_24;
-  short local_20[2];
-  short local_1c[2];
-  short *local_18;
+  short material_index[2];
+  short lightmap_index[2];
+  short *lightmap_block;
   int local_14;
-  float local_10;
-  float local_c;
+  float t;
+  float s;
   float distance_scale;
-  char local_5;
+  char result;
 
-  local_5 = 0;
-  iVar2 = (int)scenario_get();
-  puVar9 = (int *)(iVar2 + 0x2c);
+  result = 0;
+  structure = (int)scenario_get();
+  source = (int *)(structure + 0x2c);
   iVar6 = 0x1d;
-  puVar10 = param_3;
-  if (*(float *)(iVar2 + 0x2c) != *(float *)0x2533c0) {
-    memcpy(puVar10, puVar9, iVar6 * 4);
-    *(short *)(param_3 + 3) = 2;
+  dest = lighting;
+  if (*(float *)(structure + 0x2c) != REAL_ZERO_POOL) {
+    memcpy(dest, source, iVar6 * 4);
+    *(short *)(lighting + 3) = 2;
   } else {
-    puVar9 = (int *)0x29b190;
-    memcpy(puVar10, puVar9, iVar6 * 4);
+    source = (int *)0x29b190;
+    memcpy(dest, source, iVar6 * 4);
   }
 
-  if ((param_1 & 1) == 0) {
-    puVar11 = (char *)0x29b204;
-    sVar7 = 1;
+  if ((flags & 1) == 0) {
+    rays = (char *)0x29b204;
+    ray_count = 1;
   } else {
-    puVar11 = (char *)0x29b210;
-    sVar7 = 4;
+    rays = (char *)0x29b210;
+    ray_count = 4;
   }
-  sVar8 = 0;
-  if (sVar7 != 0) {
+  ray_index = 0;
+  if (ray_count != 0) {
     do {
-      cVar1 =
-        CALL_FUN_00198cb0(param_2, puVar11 + (int)sVar8 * 0xc, local_94,
-                          local_1c, local_20, &local_34, &local_c, &local_10);
-      if (cVar1 != '\0')
+      hit =
+        CALL_FUN_00198cb0(point, rays + (int)ray_index * 0xc, collision_point,
+                          lightmap_index, material_index, &surface_index, &s, &t);
+      if (hit != '\0')
         break;
-      sVar8 = sVar8 + 1;
-    } while (sVar8 < sVar7);
-    if (sVar8 >= sVar7) {
-      return local_5;
+      ray_index = ray_index + 1;
+    } while (ray_index < ray_count);
+    if (ray_index >= ray_count) {
+      return result;
     }
-    iVar2 = (int)scenario_get();
-    psVar3 = (short *)tag_block_get_element((void *)(iVar2 + 0x104),
-                                            (int)local_1c[0], 0x20);
-    local_18 = psVar3;
-    iVar6 = (int)tag_block_get_element(psVar3 + 10, (int)local_20[0], 0x100);
-    iVar4 = (int)tag_get(0x73686472, *(int *)(iVar6 + 0xc));
+    structure = (int)scenario_get();
+    lightmap = (short *)tag_block_get_element((void *)(structure + 0x104),
+                                            (int)lightmap_index[0], 0x20);
+    lightmap_block = lightmap;
+    iVar6 = (int)tag_block_get_element(lightmap + 10, (int)material_index[0], 0x100);
+    iVar4 = (int)tag_get(TAG_GROUP_SHDR, *(int *)(iVar6 + 0xc));
     if (*(short *)(iVar4 + 0x24) == 3 &&
         (local_14 = (int)FUN_001906b0((void *)iVar4, 3),
-         *(int *)(iVar2 + 0xc) != -1) &&
-        *psVar3 != -1 && *(int *)(local_14 + 0x94) != -1) {
-      puVar5 = (unsigned short *)tag_block_get_element((void *)(iVar2 + 0xf8),
-                                                       local_34, 6);
-      iVar2 = (int)FUN_00076ff0(*(int *)(iVar2 + 0xc), *local_18);
-      iVar4 = (int)tag_get(0x6269746d, *(int *)(local_14 + 0x94));
+         *(int *)(structure + 0xc) != -1) &&
+        *lightmap != -1 && *(int *)(local_14 + 0x94) != -1) {
+      surface = (unsigned short *)tag_block_get_element((void *)(structure + 0xf8),
+                                                       surface_index, 6);
+      structure = (int)FUN_00076ff0(*(int *)(structure + 0xc), *lightmap_block);
+      iVar4 = (int)tag_get(TAG_GROUP_BITM, *(int *)(local_14 + 0x94));
       local_14 = (int)FUN_00076ff0(*(int *)(local_14 + 0x94),
                                    (int)*(short *)(iVar6 + 0x10) %
                                      *(int *)(iVar4 + 0x60));
-      if (iVar2 != 0 && local_14 != 0 &&
-          (iVar4 = CALL_FUN_00138ee0(iVar2), iVar4 != 0) &&
+      if (structure != 0 && local_14 != 0 &&
+          (iVar4 = CALL_FUN_00138ee0(structure), iVar4 != 0) &&
           (iVar4 = CALL_FUN_00138ee0(local_14), iVar4 != 0)) {
-        CALL_FUN_001390d0(iVar6, local_14, puVar5, local_c, local_10,
+        CALL_FUN_001390d0(iVar6, local_14, surface, s, t,
                           (void *)local_88);
-        FUN_00138fd0(iVar6, iVar2, puVar5, local_c, local_10, local_40);
-        CALL_FUN_00180570((unsigned int)*puVar5 * 0x20 + *(int *)(iVar6 + 0xf8),
+        FUN_00138fd0(iVar6, structure, surface, s, t, local_40);
+        CALL_FUN_00180570((unsigned int)*surface * 0x20 + *(int *)(iVar6 + 0xf8),
                           (void *)local_64);
-        CALL_FUN_00180570((unsigned int)puVar5[1] * 0x20 +
+        CALL_FUN_00180570((unsigned int)surface[1] * 0x20 +
                             *(int *)(iVar6 + 0xf8),
                           (void *)local_58);
-        CALL_FUN_00180570((unsigned int)puVar5[2] * 0x20 +
+        CALL_FUN_00180570((unsigned int)surface[2] * 0x20 +
                             *(int *)(iVar6 + 0xf8),
                           (void *)local_4c);
         FUN_00138f70((float *)local_7c, (float *)local_4c, (float *)local_58,
-                     (float *)local_64, local_c, local_10);
+                     (float *)local_64, s, t);
         CALL_FUN_00013010((void *)local_7c);
         CALL_FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
-                                           ((unsigned int)*puVar5 +
+                                           ((unsigned int)*surface +
                                             *(int *)(iVar6 + 0xb4) * 4) *
                                              8),
                           (float *)local_64);
         CALL_FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
-                                           ((unsigned int)puVar5[1] +
+                                           ((unsigned int)surface[1] +
                                             *(int *)(iVar6 + 0xb4) * 4) *
                                              8),
                           (float *)local_58);
         CALL_FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
-                                           ((unsigned int)puVar5[2] +
+                                           ((unsigned int)surface[2] +
                                             *(int *)(iVar6 + 0xb4) * 4) *
                                              8),
                           (float *)local_4c);
@@ -5093,63 +4824,37 @@ char lights_distant_lighting_at_point(unsigned int param_1, int param_2,
         local_28 = (float)CALL_FUN_00013010((void *)local_58);
         local_24 = (float)CALL_FUN_00013010((void *)local_4c);
         FUN_00138f70((float *)local_70, (float *)local_4c, (float *)local_58,
-                     (float *)local_64, local_c, local_10);
-        distance_scale = (local_24 - local_2c) * local_10 +
-                         (local_28 - local_2c) * local_c + local_2c;
+                     (float *)local_64, s, t);
+        distance_scale = (local_24 - local_2c) * t +
+                         (local_28 - local_2c) * s + local_2c;
         CALL_FUN_00013010((void *)local_70);
-        if (*(char *)0x5a8d59 != '\0') {
+        if (debug_object_lights != '\0') {
           local_2c = local_40[0];
           local_28 = local_40[1];
           local_24 = local_40[2];
           local_30 = 0x3f800000;
-          CALL_FUN_00189150(1, param_2, 0.5f, &local_30);
+          CALL_FUN_00189150(1, point, 0.5f, &local_30);
           {
             int ds_bits;
             memcpy(&ds_bits, &distance_scale, 4);
             ((void (*)(int, void *, void *, int, void *))FUN_00189320)(
-              1, (void *)param_2, local_70, ds_bits, &local_30);
+              1, (void *)point, local_70, ds_bits, &local_30);
           }
         }
-        build_distant_lights(param_1, (float *)local_7c, (float *)local_70,
+        build_distant_lights(flags, (float *)local_7c, (float *)local_70,
                              distance_scale, (float *)local_88,
-                             (float *)param_3, (float *)local_40);
-        local_5 = 1;
+                             (float *)lighting, (float *)local_40);
+        result = 1;
       }
     }
   }
-  return local_5;
+  return result;
 }
 
-/*
- * object_move_to_limbo — compute a point light's world-space position,
- * direction, and range from its parent object, then add it to the cluster
- * partition so it becomes visible.
- * (from c:\halo\SOURCE\objects\object_lights.c, line ~0x4f9)
- *
- * Two paths for computing position/orientation:
- *   1. No parent (parent_handle == -1): use marker definition from the object
- *      tag to fill position/forward/up on the light.
- *   2. Has parent: transform the light's offset point and direction through
- *      the parent's node matrix.
- *
- * Then computes the effective light range from the tag's radius, color
- * modifier, and optional gel modifier. The range determines a position offset
- * based on the falloff angle:
- *   - angle >= pi/2: position unchanged, range = computed range
- *   - pi/4 <= angle < pi/2: position offset by range * forward_modifier along
- *     forward, range scaled by tertiary modifier
- *   - angle < pi/4: position offset by range / forward_modifier along forward
- *
- * Finally adds the light to the cluster partition and sets the connected flag.
- *
- * Confirmed: SUB ESP,0x84 — 132 bytes of locals.
- * Confirmed: tag_get(0x6c696768, ...) for 'ligh' tag.
- * Confirmed: cluster_partition_add_object(0x5a90b0, ...) with 6 args.
- * Confirmed: OR word ptr [ESI+0x2], BX sets connected_to_map (bit 2).
- */
+/* Connects a point light to the map (assert text); the kb name predates that. */
 void object_move_to_limbo(int object_handle)
 {
-  char *light;
+  light_datum_t *light;
   char *parent_obj;
   void *node_matrix;
   char marker_buf[0x6c]; /* output from object_get_markers_by_string_id */
@@ -5161,110 +4866,94 @@ void object_move_to_limbo(int object_handle)
   float offset;
   int16_t marker_index;
 
-  light = (char *)datum_get(*(data_t **)0x5a90bc, object_handle);
-  tag_get(0x6c696768, *(int *)(light + 0x4));
+  light = light_get(object_handle);
+  light_definition_get(light->definition_index);
 
-  if (*(int *)(light + 0x58) == -1) {
-    /* No parent object index: compute from marker definition in tag.
-     * Nested so the outer call's trailing args (marker_buf, 1) push
-     * before the inner object_get_child_marker_definition call, matching
-     * the reference's interleaved cdecl arg-evaluation push order. */
-    marker_index = *(int16_t *)(light + 0x5c);
-    object_get_markers_by_string_id(*(int *)(light + 0x2c),
+  if (light->field_58 == -1) {
+    /* nested call: the outer call pushes its trailing args first. */
+    marker_index = light->attachment_marker_index;
+    object_get_markers_by_string_id(light->object_index,
                                     (char *)object_get_child_marker_definition(
-                                      *(int *)(light + 0x2c), marker_index),
+                                      light->object_index, marker_index),
                                     marker_buf, 1);
 
-    /* Position/forward/up are copied as raw dword moves through a
-     * destination base pointer (reference: lea 0x30(esi),ecx; mov
-     * [ebp-off],tmp; mov tmp,(ecx)), NOT FPU load/store. */
+    /* position, forward and up copy as dword moves, not x87 loads. */
     {
       int *dst;
-      dst = (int *)(light + 0x30); /* position <- marker_buf+0x60 */
+      dst = (int *)&light->position; /* position <- marker_buf+0x60 */
       dst[0] = *(int *)(marker_buf + 0x60);
       dst[1] = *(int *)(marker_buf + 0x64);
       dst[2] = *(int *)(marker_buf + 0x68);
-      dst = (int *)(light + 0x3c); /* forward  <- marker_buf+0x3c */
+      dst = (int *)&light->forward; /* forward  <- marker_buf+0x3c */
       dst[0] = *(int *)(marker_buf + 0x3c);
       dst[1] = *(int *)(marker_buf + 0x40);
       dst[2] = *(int *)(marker_buf + 0x44);
-      dst = (int *)(light + 0x48); /* up       <- marker_buf+0x54 */
+      dst = (int *)&light->up; /* up       <- marker_buf+0x54 */
       dst[0] = *(int *)(marker_buf + 0x54);
       dst[1] = *(int *)(marker_buf + 0x58);
       dst[2] = *(int *)(marker_buf + 0x5c);
     }
   } else {
-    /* Has parent: transform offset through parent's node matrix. */
     parent_obj =
-      (char *)object_try_and_get_and_verify_type(*(int *)(light + 0x2c), -1);
+      (char *)object_try_and_get_and_verify_type(light->object_index, -1);
     if (parent_obj != 0) {
-      marker_index = *(int16_t *)(light + 0x5c);
+      marker_index = light->attachment_marker_index;
       node_matrix =
-        object_get_node_matrix(*(int *)(light + 0x2c), marker_index);
-      matrix_transform_point((float *)node_matrix, (float *)(light + 0x60),
-                             (float *)(light + 0x30));
-      matrix_transform_vector((float *)node_matrix, (float *)(light + 0x6c),
-                              (float *)(light + 0x3c));
-      perpendicular3d((float *)(light + 0x3c), (float *)(light + 0x48));
-      normalize3d((float *)(light + 0x48));
+        object_get_node_matrix(light->object_index, marker_index);
+      matrix_transform_point((float *)node_matrix, &light->attachment.relative_position.x,
+                             &light->position.x);
+      matrix_transform_vector((float *)node_matrix, &light->relative_forward.i,
+                              &light->forward.i);
+      perpendicular3d(&light->forward.i, &light->up.i);
+      normalize3d(&light->up.i);
     }
   }
 
-  if ((*(uint16_t *)(light + 0x2) & 0x2) == 0)
+  if ((light->flags & POINT_LIGHT_FLAG_CONNECTS_TO_MAP) == 0)
     return;
 
-  /* Re-fetch light data (original code re-calls datum_get here). */
   {
-    char *light2 = (char *)datum_get(*(data_t **)0x5a90bc, object_handle);
-    char *ligh_tag = (char *)tag_get(0x6c696768, *(int *)(light2 + 0x4));
+    light_datum_t *light2 = light_get(object_handle);
+    light_definition_t *definition =
+      light_definition_get(light2->definition_index);
 
-    tag_flags = *(uint8_t *)ligh_tag;
-    range = *(float *)(ligh_tag + 0xc) * *(float *)(ligh_tag + 0x4);
+    tag_flags = *(uint8_t *)&definition->flags;
+    range = definition->radius_modifier_upper * definition->radius;
 
-    if ((tag_flags & 0x2) == 0)
-      range = range * *(float *)(ligh_tag + 0x24);
+    if ((tag_flags & LIGHT_DEFINITION_FLAG_NO_SPECULAR) == 0)
+      range = range * definition->specular_radius_multiplier;
 
-    if (range < *(float *)(ligh_tag + 0x18)) {
-      /* Range below cutoff: discard the computed range (ref: fstp st(0)),
-       * copy position (raw dwords through light2+0x30 base), clamp range
-       * to cutoff (int copy of the float bits). */
-      int *ps = (int *)(light2 + 0x30);
+    if (range < definition->lens_flare_only_radius) {
+      /* the computed range is discarded; position and cutoff copy as dwords. */
+      int *ps = (int *)&light2->position;
       *(int *)&local_pos[0] = ps[0];
       *(int *)&local_pos[1] = ps[1];
       *(int *)&local_pos[2] = ps[2];
-      *(int *)&local_range = *(int *)(ligh_tag + 0x18);
+      *(int *)&local_range = *(int *)&definition->lens_flare_only_radius;
     } else {
-      /* Falloff angle is re-loaded fresh (and popped) for each comparison
-       * in the reference (flds 0x14; fcomps; test $5; jp), so access it
-       * inline. Spelled `<` with the angle>=pi/2 case as the out-of-line
-       * jump target (test $5; jp), matching the reference block layout and
-       * NaN routing (NaN falls into the >= branch). */
-      if (*(float *)(ligh_tag + 0x14) < *(float *)0x2568bc) {
-        if (*(float *)(ligh_tag + 0x14) < *(float *)0x254a58) {
-          /* angle < pi/4: offset = range / forward_modifier. */
-          local_range = range / *(float *)(ligh_tag + 0x20);
+      /* the angle is reloaded for each compare; NaN takes the outer else. */
+      if (definition->cutoff_angle < REAL_HALF_PI_POOL) {
+        if (definition->cutoff_angle < REAL_QUARTER_PI_POOL) {
+          local_range = range / definition->cosine_cutoff_angle;
           local_pos[0] =
-            local_range * *(float *)(light2 + 0x3c) + *(float *)(light2 + 0x30);
+            local_range * light2->forward.i + light2->position.x;
           local_pos[1] =
-            local_range * *(float *)(light2 + 0x40) + *(float *)(light2 + 0x34);
+            local_range * light2->forward.j + light2->position.y;
           local_pos[2] =
-            local_range * *(float *)(light2 + 0x44) + *(float *)(light2 + 0x38);
+            local_range * light2->forward.k + light2->position.z;
         } else {
-          /* pi/4 <= angle < pi/2: scale range first, then offset position
-           * along forward (ref computes range*0x28 before offset=range*0x20;
-           * offset stays ST0-resident, fld st(0) for each component). */
-          local_range = range * *(float *)(ligh_tag + 0x28);
-          offset = range * *(float *)(ligh_tag + 0x20);
+          /* offset stays in ST0 across the three components. */
+          local_range = range * definition->sine_cutoff_angle;
+          offset = range * definition->cosine_cutoff_angle;
           local_pos[0] =
-            offset * *(float *)(light2 + 0x3c) + *(float *)(light2 + 0x30);
+            offset * light2->forward.i + light2->position.x;
           local_pos[1] =
-            offset * *(float *)(light2 + 0x40) + *(float *)(light2 + 0x34);
+            offset * light2->forward.j + light2->position.y;
           local_pos[2] =
-            offset * *(float *)(light2 + 0x44) + *(float *)(light2 + 0x38);
+            offset * light2->forward.k + light2->position.z;
         }
       } else {
-        /* angle >= pi/2: keep range, copy position as-is (raw dwords). */
-        int *ps = (int *)(light2 + 0x30);
+        int *ps = (int *)&light2->position;
         local_range = range;
         *(int *)&local_pos[0] = ps[0];
         *(int *)&local_pos[1] = ps[1];
@@ -5272,214 +4961,180 @@ void object_move_to_limbo(int object_handle)
       }
     }
 
-    /* Assert: light must NOT already be connected to map. */
-    if ((*(uint8_t *)(light + 0x2) & 0x4) != 0) {
+    if ((*(uint8_t *)&light->flags & POINT_LIGHT_FLAG_CONNECTED_TO_MAP) != 0) {
       display_assert(
         "!TEST_FLAG(light->flags, _point_light_connected_to_map_bit)",
         "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x4f9, 1);
       system_exit(-1);
     }
 
-    /* Determine cluster location for the light. */
-    if (*(int *)(light + 0x2c) == -1 ||
-        object_try_and_get_and_verify_type(*(int *)(light + 0x2c), -1) == 0) {
+    if (light->object_index == -1 ||
+        object_try_and_get_and_verify_type(light->object_index, -1) == 0) {
       scenario_location_from_point((void *)location, (void *)local_pos);
     } else {
-      object_get_location(*(int *)(light + 0x2c), (void *)location);
+      object_get_location(light->object_index, (void *)location);
     }
 
-    /* Add light to cluster partition. Range is passed as raw float bits
-     * reinterpreted as uint32_t (radius_fp convention). */
     {
       union {
         float f;
         uint32_t u;
       } range_bits;
       range_bits.f = local_range;
-      cluster_partition_add_object((void *)0x5a90b0, object_handle,
-                                   (void *)(light + 0x10), (void *)local_pos,
+      cluster_partition_add_object(light_cluster_partition, object_handle,
+                                   (void *)&light->cluster_reference, (void *)local_pos,
                                    range_bits.u, (void *)location);
     }
 
-    *(uint16_t *)(light + 0x2) |= 0x4;
+    light->flags |= POINT_LIGHT_FLAG_CONNECTED_TO_MAP;
   }
 }
 
-/*
- * lights_reconnect_to_structure_bsp (0x13b150 / objects.obj) — flush all lights
- * flagged for limbo.
- *
- * Walks the light data table (global at 0x5a90bc) via the data-table forward
- * iterator data_next_index (-1 seed -> first index, -1 return -> end). For each
- * live light whose flags word (light+0x2) has bit 0x4 set, clears that bit and
- * moves the light to limbo via object_move_to_limbo (0x13aed0).
- *
- * Confirmed (disasm 0x13b150): the table global is re-read each iteration;
- * flags are a 16-bit word at +0x2; bit 0x4 tested via TEST CL,0x4; cleared via
- * AND ECX,0xfffb.
- */
 void lights_reconnect_to_structure_bsp(void)
 {
   int index;
-  int light;
+  light_datum_t *light;
 
-  index = data_next_index(*(data_t **)0x5a90bc, -1);
+  index = data_next_index(light_data, -1);
   while (index != -1) {
-    light = (int)datum_get(*(data_t **)0x5a90bc, index);
-    if ((*(unsigned short *)(light + 2) & 4) != 0) {
-      *(unsigned short *)(light + 2) &= 0xfffb;
+    light = light_get(index);
+    if ((light->flags & POINT_LIGHT_FLAG_CONNECTED_TO_MAP) != 0) {
+      light->flags &= ~POINT_LIGHT_FLAG_CONNECTED_TO_MAP;
       object_move_to_limbo(index);
     }
-    index = data_next_index(*(data_t **)0x5a90bc, index);
+    index = data_next_index(light_data, index);
   }
 }
 
-/* Create a light-instance datum attached to an object marker (0x13b1b0).
- * Validates the 'ligh' tag (dynamic flag bit 0, or attachment field +0xb8
- * set), allocates from the light data table (0x5a90bc), and stores the tag
- * index, owning object handle, attachment/marker indices, and a flag word
- * derived from the tag's dynamic state. Returns the new datum handle, or -1
- * if the tag is static/unattached or the table is full. */
-int light_new(int tag_index, int object_handle, int16_t p3, int16_t p4,
-              int16_t p5)
+int light_new(int tag_index, int object_handle, int16_t attachment_index, int16_t function_index,
+              int16_t color_function_index)
 {
-  unsigned char *light;
+  light_definition_t *definition;
   int handle;
-  char *datum;
+  light_datum_t *light;
   uint16_t flag;
 
-  light = (unsigned char *)tag_get(0x6c696768, tag_index);
+  definition = light_definition_get(tag_index);
   handle = -1;
-  if (((*light & 1) != 0 || *(int *)(light + 0xb8) != -1) &&
-      (handle = data_new_at_index(*(data_t **)0x5a90bc), handle != -1)) {
-    datum = (char *)datum_get(*(data_t **)0x5a90bc, handle);
-    *(int *)(datum + 0x04) = tag_index;
-    *(int *)(datum + 0x2c) = object_handle;
-    *(int16_t *)(datum + 0x5e) = p4;
-    *(int16_t *)(datum + 0x02) = 0;
-    *(int16_t *)(datum + 0x5c) = p3;
-    *(int16_t *)(datum + 0x60) = p5;
-    *(uint16_t *)(datum + 0x02) = (uint16_t)(*light & 1);
-    flag = *(uint16_t *)(datum + 0x02);
-    if ((flag & 1) == 0 && *(int *)(light + 0xb8) == -1)
-      flag &= 0xfffd;
+  if (((*(unsigned char *)&definition->flags & LIGHT_DEFINITION_FLAG_DYNAMIC) != 0 ||
+       definition->lens_flare_index != -1) &&
+      (handle = data_new_at_index(light_data), handle != -1)) {
+    light = light_get(handle);
+    light->definition_index = tag_index;
+    light->object_index = object_handle;
+    light->function_index = function_index;
+    light->flags = 0;
+    light->attachment_marker_index = attachment_index;
+    light->attachment.color_function_index = color_function_index;
+    light->flags = (uint16_t)(*(unsigned char *)&definition->flags &
+                                LIGHT_DEFINITION_FLAG_DYNAMIC);
+    flag = light->flags;
+    if ((flag & POINT_LIGHT_FLAG_DYNAMIC) == 0 && definition->lens_flare_index == -1)
+      flag &= ~POINT_LIGHT_FLAG_CONNECTS_TO_MAP;
     else
-      flag |= 2;
-    *(uint16_t *)(datum + 0x02) = flag;
-    *(int *)(datum + 0x10) = -1;
-    *(int *)(datum + 0x58) = -1;
+      flag |= POINT_LIGHT_FLAG_CONNECTS_TO_MAP;
+    light->flags = flag;
+    light->cluster_reference = -1;
+    light->field_58 = -1;
     object_move_to_limbo(handle);
-    *(int *)(datum + 0x0c) = *(int *)0x5a8d64 - 1;
+    light->marker = lights_globals.marker - 1;
   }
   return handle;
 }
 
-/* Create a new point light datum from a light tag (0x13b290).
- * Allocates from the light data table (0x5a90bc), validates the 'ligh' tag,
- * initializes fields, then calls object_move_to_limbo to resolve world-space
- * position. If object_handle is -1 (world light), position/forward are stored
- * directly; otherwise marker index and local offsets are stored for attachment.
- */
 int light_new_unattached(int tag_index, int object_handle, int16_t marker,
-                         float *position, float *forward, int unknown)
+                         float *position, float *forward, int scale)
 {
   int handle;
-  char *datum;
+  light_datum_t *light;
 
-  handle = data_new_at_index(*(data_t **)0x5a90bc);
+  handle = data_new_at_index(light_data);
   if (handle != -1) {
-    datum = (char *)datum_get(*(data_t **)0x5a90bc, handle);
-    tag_get(0x6c696768, tag_index);
-    *(int16_t *)(datum + 0x02) = 0;
+    light = light_get(handle);
+    light_definition_get(tag_index);
+    light->flags = 0;
     {
       int tick = game_time_get();
-      *(uint8_t *)(datum + 0x02) |= 3;
-      *(int *)(datum + 0x58) = tick;
+      *(uint8_t *)&light->flags |=
+        POINT_LIGHT_FLAG_DYNAMIC | POINT_LIGHT_FLAG_CONNECTS_TO_MAP;
+      light->field_58 = tick;
     }
-    *(int *)(datum + 0x04) = tag_index;
-    *(int *)(datum + 0x2c) = object_handle;
-    *(int *)(datum + 0x78) = unknown;
-    *(int *)(datum + 0x10) = -1;
+    light->definition_index = tag_index;
+    light->object_index = object_handle;
+    *(int *)&light->scale = scale;
+    light->cluster_reference = -1;
 
     if (object_handle == -1) {
-      *(float *)(datum + 0x30) = position[0];
-      *(float *)(datum + 0x34) = position[1];
-      *(float *)(datum + 0x38) = position[2];
-      *(float *)(datum + 0x3c) = forward[0];
-      *(float *)(datum + 0x40) = forward[1];
-      *(float *)(datum + 0x44) = forward[2];
+      *(float *)((char *)light + 0x30) = position[0];
+      *(float *)((char *)light + 0x34) = position[1];
+      *(float *)((char *)light + 0x38) = position[2];
+      *(float *)((char *)light + 0x3c) = forward[0];
+      *(float *)((char *)light + 0x40) = forward[1];
+      *(float *)((char *)light + 0x44) = forward[2];
     } else {
-      *(int16_t *)(datum + 0x5c) = marker;
-      *(float *)(datum + 0x60) = position[0];
-      *(float *)(datum + 0x64) = position[1];
-      *(float *)(datum + 0x68) = position[2];
-      *(float *)(datum + 0x6c) = forward[0];
-      *(float *)(datum + 0x70) = forward[1];
-      *(float *)(datum + 0x74) = forward[2];
+      light->attachment_marker_index = marker;
+      *(float *)((char *)light + 0x60) = position[0];
+      *(float *)((char *)light + 0x64) = position[1];
+      *(float *)((char *)light + 0x68) = position[2];
+      *(float *)((char *)light + 0x6c) = forward[0];
+      *(float *)((char *)light + 0x70) = forward[1];
+      *(float *)((char *)light + 0x74) = forward[2];
     }
 
     object_move_to_limbo(handle);
-    *(int *)(datum + 0x0c) = *(int *)0x5a8d64 - 1;
+    light->marker = lights_globals.marker - 1;
   }
   return handle;
 }
 
-/* 0x13b380 — render_lights: main per-frame light processing function.
- * Iterates all active lights, updates colors/positions, submits to renderer.
- *
- * Source: c:\halo\SOURCE\objects\object_lights.c
- * No params.
- */
-/* 0x13b380 */
 void lights_preprocess_scene(void)
 {
-  float *pfVar1;
-  float fVar2;
-  char cVar3;
+  float *color;
+  float value;
+  char adjusted;
   short sVar4;
   int iVar5;
   int iVar6;
   int iVar7;
-  short *psVar8;
-  unsigned char *pbVar9;
+  short *rendered_cluster;
+  unsigned char *definition;
   char *puVar10;
   int uVar11;
   unsigned char *pbVar12;
-  char *puVar13;
-  short sVar14;
-  float fVar15;
-  char local_3e0[924]; /* local_3e0[60]+local_3a4[864] must be contiguous (MSVC
+  char *marker;
+  short marker_index;
+  float transition;
+  char markers[924]; /* markers[60]+local_3a4[864] must be contiguous (MSVC
                           stack alias) */
-  char *local_3a4 = local_3e0 + 60;
+  char *local_3a4 = markers + 60;
   int light_params[14]; /* must be contiguous — rasterizer reads as 56-byte
                            struct */
-  int local_48;
-  char lf_params[40]; /* lens flare params — rasterizer reads as 0x28-byte
-                         struct */
-  int local_1c;
+  int light_handle;
+  lens_flare_parameters_t lens_flare;
+  int game_time;
   float local_18;
-  int local_14;
-  int local_10;
+  int object;
+  int index;
   float local_c;
   float local_8;
 
-  local_1c = CALL_FUN_000b5aa0();
+  game_time = CALL_FUN_000b5aa0();
   if (*(char *)0x449ef1 != '\0' && *(char *)0x323608 != '\0') {
     CALL_FUN_0008fa40((int *)0x323600);
   }
-  *(short *)0x5a8d5a = 0;
-  for (iVar5 = CALL_FUN_001198f0(*(void **)0x5a90bc, -1); iVar5 != -1;
-       iVar5 = CALL_FUN_001198f0(*(void **)0x5a90bc, iVar5)) {
-    iVar6 = (int)datum_get(*(void **)0x5a90bc, iVar5);
+  debug_rasterizer_light_count = 0;
+  for (iVar5 = data_next_index(light_data, -1); iVar5 != -1;
+       iVar5 = data_next_index(light_data, iVar5)) {
+    iVar6 = (int)datum_get(light_data, iVar5);
     *(unsigned char *)(iVar6 + 2) = *(unsigned char *)(iVar6 + 2) & 0xf7;
     *(int *)(iVar6 + 8) = -1;
     if (*(int *)(iVar6 + 0x58) != -1) {
-      iVar7 = (int)tag_get(0x6c696768, *(int *)(iVar6 + 4));
-      local_10 = local_1c - *(int *)(iVar6 + 0x58);
-      if ((float)local_10 > *(float *)(iVar7 + 0xf4)) {
-        iVar6 = (int)datum_get(*(void **)0x5a90bc, iVar5);
-        CALL_FUN_001919a0((void *)0x5a90b0, iVar5, iVar6 + 0x10);
-        CALL_FUN_001196d0(*(void **)0x5a90bc, iVar5);
+      iVar7 = (int)tag_get(TAG_GROUP_LIGH, *(int *)(iVar6 + 4));
+      index = game_time - *(int *)(iVar6 + 0x58);
+      if ((float)index > *(float *)(iVar7 + 0xf4)) {
+        iVar6 = (int)datum_get(light_data, iVar5);
+        CALL_FUN_001919a0(light_cluster_partition, iVar5, iVar6 + 0x10);
+        CALL_FUN_001196d0(light_data, iVar5);
       } else {
         iVar6 = CALL_FUN_0013d640(*(int *)(iVar6 + 0x2c), -1);
         if (iVar6 != 0) {
@@ -5489,38 +5144,38 @@ void lights_preprocess_scene(void)
       }
     }
   }
-  if (*(char *)0x5a8d60 != '\0') {
+  if (lights_globals.marker_initialized != '\0') {
     display_assert("!lights_globals.marker_initialized",
                    "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x664, 1);
-    CALL_thunk_FUN_001029a0(-1);
+    system_exit(-1);
   }
-  *(int *)0x5a8d64 = *(int *)0x5a8d64 + 1;
-  *(char *)0x5a8d60 = '\x01';
-  *(short *)0x5a8d68 = (short)CALL_FUN_00196c90(
-    (void *)0x5a8d6c, 0x80, (void *)0x1398b0, (void *)0x1398d0,
+  lights_globals.marker = lights_globals.marker + 1;
+  lights_globals.marker_initialized = '\x01';
+  lights_globals.scene_point_light_count = (short)CALL_FUN_00196c90(
+    lights_globals.scene_point_lights, MAXIMUM_SCENE_POINT_LIGHTS, (void *)0x1398b0, (void *)0x1398d0,
     (void *)0x13a340, (void *)0x139930, (void *)0x139990);
-  if (*(char *)0x5a8d60 == '\0') {
+  if (lights_globals.marker_initialized == '\0') {
     display_assert("lights_globals.marker_initialized",
                    "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x68e, 1);
-    CALL_thunk_FUN_001029a0(-1);
+    system_exit(-1);
   }
-  *(char *)0x5a8d60 = 0;
+  lights_globals.marker_initialized = 0;
   FUN_001812b0();
   iVar5 = 0;
-  if (0 < *(short *)0x5137cc) {
+  if (0 < rendered_cluster_count) {
     do {
-      psVar8 = CALL_FUN_00184e50(iVar5);
-      CALL_FUN_00181900((int)*psVar8);
+      rendered_cluster = CALL_FUN_00184e50(iVar5);
+      CALL_FUN_00181900((int)*rendered_cluster);
       iVar5 = iVar5 + 1;
-    } while ((short)iVar5 < *(short *)0x5137cc);
+    } while ((short)iVar5 < rendered_cluster_count);
   }
-  local_10 = 0;
-  if (0 < *(short *)0x5a8d68) {
+  index = 0;
+  if (0 < lights_globals.scene_point_light_count) {
     do {
-      uVar11 = *(int *)((char *)0x5a8d6c + (short)local_10 * 4);
-      local_48 = uVar11;
-      iVar5 = (int)datum_get(*(void **)0x5a90bc, uVar11);
-      pbVar9 = (unsigned char *)tag_get(0x6c696768, *(int *)(iVar5 + 4));
+      uVar11 = lights_globals.scene_point_lights[(short)index];
+      light_handle = uVar11;
+      iVar5 = (int)datum_get(light_data, uVar11);
+      definition = (unsigned char *)tag_get(TAG_GROUP_LIGH, *(int *)(iVar5 + 4));
       local_c = 1.0f;
       render_debug_light(uVar11);
       if (*(int *)(iVar5 + 0x2c) == -1) {
@@ -5528,12 +5183,12 @@ void lights_preprocess_scene(void)
       } else {
         iVar6 = CALL_FUN_0013d640(*(int *)(iVar5 + 0x2c), -1);
       }
-      local_14 = iVar6;
+      object = iVar6;
       if (*(int *)(iVar5 + 0x58) == -1) {
         if (iVar6 == 0) {
           display_assert("object", "c:\\halo\\SOURCE\\objects\\object_lights.c",
                          0x1ac, 1);
-          CALL_thunk_FUN_001029a0(-1);
+          system_exit(-1);
         }
         CALL_FUN_001403a0(*(int *)(iVar5 + 0x2c),
                           *(unsigned short *)(iVar5 + 0x5e), &local_8);
@@ -5541,88 +5196,88 @@ void lights_preprocess_scene(void)
         if (*(short *)(iVar5 + 0x60) != -1) {
           puVar10 = (char *)(iVar6 + (*(short *)(iVar5 + 0x60) + 0x1e) * 0xc);
         }
-        CALL_FUN_007c490(iVar5 + 0x14, *(int *)(pbVar9 + 0x34), pbVar9 + 0x38,
-                         pbVar9 + 0x48, puVar10, local_8);
+        CALL_FUN_007c490(iVar5 + 0x14, *(int *)(definition + 0x34), definition + 0x38,
+                         definition + 0x48, puVar10, local_8);
       } else {
-        local_18 = (float)(local_1c - *(int *)(iVar5 + 0x58));
-        fVar15 = (float)CALL_FUN_0010a710(*(unsigned short *)(pbVar9 + 0xfa),
+        local_18 = (float)(game_time - *(int *)(iVar5 + 0x58));
+        transition = (float)CALL_FUN_0010a710(*(unsigned short *)(definition + 0xfa),
                                           (float)(int)local_18 /
-                                            *(float *)(pbVar9 + 0xf4));
-        local_8 = (*(float *)0x2533c8 - fVar15) * *(float *)(iVar5 + 0x78);
+                                            *(float *)(definition + 0xf4));
+        local_8 = (REAL_ONE_POOL - transition) * *(float *)(iVar5 + 0x78);
         CALL_FUN_0007c270(
-          (float *)(iVar5 + 0x14), *(unsigned int *)(pbVar9 + 0x34),
-          (float *)(pbVar9 + 0x3c), (float *)(pbVar9 + 0x4c), local_8);
+          (float *)(iVar5 + 0x14), *(unsigned int *)(definition + 0x34),
+          (float *)(definition + 0x3c), (float *)(definition + 0x4c), local_8);
       }
-      local_18 = *(float *)0x2533c8 - local_8;
-      if (!(*(float *)(iVar5 + 0x14) >= *(float *)0x2533c0 &&
-            *(float *)(iVar5 + 0x14) <= *(float *)0x2533c8)) {
+      local_18 = REAL_ONE_POOL - local_8;
+      if (!(*(float *)(iVar5 + 0x14) >= REAL_ZERO_POOL &&
+            *(float *)(iVar5 + 0x14) <= REAL_ONE_POOL)) {
         display_assert("light->color.red >=0.0f && light->color.red <=1.0f",
                        "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x1bb, 1);
-        CALL_thunk_FUN_001029a0(-1);
+        system_exit(-1);
       }
-      if (!(*(float *)(iVar5 + 0x18) >= *(float *)0x2533c0 &&
-            *(float *)(iVar5 + 0x18) <= *(float *)0x2533c8)) {
+      if (!(*(float *)(iVar5 + 0x18) >= REAL_ZERO_POOL &&
+            *(float *)(iVar5 + 0x18) <= REAL_ONE_POOL)) {
         display_assert("light->color.green>=0.0f && light->color.green<=1.0f",
                        "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x1bc, 1);
-        CALL_thunk_FUN_001029a0(-1);
+        system_exit(-1);
       }
-      if (!(*(float *)(iVar5 + 0x1c) >= *(float *)0x2533c0 &&
-            *(float *)(iVar5 + 0x1c) <= *(float *)0x2533c8)) {
+      if (!(*(float *)(iVar5 + 0x1c) >= REAL_ZERO_POOL &&
+            *(float *)(iVar5 + 0x1c) <= REAL_ONE_POOL)) {
         display_assert("light->color.blue >=0.0f && light->color.blue <=1.0f",
                        "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x1bd, 1);
-        CALL_thunk_FUN_001029a0(-1);
+        system_exit(-1);
       }
-      if (local_14 != 0) {
+      if (object != 0) {
         uVar11 = object_get_root_parent(*(int *)(iVar5 + 0x2c));
         iVar6 = (int)object_get_and_verify_type(uVar11, -1);
         if ((1 << (*(unsigned char *)(iVar6 + 100) & 0x1f) & 3u) != 0) {
           iVar6 = (int)object_get_and_verify_type(uVar11, 3);
-          if (*(float *)(iVar6 + 0x32c) > *(float *)0x2533c0) {
-            pbVar12 = (unsigned char *)tag_get(0x6c696768, *(int *)(iVar5 + 4));
-            if ((*pbVar12 & 0x20) == 0) {
-              local_c = *(float *)0x2533c8 - *(float *)(iVar6 + 0x32c);
-              fVar2 = local_c * *(float *)(iVar5 + 0x14);
-              *(float *)(iVar5 + 0x14) = fVar2;
+          if (*(float *)(iVar6 + 0x32c) > REAL_ZERO_POOL) {
+            pbVar12 = (unsigned char *)tag_get(TAG_GROUP_LIGH, *(int *)(iVar5 + 4));
+            if ((*pbVar12 & LIGHT_DEFINITION_FLAG_DONT_FADE_ACTIVE_CAMOUFLAGE) == 0) {
+              local_c = REAL_ONE_POOL - *(float *)(iVar6 + 0x32c);
+              value = local_c * *(float *)(iVar5 + 0x14);
+              *(float *)(iVar5 + 0x14) = value;
               *(float *)(iVar5 + 0x18) = local_c * *(float *)(iVar5 + 0x18);
               *(float *)(iVar5 + 0x1c) = local_c * *(float *)(iVar5 + 0x1c);
-              if (!(fVar2 >= *(float *)0x2533c0 &&
-                    fVar2 <= *(float *)0x2533c8)) {
+              if (!(value >= REAL_ZERO_POOL &&
+                    value <= REAL_ONE_POOL)) {
                 display_assert(
                   "light->color.red >=0.0f && light->color.red <=1.0f",
                   "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x1d1, 1);
-                CALL_thunk_FUN_001029a0(-1);
+                system_exit(-1);
               }
-              if (!(*(float *)(iVar5 + 0x18) >= *(float *)0x2533c0 &&
-                    *(float *)(iVar5 + 0x18) <= *(float *)0x2533c8)) {
+              if (!(*(float *)(iVar5 + 0x18) >= REAL_ZERO_POOL &&
+                    *(float *)(iVar5 + 0x18) <= REAL_ONE_POOL)) {
                 display_assert(
                   "light->color.green>=0.0f && light->color.green<=1.0f",
                   "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x1d2, 1);
-                CALL_thunk_FUN_001029a0(-1);
+                system_exit(-1);
               }
-              if (!(*(float *)(iVar5 + 0x1c) >= *(float *)0x2533c0 &&
-                    *(float *)(iVar5 + 0x1c) <= *(float *)0x2533c8)) {
+              if (!(*(float *)(iVar5 + 0x1c) >= REAL_ZERO_POOL &&
+                    *(float *)(iVar5 + 0x1c) <= REAL_ONE_POOL)) {
                 display_assert(
                   "light->color.blue >=0.0f && light->color.blue <=1.0f",
                   "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x1d3, 1);
-                CALL_thunk_FUN_001029a0(-1);
+                system_exit(-1);
               }
             }
           }
         }
       }
-      pfVar1 = (float *)(iVar5 + 0x14);
-      if (*(float *)(iVar5 + 0x14) != *(float *)0x2533c0 ||
-          *(float *)(iVar5 + 0x18) != *(float *)0x2533c0 ||
-          *(float *)(iVar5 + 0x1c) != *(float *)0x2533c0) {
-        if ((*(unsigned char *)(iVar5 + 2) & 1) == 0) {
-          *(int *)(iVar5 + 0x54) = *(int *)(pbVar9 + 4);
+      color = (float *)(iVar5 + 0x14);
+      if (*(float *)(iVar5 + 0x14) != REAL_ZERO_POOL ||
+          *(float *)(iVar5 + 0x18) != REAL_ZERO_POOL ||
+          *(float *)(iVar5 + 0x1c) != REAL_ZERO_POOL) {
+        if ((*(unsigned char *)(iVar5 + 2) & POINT_LIGHT_FLAG_DYNAMIC) == 0) {
+          *(int *)(iVar5 + 0x54) = *(int *)(definition + 4);
         } else {
-          fVar2 = (local_8 * *(float *)(pbVar9 + 0xc) +
-                   local_18 * *(float *)(pbVar9 + 8)) *
-                  *(float *)(pbVar9 + 4);
-          *(float *)(iVar5 + 0x54) = fVar2;
-          if (fVar2 != *(float *)0x2533c0) {
-            light_params[0] = (int)tag_get(0x6c696768, *(int *)(iVar5 + 4));
+          value = (local_8 * *(float *)(definition + 0xc) +
+                   local_18 * *(float *)(definition + 8)) *
+                  *(float *)(definition + 4);
+          *(float *)(iVar5 + 0x54) = value;
+          if (value != REAL_ZERO_POOL) {
+            light_params[0] = (int)tag_get(TAG_GROUP_LIGH, *(int *)(iVar5 + 4));
             light_params[1] = *(int *)(iVar5 + 0x30);
             light_params[2] = *(int *)(iVar5 + 0x34);
             light_params[3] = *(int *)(iVar5 + 0x38);
@@ -5633,41 +5288,41 @@ void lights_preprocess_scene(void)
             light_params[8] = *(int *)(iVar5 + 0x4c);
             light_params[9] = *(int *)(iVar5 + 0x50);
             light_params[13] = *(int *)(iVar5 + 0x54);
-            *(float *)&light_params[10] = *pfVar1;
+            *(float *)&light_params[10] = *color;
             light_params[11] = *(int *)(iVar5 + 0x18);
             light_params[12] = *(int *)(iVar5 + 0x1c);
-            if (!(*pfVar1 >= *(float *)0x2533c0 &&
-                  *pfVar1 <= *(float *)0x2533c8)) {
+            if (!(*color >= REAL_ZERO_POOL &&
+                  *color <= REAL_ONE_POOL)) {
               display_assert(
                 "light->color.red >=0.0f && light->color.red <=1.0f",
                 "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x1ee, 1);
-              CALL_thunk_FUN_001029a0(-1);
+              system_exit(-1);
             }
-            if (!(*(float *)(iVar5 + 0x18) >= *(float *)0x2533c0 &&
-                  *(float *)(iVar5 + 0x18) <= *(float *)0x2533c8)) {
+            if (!(*(float *)(iVar5 + 0x18) >= REAL_ZERO_POOL &&
+                  *(float *)(iVar5 + 0x18) <= REAL_ONE_POOL)) {
               display_assert(
                 "light->color.green>=0.0f && light->color.green<=1.0f",
                 "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x1ef, 1);
-              CALL_thunk_FUN_001029a0(-1);
+              system_exit(-1);
             }
-            if (!(*(float *)(iVar5 + 0x1c) >= *(float *)0x2533c0 &&
-                  *(float *)(iVar5 + 0x1c) <= *(float *)0x2533c8)) {
+            if (!(*(float *)(iVar5 + 0x1c) >= REAL_ZERO_POOL &&
+                  *(float *)(iVar5 + 0x1c) <= REAL_ONE_POOL)) {
               display_assert(
                 "light->color.blue >=0.0f && light->color.blue <=1.0f",
                 "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x1f0, 1);
-              CALL_thunk_FUN_001029a0(-1);
+              system_exit(-1);
             }
             if (*(int *)(iVar5 + 0x58) == -1) {
-              if ((*pbVar9 & 0x10) == 0) {
-                if (*(short *)(local_14 + 100) == 2 &&
-                    *(int *)(local_14 + 0xcc) != -1) {
+              if ((*definition & LIGHT_DEFINITION_FLAG_FIRST_PERSON_FLASHLIGHT) == 0) {
+                if (*(short *)(object + 100) == 2 &&
+                    *(int *)(object + 0xcc) != -1) {
                   uVar11 = CALL_FUN_0013fea0_5(
                     *(int *)(iVar5 + 0x2c), *(unsigned short *)(iVar5 + 0x5c),
                     &light_params[1], &light_params[4], &light_params[7]);
-                  cVar3 = first_person_weapon_adjust_light(
+                  adjusted = first_person_weapon_adjust_light(
                     *(int *)(iVar5 + 0x2c), uVar11, &light_params[1],
                     &light_params[4], &light_params[7]);
-                  if (cVar3 != '\0')
+                  if (adjusted != '\0')
                     goto LAB_0013baac;
                 }
               } else {
@@ -5676,110 +5331,105 @@ void lights_preprocess_scene(void)
                   (float *)&light_params[4], &light_params[7]);
               LAB_0013baac:
                 *(unsigned char *)(iVar5 + 2) =
-                  *(unsigned char *)(iVar5 + 2) | 8;
+                  *(unsigned char *)(iVar5 + 2) | POINT_LIGHT_FLAG_ATTACHED_TO_FIRST_PERSON_WEAPON;
               }
             }
             uVar11 = rasterizer_lights_submit(light_params);
             *(int *)(iVar5 + 8) = uVar11;
-            *(short *)0x5a8d5a = (short)uVar11 + 1;
+            debug_rasterizer_light_count = (short)uVar11 + 1;
           }
         }
-        if (*(int *)(pbVar9 + 0xb8) != -1) {
-          *(int *)(lf_params + 0x00) =
-            (int)tag_get(0x6c656e73, *(int *)(pbVar9 + 0xb8));
-          *(unsigned int *)(lf_params + 0x18) =
+        if (*(int *)(definition + 0xb8) != -1) {
+          lens_flare.definition =
+            tag_get(0x6c656e73, *(int *)(definition + 0xb8));
+          lens_flare.compressed_light_color =
             CALL_FUN_00099530(local_c, (float *)(iVar5 + 0x14));
-          *(lf_params + 0x23) = CALL_FUN_00180770(local_8);
-          *(short *)(lf_params + 0x1e) = (short)local_48;
-          *(short *)(lf_params + 0x1c) =
-            (short)((unsigned int)local_48 >> 0x10);
-          *(unsigned char *)(lf_params + 0x22) = *(unsigned char *)0x50654a;
-          if (*(short *)(lf_params + 0x1c) == 0) {
+          lens_flare.compressed_light_scale = CALL_FUN_00180770(local_8);
+          lens_flare.light_index = (short)light_handle;
+          lens_flare.light_identifier =
+            (short)((unsigned int)light_handle >> 0x10);
+          lens_flare.compressed_window_index = *(unsigned char *)0x50654a;
+          if (lens_flare.light_identifier == 0) {
             display_assert("lens_flare_parameters.light_identifier!=0",
                            "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x21c,
                            1);
-            CALL_thunk_FUN_001029a0(-1);
+            system_exit(-1);
           }
-          if (*(short *)(lf_params + 0x1c) == -1) {
-            *(short *)(lf_params + 0x1c) = 0;
+          if (lens_flare.light_identifier == -1) {
+            lens_flare.light_identifier = 0;
           }
           if (*(int *)(iVar5 + 0x58) == -1) {
             uVar11 = CALL_FUN_0013fea0_2(*(int *)(iVar5 + 0x2c),
                                          *(unsigned short *)(iVar5 + 0x5c));
-            if (*(short *)(local_14 + 100) == 2 &&
-                *(int *)(local_14 + 0xcc) != -1) {
+            if (*(short *)(object + 100) == 2 &&
+                *(int *)(object + 0xcc) != -1) {
               sVar4 =
-                CALL_FUN_000ddb90(*(int *)(iVar5 + 0x2c), uVar11, local_3e0, 8);
+                CALL_FUN_000ddb90(*(int *)(iVar5 + 0x2c), uVar11, markers, MAXIMUM_LENS_FLARES_PER_LIGHT);
               if (0 < sVar4) {
-                *(unsigned char *)(lf_params + 0x22) =
-                  *(unsigned char *)(lf_params + 0x22) | 0x80;
+                lens_flare.compressed_window_index =
+                  lens_flare.compressed_window_index | 0x80;
               }
               if (sVar4 == 0)
                 goto LAB_0013bbaf;
             } else {
             LAB_0013bbaf:
               sVar4 = CALL_FUN_00140f10((void *)*(int *)(iVar5 + 0x2c), uVar11,
-                                        local_3e0, 8);
+                                        markers, MAXIMUM_LENS_FLARES_PER_LIGHT);
             }
-            sVar14 = 0;
+            marker_index = 0;
             if (0 < sVar4) {
-              puVar13 = local_3a4;
+              marker = local_3a4;
               do {
-                *(int *)(lf_params + 0x04) = *(int *)(puVar13 + 0x24);
-                *(int *)(lf_params + 0x08) = *(int *)(puVar13 + 0x28);
-                *(int *)(lf_params + 0x0c) = *(int *)(puVar13 + 0x2c);
-                *(int *)(lf_params + 0x10) =
-                  CALL_FUN_00180b10((float *)puVar13);
-                *(int *)(lf_params + 0x14) =
-                  CALL_FUN_00180b10((float *)(puVar13 + 0x18));
-                *(short *)(lf_params + 0x20) = sVar14;
-                CALL_FUN_00181670(lf_params);
-                sVar14 = sVar14 + 1;
-                puVar13 = puVar13 + 0x6c;
-              } while (sVar14 < sVar4);
+                *(int *)&lens_flare.position.x = *(int *)(marker + 0x24);
+                *(int *)&lens_flare.position.y = *(int *)(marker + 0x28);
+                *(int *)&lens_flare.position.z = *(int *)(marker + 0x2c);
+                lens_flare.compressed_direction =
+                  compress_real_vector3d_to_int32_clamp((float *)marker);
+                lens_flare.compressed_up =
+                  compress_real_vector3d_to_int32_clamp((float *)(marker + 0x18));
+                lens_flare.lens_flare_index = marker_index;
+                CALL_FUN_00181670(&lens_flare);
+                marker_index = marker_index + 1;
+                marker = marker + 0x6c;
+              } while (marker_index < sVar4);
             }
           } else {
-            *(int *)(lf_params + 0x04) = *(int *)(iVar5 + 0x30);
-            *(int *)(lf_params + 0x08) = *(int *)(iVar5 + 0x34);
-            *(int *)(lf_params + 0x0c) = *(int *)(iVar5 + 0x38);
-            *(int *)(lf_params + 0x10) =
-              CALL_FUN_00180b10((float *)(iVar5 + 0x3c));
-            *(int *)(lf_params + 0x14) =
-              CALL_FUN_00180b10((float *)(iVar5 + 0x48));
-            *(short *)(lf_params + 0x20) = 0;
-            CALL_FUN_00181670(lf_params);
+            *(int *)&lens_flare.position.x = *(int *)(iVar5 + 0x30);
+            *(int *)&lens_flare.position.y = *(int *)(iVar5 + 0x34);
+            *(int *)&lens_flare.position.z = *(int *)(iVar5 + 0x38);
+            lens_flare.compressed_direction =
+              compress_real_vector3d_to_int32_clamp((float *)(iVar5 + 0x3c));
+            lens_flare.compressed_up =
+              compress_real_vector3d_to_int32_clamp((float *)(iVar5 + 0x48));
+            lens_flare.lens_flare_index = 0;
+            CALL_FUN_00181670(&lens_flare);
           }
         }
       }
-      local_10 = local_10 + 1;
-    } while ((short)local_10 < *(short *)0x5a8d68);
+      index = index + 1;
+    } while ((short)index < lights_globals.scene_point_light_count);
   }
   sVar4 = 0;
-  if (0 < *(short *)0x5a90ac) {
+  if (0 < lights_globals.queued_lens_flare_count) {
     do {
-      CALL_FUN_00181670((void *)((char *)0x5a8f6c + sVar4 * 0x28));
+      CALL_FUN_00181670(&lights_globals.queued_lens_flares[sVar4]);
       sVar4 = sVar4 + 1;
-    } while (sVar4 < *(short *)0x5a90ac);
+    } while (sVar4 < lights_globals.queued_lens_flare_count);
   }
-  *(short *)0x5a90ac = 0;
+  lights_globals.queued_lens_flare_count = 0;
   FUN_00181410();
   if (*(char *)0x449ef1 != '\0' && *(char *)0x323608 != '\0') {
     CALL_FUN_0008fac0((int *)0x323600);
   }
 }
 
-/* lights_prepare_for_object_static — Compute object lighting from BSP
- * lightmap/environment. Samples lighting at the object's position and 4 offset
- * positions, averages successful samples. lights_distant_lighting_at_point
- * overwrites all 0x74 bytes of local_88 before returning, so this local
- * intentionally has no pre-clear, matching the XBE. (0x13bce0 / objects.obj,
- * object_lights.c:0x3ca) */
+/* lights_distant_lighting_at_point fills all of sample, so it has no pre-clear. */
 void lights_prepare_for_object_static(int object_handle, float *lighting)
 {
   int *obj;
   int tag_data;
   uint32_t flags;
-  float local_88[29];
+  float sample[29];
   float offset_pos[3];
   int16_t sample_count;
   uint16_t corner;
@@ -5821,54 +5471,54 @@ void lights_prepare_for_object_static(int object_handle, float *lighting)
     float yoff;
 
     if (corner & 1) {
-      xoff = *(float *)0x254b50;
+      xoff = REAL_SQRT_HALF_POOL;
     } else {
-      xoff = *(float *)0x29b5e0;
+      xoff = REAL_NEGATIVE_SQRT_HALF_POOL;
     }
     offset_pos[0] = xoff * *(float *)(obj + 0x17) + *(float *)(obj + 0x14);
 
     if (corner & 2) {
-      yoff = *(float *)0x254b50;
+      yoff = REAL_SQRT_HALF_POOL;
     } else {
-      yoff = *(float *)0x29b5e0;
+      yoff = REAL_NEGATIVE_SQRT_HALF_POOL;
     }
     offset_pos[1] = yoff * *(float *)(obj + 0x17) + *(float *)(obj + 0x15);
     *(int *)(offset_pos + 2) = obj[0x16];
 
     ok =
-      lights_distant_lighting_at_point(flags, (int)offset_pos, (int *)local_88);
+      lights_distant_lighting_at_point(flags, (int)offset_pos, (int *)sample);
     if (ok != '\0') {
       sample_count++;
-      lighting[0] += local_88[0];
-      lighting[1] += local_88[1];
-      lighting[2] += local_88[2];
-      lighting[0x13] += local_88[0x13];
-      lighting[0x14] += local_88[0x14];
-      lighting[0x15] += local_88[0x15];
-      lighting[0x16] += local_88[0x16];
-      lighting[4] += local_88[4];
-      lighting[5] += local_88[5];
-      lighting[6] += local_88[6];
-      lighting[7] += local_88[7];
-      lighting[8] += local_88[8];
-      lighting[9] += local_88[9];
-      lighting[0xa] += local_88[0xa];
-      lighting[0xb] += local_88[0xb];
-      lighting[0xc] += local_88[0xc];
-      lighting[0xd] += local_88[0xd];
-      lighting[0xe] += local_88[0xe];
-      lighting[0xf] += local_88[0xf];
-      lighting[0x1a] += local_88[0x1a];
-      lighting[0x1b] += local_88[0x1b];
-      lighting[0x1c] += local_88[0x1c];
-      lighting[0x17] += local_88[0x17];
-      lighting[0x18] += local_88[0x18];
-      lighting[0x19] += local_88[0x19];
+      lighting[0] += sample[0];
+      lighting[1] += sample[1];
+      lighting[2] += sample[2];
+      lighting[0x13] += sample[0x13];
+      lighting[0x14] += sample[0x14];
+      lighting[0x15] += sample[0x15];
+      lighting[0x16] += sample[0x16];
+      lighting[4] += sample[4];
+      lighting[5] += sample[5];
+      lighting[6] += sample[6];
+      lighting[7] += sample[7];
+      lighting[8] += sample[8];
+      lighting[9] += sample[9];
+      lighting[0xa] += sample[0xa];
+      lighting[0xb] += sample[0xb];
+      lighting[0xc] += sample[0xc];
+      lighting[0xd] += sample[0xd];
+      lighting[0xe] += sample[0xe];
+      lighting[0xf] += sample[0xf];
+      lighting[0x1a] += sample[0x1a];
+      lighting[0x1b] += sample[0x1b];
+      lighting[0x1c] += sample[0x1c];
+      lighting[0x17] += sample[0x17];
+      lighting[0x18] += sample[0x18];
+      lighting[0x19] += sample[0x19];
     }
   }
 
   if (sample_count > 1) {
-    scale = *(float *)0x2533c8 / (float)(int)sample_count;
+    scale = REAL_ONE_POOL / (float)(int)sample_count;
     lighting[0] *= scale;
     lighting[1] *= scale;
     lighting[2] *= scale;
@@ -5892,35 +5542,19 @@ void lights_prepare_for_object_static(int object_handle, float *lighting)
     lighting[0x19] *= scale;
     normalize3d(lighting + 0x17);
   } else if (sample_count == 0) {
-    csmemcpy(lighting, local_88, 29 * 4);
+    csmemcpy(lighting, sample, 29 * 4);
   }
 }
 
-/* build_family_shadow (0x13c030 / objects.obj) — depth-first walk of an
- * object's child hierarchy, forwarding two opaque parameters down the tree.
- *
- * For each object node (param_1), verifies the datum
- * (object_get_and_verify_type with type_mask -1), recurses into the first-child
- * handle (node+0xc8) carrying param_2/param_3 unchanged, then advances along
- * the sibling chain (node+0xc4) until the handle is -1.
- *
- * Confirmed: 3 cdecl args. param_1 @ [EBP+0x8] (ESI), param_2 @ [EBP+0xc],
- * param_3 @ [EBP+0x10] (EBX). param_2/param_3 are only forwarded to the
- * recursion (no local use).
- * Confirmed: object_get_and_verify_type(param_1, -1) is called twice per node;
- * the first result (EDI) supplies the child (+0xc8) and sibling (+0xc4)
- * handles, the second call's result is discarded (re-verify side effect).
- * Confirmed: tail iteration over sibling chain (CMP ESI,-1; JNZ loop).
- */
-void build_family_shadow(int param_1, int param_2, int param_3)
+void build_family_shadow(int object_index, int param_2, int param_3)
 {
   int node;
 
-  while (param_1 != -1) {
-    node = (int)object_get_and_verify_type(param_1, -1);
-    object_get_and_verify_type(param_1, -1);
+  while (object_index != -1) {
+    node = (int)object_get_and_verify_type(object_index, -1);
+    object_get_and_verify_type(object_index, -1);
     build_family_shadow(*(int *)(node + 0xc8), param_2, param_3);
-    param_1 = *(int *)(node + 0xc4);
+    object_index = *(int *)(node + 0xc4);
   }
 }
 
@@ -9959,10 +9593,10 @@ void object_disconnect_from_map(int object_handle)
   obj = header->object;
 
   /* assert: identifier portion of handle must be nonzero */
-  assert_halt(object_handle & 0xffff0000);
+  assert_halt_at(__FILE__, 9962, object_handle & 0xffff0000);
 
   /* assert: object must be connected to map */
-  assert_halt(obj->flags & 0x800);
+  assert_halt_at(__FILE__, 9965, obj->flags & 0x800);
 
   if (obj->parent_object_index.value != NONE) {
     /* Object has a parent: unlink from parent's child chain.
@@ -11411,10 +11045,10 @@ void object_compute_child_marker_position(void *object, void *child_marker,
   float up_x, up_y, up_z;
   x87_wide_t left_x, left_y, left_z; /* 0x14113e-0x14118d: kept in ST(1..3) */
 
-  assert_halt(object != NULL);
-  assert_halt(child_marker != NULL);
-  assert_halt(dest_matrix != NULL);
-  assert_halt(valid_real_matrix4x3((float *)dest_matrix));
+  assert_halt_at(__FILE__, 11414, object != NULL);
+  assert_halt_at(__FILE__, 11415, child_marker != NULL);
+  assert_halt_at(__FILE__, 11416, dest_matrix != NULL);
+  assert_halt_at(__FILE__, 11417, valid_real_matrix4x3((float *)dest_matrix));
 
   obj_position = (float *)((char *)object + 0xc);
   obj_forward = (float *)((char *)object + 0x24);

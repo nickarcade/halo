@@ -5060,9 +5060,12 @@
     "call_count": 9
   },
   "0x13a5f0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 7,
-    "call_count": 9
+    "call_count": 9,
+    "confidence": "weak",
+    "coverage_pct": 11.3,
+    "oracle": "xbe"
   },
   "0x13a740": {
     "class": "non_leaf",
@@ -5073,7 +5076,7 @@
     "oracle": "xbe"
   },
   "0x13aa10": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 10,
     "call_count": 9
   },
@@ -5103,7 +5106,7 @@
     "call_count": 5
   },
   "0x13b380": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 91,
     "call_count": 74
   },
