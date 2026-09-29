@@ -16,6 +16,77 @@ Usage: `/recover-source <src file | kb.json object> [--allow-risky]`
 The manifest at `tools/recovery/source_recovery.py` is the machine state — never
 work from an untracked baseline or silently rewrite a source file.
 
+## Target style
+
+The ladder is *how* to change source safely. These rules are *what* the finished
+source should look like: it reads like code a person wrote, with no offsets, no
+addresses, and no header comment. 2276 remains the source of truth, and the
+recovery lane does not change bytes.
+
+**Identifiers**
+1. **No raw addresses in function bodies.** A global becomes a named macro in
+   the TU's header (`#define light_data (*(data_t **)0x5a90bc)`, exact token run,
+   rung 4). Declare the address once, and never in the `.c`. An `XCALL(0x…)`
+   becomes a kb.json function name. A `.rdata` pool constant
+   (`*(float *)0x2533f0`) is a literal (`0.8f`) only through the byte lane,
+   which verifies the XBE value first. In the neutral lane it becomes a macro
+   named for its value (`REAL_0_8_POOL`).
+2. **No decompiler names.** `iVarN`, `pbVarN`, `param_N`, `local_N`, `FUN_`,
+   `DAT_`, and `code_<addr>`/`bss_<addr>` are debt. Use a semantic name when
+   there is T1/T2 evidence (an assert string, a `data_new` name, or another
+   T2 source per `naming-confidence`). Otherwise use a mechanical role name
+   (`light`, `definition`, `index`). Never invent a meaning (`naming-confidence`).
+3. **Use project types.** Use `real`, `real_point3d`, `real_vector3d`,
+   `real_argb_color`, `data_t *`, and `bool`/`boolean` returns where the
+   binary tests `AL`. Do not use `int`/`float *` stand-ins where a project type
+   exists.
+
+**Structures**
+4. **A struct, not offset arithmetic.** Repeated `*(T *)(p + 0xNN)` on one base
+   means there is a struct. Recover it (rungs 6–7). **Offsets and widths come
+   from 2276 accesses only.** Never borrow another build's layout. Name only
+   observed offsets, write `pad_<hex>[n]` for unobserved bytes, and take the
+   size from 2276 evidence (`data_new` stride, globals spacing, `cs()`). If the
+   size is unproven, declare a prefix and say so.
+5. **Typed accessors.** Define one `light_get(h)` /
+   `light_definition_get(i)`-style macro per datum or tag type, wrapping
+   `datum_get` / `tag_get`. Use it instead of casting at every call site.
+   Assign the result to a typed local once, then use fields.
+6. **Flags and enums.** Where a bit's meaning is proven, use
+   `TEST_FLAG`/`SET_FLAG`-style macros and named bits. Use enum constants in
+   switch tables. Leave unproven bits as literals.
+
+**Comments and layout**
+7. **No function header comments by default.** The address, object, and
+   signature live in kb.json. Delete comments that restate the code, name the
+   address, or transcribe disassembly (`Confirmed: PUSH …`). Evidence belongs in
+   `recovery/evidence/` or the commit message. Keep only a comment that holds
+   knowledge the code cannot: an ABI quirk, a match-sensitive construct, an
+   open uncertainty (`re-comment-capture`). One line if possible.
+8. **Concise.** Combine a declaration with its initializer when it is the first
+   use and C89 allows it (rule 9: declarations first; moving a *call* into an
+   initializer is allowed only when it was already the first statement). Use
+   one typed local instead of repeated casts. Use no redundant parentheses or
+   `(void *)` casts that the prototype already implies.
+9. **Owners.** Types go in the proven Bungie header (`header-recovery`). If no
+   dedicated header exists, use the closest associated header that the TU
+   already includes. Prototypes come from kb.json/`decl.h`, never from a
+   consumer `.c`.
+
+**Integrity** (CLAUDE.md rule 10)
+10. Reject fake matching and source that is implausible for the original
+    program. Reject nonsensical logic even when the bytes match.
+11. Credible, readable code that is *not* byte-neutral is not recovery. Hand it
+    to the byte lane or park it with the measured difference. Never ship it as
+    "cleanup".
+
+**`__LINE__` TUs.** Deleting comment lines shifts every `assert_halt(cond)` below
+it. Pin the remaining implicit sites first, in their own commit:
+`assert_halt(c)` → `assert_halt_at(__FILE__, <its current line>, c)` (byte-identical;
+`assert_metadata_guard` ignores the source line of explicit-literal sites).
+Prefer `tools/audit/recover_assert_sites.py --apply` when it matches the original
+text. That is a corrective change, and it goes in a separate commit.
+
 ## Required sequence
 
 ```bash
