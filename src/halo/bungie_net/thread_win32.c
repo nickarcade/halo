@@ -338,6 +338,23 @@ void FUN_00081480(unsigned int *min, unsigned int *max, unsigned int *result)
 }
 
 /*
+ * 0x815c0 — get_thread_from_pool
+ * Scans 32 8-byte slots in g_thread_slots (0x334990); returns first free slot.
+ */
+void *get_thread_from_pool(void)
+{
+  int i;
+  for (i = 0; i < 32; i++) {
+    if (!g_thread_slots[i].in_use) {
+      g_thread_slots[i].handle = 0;
+      g_thread_slots[i].in_use = 1;
+      return (void *)&g_thread_slots[i];
+    }
+  }
+  return NULL;
+}
+
+/*
  * FUN_000815f0 — claim the first available 0x28-byte mutex slot.
  *
  * Confirmed: scans byte 0x334ab4 with stride 0x28 through 0x334fb4; on
