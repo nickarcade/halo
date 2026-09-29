@@ -32,40 +32,90 @@ double pow(double x, double y);
 #define XCALL(addr, type) ((type)(addr))
 #define CALL_FUN_001d0581() XCALL(0x1d0581, int (*)(void))()
 #define CALL_thunk_FUN_001029a0(a) XCALL(0x8e2f0, void (*)(int))(a)
-#define CALL_FUN_000b65c0(a) XCALL(0xb65c0, int (*)(unsigned short))(a)
-#define CALL_FUN_000b6740(a, b) \
-  XCALL(0xb6740, void (*)(unsigned short, void *))(a, b)
-#define CALL_FUN_000b7e30(a) XCALL(0xb7e30, void *(*)(unsigned short))(a)
-#define CALL_FUN_001a9240(a, b) XCALL(0x1a9240, void (*)(int, void *))(a, b)
 #define CALL_FUN_00084a70(a, b) XCALL(0x84a70, char (*)(float *, float *))(a, b)
 #define CALL_FUN_00084a10(a) XCALL(0x84a10, char (*)(float *))(a)
 #define CALL_game_time_get_rate() XCALL(0xb5cc0, float (*)(void))()
-#define CALL_FUN_000b5c30() XCALL(0xb5c30, char (*)(void))()
-#define CALL_FUN_000b5aa0() XCALL(0xb5aa0, int (*)(void))()
 #define CALL_FUN_0013d640(a, b) XCALL(0x13d640, int (*)(int, int))(a, b)
-#define CALL_FUN_0008f390(a, b) \
-  XCALL(0x8f390, void (*)(unsigned short, const char *))(a, b)
 /* real_rgb_color_brightness (0x7a750) — call by name, no XCALL needed */
 #define CALL_FUN_00198cb0(a, b, c, d, e, f, g, h)                              \
   XCALL(0x198cb0,                                                              \
         char (*)(int, void *, void *, void *, void *, void *, void *, void *)) \
   (a, b, c, d, e, f, g, h)
-#define CALL_FUN_001bf570(a, b, c) \
-  XCALL(0x1bf570, int (*)(int, int, int))(a, b, c)
-#define CALL_FUN_001396e0(a) XCALL(0x1396e0, void (*)(int))(a)
-#define CALL_FUN_001198f0(a, b) XCALL(0x1198f0, int (*)(void *, int))(a, b)
-#define CALL_FUN_001196d0(a, b) XCALL(0x1196d0, void (*)(void *, int))(a, b)
-#define CALL_FUN_001919a0(a, b, c) \
-  XCALL(0x1919a0, void (*)(void *, int, int))(a, b, c)
-#define CALL_FUN_001403a0(a, b, c) \
-  XCALL(0x1403a0, void (*)(int, unsigned short, float *))(a, b, c)
-#define CALL_FUN_0010a710(a, b) \
-  XCALL(0x10a710, float (*)(unsigned short, float))(a, b)
+/* Wrappers retired in favour of named kb.json calls:
+ *   0x1396e0 object_wake        0x13aed0 object_move_to_limbo
+ *   0x140cc0 object_delete      0x13fb30 object_activate
+ *   0x143c80 object_new         0x13fc20 object_placement_data_new
+ *   0x1196d0 datum_delete
+ *   0x1919a0 cluster_partition_remove_object
+ *   0x0b5aa0 game_time_get
+ *   0x0b5c30 game_time_get_paused
+ *   0x08fa40 profile_enter_private
+ *   0x08fac0 profile_exit_private
+ *   0x0b65c0 player_control_get_aiming_unit_index
+ *   0x0b6740 player_control_get_unit_camera_info
+ *   0x0b7e30 player_control_get_facing_angles
+ *   0x1a9240 unit_set_seat_state
+ * Unused wrappers removed (no call sites anywhere in src/):
+ *   0x021fb0 valid_real_normal3d
+ *   0x0a16b0 valid_real_point3d
+ *   0x0d1c90 real_argb_color_to_pixel32
+ *   0x0f6d00 valid_real_matrix4x3 (one-argument form)
+ *   0x119320 datum_get
+ *   0x1193f0 data_verify
+ *   0x1198f0 data_next_index
+ *   0x143ae0 object_set_position
+ *   0x1812b0 FUN_001812b0
+ *   0x181410 FUN_00181410
+ *   0x189320 FUN_00189320 (five-argument form)
+ *   0x1ba1f0 tag_get_name
+ *   0x1bf570 xbox_texture_cache_get_hardware_format
+ *   0x1d9260 qsort (wrapper was typed as an fprintf-style call)
+ *   0x1d9e59 crt_fopen
+ * The wrappers' casts were never checked against those declarations.
+ *
+ * Retired third pass (typed pointers now cast explicitly at the call site):
+ *   0x07c270 FUN_0007c270
+ *   0x07c490 FUN_0007c490
+ *   0x085b60 dead_camera_new
+ *   0x08f390 error
+ *   0x099530 real_a_rgb_color_to_pixel32
+ *   0x0ddb90 first_person_weapon_get_marker_by_name_render
+ *   0x10a710 transition_function_evaluate
+ *   0x10bbc0 vectors3d_from_euler_angles3d
+ *   0x013010 normalize3d
+ *   0x123470 animation_get_root_matrix
+ *   0x138ee0 FUN_00138ee0
+ *   0x1390d0 FUN_001390d0
+ *   0x1403a0 object_get_function_value
+ *   0x180570 FUN_00180570
+ *   0x180660 FUN_00180660
+ *   0x180770 FUN_00180770
+ *   0x180b10 compress_real_vector3d_to_int32_clamp
+ *   0x181670 FUN_00181670
+ *   0x184e50 rendered_cluster_get
+ *   0x0f6d00 valid_real_matrix4x3 (zero-argument form; dropped &matrix)
+ *
+ * Why the line count matters: the byte-campaign doctrine records that
+ * objects.c edits which change the file's line count make the raw-byte
+ * gate report false drops in later, unedited functions (__LINE__-stamped
+ * asserts). Keep this block's height equal to the lines it replaced
+ * until the whole wrapper block is gone; then remove the XCALL
+ * definition and rebalance the count in one commit, checked with the
+ * same gate.
+ *
+ * Remaining wrappers below still need binary evidence before replacement:
+ * overloaded forms, arity conflicts with kb.json, unported callees, and
+ * one wrapper that costs bytes when called directly
+ * (game_time_get_speed, see scripted_camera_update).
+ *
+ * Several kb names above predate later evidence (0x1396e0/0x13aed0 are
+ * point-light disconnect/connect; 0x1a9240 reads a unit camera position).
+ * This note keeps the file's line count, and so every later
+ * __LINE__-stamped assert, unchanged.
+ */
 /* first_person_weapon_center_flashlight: replaced XCALL with named call */
 /* first_person_weapon_adjust_light: replaced XCALL with named call — takes 5
  * args (MSVC stack-reuse) */
-#define CALL_FUN_000ddb90(a, b, c, d) \
-  XCALL(0xddb90, short (*)(int, int, void *, int))(a, b, c, d)
 #define CALL_FUN_0013fea0_2(a, b) \
   XCALL(0x13fea0, int (*)(int, unsigned short))(a, b)
 #define CALL_FUN_0013fea0_5(a, b, c, d, e)                              \
@@ -73,68 +123,18 @@ double pow(double x, double y);
   (a, b, c, d, e)
 #define CALL_FUN_00140f10(a, b, c, d) \
   XCALL(0x140f10, short (*)(void *, int, void *, int))(a, b, c, d)
-#define CALL_FUN_00099530(a, b) \
-  XCALL(0x99530, unsigned int (*)(float, float *))(a, b)
-#define CALL_FUN_0008fa40(a) XCALL(0x8fa40, void (*)(void *))(a)
-#define CALL_FUN_0008fac0(a) XCALL(0x8fac0, void (*)(void *))(a)
-#define CALL_FUN_001193f0(a) XCALL(0x1193f0, void (*)(void *))(a)
-#define CALL_FUN_00119320(a, b) XCALL(0x119320, int (*)(void *, int))(a, b)
-#define CALL_FUN_00140cc0(a) XCALL(0x140cc0, void (*)(int))(a)
-#define CALL_FUN_0013fc20(a, b, c) \
-  XCALL(0x13fc20, void (*)(void *, int, int))(a, b, c)
-#define CALL_FUN_0013fb30(a) XCALL(0x13fb30, void (*)(int))(a)
-#define CALL_FUN_00143c80(a) XCALL(0x143c80, int (*)(void *))(a)
-#define CALL_FUN_0010bbc0(a, b, c) \
-  XCALL(0x10bbc0, void (*)(void *, void *, void *))(a, b, c)
-#define CALL_FUN_000f6d00_0() XCALL(0xf6d00, char (*)(void))()
-#define CALL_FUN_000f6d00_1(a) XCALL(0xf6d00, char (*)(void *))(a)
-#define CALL_FUN_00021fb0(a) XCALL(0x21fb0, char (*)(float *))(a)
-#define CALL_FUN_000a16b0(a) XCALL(0xa16b0, char (*)(void *))(a)
-#define CALL_FUN_00143ae0() XCALL(0x143ae0, void (*)(void))()
-#define CALL_FUN_001d9e59(a, b) \
-  XCALL(0x1d9e59, void *(*)(const char *, const char *))(a, b)
-#define CALL_FUN_001d9260 XCALL(0x1d9260, int (*)(void *, const char *, ...))
-#define CALL_FUN_00013010(a) XCALL(0x13010, float (*)(void *))(a)
-#define CALL_FUN_001ba1f0(a) XCALL(0x1ba1f0, void (*)(int))(a)
-#define CALL_FUN_0013aed0(a) XCALL(0x13aed0, void (*)(int))(a)
-#define CALL_FUN_00184e50(a) XCALL(0x184e50, short *(*)(int))(a)
 #define CALL_FUN_00181900(a) XCALL(0x181900, void (*)(int))(a)
-#define CALL_FUN_00181670(a) XCALL(0x181670, void (*)(void *))(a)
 #define CALL_first_person_camera_fake(a, b) \
   XCALL(0x89240, void (*)(int, void *))(a, b)
-#define CALL_FUN_00085b60(a, b, c) \
-  XCALL(0x85b60, void (*)(int, unsigned short, int))(a, b, c)
 #define CALL_dead_camera_update(a, b, c) \
   XCALL(0x85c80, void (*)(int, void *, void *))(a, b, c)
 /* FUN_00138fd0 and FUN_00138f70 now in kb.json with proper declarations. */
-#define CALL_FUN_00180570(a, b) XCALL(0x180570, void (*)(int, void *))(a, b)
-#define CALL_FUN_00180660(a, b) \
-  XCALL(0x180660, void (*)(unsigned int *, float *))(a, b)
 #define CALL_FUN_00189150(a, b, c, d) \
   XCALL(0x189150, void (*)(int, int, float, void *))(a, b, c, d)
-#define CALL_FUN_007c490(a, b, c, d, e, f)                          \
-  XCALL(0x7c490, void (*)(int, int, void *, void *, void *, float)) \
-  (a, b, c, d, e, f)
 #define CALL_FUN_00196c90(a, b, c, d, e, f, g)                        \
   XCALL(0x196c90,                                                     \
         int (*)(void *, int, void *, void *, void *, void *, void *)) \
   (a, b, c, d, e, f, g)
-#define CALL_FUN_00123470(a, b, c, d) \
-  XCALL(0x123470, void (*)(void *, void *, int, void *))(a, b, c, d)
-#define CALL_FUN_00189320_5(a, b, c, d, e) \
-  XCALL(0x189320, void (*)(int, void *, void *, float, void *))(a, b, c, d, e)
-#define CALL_FUN_00180770(a) XCALL(0x180770, unsigned char (*)(float))(a)
-#define CALL_FUN_001812b0() XCALL(0x1812b0, void (*)(void))()
-#define CALL_FUN_00181410() XCALL(0x181410, void (*)(void))()
-#define CALL_FUN_0007c270(a, b, c, d, e)                                     \
-  XCALL(0x7c270, float *(*)(float *, unsigned int, float *, float *, float)) \
-  (a, b, c, d, e)
-#define CALL_FUN_00180b10(a) XCALL(0x180b10, unsigned int (*)(float *))(a)
-#define CALL_FUN_001390d0(a, b, c, d, e, f)                         \
-  XCALL(0x1390d0, void (*)(int, int, void *, float, float, void *)) \
-  (a, b, c, d, e, f)
-#define CALL_FUN_00138ee0(a) XCALL(0x138ee0, int (*)(int))(a)
-#define CALL_FUN_000d1c90(a) XCALL(0xd1c90, unsigned int (*)(float *))(a)
 /*
  * real_vector3d_valid — check whether a 3D vector contains only finite floats.
  *
@@ -242,8 +242,8 @@ void bored_camera_update(int *param_1, unsigned short *param_2,
     iVar4 = 3;
   }
   if (param_1[1] < iVar4 * 1000) {
-    iVar3 = CALL_FUN_000b65c0(*param_2);
-    CALL_FUN_000b6740(*param_2, local_30);
+    iVar3 = player_control_get_aiming_unit_index(*param_2);
+    player_control_get_unit_camera_info(*param_2, local_30);
     *(int *)(param_3 + 4) = local_24;
     *(int *)(param_3 + 8) = local_20;
     *(int *)(param_3 + 0xc) = local_1c;
@@ -251,10 +251,10 @@ void bored_camera_update(int *param_1, unsigned short *param_2,
       if (*(int *)(local_28 + 0x4c) != 0) {
         tag_block_get_element((void *)(local_28 + 0x4c), 0, 0x1c);
       }
-      pfVar5 = (float *)CALL_FUN_000b7e30(*param_2);
+      pfVar5 = (float *)player_control_get_facing_angles(*param_2);
       angles[0] = *pfVar5;
       angles[1] = pfVar5[1];
-      CALL_FUN_001a9240(iVar3, local_18);
+      unit_set_seat_state(iVar3, (float *)local_18);
       /* Random bored-camera angles. The original evaluates each
        * random_real_range(min,max) by pushing min/max, then calling the
        * 0-arg local-seed getter, then random_real_range(seed, min, max).
@@ -442,7 +442,7 @@ void scripted_camera_set_dead(int param_1)
     *(int *)0x2ee5d4 = param_1;
     return;
   }
-  CALL_FUN_0008f390(2, (const char *)0x266ecc);
+  error(2, (const char *)0x266ecc);
 }
 
 /* scripted_camera_object_is_first_person_camera (0x85150) — Check if
@@ -607,7 +607,7 @@ void scripted_camera_update(int param_1, unsigned short *param_2,
   fVar13 = (float)CALL_game_time_get_rate();
   local_8 = fVar13;
   *param_3 = 8;
-  cVar5 = CALL_FUN_000b5c30();
+  cVar5 = game_time_get_paused();
   if (cVar5) {
     uVar7 = *param_3 | 0x20;
   } else {
@@ -689,7 +689,7 @@ void scripted_camera_update(int param_1, unsigned short *param_2,
         iVar8 = iVar2;
       }
     }
-    CALL_FUN_00123470(0, (void *)iVar9, iVar8, local_48);
+    animation_get_root_matrix(0, (void *)iVar9, iVar8, local_48);
     param_3[9] = local_44;
     param_3[10] = local_40;
     param_3[0xb] = local_3c;
@@ -714,7 +714,7 @@ void scripted_camera_update(int param_1, unsigned short *param_2,
     iVar9 = CALL_FUN_0013d640(*(int *)0x2ee5d4, 3);
     if (iVar9 != 0) {
       if (*(char *)0x2ee5a1 != '\0') {
-        CALL_FUN_00085b60(param_1, *param_2, *(int *)0x2ee5d4);
+        dead_camera_new((void *)param_1, *param_2, *(int *)0x2ee5d4);
       }
       CALL_dead_camera_update(param_1, param_2, param_3);
     }
@@ -4012,7 +4012,7 @@ void lights_queue_lens_flare(int definition_index, int *position, int direction,
     base = (char *)0x5a8f6c + iVar1;
 
     *(unsigned int *)(base + 0x18) = real_a_rgb_color_to_pixel32(1.0f, color);
-    base[0x23] = (char)CALL_FUN_00180770(scale);
+    base[0x23] = (char)FUN_00180770(scale);
     *(void **)(base + 0x00) = tag_get(0x6c656e73, definition_index);
     vec = (int *)(base + 0x04);
     vec[0] = position[0];
@@ -4023,8 +4023,8 @@ void lights_queue_lens_flare(int definition_index, int *position, int direction,
      * NB: rank-1 winner also mutated the +0x1c fill to 0xFF — REJECTED as a
      * semantic corruption; 0xffff kept. */
     iVar1 = 0x14;
-    *(int *)(base + 0x10) = CALL_FUN_00180b10((float *)direction);
-    *(int *)(base + iVar1) = CALL_FUN_00180b10((float *)up);
+    *(int *)(base + 0x10) = compress_real_vector3d_to_int32_clamp((float *)direction);
+    *(int *)(base + iVar1) = compress_real_vector3d_to_int32_clamp((float *)up);
     base[0x22] = render_window_index;
     iVar1 = 0x5a90ac;
     *(short *)(base + 0x1e) = (short)0xffff;
@@ -4789,45 +4789,45 @@ char lights_distant_lighting_at_point(unsigned int flags, int point,
                                    (int)*(short *)(iVar6 + 0x10) %
                                      *(int *)(iVar4 + 0x60));
       if (structure != 0 && local_14 != 0 &&
-          (iVar4 = CALL_FUN_00138ee0(structure), iVar4 != 0) &&
-          (iVar4 = CALL_FUN_00138ee0(local_14), iVar4 != 0)) {
-        CALL_FUN_001390d0(iVar6, local_14, surface, s, t,
+          (iVar4 = FUN_00138ee0(structure), iVar4 != 0) &&
+          (iVar4 = FUN_00138ee0(local_14), iVar4 != 0)) {
+        FUN_001390d0(iVar6, local_14, surface, s, t,
                           (void *)local_88);
         FUN_00138fd0(iVar6, structure, surface, s, t, local_40);
-        CALL_FUN_00180570((unsigned int)*surface * 0x20 + *(int *)(iVar6 + 0xf8),
+        FUN_00180570((unsigned int)*surface * 0x20 + *(int *)(iVar6 + 0xf8),
                           (void *)local_64);
-        CALL_FUN_00180570((unsigned int)surface[1] * 0x20 +
+        FUN_00180570((unsigned int)surface[1] * 0x20 +
                             *(int *)(iVar6 + 0xf8),
                           (void *)local_58);
-        CALL_FUN_00180570((unsigned int)surface[2] * 0x20 +
+        FUN_00180570((unsigned int)surface[2] * 0x20 +
                             *(int *)(iVar6 + 0xf8),
                           (void *)local_4c);
         FUN_00138f70((float *)local_7c, (float *)local_4c, (float *)local_58,
                      (float *)local_64, s, t);
-        CALL_FUN_00013010((void *)local_7c);
-        CALL_FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
+        normalize3d((void *)local_7c);
+        FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
                                            ((unsigned int)*surface +
                                             *(int *)(iVar6 + 0xb4) * 4) *
                                              8),
                           (float *)local_64);
-        CALL_FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
+        FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
                                            ((unsigned int)surface[1] +
                                             *(int *)(iVar6 + 0xb4) * 4) *
                                              8),
                           (float *)local_58);
-        CALL_FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
+        FUN_00180660((unsigned int *)(*(int *)(iVar6 + 0xf8) +
                                            ((unsigned int)surface[2] +
                                             *(int *)(iVar6 + 0xb4) * 4) *
                                              8),
                           (float *)local_4c);
-        local_2c = (float)CALL_FUN_00013010((void *)local_64);
-        local_28 = (float)CALL_FUN_00013010((void *)local_58);
-        local_24 = (float)CALL_FUN_00013010((void *)local_4c);
+        local_2c = (float)normalize3d((void *)local_64);
+        local_28 = (float)normalize3d((void *)local_58);
+        local_24 = (float)normalize3d((void *)local_4c);
         FUN_00138f70((float *)local_70, (float *)local_4c, (float *)local_58,
                      (float *)local_64, s, t);
         distance_scale = (local_24 - local_2c) * t +
                          (local_28 - local_2c) * s + local_2c;
-        CALL_FUN_00013010((void *)local_70);
+        normalize3d((void *)local_70);
         if (debug_object_lights != '\0') {
           local_2c = local_40[0];
           local_28 = local_40[1];
@@ -5118,9 +5118,9 @@ void lights_preprocess_scene(void)
   float local_c;
   float local_8;
 
-  game_time = CALL_FUN_000b5aa0();
+  game_time = game_time_get();
   if (*(char *)0x449ef1 != '\0' && *(char *)0x323608 != '\0') {
-    CALL_FUN_0008fa40((int *)0x323600);
+    profile_enter_private((int *)0x323600);
   }
   debug_rasterizer_light_count = 0;
   for (iVar5 = data_next_index(light_data, -1); iVar5 != -1;
@@ -5133,13 +5133,13 @@ void lights_preprocess_scene(void)
       index = game_time - *(int *)(iVar6 + 0x58);
       if ((float)index > *(float *)(iVar7 + 0xf4)) {
         iVar6 = (int)datum_get(light_data, iVar5);
-        CALL_FUN_001919a0(light_cluster_partition, iVar5, iVar6 + 0x10);
-        CALL_FUN_001196d0(light_data, iVar5);
+        cluster_partition_remove_object(light_cluster_partition, iVar5, (void *)(iVar6 + 0x10));
+        datum_delete(light_data, iVar5);
       } else {
         iVar6 = CALL_FUN_0013d640(*(int *)(iVar6 + 0x2c), -1);
         if (iVar6 != 0) {
-          CALL_FUN_001396e0(iVar5);
-          CALL_FUN_0013aed0(iVar5);
+          object_wake(iVar5);
+          object_move_to_limbo(iVar5);
         }
       }
     }
@@ -5164,7 +5164,7 @@ void lights_preprocess_scene(void)
   iVar5 = 0;
   if (0 < rendered_cluster_count) {
     do {
-      rendered_cluster = CALL_FUN_00184e50(iVar5);
+      rendered_cluster = rendered_cluster_get(iVar5);
       CALL_FUN_00181900((int)*rendered_cluster);
       iVar5 = iVar5 + 1;
     } while ((short)iVar5 < rendered_cluster_count);
@@ -5190,21 +5190,21 @@ void lights_preprocess_scene(void)
                          0x1ac, 1);
           system_exit(-1);
         }
-        CALL_FUN_001403a0(*(int *)(iVar5 + 0x2c),
+        object_get_function_value(*(int *)(iVar5 + 0x2c),
                           *(unsigned short *)(iVar5 + 0x5e), &local_8);
         puVar10 = *(char **)0x2ee708;
         if (*(short *)(iVar5 + 0x60) != -1) {
           puVar10 = (char *)(iVar6 + (*(short *)(iVar5 + 0x60) + 0x1e) * 0xc);
         }
-        CALL_FUN_007c490(iVar5 + 0x14, *(int *)(definition + 0x34), definition + 0x38,
-                         definition + 0x48, puVar10, local_8);
+        FUN_0007c490((float *)(iVar5 + 0x14), *(int *)(definition + 0x34), (float *)(definition + 0x38),
+                         (float *)(definition + 0x48), (float *)puVar10, local_8);
       } else {
         local_18 = (float)(game_time - *(int *)(iVar5 + 0x58));
-        transition = (float)CALL_FUN_0010a710(*(unsigned short *)(definition + 0xfa),
+        transition = (float)transition_function_evaluate(*(unsigned short *)(definition + 0xfa),
                                           (float)(int)local_18 /
                                             *(float *)(definition + 0xf4));
         local_8 = (REAL_ONE_POOL - transition) * *(float *)(iVar5 + 0x78);
-        CALL_FUN_0007c270(
+        FUN_0007c270(
           (float *)(iVar5 + 0x14), *(unsigned int *)(definition + 0x34),
           (float *)(definition + 0x3c), (float *)(definition + 0x4c), local_8);
       }
@@ -5343,8 +5343,8 @@ void lights_preprocess_scene(void)
           lens_flare.definition =
             tag_get(0x6c656e73, *(int *)(definition + 0xb8));
           lens_flare.compressed_light_color =
-            CALL_FUN_00099530(local_c, (float *)(iVar5 + 0x14));
-          lens_flare.compressed_light_scale = CALL_FUN_00180770(local_8);
+            real_a_rgb_color_to_pixel32(local_c, (float *)(iVar5 + 0x14));
+          lens_flare.compressed_light_scale = FUN_00180770(local_8);
           lens_flare.light_index = (short)light_handle;
           lens_flare.light_identifier =
             (short)((unsigned int)light_handle >> 0x10);
@@ -5364,7 +5364,7 @@ void lights_preprocess_scene(void)
             if (*(short *)(object + 100) == 2 &&
                 *(int *)(object + 0xcc) != -1) {
               sVar4 =
-                CALL_FUN_000ddb90(*(int *)(iVar5 + 0x2c), uVar11, markers, MAXIMUM_LENS_FLARES_PER_LIGHT);
+                first_person_weapon_get_marker_by_name_render(*(int *)(iVar5 + 0x2c), (void *)uVar11, markers, MAXIMUM_LENS_FLARES_PER_LIGHT);
               if (0 < sVar4) {
                 lens_flare.compressed_window_index =
                   lens_flare.compressed_window_index | 0x80;
@@ -5388,7 +5388,7 @@ void lights_preprocess_scene(void)
                 lens_flare.compressed_up =
                   compress_real_vector3d_to_int32_clamp((float *)(marker + 0x18));
                 lens_flare.lens_flare_index = marker_index;
-                CALL_FUN_00181670(&lens_flare);
+                FUN_00181670((int *)&lens_flare);
                 marker_index = marker_index + 1;
                 marker = marker + 0x6c;
               } while (marker_index < sVar4);
@@ -5402,7 +5402,7 @@ void lights_preprocess_scene(void)
             lens_flare.compressed_up =
               compress_real_vector3d_to_int32_clamp((float *)(iVar5 + 0x48));
             lens_flare.lens_flare_index = 0;
-            CALL_FUN_00181670(&lens_flare);
+            FUN_00181670((int *)&lens_flare);
           }
         }
       }
@@ -5412,14 +5412,14 @@ void lights_preprocess_scene(void)
   sVar4 = 0;
   if (0 < lights_globals.queued_lens_flare_count) {
     do {
-      CALL_FUN_00181670(&lights_globals.queued_lens_flares[sVar4]);
+      FUN_00181670((int *)&lights_globals.queued_lens_flares[sVar4]);
       sVar4 = sVar4 + 1;
     } while (sVar4 < lights_globals.queued_lens_flare_count);
   }
   lights_globals.queued_lens_flare_count = 0;
   FUN_00181410();
   if (*(char *)0x449ef1 != '\0' && *(char *)0x323608 != '\0') {
-    CALL_FUN_0008fac0((int *)0x323600);
+    profile_exit_private((int *)0x323600);
   }
 }
 
@@ -6694,60 +6694,60 @@ int object_type_synchronize(int param_1, short *param_2, int param_3,
   int uVar11;
   int uVar12;
   float *position;
+  int definition_index;
 
   if (*param_2 == -1) {
     if (param_1 != -1) {
-      CALL_FUN_00140cc0(param_1);
+      object_delete(param_1);
       param_1 = -1;
     }
     goto LAB_0013d51f;
   }
   if (param_1 == -1) {
+    definition_index = *(int *)((char *)tag_block_get_element((void *)param_3, (int)*param_2, 0x30) + 0xc);
+    if (definition_index != -1) {
+      object_placement_data_new(frame.placement, definition_index, -1);
+      *(int *)(frame.placement + 0x18) = *(int *)((char *)param_2 + 0x8);
+      *(int *)(frame.placement + 0x1c) = *(int *)((char *)param_2 + 0xc);
+      *(int *)(frame.placement + 0x20) = *(int *)((char *)param_2 + 0x10);
+      vectors3d_from_euler_angles3d((float *)(frame.placement + 0x34),
+                                    (float *)(frame.placement + 0x40),
+                                    (float *)((char *)param_2 + 0x14));
+      *(short *)(frame.placement + 0x16) = param_2[3];
+      param_1 = object_new(frame.placement);
+      if (param_1 != -1)
+        object_type_place(param_1, (int)param_2);
+    }
+  } else {
+    piVar3 = (int *)CALL_FUN_0013d640(param_1, -1);
     iVar6 = (int)tag_block_get_element((void *)param_3, (int)*param_2, 0x30);
-    if (*(int *)(iVar6 + 0xc) == -1)
-      goto LAB_0013d51f;
-    CALL_FUN_0013fc20(frame.placement, *(int *)(iVar6 + 0xc), -1);
-    *(int *)(frame.placement + 0x18) = *(int *)((char *)param_2 + 0x8);
-    *(int *)(frame.placement + 0x1c) = *(int *)((char *)param_2 + 0xc);
-    *(int *)(frame.placement + 0x20) = *(int *)((char *)param_2 + 0x10);
-    CALL_FUN_0010bbc0(frame.placement + 0x34, frame.placement + 0x40,
-                      (char *)param_2 + 0x14);
-    *(short *)(frame.placement + 0x16) = param_2[3];
-    goto LAB_0013d09e;
+    if (piVar3 == (int *)0 || *piVar3 != *(int *)(iVar6 + 0xc)) {
+      if (piVar3 != (int *)0)
+        object_delete(param_1);
+      param_1 = -1;
+      if (*(int *)(iVar6 + 0xc) != -1) {
+        object_placement_data_new(frame.placement, *(int *)(iVar6 + 0xc), -1);
+        *(int *)(frame.placement + 0x18) = *(int *)((char *)param_2 + 0x8);
+        *(int *)(frame.placement + 0x1c) = *(int *)((char *)param_2 + 0xc);
+        *(int *)(frame.placement + 0x20) = *(int *)((char *)param_2 + 0x10);
+        vectors3d_from_euler_angles3d((float *)(frame.placement + 0x34),
+                                      (float *)(frame.placement + 0x40),
+                                      (float *)((char *)param_2 + 0x14));
+        *(short *)(frame.placement + 0x16) = param_2[3];
+        param_1 = object_new(frame.placement);
+        if (param_1 != -1)
+          object_type_place(param_1, (int)param_2);
+      }
+    }
   }
-  piVar3 = (int *)CALL_FUN_0013d640(param_1, -1);
-  iVar6 = (int)tag_block_get_element((void *)param_3, (int)*param_2, 0x30);
-  if (piVar3 == (int *)0) {
-  LAB_0013d03a:
-    param_1 = -1;
-    if (*(int *)(iVar6 + 0xc) == -1)
-      goto LAB_0013d51f;
-    CALL_FUN_0013fc20(frame.placement, *(int *)(iVar6 + 0xc), -1);
-    *(int *)(frame.placement + 0x18) = *(int *)((char *)param_2 + 0x8);
-    *(int *)(frame.placement + 0x1c) = *(int *)((char *)param_2 + 0xc);
-    *(int *)(frame.placement + 0x20) = *(int *)((char *)param_2 + 0x10);
-    CALL_FUN_0010bbc0(frame.placement + 0x34, frame.placement + 0x40,
-                      (char *)param_2 + 0x14);
-    *(short *)(frame.placement + 0x16) = param_2[3];
-    goto LAB_0013d09e;
-  }
-  if (*piVar3 != *(int *)(iVar6 + 0xc)) {
-    CALL_FUN_00140cc0(param_1);
-    goto LAB_0013d03a;
-  }
-  goto after_create;
-LAB_0013d09e:
-  param_1 = CALL_FUN_00143c80(frame.placement);
   if (param_1 == -1)
     goto LAB_0013d51f;
-  object_type_place(param_1, (int)param_2);
-after_create:
   puVar4 = (int *)object_get_and_verify_type(param_1, -1);
-  CALL_FUN_0013fb30(param_1);
+  object_activate(param_1);
   FUN_00109e90(frame.matrix, *(float *)((char *)param_2 + 0x14),
                *(float *)((char *)param_2 + 0x18),
                *(float *)((char *)param_2 + 0x1c));
-  cVar2 = CALL_FUN_000f6d00_0();
+  cVar2 = valid_real_matrix4x3(frame.matrix);
   if (cVar2 == '\0') {
     if ((*(unsigned int *)&frame.matrix[0] & 0x7f800000) == 0x7f800000) {
       uVar5 = (int)csprintf((char *)0x5ab100, "scale is not valid (%f)",
