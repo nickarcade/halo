@@ -5441,11 +5441,11 @@
     },
     {
      "addr": "0xa6130",
-     "decl": "void player_aim_projectile(void);"
+     "decl": "int player_aim_projectile(int16_t player_index, float *forward, float *target_dir);"
     },
     {
      "addr": "0xa6470",
-     "decl": "void local_player_aim_assist(void);",
+     "decl": "int local_player_aim_assist(short local_player_index, real *autoaim_level, real *field_0x30, void *lead_vector, void *arg5);",
      "comment": "[NAME: local_player_aim_assist \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -5935,6 +5935,11 @@
      "addr": "0xff640",
      "decl": "char *console_get_text_to_autocomplete(void);",
      "ported": true
+    },
+    {
+     "decl": "void console_open(void);",
+     "addr": "0xff470",
+     "ported": true
     }
    ],
    "name": "console.obj",
@@ -6044,6 +6049,11 @@
     {
      "addr": "0x98580",
      "decl": "int contrail_new(int definition_index, int object_index, short attachment_index);",
+     "ported": true
+    },
+    {
+     "decl": "void contrails_disconnect_from_structure_bsp(void);",
+     "addr": "0x97970",
      "ported": true
     }
    ],
@@ -6393,6 +6403,11 @@
      "addr": "0x11e8a0",
      "decl": "bool memory_pool_block_resize(void *pool, void **block_reference, int new_size);",
      "name": "memory_pool_block_resize",
+     "ported": true
+    },
+    {
+     "decl": "int memory_pool_block_compute_actual_size(int size);",
+     "addr": "0x11e3f0",
      "ported": true
     }
    ],
@@ -8261,6 +8276,11 @@
      "addr": "0x19aed0",
      "decl": "bool find_files_next(file_ref_t *result, int param2);",
      "ported": true
+    },
+    {
+     "decl": "bool file_location_is_valid(void);",
+     "addr": "0x19a010",
+     "ported": true
     }
    ],
    "name": "files_windows.obj",
@@ -8386,11 +8406,13 @@
     },
     {
      "addr": "0xdd190",
-     "decl": "int16_t first_person_weapon_get_marker_by_name(int object_handle, void *marker_name, void *out_markers, int max_count);"
+     "decl": "int16_t first_person_weapon_get_marker_by_name(int object_handle, void *marker_name, void *out_markers, int max_count);",
+     "ported": true
     },
     {
      "addr": "0xdd260",
-     "decl": "void first_person_weapon_center_flashlight(int object_handle, float *out_position, float *out_forward, void *out_up);"
+     "decl": "void first_person_weapon_center_flashlight(int object_handle, float *out_position, float *out_forward, void *out_up);",
+     "ported": true
     },
     {
      "addr": "0xdd340",
@@ -8399,12 +8421,14 @@
     },
     {
      "addr": "0xdd580",
-     "decl": "void first_person_weapon_build_node_matrices(void);",
-     "name": "first_person_weapon_build_node_matrices"
+     "decl": "void first_person_weapon_build_node_matrices(int16_t local_player_index);",
+     "name": "first_person_weapon_build_node_matrices",
+     "ported": true
     },
     {
      "addr": "0xddae0",
-     "decl": "void first_person_weapon_render_update(void);"
+     "decl": "void first_person_weapon_render_update(void);",
+     "ported": true
     },
     {
      "addr": "0xddb90",
@@ -8426,12 +8450,18 @@
      "addr": "0xde3f0",
      "decl": "void first_person_weapon_next_state(int local_player_index@<ebx>);",
      "comment": "[NAME: first_person_weapon_next_state \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "first_person_weapon_next_state"
+     "name": "first_person_weapon_next_state",
+     "ported": true
     },
     {
      "addr": "0xde560",
      "decl": "void first_person_weapon_update(int16_t local_player_index);",
      "name": "first_person_weapon_update",
+     "ported": true
+    },
+    {
+     "decl": "void first_person_weapons_dispose(void);",
+     "addr": "0xdc790",
      "ported": true
     }
    ],
@@ -12289,6 +12319,86 @@
      "addr": "0xc57a0",
      "decl": "bool hs_source_offset_valid(int offset);",
      "ported": true
+    },
+    {
+     "decl": "void hs_recompile(void);",
+     "addr": "0xc3c40",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_script_names(void);",
+     "addr": "0xc4240",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_variable_names(void);",
+     "addr": "0xc4270",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_ai_names(void);",
+     "addr": "0xc4320",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_ai_command_list_names(void);",
+     "addr": "0xc4350",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_starting_profile_names(void);",
+     "addr": "0xc4380",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_conversation_names(void);",
+     "addr": "0xc43b0",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_object_names(void);",
+     "addr": "0xc43e0",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_trigger_volume_names(void);",
+     "addr": "0xc4410",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_cutscene_flag_names(void);",
+     "addr": "0xc4440",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_cutscene_camera_point_names(void);",
+     "addr": "0xc4470",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_cutscene_title_names(void);",
+     "addr": "0xc44a0",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_cutscene_recording_names(void);",
+     "addr": "0xc44d0",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_navpoints(void);",
+     "addr": "0xc4500",
+     "ported": true
+    },
+    {
+     "decl": "void hs_enumerate_hud_messages(void);",
+     "addr": "0xc4540",
+     "ported": true
+    },
+    {
+     "decl": "void hs_hack(void);",
+     "addr": "0xc4f90",
+     "ported": true
     }
    ],
    "name": "hs.obj",
@@ -12561,6 +12671,11 @@
      "addr": "0xc93f0",
      "decl": "void hs_compile_recompile_scripts(void);",
      "ported": true
+    },
+    {
+     "decl": "boolean character_in_list(char c, const char *list, int16_t count);",
+     "addr": "0xc5820",
+     "ported": true
     }
    ],
    "name": "hs_compile.obj",
@@ -12616,8 +12731,9 @@
     },
     {
      "addr": "0xc8ec0",
-     "decl": "void hs_parse_object_cast_up(void);",
-     "comment": "[NAME: hs_parse_object_cast_up \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "bool hs_parse_object_cast_up(int function_index, int expression_index);",
+     "comment": "[NAME: hs_parse_object_cast_up \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0xc8f40",
@@ -12678,7 +12794,7 @@
     },
     {
      "addr": "0xc97f0",
-     "decl": "unsigned char hs_unit_can_see_flag(int arg0, short flag_index, float arg2);",
+     "decl": "boolean hs_unit_can_see_flag(int unit_handle, int16_t flag_index, real angle);",
      "comment": "[NAME: hs_unit_can_see_flag \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
      "ported": true
     },
@@ -12796,11 +12912,12 @@
     },
     {
      "addr": "0xca010",
-     "decl": "float FUN_000ca010(int);"
+     "decl": "real hs_sound_get_gain(const char *sound_name);",
+     "ported": true
     },
     {
      "addr": "0xca030",
-     "decl": "void FUN_000ca030(int param_1, float param_2);",
+     "decl": "void hs_sound_set_gain(const char *sound_name, real value);",
      "ported": true
     },
     {
@@ -12823,12 +12940,13 @@
     },
     {
      "addr": "0xca140",
-     "decl": "void FUN_000ca140(const char *substring);",
+     "decl": "void hs_object_create_anew_containing(const char *substring);",
      "ported": true
     },
     {
      "addr": "0xca160",
-     "decl": "void FUN_000ca160(int object_handle@<ebx>, int param_2, char param_3, char param_4);"
+     "decl": "void hs_object_orient(int object_handle@<ebx>, int flag_index, char dismount_unit, char set_camera);",
+     "ported": true
     },
     {
      "addr": "0xca3f0",
@@ -12838,7 +12956,7 @@
     },
     {
      "addr": "0xca410",
-     "decl": "void FUN_000ca410(int a, int b);",
+     "decl": "void hs_object_set_facing(int object_handle, int scenario_index);",
      "ported": true
     },
     {
@@ -12932,7 +13050,8 @@
     },
     {
      "addr": "0xcacf0",
-     "decl": "void FUN_000cacf0(int thread_handle@<edi>);"
+     "decl": "void hs_wake(int thread_handle@<edi>);",
+     "ported": true
     },
     {
      "addr": "0xcada0",
@@ -12942,7 +13061,8 @@
     },
     {
      "addr": "0xcae00",
-     "decl": "int FUN_000cae00(const char *script_name@<edi>);"
+     "decl": "int hs_find_thread_by_name(const char *script_name@<edi>);",
+     "ported": true
     },
     {
      "addr": "0xcae80",
@@ -13058,7 +13178,8 @@
     },
     {
      "addr": "0xcbb40",
-     "decl": "void render_debug_trigger_volumes(void);"
+     "decl": "void render_debug_trigger_volumes(void);",
+     "ported": true
     },
     {
      "addr": "0xcbf80",
@@ -13217,7 +13338,8 @@
     },
     {
      "addr": "0xce1b0",
-     "decl": "void FUN_000ce1b0(void);"
+     "decl": "void object_lists_dispose(void);",
+     "ported": true
     },
     {
      "addr": "0xce1c0",
@@ -13274,6 +13396,21 @@
     {
      "addr": "0xce450",
      "decl": "int FUN_000ce450(int parent_handle, int *iter_state);",
+     "ported": true
+    },
+    {
+     "decl": "int hs_syntax_nth(int node_index@<eax>, int16_t count@<cx>);",
+     "addr": "0xca4b0",
+     "ported": true
+    },
+    {
+     "decl": "void hs_runtime_dispose(void);",
+     "addr": "0xca880",
+     "ported": true
+    },
+    {
+     "decl": "int hs_data_to_void(void);",
+     "addr": "0xcaee0",
      "ported": true
     }
    ],
@@ -15340,6 +15477,11 @@
      "addr": "0xe0570",
      "decl": "void FUN_000e0570(void);",
      "ported": true
+    },
+    {
+     "decl": "void __stdcall IDirect3DDevice8_PersistDisplay(void *device);",
+     "addr": "0xe0490",
+     "ported": true
     }
    ],
    "name": "marketing_and_strategic_business_development.obj",
@@ -15520,6 +15662,11 @@
      "addr": "0x12a920",
      "decl": "void network_game_invalidate_player(uint8_t *player);",
      "name": "network_game_invalidate_player",
+     "ported": true
+    },
+    {
+     "decl": "int network_game_get_number_of_games_played(void);",
+     "addr": "0x12a7d0",
      "ported": true
     }
    ],
@@ -15869,6 +16016,11 @@
      "decl": "char network_game_client_handle_message_server_pregame_keep_alive(void *client @<esi>, void *source_address @<edi>, void *message, int message_size);",
      "ported": true,
      "name": "network_game_client_handle_message_server_pregame_keep_alive"
+    },
+    {
+     "decl": "bool check_networking_and_generate_error(void);",
+     "addr": "0x124970",
+     "ported": true
     }
    ],
    "name": "network_client_manager.obj",
@@ -18477,6 +18629,11 @@
      "decl": "void particle_systems_render(void);",
      "ported": true,
      "name": "particle_systems_render"
+    },
+    {
+     "decl": "void particle_systems_disconnect_from_structure_bsp(void);",
+     "addr": "0x9f7d0",
+     "ported": true
     }
    ],
    "name": "particle_systems.obj",
@@ -18861,7 +19018,8 @@
     },
     {
      "addr": "0xb70b0",
-     "decl": "void get_local_player_input_blob(void *action@<ebx>, short local_player_index, real delta_time);"
+     "decl": "void get_local_player_input_blob(void *action@<ebx>, short local_player_index, real delta_time);",
+     "ported": true
     },
     {
      "addr": "0xb7e30",
@@ -18884,6 +19042,21 @@
      "decl": "void player_control_permanent_impulse(int16_t local_player_index, float *delta);",
      "ported": true,
      "name": "player_control_permanent_impulse"
+    },
+    {
+     "decl": "void player_control_dispose_from_old_map(void);",
+     "addr": "0xb6400",
+     "ported": true
+    },
+    {
+     "decl": "bool player_control_camera_control_is_active(void);",
+     "addr": "0xb6410",
+     "ported": true
+    },
+    {
+     "decl": "void clear_input_blob(void *blob);",
+     "addr": "0xb65b0",
+     "ported": true
     }
    ],
    "name": "player_control.obj",
@@ -19158,6 +19331,21 @@
      "ported": true,
      "src": "src/halo/game/player_queues_new.c",
      "name": "update_client_handle_server_update"
+    },
+    {
+     "decl": "void update_client_delete(void);",
+     "addr": "0xb8e00",
+     "ported": true
+    },
+    {
+     "decl": "void *update_client_get_update(int sequence_index);",
+     "addr": "0xb90a0",
+     "ported": true
+    },
+    {
+     "decl": "void update_queues_reset_and_fill_with_lies(void);",
+     "addr": "0xb9880",
+     "ported": true
     }
    ],
    "name": "player_queues_new.obj",
@@ -19701,7 +19889,8 @@
     {
      "addr": "0xbb670",
      "decl": "char player_teleport_internal(int player_index, int object_handle, void *position);",
-     "name": "player_teleport_internal"
+     "name": "player_teleport_internal",
+     "ported": true
     },
     {
      "addr": "0xbbb80",
@@ -20961,6 +21150,11 @@
      "decl": "void hs_object_list_get_element_evaluate(int16_t function_index, int thread_datum, char init);",
      "ported": true,
      "name": "hs_object_list_get_element_evaluate"
+    },
+    {
+     "decl": "void player_examine_nearby_unit(void);",
+     "addr": "0xbae10",
+     "ported": true
     }
    ],
    "name": "players.obj",
@@ -22497,6 +22691,11 @@
     {
      "addr": "0x178ab0",
      "decl": "void rasterizer_vertex_shaders_dispose(void);",
+     "ported": true
+    },
+    {
+     "decl": "unsigned int __stdcall IDirect3DDevice8_DeleteVertexShader(unsigned int handle);",
+     "addr": "0x178840",
      "ported": true
     }
    ],
@@ -24760,7 +24959,8 @@
     },
     {
      "addr": "0x188ec0",
-     "decl": "void FUN_00188ec0(int type, ...);"
+     "decl": "void FUN_00188ec0(int type, ...);",
+     "ported": true
     },
     {
      "addr": "0x189150",
@@ -25516,6 +25716,11 @@
     {
      "addr": "0x191230",
      "decl": "void FUN_00191230(int param_1);",
+     "ported": true
+    },
+    {
+     "decl": "bool shell_running_import_tool(void);",
+     "addr": "0x1911a0",
      "ported": true
     }
    ],
@@ -28072,6 +28277,11 @@
      "decl": "void terminal_printf(void *color, const char *format, const char *text);",
      "ported": true,
      "name": "terminal_printf"
+    },
+    {
+     "decl": "bool terminal_gets_active(void);",
+     "addr": "0xe34d0",
+     "ported": true
     }
    ],
    "name": "terminal.obj",
@@ -28174,6 +28384,11 @@
     {
      "addr": "0x81a20",
      "decl": "void FUN_00081a20(void *address);",
+     "ported": true
+    },
+    {
+     "decl": "void *get_thread_from_pool(void);",
+     "addr": "0x815c0",
      "ported": true
     }
    ],
@@ -35478,9 +35693,10 @@
     },
     {
      "addr": "0xfb690",
-     "decl": "void weapon_magazine_idle(void);",
+     "decl": "void weapon_magazine_idle(int weapon_handle, int16_t magazine_index);",
      "comment": "[NAME: weapon_magazine_idle \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_magazine_idle"
+     "name": "weapon_magazine_idle",
+     "ported": true
     },
     {
      "addr": "0xfb6e0",
@@ -35512,9 +35728,10 @@
     },
     {
      "addr": "0xfb990",
-     "decl": "void weapon_state_key_frame(void);",
+     "decl": "void weapon_state_key_frame(int weapon_handle);",
      "comment": "[NAME: weapon_state_key_frame \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_state_key_frame"
+     "name": "weapon_state_key_frame",
+     "ported": true
     },
     {
      "addr": "0xfba00",
@@ -35626,9 +35843,10 @@
     },
     {
      "addr": "0xfcc90",
-     "decl": "void weapon_magazine_finish_chamber(void);",
+     "decl": "void weapon_magazine_finish_chamber(int16_t magazine_index@<eax>, int weapon_handle);",
      "comment": "[NAME: weapon_magazine_finish_chamber \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_magazine_finish_chamber"
+     "name": "weapon_magazine_finish_chamber",
+     "ported": true
     },
     {
      "addr": "0xfcd10",
@@ -35714,20 +35932,23 @@
     },
     {
      "addr": "0xfd520",
-     "decl": "void weapon_trigger_finish_tracking(void);",
+     "decl": "void weapon_trigger_finish_tracking(int weapon_handle, int trigger_index);",
      "comment": "[NAME: weapon_trigger_finish_tracking \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "weapon_trigger_finish_tracking"
+     "name": "weapon_trigger_finish_tracking",
+     "ported": true
     },
     {
      "addr": "0xfd570",
-     "decl": "void trigger_create_projectiles(void);",
+     "decl": "void trigger_create_projectiles(int weapon_handle, int16_t trigger_index);",
      "comment": "[NAME: trigger_create_projectiles \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "name": "trigger_create_projectiles"
+     "name": "trigger_create_projectiles",
+     "ported": true
     },
     {
      "addr": "0xfdc90",
      "decl": "void weapon_trigger_fire(int weapon_handle, int trigger_index);",
-     "name": "weapon_trigger_fire"
+     "name": "weapon_trigger_fire",
+     "ported": true
     },
     {
      "addr": "0xfe450",
@@ -35753,13 +35974,64 @@
     {
      "addr": "0xfe890",
      "decl": "void weapon_trigger_overcharged(int trigger_index@<eax>, int weapon_handle@<ebx>);",
-     "ported": false,
+     "ported": true,
      "name": "weapon_trigger_overcharged"
     },
     {
      "addr": "0xfe910",
-     "decl": "void weapon_update(void);",
-     "comment": "[NAME: weapon_update \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]"
+     "decl": "boolean weapon_update(int weapon_handle);",
+     "comment": "[NAME: weapon_update \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]",
+     "ported": true
+    },
+    {
+     "decl": "void weapons_dispose_from_old_map(void);",
+     "addr": "0xfad40",
+     "ported": true
+    },
+    {
+     "decl": "void weapons_dispose(void);",
+     "addr": "0xfad50",
+     "ported": true
+    },
+    {
+     "decl": "void weapon_melee_attack(void);",
+     "addr": "0xfb080",
+     "ported": true
+    },
+    {
+     "decl": "boolean weapon_magazine_state_change_ok(int weapon_handle);",
+     "addr": "0xfb410",
+     "ported": true
+    },
+    {
+     "decl": "int weapon_get_effect_object_index(int weapon_handle);",
+     "addr": "0xfb450",
+     "ported": true
+    },
+    {
+     "decl": "int weapon_get_owner_object_index(int weapon_handle);",
+     "addr": "0xfb480",
+     "ported": true
+    },
+    {
+     "decl": "int weapon_get_projectile_owner_object_index(int weapon_handle);",
+     "addr": "0xfb4c0",
+     "ported": true
+    },
+    {
+     "decl": "void weapon_detonate(int weapon_handle);",
+     "addr": "0xfb840",
+     "ported": true
+    },
+    {
+     "decl": "boolean weapon_magazine_state_interruptable(int16_t state);",
+     "addr": "0xfb9e0",
+     "ported": true
+    },
+    {
+     "decl": "uint16_t random(void);",
+     "addr": "0xfbd00",
+     "ported": true
     }
    ],
    "name": "weapons.obj",
@@ -35869,7 +36141,7 @@
     },
     {
      "addr": "0x220c0",
-     "decl": "void actor_aim_projectile(void);"
+     "decl": "int actor_aim_projectile(int actor_index, float *forward, float *target_dir, int *out_target);"
     },
     {
      "addr": "0x22b40",
@@ -40256,6 +40528,11 @@
      "addr": "0x1296b0",
      "decl": "int network_connection_new(unsigned int flags, unsigned short well_known_port);",
      "ported": true
+    },
+    {
+     "decl": "void network_connection_initialize(void);",
+     "addr": "0x1282e0",
+     "ported": true
     }
    ],
    "name": "network_connection.obj",
@@ -40365,6 +40642,11 @@
      "addr": "0x12b6b0",
      "decl": "bool encode_network_game_message(void *message_struct @<edi>, char *encoded_message @<ebx>, int16_t *encoded_message_size @<esi>, int16_t type, int one);",
      "name": "encode_network_game_message",
+     "ported": true
+    },
+    {
+     "decl": "void network_game_assign_players_to_team(void);",
+     "addr": "0x12ac70",
      "ported": true
     }
    ],
@@ -40984,6 +41266,11 @@
     {
      "addr": "0x1393b0",
      "decl": "float object_get_self_illumination(int object_handle);",
+     "ported": true
+    },
+    {
+     "decl": "bool should_render_lights(void);",
+     "addr": "0x1391c0",
      "ported": true
     }
    ],
@@ -42280,7 +42567,7 @@
     {
      "addr": "0x1d8368",
      "decl": "int __stdcall XapiFormatFATVolume(void *device_path);",
-     "ported": false
+     "ported": true
     }
    ],
    "name": "XAPILIB:xcontent.obj",
