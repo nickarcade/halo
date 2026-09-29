@@ -1531,6 +1531,9 @@ void first_person_weapon_update(int16_t local_player_index)
   float turning_i; /* name: PAL 2342 first_person_weapons.c:1828 */
   float turning_j; /* name: PAL 2342 first_person_weapons.c:1831 */
   uint8_t moving;
+#if defined(_MSC_VER) && !defined(__clang__)
+  double __cdecl fmod(double, double);
+#endif
 
   assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\interface\\first_person_weapons.c", 0x599, local_player_index >= 0 &&
               local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
@@ -1625,10 +1628,17 @@ void first_person_weapon_update(int16_t local_player_index)
         antr_tag + 0x74, (int)*(int16_t *)(fp + 0x20), 0xb4);
       frame_count = (int)*(int16_t *)(element + 0x22);
       /* FUN_001daf7e == _CIfmod (FPREM loop) */
+#if defined(_MSC_VER) && !defined(__clang__)
+      *(float *)(fp + 0x24) = (float)fmod(
+        (double)((*(float *)(weapon + 0x1f4) + *(float *)0x2533c8) * 2.0f +
+                 *(float *)(fp + 0x24)),
+        (double)frame_count);
+#else
       *(float *)(fp + 0x24) =
         x87_fmod((*(float *)(weapon + 0x1f4) + *(float *)0x2533c8) * 2.0f +
                    *(float *)(fp + 0x24),
                  (double)frame_count);
+#endif
     } else {
       *(int16_t *)(fp + 0x20) = -1;
     }

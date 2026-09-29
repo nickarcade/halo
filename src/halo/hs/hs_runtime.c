@@ -3384,6 +3384,7 @@ void hs_wake(int thread_handle)
 {
   char *thread;
   char *node;
+  char *frame;
   int node_index;
 
   thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
@@ -3398,7 +3399,23 @@ void hs_wake(int thread_handle)
     if (node_index != -1) {
       node = (char *)datum_get(*(data_t **)0x5aa6c8, node_index);
       if (*(int16_t *)(node + 2) == 0x14) {
+        thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
         *(char **)(thread + 0x10) = **(char ***)(thread + 0x10);
+        return;
+      }
+    }
+    /* 0xcad64: otherwise inspect the parent frame and pop two frames when
+     * it is also a type-0x14 node. */
+    frame = **(char ***)(thread + 0x10);
+    if (frame != NULL) {
+      node_index = *(int *)(frame + 4);
+      if (node_index != -1) {
+        node = (char *)datum_get(*(data_t **)0x5aa6c8, node_index);
+        if (*(int16_t *)(node + 2) == 0x14) {
+          hs_thread_pop_frame(thread_handle);
+          hs_thread_pop_frame(thread_handle);
+          *(uint8_t *)(thread + 3) &= ~1;
+        }
       }
     }
   }

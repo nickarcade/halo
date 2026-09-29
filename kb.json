@@ -12673,7 +12673,7 @@
      "ported": true
     },
     {
-     "decl": "boolean character_in_list(char c, const char *list, int16_t count);",
+     "decl": "boolean character_in_list(char c@<dl>, const char *list@<esi>, int16_t count@<cx>);",
      "addr": "0xc5820",
      "ported": true
     }
@@ -13179,7 +13179,7 @@
     {
      "addr": "0xcbb40",
      "decl": "void render_debug_trigger_volumes(void);",
-     "ported": true
+     "ported": false
     },
     {
      "addr": "0xcbf80",
@@ -19338,7 +19338,7 @@
      "ported": true
     },
     {
-     "decl": "void *update_client_get_update(int sequence_index);",
+     "decl": "void *update_client_get_update(int sequence_index@<eax>);",
      "addr": "0xb90a0",
      "ported": true
     },

@@ -10169,7 +10169,9 @@
     "0x1cadd0": "void dsound_channel_set_location(short channel_index, char flag_0c, float *location@<ebx>, float value_10, float value_14, char flag_18);",
     "0x5f1d0": "float closest_available_point_on_surface(void *structure_bsp@<eax>, float *point@<edi>, float *out_point@<esi>, int surface_index);",
     "0xca4b0": "int hs_syntax_nth(int node_index@<eax>, int16_t count@<cx>);",
-    "0xfcc90": "void weapon_magazine_finish_chamber(int16_t magazine_index@<eax>, int weapon_handle);"
+    "0xfcc90": "void weapon_magazine_finish_chamber(int16_t magazine_index@<eax>, int weapon_handle);",
+    "0xc5820": "boolean character_in_list(char c@<dl>, const char *list@<esi>, int16_t count@<cx>);",
+    "0xb90a0": "void *update_client_get_update(int sequence_index@<eax>);"
   },
   "0x57330": "short ai_scripting_command_list_status_internal(int16_t scenario_index@<eax>, void *record@<esi>, int field_1a8_val, int child_handle, int reserved);",
   "0x1631d0": "void FUN_001631d0(int light_index@<eax>);",

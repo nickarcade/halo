@@ -1601,5 +1601,12 @@
     "object": "game.obj",
     "reason": "VC71 byte accuracy unmeasured/not 90%",
     "since": "2026-09-17"
+  },
+  {
+    "addr": "0xcbb40",
+    "name": "render_debug_trigger_volumes",
+    "object": "hs_runtime.obj",
+    "reason": "PR #29 lift has binary-verified defects (volume offsets, colour args, dataflow); debug-only renderer kept dormant until re-lifted",
+    "since": "2026-09-29"
   }
 ]

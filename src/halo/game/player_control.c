@@ -2092,10 +2092,10 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
         vehicle = (char *)object_get_and_verify_type(*(int *)(unit + 0xcc), 3);
         unit_tag = (char *)tag_get(0x756e6974, *(int *)vehicle);
         seat = (char *)tag_block_get_element(unit_tag + 0x2e4, *(int16_t *)(unit + 0x2a0), 0x11c);
-        if (*(real *)(seat + 0x7c) != 0.0f) {
+        if (*(real *)(seat + 0x7c) > 0.0f) {
           yaw_rate = *(real *)(seat + 0x7c) * 0.017453292f * 0.033333335f;
         }
-        if (*(real *)(seat + 0x80) != 0.0f) {
+        if (*(real *)(seat + 0x80) > 0.0f) {
           pitch_rate = *(real *)(seat + 0x80) * 0.017453292f * 0.033333335f;
         }
       }
@@ -2108,7 +2108,7 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
     abs_look_yaw = (real)fabs(*(real *)(input_state + 0x14));
     scale = 1.0f;
 
-    if (abs_look_pitch >= 0.10000000149011612f || abs_look_yaw >= 0.10000000149011612f) {
+    if (abs_look_pitch > 0.10000000149011612f && abs_look_yaw > 0.10000000149011612f) {
       if (abs_look_pitch > abs_look_yaw) {
         temp = abs_look_yaw / abs_look_pitch;
         scale = sqrtf(temp * temp + 1.0f);
@@ -2249,7 +2249,7 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
       unit = (char *)object_try_and_get_and_verify_type(unit_index, 1);
       if (unit) {
         if (*(uint8_t *)0x4570b8 || (*(uint8_t *)(unit + 0x424) & 1) ||
-            (input->field_0x04 * input->field_0x04 + input->field_0x00 * input->field_0x00 > 0.01f)) {
+            (input->field_0x04 * input->field_0x04 + input->field_0x00 * input->field_0x00 < 0.01f)) {
           if (debounced_buttons[10]) {
             input->field_0x18 |= 1;
           } else {
@@ -2330,8 +2330,8 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
     char *mouse;
     mouse = (char *)input_get_mouse_state();
 
-    input->field_0x00 = (real)((int)input_key_is_down(0x2f) - (int)input_key_is_down(0x2e));
-    input->field_0x04 = (real)((int)input_key_is_down(0x2d) - (int)input_key_is_down(0x20));
+    input->field_0x00 = (real)((int)input_key_is_down(0x20) - (int)input_key_is_down(0x2e));
+    input->field_0x04 = (real)((int)input_key_is_down(0x2d) - (int)input_key_is_down(0x2f));
 
     if (!(*(uint8_t *)((char *)player_control_globals + 0xc) & 1) && !game_time_get_paused()) {
       input->look_yaw_delta = -(real)*(int *)mouse * 0.0031415927f;
