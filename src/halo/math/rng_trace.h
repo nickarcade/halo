@@ -115,8 +115,8 @@
 #define RNG_TRACE_KIND_NET_UPDATE_BUTTONS_23 45u /* client game update: value=slot 2 buttons, caller2=slot 3 buttons  info */
 #define RNG_TRACE_KIND_THROW_UNIT_XY 46u /* grenade release: value=thrower position.x bits, caller2=position.y bits  info */
 #define RNG_TRACE_KIND_THROW_UNIT_Z_HANDLE 47u /* grenade release: value=thrower position.z bits, caller2=unit handle  info */
-#define RNG_TRACE_KIND_THROW_SEAT_XY 48u /* grenade release after unit_set_seat_state: value=seat x bits, caller2=seat y bits  info */
-#define RNG_TRACE_KIND_THROW_SEAT_Z_HANDLE 49u /* grenade release after unit_set_seat_state: value=seat z bits, caller2=unit handle  info */
+#define RNG_TRACE_KIND_THROW_SEAT_XY 48u /* grenade release after unit_get_camera_position: value=seat x bits, caller2=seat y bits  info */
+#define RNG_TRACE_KIND_THROW_SEAT_Z_HANDLE 49u /* grenade release after unit_get_camera_position: value=seat z bits, caller2=unit handle  info */
 #define RNG_TRACE_KIND_THROW_FINAL_XY 50u /* grenade release before object_translate: value=target x bits, caller2=target y bits  info */
 #define RNG_TRACE_KIND_THROW_FINAL_Z_HANDLE 51u /* grenade release before object_translate: value=target z bits, caller2=unit handle  info */
 #define RNG_TRACE_KIND_RESPONSE_HIT_XY 52u /* projectile_collision entry: hit position x/y bits  info */

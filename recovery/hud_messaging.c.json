@@ -13131,7 +13131,7 @@
         "id": "decompiler_style_locals:1996:1",
         "line": 1996,
         "status": "applied",
-        "text": "unit_set_seat_state(uVar11, local_24);"
+        "text": "unit_get_camera_position(uVar11, local_24);"
       },
       {
         "category": "local-renames",
@@ -13139,7 +13139,7 @@
         "id": "decompiler_style_locals:1996:2",
         "line": 1996,
         "status": "applied",
-        "text": "unit_set_seat_state(uVar11, local_24);"
+        "text": "unit_get_camera_position(uVar11, local_24);"
       },
       {
         "category": "local-renames",
@@ -27319,7 +27319,7 @@
       "id": "decompiler_style_locals:1996:1",
       "line": 1996,
       "status": "applied",
-      "text": "unit_set_seat_state(uVar11, local_24);"
+      "text": "unit_get_camera_position(uVar11, local_24);"
     },
     {
       "category": "local-renames",
@@ -27327,7 +27327,7 @@
       "id": "decompiler_style_locals:1996:2",
       "line": 1996,
       "status": "applied",
-      "text": "unit_set_seat_state(uVar11, local_24);"
+      "text": "unit_get_camera_position(uVar11, local_24);"
     },
     {
       "category": "local-renames",

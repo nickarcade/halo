@@ -3332,7 +3332,10 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
     crt_fprintf(fd, "  Resolution: %g, %g", tif->td_xresolution,
                 tif->td_yresolution);
     if (TIFFFieldSet(tif, FIELD_RESOLUTIONUNIT)) {
-      switch (tif->td_resolutionunit) {
+      unsigned short unit;
+
+      unit = tif->td_resolutionunit;
+      switch (unit) {
       case RESUNIT_NONE:
         crt_fprintf(fd, " (unitless)");
         break;
@@ -3343,8 +3346,7 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
         crt_fprintf(fd, " pixels/cm");
         break;
       default:
-        crt_fprintf(fd, " (unit %u = 0x%x)", tif->td_resolutionunit,
-                    tif->td_resolutionunit);
+        crt_fprintf(fd, " (unit %u = 0x%x)", unit, unit);
         break;
       }
     }
@@ -3358,8 +3360,11 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
     crt_fprintf(fd, "  Bits/Sample: %u\n", tif->td_bitspersample);
   }
   if (TIFFFieldSet(tif, FIELD_SAMPLEFORMAT)) {
+    unsigned short format;
+
     crt_fprintf(fd, "  Sample Format: ");
-    switch (tif->td_sampleformat) {
+    format = tif->td_sampleformat;
+    switch (format) {
     case SAMPLEFORMAT_VOID:
       crt_fprintf(fd, "void\n");
       break;
@@ -3373,14 +3378,16 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
       crt_fprintf(fd, "IEEE floating point\n");
       break;
     default:
-      crt_fprintf(fd, "%u (0x%x)\n", tif->td_sampleformat,
-                  tif->td_sampleformat);
+      crt_fprintf(fd, "%u (0x%x)\n", format, format);
       break;
     }
   }
   if (TIFFFieldSet(tif, FIELD_COMPRESSION)) {
+    unsigned short scheme;
+
     crt_fprintf(fd, "  Compression Scheme: ");
-    switch (tif->td_compression) {
+    scheme = tif->td_compression;
+    switch (scheme) {
     case COMPRESSION_NONE:
       crt_fprintf(fd, "none\n");
       break;
@@ -3413,16 +3420,19 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
       crt_fprintf(fd, "ThunderScan 4-bit encoding\n");
       break;
     default:
-      crt_fprintf(fd, "%u (0x%x)\n", tif->td_compression, tif->td_compression);
+      crt_fprintf(fd, "%u (0x%x)\n", scheme, scheme);
       break;
     }
   }
   if (TIFFFieldSet(tif, FIELD_PHOTOMETRIC)) {
+    unsigned short photo;
+
     crt_fprintf(fd, "  Photometric Interpretation: ");
-    if (tif->td_photometric < NPHOTONAMES) {
-      crt_fprintf(fd, "%s\n", tiff_photo_names[tif->td_photometric]);
+    photo = tif->td_photometric;
+    if (photo < NPHOTONAMES) {
+      crt_fprintf(fd, "%s\n", tiff_photo_names[photo]);
     } else {
-      crt_fprintf(fd, "%u (0x%x)\n", tif->td_photometric, tif->td_photometric);
+      crt_fprintf(fd, "%u (0x%x)\n", photo, photo);
     }
   }
   if (TIFFFieldSet(tif, FIELD_MATTEING)) {
@@ -3431,8 +3441,11 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
                                    "none");
   }
   if (TIFFFieldSet(tif, FIELD_THRESHHOLDING)) {
+    unsigned short thresh;
+
     crt_fprintf(fd, "  Thresholding: ");
-    switch (tif->td_threshholding) {
+    thresh = tif->td_threshholding;
+    switch (thresh) {
     case THRESHHOLD_BILEVEL:
       crt_fprintf(fd, "bilevel art scan\n");
       break;
@@ -3443,14 +3456,16 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
       crt_fprintf(fd, "error diffused\n");
       break;
     default:
-      crt_fprintf(fd, "%u (0x%x)\n", tif->td_threshholding,
-                  tif->td_threshholding);
+      crt_fprintf(fd, "%u (0x%x)\n", thresh, thresh);
       break;
     }
   }
   if (TIFFFieldSet(tif, FIELD_FILLORDER)) {
+    unsigned short order;
+
     crt_fprintf(fd, "  FillOrder: ");
-    switch (tif->td_fillorder) {
+    order = tif->td_fillorder;
+    switch (order) {
     case FILLORDER_MSB2LSB:
       crt_fprintf(fd, "msb-to-lsb\n");
       break;
@@ -3458,13 +3473,16 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
       crt_fprintf(fd, "lsb-to-msb\n");
       break;
     default:
-      crt_fprintf(fd, "%u (0x%x)\n", tif->td_fillorder, tif->td_fillorder);
+      crt_fprintf(fd, "%u (0x%x)\n", order, order);
       break;
     }
   }
   if (TIFFFieldSet(tif, FIELD_PREDICTOR)) {
+    unsigned short pred;
+
     crt_fprintf(fd, "  Predictor: ");
-    switch (tif->td_predictor) {
+    pred = tif->td_predictor;
+    switch (pred) {
     case PREDICTOR_NONE:
       crt_fprintf(fd, "none\n");
       break;
@@ -3472,7 +3490,7 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
       crt_fprintf(fd, "horizontal differencing\n");
       break;
     default:
-      crt_fprintf(fd, "%u (0x%x)\n", tif->td_predictor, tif->td_predictor);
+      crt_fprintf(fd, "%u (0x%x)\n", pred, pred);
       break;
     }
   }
@@ -3505,11 +3523,14 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
     crt_fprintf(fd, "  Model: \"%s\"\n", tif->td_model);
   }
   if (TIFFFieldSet(tif, FIELD_ORIENTATION)) {
+    unsigned short orient;
+
     crt_fprintf(fd, "  Orientation: ");
-    if (tif->td_orientation < NORIENTNAMES) {
-      crt_fprintf(fd, "%s\n", tiff_orient_names[tif->td_orientation]);
+    orient = tif->td_orientation;
+    if (orient < NORIENTNAMES) {
+      crt_fprintf(fd, "%s\n", tiff_orient_names[orient]);
     } else {
-      crt_fprintf(fd, "%u (0x%x)\n", tif->td_orientation, tif->td_orientation);
+      crt_fprintf(fd, "%u (0x%x)\n", orient, orient);
     }
   }
   if (TIFFFieldSet(tif, FIELD_SAMPLESPERPIXEL)) {
@@ -3530,8 +3551,11 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
     crt_fprintf(fd, "  Max Sample Value: %u\n", tif->td_maxsamplevalue);
   }
   if (TIFFFieldSet(tif, FIELD_PLANARCONFIG)) {
+    unsigned short planar;
+
     crt_fprintf(fd, "  Planar Configuration: ");
-    switch (tif->td_planarconfig) {
+    planar = tif->td_planarconfig;
+    switch (planar) {
     case PLANARCONFIG_CONTIG:
       crt_fprintf(fd, "single image plane\n");
       break;
@@ -3539,8 +3563,7 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
       crt_fprintf(fd, "separate image planes\n");
       break;
     default:
-      crt_fprintf(fd, "%u (0x%x)\n", tif->td_planarconfig,
-                  tif->td_planarconfig);
+      crt_fprintf(fd, "%u (0x%x)\n", planar, planar);
       break;
     }
   }
@@ -3565,8 +3588,11 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
                 tif->td_group3options);
   }
   if (TIFFFieldSet(tif, FIELD_CLEANFAXDATA)) {
+    unsigned short fax;
+
     crt_fprintf(fd, "  Fax Data: ");
-    switch (tif->td_cleanfaxdata) {
+    fax = tif->td_cleanfaxdata;
+    switch (fax) {
     case CLEANFAXDATA_CLEAN:
       crt_fprintf(fd, "clean\n");
       break;
@@ -3577,8 +3603,7 @@ void TIFFPrintDirectory(void *tif_, void *fd, long flags)
       crt_fprintf(fd, "uncorrected errors\n");
       break;
     default:
-      crt_fprintf(fd, "(%u = 0x%x)\n", tif->td_cleanfaxdata,
-                  tif->td_cleanfaxdata);
+      crt_fprintf(fd, "(%u = 0x%x)\n", fax, fax);
       break;
     }
   }

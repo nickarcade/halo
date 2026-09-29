@@ -12,7 +12,7 @@
  *   +0x02  uint8   one-time init flag
  *   +0x04  int16   live marker count
  *   +0x08  marker array base (0x6c/108-byte stride) passed to
- *          object_get_markers_by_string_id
+ *          object_get_marker_by_name
  *   +0x70  per-marker basis struct (0x6c stride).  Relative to the +0x70 float
  *          pointer for marker i: element -0xb/-0xa/-9 = basis row, elements
  *          -2/-1/0 (bytes -8/-4/0) = marker position used by the neighbour
@@ -51,7 +51,7 @@
 
 
 /* Number of glow markers = capacity of the +0x22a ordering table (0x234-0x22a
- * = 10 bytes = 5 int16 slots) and the object_get_markers_by_string_id max. */
+ * = 10 bytes = 5 int16 slots) and the object_get_marker_by_name max. */
 #define GLOW_MARKER_MAX 5
 
 void glow_update(int glow_widget, int object_handle)
@@ -68,7 +68,7 @@ void glow_update(int glow_widget, int object_handle)
   if (glow_tag == 0)
     return;
 
-  marker_count = (short)object_get_markers_by_string_id(object_handle, glow_tag,
+  marker_count = (short)object_get_marker_by_name(object_handle, glow_tag,
                                                         w + 8, GLOW_MARKER_MAX);
   *(short *)(w + 4) = marker_count;
 

@@ -88,7 +88,7 @@ int particle_system_new_attached(int particle_tag_index, int object_handle,
       *(int *)(datum + 0x44) = *(int *)(default_color + 12);
     }
 
-    object_get_markers_by_string_id(object_handle, ps_elem + 0x10, marker_buf,
+    object_get_marker_by_name(object_handle, ps_elem + 0x10, marker_buf,
                                     1);
     *(int *)(datum + 0x20) = *(int *)(marker_buf + 0x60);
     *(int *)(datum + 0x24) = *(int *)(marker_buf + 0x64);

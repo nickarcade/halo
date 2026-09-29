@@ -354,7 +354,7 @@ void game_sound_restore(void)
  *
  * `marker_name` is required (asserted).  When `object_index` is NONE the
  * sound is unattached and no marker lookup happens.  Otherwise the object's
- * marker is resolved with object_get_markers_by_string_id(..., 1) into a
+ * marker is resolved with object_get_marker_by_name(..., 1) into a
  * 108-byte marker buffer; a zero marker count aborts with NONE.
  *
  * A NONE `sound_tag_index` returns NONE without touching the table.
@@ -396,7 +396,7 @@ int game_looping_sound_new(int object_index, int sound_tag_index,
 
   if (object_index != NONE) {
     marker_count =
-      object_get_markers_by_string_id(object_index, marker_name, marker, 1);
+      object_get_marker_by_name(object_index, marker_name, marker, 1);
     if (marker_count == 0)
       goto done;
   }
@@ -1117,7 +1117,7 @@ void scripted_sound_new(int param_1, int param_2, float param_3)
     if (param_2 == NONE) {
       sound_index = sound_impulse_start(param_1, param_3);
     } else {
-      if (object_get_markers_by_string_id(param_2, (void *)0x2909e4, marker_buf,
+      if (object_get_marker_by_name(param_2, (void *)0x2909e4, marker_buf,
                                           1)) {
         marker = *(int16_t *)marker_buf;
         position[0] = *(float *)(marker_buf + 0x2c);

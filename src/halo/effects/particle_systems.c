@@ -507,7 +507,7 @@ void particle_system_new_particles(void *ps_arg, int16_t type_index, float dt)
        and unrelated: with the wrong stride any attachment index != 0 lands
        mid-element, so marker_elem+0x10 is a bogus string_id and the marker
        lookup fails or matches the wrong marker. */
-    location_valid = object_get_markers_by_string_id(
+    location_valid = object_get_marker_by_name(
       *(int *)(ps + 0xc),
       (void *)((char *)tag_block_get_element(
                  (void *)((char *)tag_get(0x6f626a65, *(int *)obj) + 0x140),

@@ -18625,7 +18625,7 @@
       "kind": "function",
       "status": "ported",
       "inferred": [
-        "GLOW_MARKER_MAX=5 inferred from the +0x22a ordering table capacity (0x234-0x22a = 10 bytes = 5 int16 slots) and the object_get_markers_by_string_id max_count arg.",
+        "GLOW_MARKER_MAX=5 inferred from the +0x22a ordering table capacity (0x234-0x22a = 10 bytes = 5 int16 slots) and the object_get_marker_by_name max_count arg.",
         "g_glow_particle_data datum pool pointer lives at VA 0x5a90cc, extracted from the pristine XBE datum_delete call site operand."
       ],
       "uncertain": [
@@ -23513,7 +23513,7 @@
         "The weapon remembers the detaching unit via weapon+0x1B0 write."
       ],
       "uncertain": [
-        "The exact name of 0x1a9240 (unit_set_seat_state) is uncertain; it receives the unit handle and the root position vector."
+        "The exact name of 0x1a9240 (unit_get_camera_position) is uncertain; it receives the unit handle and the root position vector."
       ]
     },
     "0x1abb20": {

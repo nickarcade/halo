@@ -218,14 +218,14 @@
   },
   {
     "addr": "0x1396e0",
-    "name": "object_wake",
+    "name": "light_disconnect_from_map",
     "object": "objects.obj",
     "reason": "pre-gate baseline 2026-06-10",
     "since": "2026-06-10"
   },
   {
     "addr": "0x13aed0",
-    "name": "object_move_to_limbo",
+    "name": "light_reconnect_to_map",
     "object": "objects.obj",
     "reason": "pre-gate baseline 2026-06-10",
     "since": "2026-06-10"
@@ -505,7 +505,7 @@
   },
   {
     "addr": "0x13fea0",
-    "name": "object_get_child_marker_definition",
+    "name": "object_get_attachment_marker_name",
     "object": "objects.obj",
     "reason": "pre-gate baseline 2026-06-10",
     "since": "2026-06-10"
@@ -645,7 +645,7 @@
   },
   {
     "addr": "0x140f10",
-    "name": "object_get_markers_by_string_id",
+    "name": "object_get_marker_by_name",
     "object": "objects.obj",
     "reason": "pre-gate baseline 2026-06-10",
     "since": "2026-06-10"
@@ -1601,5 +1601,12 @@
     "object": "game.obj",
     "reason": "VC71 byte accuracy unmeasured/not 90%",
     "since": "2026-09-17"
+  },
+  {
+    "addr": "0xcbb40",
+    "name": "render_debug_trigger_volumes",
+    "object": "hs_runtime.obj",
+    "reason": "PR #29 lift has binary-verified defects (volume offsets, colour args, dataflow); debug-only renderer kept dormant until re-lifted",
+    "since": "2026-09-29"
   }
 ]

@@ -102,8 +102,8 @@ enum unit_control_flags {
 
 /* Bounds only. The 44 unit states and 209 vocalization types are not referenced
  * by name in this TU, so their member lists are deliberately not imported.
- * NUMBER_OF_VOCALIZATION_TYPES documents the value; the site that checks it
- * tests `> 208` and keeps its literal (see the note there). */
+ * unit_test_speech compares vocalization_type < NUMBER_OF_VOCALIZATION_TYPES
+ * (XBE cmp bx, 0xd1; jl). */
 #define NUMBER_OF_UNIT_STATES 44
 #define NUMBER_OF_VOCALIZATION_TYPES 209
 
@@ -1367,13 +1367,10 @@ short unit_test_speech(int unit_handle, short priority, char param_3, char param
   short slot_secondary;
   short max_priority;
   int priority_int;
-  short result;
-  char bVar;
+  int result;
+  char can_queue;
   float timing_threshold;
-  short ftol_result;
-  short *priority_table;
-  float *timing_table;
-  short *fallback_table;
+  short override_priority;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   game_time_get();
@@ -1390,7 +1387,8 @@ short unit_test_speech(int unit_handle, short priority, char param_3, char param
                    "c:\\halo\\SOURCE\\units\\unit_dialogue.c", 0x81, 1);
     system_exit(-1);
   }
-  if (priority < 0 || priority > _unit_speech_death) {
+  /* XBE: test si,si; jl / cmp si,0xb; jl. name: PAL 2342 unit_dialogue.c:250 */
+  if (priority < 0 || priority >= NUMBER_OF_UNIT_SPEECH_PRIORITIES) {
     display_assert(
       "(priority >= 0) && (priority < NUMBER_OF_UNIT_SPEECH_PRIORITIES)",
       "c:\\halo\\SOURCE\\units\\unit_dialogue.c", 0x82, 1);
@@ -1400,26 +1398,24 @@ short unit_test_speech(int unit_handle, short priority, char param_3, char param
   voc_type = *vocalization_type_ref;
   snd_def_idx = *sound_definition_index_ref;
 
-  priority_table = (short *)0x2b65c4;
-  timing_table = (float *)0x2b65dc;
-  fallback_table = (short *)0x2b6420;
-
   /* Walk the dialogue tag's vocalization table with fallback chain */
   if (snd_def_idx == NONE && *(int *)(unit + 0x334) != NONE && voc_type != -1) {
     udlg_tag = (int)tag_get(0x75646c67, *(int *)(unit + 0x334));
     do {
-      /* Literal 0xd0 deliberately: the original tests `> 208`, and spelling it
-       * `>= NUMBER_OF_VOCALIZATION_TYPES` would emit CMP 0xd1. */
-      if (voc_type < 0 || voc_type > 0xd0) {
+      /* XBE: cmp bx, 0xd1; jl. < NUMBER_OF_VOCALIZATION_TYPES (209). */
+      if (voc_type < 0 || voc_type >= NUMBER_OF_VOCALIZATION_TYPES) {
         display_assert("(vocalization_type >= 0) && (vocalization_type < "
                        "NUMBER_OF_VOCALIZATION_TYPES)",
                        "c:\\halo\\SOURCE\\units\\unit_dialogue.c", 0x90, 1);
         system_exit(-1);
       }
       snd_def_idx = *(int *)(udlg_tag + (int)voc_type * 0x10 + 0x1c);
-    } while (param_3 != '\0' && snd_def_idx == NONE &&
-             (game_connection() != 0 || *(char *)0x5ac9cd == '\0') &&
-             (voc_type = fallback_table[voc_type], voc_type != -1));
+      if (param_3 == '\0' || snd_def_idx != NONE ||
+          (game_connection() == 0 && *(char *)0x5ac9cd != '\0')) {
+        break;
+      }
+      voc_type = *(short *)(0x2b6420 + (int)voc_type * 2);
+    } while (voc_type != -1);
   }
 
   /* Check if unit can speak (flag check and game connection) */
@@ -1445,46 +1441,58 @@ short unit_test_speech(int unit_handle, short priority, char param_3, char param
 
     priority_int = (int)priority;
 
-    /* Only pain, involuntary and death may interrupt a line already playing. */
-    if ((priority_int == _unit_speech_pain ||
-         priority_int == _unit_speech_involuntary ||
-         priority_int == _unit_speech_death) &&
-        *(char *)(unit + 0x3a4) != '\0' && *(short *)(unit + 0x3aa) == 0 &&
-        max_priority < priority) {
-      slot_priority = _unit_speech_none;
-      max_priority = slot_secondary;
+    /* XBE subtracts 2/5/3. name: PAL 2342 unit_dialogue.c:304 */
+    switch (priority_int) {
+    case _unit_speech_pain:
+    case _unit_speech_involuntary:
+    case _unit_speech_death:
+      if (*(char *)(unit + 0x3a4) != '\0' && *(short *)(unit + 0x3aa) == 0 &&
+          priority > max_priority) {
+        slot_priority = _unit_speech_none;
+        max_priority = slot_secondary;
+      }
+      break;
     }
 
-    if (priority_table[priority_int] >= max_priority) {
+    override_priority = *(short *)(0x2b65c4 + priority_int * 2);
+    if (override_priority >= max_priority) {
       result = 3;
     } else if (priority >= _unit_speech_involuntary &&
-               priority_table[priority_int] >= slot_priority) {
+               override_priority >= slot_priority) {
       result = 2;
-    } else if (param_4 != '\0' && timing_table[priority_int] != 0.0f) {
-      timing_threshold = timing_table[priority_int];
-      if (timing_threshold == *(float *)0x2548fc) {
-        /* REAL_MAX => always interrupt */
-        bVar = 1;
-      } else {
-        ftol_result = (short)(timing_threshold * 30.0f);
-        bVar =
-          (*(short *)(unit + 0x3ae) + *(short *)(unit + 0x3aa) < ftol_result) ?
-            1 :
-            0;
-        if (!bVar)
-          goto done;
-      }
-      if (priority <= max_priority) {
-        if (priority <= *(short *)(unit + 0x368))
-          goto done;
-        if (slot_priority == _unit_speech_pain ||
-            slot_priority == _unit_speech_involuntary) {
-          bVar = 1;
+    } else if (param_4 != '\0') {
+      timing_threshold = *(float *)(0x2b65dc + priority_int * 4);
+      if (timing_threshold != 0.0f) {
+        if (timing_threshold == *(float *)0x2548fc) {
+          /* REAL_MAX => always interrupt */
+          can_queue = 1;
+        } else {
+          can_queue = ((int)*(short *)(unit + 0x3ae) +
+                       (int)*(short *)(unit + 0x3aa) <
+                       (int)(short)(timing_threshold * 30.0f)) ?
+                        1 :
+                        0;
         }
-        if (priority != _unit_speech_scripted && !bVar)
-          goto done;
+        if (can_queue) {
+          if (priority <= max_priority) {
+            if (priority <= slot_secondary) {
+              can_queue = 0;
+            } else {
+              /* name: PAL 2342 unit_dialogue.c:356 */
+              switch ((int)slot_priority) {
+              case _unit_speech_pain:
+              case _unit_speech_involuntary:
+                can_queue = 1;
+                break;
+              }
+              if (priority == _unit_speech_scripted)
+                can_queue = 1;
+            }
+          }
+          if (can_queue)
+            result = 1;
+        }
       }
-      result = 1;
     }
   }
 
@@ -2285,7 +2293,7 @@ void unit_dialogue_update(int param_1)
       *(int16_t *)(unit + 0x3a8) -= 1;
     } else {
       if (*(uint8_t *)(unit + 0x3a4) == 0) {
-        marker_count = object_get_markers_by_string_id(
+        marker_count = object_get_marker_by_name(
           param_1, (void *)0x2909e4, marker_buf, 1);
         if (marker_count == 0) {
           position[0] = (*(float **)0x31fc1c)[0];
@@ -2541,25 +2549,26 @@ int unit_scripting_get_grenade_count(int datum_handle)
 
 /* unit_scripting_impervious (0x1a7d80)
  * Sets or clears bit 23 (0x800000) in unit flags for all child units. */
-void unit_scripting_impervious(int datum_handle, char flag)
+void unit_scripting_impervious(int object_list_index, char impervious)
 {
-  int iter_state;
-  int child;
+  /* name: PAL 2342 unit_scripting_commands.c:206 object_list_index, impervious */
+  int reference_index;
+  int unit_index;
   char *unit;
   uint32_t flags;
 
-  child = FUN_000ce450(datum_handle, &iter_state);
-  while (child != -1) {
-    unit = (char *)object_try_and_get_and_verify_type(child, 3);
+  unit_index = FUN_000ce450(object_list_index, &reference_index);
+  while (unit_index != -1) {
+    unit = (char *)object_try_and_get_and_verify_type(unit_index, 3);
     if (unit != NULL) {
-      if (flag == '\0') {
-        flags = *(uint32_t *)(unit + 0x1b4) & 0xff7fffff;
-      } else {
+      if (impervious != '\0') {
         flags = *(uint32_t *)(unit + 0x1b4) | 0x800000;
+      } else {
+        flags = *(uint32_t *)(unit + 0x1b4) & 0xff7fffff;
       }
       *(uint32_t *)(unit + 0x1b4) = flags;
     }
-    child = FUN_000ce320(datum_handle, &iter_state);
+    unit_index = FUN_000ce320(object_list_index, &reference_index);
   }
 }
 
@@ -2808,14 +2817,14 @@ int unit_get_seat_enter_position(int unit_handle, int target_unit_handle,
 
       mode =
         (char *)tag_block_get_element(antr_tag + 0x74, (int)mode_index, 0xb4);
-      object_get_markers_by_string_id(target_unit_handle, seat + 0x24,
+      object_get_marker_by_name(target_unit_handle, seat + 0x24,
                                       seat_marker_data, 1);
       animation_get_root_matrix(mode_tag, mode, 0, mode_matrix);
       matrix4x3_multiply((float *)(seat_marker_data + 0x38),
                          (float *)mode_matrix, (float *)enter_position_matrix);
       csstrcpy(marker_name, seat + 0x24);
       csstrcat(marker_name, " enter-hint");
-      object_get_markers_by_string_id(target_unit_handle, marker_name,
+      object_get_marker_by_name(target_unit_handle, marker_name,
                                       hint_marker_data, 1);
 
       if (out_pos_b != NULL) {
@@ -3897,18 +3906,18 @@ void unit_destroy(int unit_handle)
 }
 
 /* 0x1a9200 — get world-space position of the "head" marker on a unit.
- * Thin wrapper: calls object_get_markers_by_string_id for the string at
+ * Thin wrapper: calls object_get_marker_by_name for the string at
  * 0x2909e4 ("head"), then extracts XYZ from offset 0x60 in the marker
  * output record. Identical pattern to unit_get_center_of_mass ("body" marker). */
 void unit_get_head_position(int object_handle, float *out_position)
 {
   char marker_buf[0x6c];
-  object_get_markers_by_string_id(object_handle, (void *)0x2909e4, marker_buf,
+  object_get_marker_by_name(object_handle, (void *)0x2909e4, marker_buf,
                                   1);
   *(vector3_t *)out_position = *(vector3_t *)(marker_buf + 0x60);
 }
 
-/* unit_set_seat_state (0x1a9240)
+/* unit_get_camera_position (0x1a9240)
  *
  * Computes a 3D position representing the unit's current seat state and writes
  * it into the caller-supplied float[3].
@@ -3920,7 +3929,7 @@ void unit_get_head_position(int object_handle, float *out_position)
  *    object type is 0 or 1 (biped/vehicle) and the unit has a valid seat
  *    definition index (unk_672 != -1), looks up the seat's marker name (at
  *    seat_def + 0x84) and resolves it on the parent via
- *    object_get_markers_by_string_id. For seat type 1, skips if the marker
+ *    object_get_marker_by_name. For seat type 1, skips if the marker
  *    name byte at seat_def + 0x84 is zero.
  *
  * 2. Unit has no parent and no special flags:
@@ -3932,9 +3941,9 @@ void unit_get_head_position(int object_handle, float *out_position)
  *    resolves unk_728 as a unit, reads its seat index (unk_672), looks up the
  *    seat definition's marker name (seat_def + 0x24) from the original unit's
  *    tag, and resolves it on the original unit via
- * object_get_markers_by_string_id.
+ * object_get_marker_by_name.
  */
-void unit_set_seat_state(int unit_handle, float *position)
+void unit_get_camera_position(int unit_handle, float *position)
 {
   char *unit;
   char *unit_tag;
@@ -3964,7 +3973,7 @@ void unit_set_seat_state(int unit_handle, float *position)
     /* Has flags or non-zero type: check unk_728 */
     if (*(int *)(unit + 0x2d8) == -1) {
       /* No related unit — find "head" marker on this unit */
-      object_get_markers_by_string_id(unit_handle, (void *)0x2909e4, marker_buf,
+      object_get_marker_by_name(unit_handle, (void *)0x2909e4, marker_buf,
                                       1);
       memcpy(position, marker_buf + 0x60, 3 * sizeof(float));
       return;
@@ -3975,7 +3984,7 @@ void unit_set_seat_state(int unit_handle, float *position)
     seat_def = (char *)tag_block_get_element(unit_tag + 0x2e4,
                                              (int)*(int16_t *)(parent_unit + 0x2a0),
                                              0x11c);
-    object_get_markers_by_string_id(unit_handle, seat_def + 0x24, marker_buf,
+    object_get_marker_by_name(unit_handle, seat_def + 0x24, marker_buf,
                                     1);
     memcpy(position, marker_buf + 0x60, 3 * sizeof(float));
     return;
@@ -4010,7 +4019,7 @@ void unit_set_seat_state(int unit_handle, float *position)
   }
 
   /* Look up the seat marker on the parent object */
-  object_get_markers_by_string_id(*(int *)(unit + 0xcc), seat_def + 0x84,
+  object_get_marker_by_name(*(int *)(unit + 0xcc), seat_def + 0x84,
                                   marker_buf, 1);
   position[0] = *(float *)(marker_buf + 0x60);
   position[1] = *(float *)(marker_buf + 0x64);
@@ -4033,7 +4042,7 @@ void unit_set_seat_state(int unit_handle, float *position)
  * 3. Fallback: call object_get_world_position to get unit's world position as
  *    local_body_pos.
  *
- * After path 2/3: call unit_set_seat_state to compute the unit's current
+ * After path 2/3: call unit_get_camera_position to compute the unit's current
  * estimated position into out_position, then add the delta
  * (body_position - local_body_pos) to out_position.
  *
@@ -4098,7 +4107,7 @@ void unit_estimate_position(int unit_handle, int16_t estimate_mode,
 
 apply_delta:
   /* Get the unit's current estimated seat position into out_position */
-  unit_set_seat_state(unit_handle, (float *)out_position);
+  unit_get_camera_position(unit_handle, (float *)out_position);
 
   /* Add (body_position - local_body_pos) delta to out_position */
   out_position->x += body_position->x - local_body_pos.x;
@@ -4988,41 +4997,42 @@ int units_debug_get_next_unit(int current_unit)
  * Confirmed: FLOAT_002533c0 = 0.0f (used when unit_handle == -1).
  * Confirmed: initial best_dist = FLT_MAX (0x7f7fffff).
  */
-int units_debug_get_closest_unit(int unit_handle)
+int units_debug_get_closest_unit(int reference_object_index)
 {
-  int best_handle;
-  float best_dist;
+  /* name: PAL 2342 units.c:3843 reference_object_index, closest_index */
+  int closest_index;
+  float closest_distance;
   int iter[4];
   char *obj;
   float pos_a[3];
   float pos_b[3];
   float dx, dy, dz, dist;
 
-  best_handle = -1;
-  best_dist = 3.4028235e+38f;
+  closest_index = -1;
+  closest_distance = 3.4028235e+38f;
 
   object_iterator_new(iter, 1, 0);
   obj = (char *)object_iterator_next(iter);
   while (obj != NULL) {
-    if (iter[2] != unit_handle && (*(uint8_t *)(obj + 0xb6) & 4) == 0) {
-      if (unit_handle == -1) {
-        dist = *(float *)0x2533c0;
-      } else {
-        object_get_world_position(unit_handle, (vector3_t *)pos_a);
+    if (iter[2] != reference_object_index && (*(uint8_t *)(obj + 0xb6) & 4) == 0) {
+      if (reference_object_index != -1) {
+        object_get_world_position(reference_object_index, (vector3_t *)pos_a);
         object_get_world_position(iter[2], (vector3_t *)pos_b);
         dx = pos_b[0] - pos_a[0];
         dy = pos_b[1] - pos_a[1];
         dz = pos_b[2] - pos_a[2];
         dist = sqrtf(dx * dx + dy * dy + dz * dz);
+      } else {
+        dist = *(float *)0x2533c0;
       }
-      if (dist < best_dist) {
-        best_handle = iter[2];
-        best_dist = dist;
+      if (dist < closest_distance) {
+        closest_index = iter[2];
+        closest_distance = dist;
       }
     }
     obj = (char *)object_iterator_next(iter);
   }
-  return best_handle;
+  return closest_index;
 }
 
 /* unit_debug_ninja_rope (0x1aa240)
@@ -5040,7 +5050,7 @@ void unit_debug_ninja_rope(int unit_handle)
   int16_t depth;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
-  unit_set_seat_state(unit_handle, origin);
+  unit_get_camera_position(unit_handle, origin);
 
   direction[0] = *(float *)(unit + 0x1ec) * 25.0f;
   direction[1] = *(float *)(unit + 0x1f0) * 25.0f;
@@ -5175,7 +5185,7 @@ char unit_can_see_point(int unit_handle, float *point, float half_angle)
   }
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
-  object_get_markers_by_string_id(unit_handle, (void *)0x2909e4, marker_buf, 1);
+  object_get_marker_by_name(unit_handle, (void *)0x2909e4, marker_buf, 1);
 
   /* dir = point - head_marker_position. The original keeps dir as a single
    * contiguous 3-float vector ([ebp-0xc/-0x8/-0x4]) and passes its base to
@@ -5960,7 +5970,7 @@ void unit_throw_grenade_move_to_hand(int unit_handle)
 
 skip_decrement:
   /* Get grenade marker position */
-  object_get_markers_by_string_id(unit_handle, (void *)0x2b6d2c, marker_buf, 1);
+  object_get_marker_by_name(unit_handle, (void *)0x2b6d2c, marker_buf, 1);
 
   /* Build object placement data for the grenade */
   object_placement_data_new(placement, *(int *)(globals_entry + 0x40),
@@ -6071,7 +6081,7 @@ void unit_throw_grenade_release(int unit_handle, char flag)
       normalize3d(cross2);
 
       /* Get the unit's seat/marker position */
-      unit_set_seat_state(unit_handle, seat_pos);
+      unit_get_camera_position(unit_handle, seat_pos);
 #ifdef HALO_RNG_TRACE
       RNG_TRACE_EX(RNG_TRACE_KIND_THROW_SEAT_XY, RNG_TRACE_BITS(seat_pos[0]),
                    RNG_TRACE_BITS(seat_pos[1]));
@@ -6155,7 +6165,7 @@ void unit_throw_grenade_release(int unit_handle, char flag)
   *(int *)(unit + 0x244) = -1;
 
   /* Try to place the grenade; delete on failure */
-  unit_set_seat_state(unit_handle, cross2);
+  unit_get_camera_position(unit_handle, cross2);
   if (object_try_place(grenade_handle, cross2) == 0) {
     object_delete(grenade_handle);
   }
@@ -6207,7 +6217,7 @@ void unit_aiming_vector(int unit_handle)
     tag_data = (int)tag_get(0x756e6974, *(int *)parent_unit);
     seat_entry = (int)tag_block_get_element(
       (void *)(tag_data + 0x2e4), (int)*(int16_t *)(unit + 0x2a0), 0x11c);
-    marker_result = object_get_markers_by_string_id(
+    marker_result = object_get_marker_by_name(
       parent_handle, (void *)(seat_entry + 0x24), marker_buf, 1);
     if (marker_result == 0) {
       *(float *)(unit + 0x320) = 0.5f;
@@ -6538,7 +6548,7 @@ void unit_detach_weapon(int unit_handle, int weapon_handle)
 
   /* Set weapon position and try to place it */
   item_accelerate(weapon_handle, direction, 0);
-  unit_set_seat_state(unit_handle, position);
+  unit_get_camera_position(unit_handle, position);
 
   if (!object_try_place(weapon_handle, position)) {
     if (!game_engine_running()) {
@@ -7588,7 +7598,7 @@ void unit_adjust_projectile_ray(int unit_handle, float *origin,
 
   /* Project origin onto aim position along direction */
   if (adjust_origin != '\0') {
-    unit_set_seat_state(unit_handle, aim_pos);
+    unit_get_camera_position(unit_handle, aim_pos);
     dot = (origin[0] - aim_pos[0]) * direction[0] +
           (origin[1] - aim_pos[1]) * direction[1] +
           (origin[2] - aim_pos[2]) * direction[2];
@@ -7617,20 +7627,19 @@ void unit_render_debug(int unit_handle)
   int unit_tag;
   float eye_pos[3];
   float head_pos[3];
+  float seat_c[3];
   char marker_data[0x6c]; /* marker output; position at +0x60 */
   int seat_idx;
-  float seat_a[3], seat_b[3], seat_c[3];
   int seat_count;
   int local_player;
   char result;
-  char *text;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   unit_tag = (int)tag_get(0x756e6974, *(int *)unit);
 
   /* Debug aim/look vectors */
   if (*(char *)0x5054f7 != '\0') {
-    unit_set_seat_state(unit_handle, eye_pos);
+    unit_get_camera_position(unit_handle, eye_pos);
     object_get_world_position(unit_handle, (vector3_t *)head_pos);
     head_pos[2] = head_pos[2] + 0.1f;
     /* Draw aim direction line (scale 1.0, yellow) */
@@ -7656,10 +7665,11 @@ void unit_render_debug(int unit_handle)
       if (seat_idx < *(int *)(unit_tag + 0x2e4)) {
         do {
           result = (char)unit_get_seat_enter_position(
-            seat_count, unit_handle, (int16_t)seat_idx, seat_a, seat_b, seat_c);
+            seat_count, unit_handle, (int16_t)seat_idx, eye_pos, head_pos,
+            seat_c);
           if (result != '\0') {
-            FUN_00189150(1, seat_a, 0.25f, *(void **)0x2ee6d0);
-            FUN_00189150(1, seat_b, 0.25f, *(void **)0x2ee6d8);
+            FUN_00189150(1, eye_pos, 0.25f, *(void **)0x2ee6d0);
+            FUN_00189150(1, head_pos, 0.25f, *(void **)0x2ee6d8);
             FUN_00189150(1, seat_c, 0.25f, *(void **)0x2ee6e0);
           }
           seat_idx += 1;
@@ -7670,15 +7680,17 @@ void unit_render_debug(int unit_handle)
 
   /* Debug animation throttle */
   if (*(char *)0x5054f5 != '\0') {
-    object_get_markers_by_string_id(unit_handle, (void *)0x2909e4, marker_data,
+    object_get_marker_by_name(unit_handle, (void *)0x2909e4, marker_data,
                                     1);
     /* Position is at offset 0x60 within the marker output struct.
      * marker_data base is EBP-0x98; position at EBP-0x38 = base+0x60. */
     head_pos[0] = *(float *)((char *)marker_data + 0x60);
     head_pos[1] = *(float *)((char *)marker_data + 0x64);
     head_pos[2] = *(float *)((char *)marker_data + 0x68);
-    text = csprintf((char *)0x5ab100, "%.2f", (double)*(float *)(unit + 0x298));
-    FUN_00189cb0(0, head_pos, text, *(int *)0x2ee6f0);
+    FUN_00189cb0(0, head_pos,
+                 csprintf((char *)0x5ab100, "%.2f",
+                          (double)*(float *)(unit + 0x298)),
+                 *(int *)0x2ee6f0);
   }
 }
 
@@ -9307,7 +9319,7 @@ void unit_cause_melee_damage(int unit_handle, char melee_hit, int target_handle,
     goto cleanup;
   }
 
-  marker_count = object_get_markers_by_string_id(unit_handle, (void *)0x25961c,
+  marker_count = object_get_marker_by_name(unit_handle, (void *)0x25961c,
                                                  marker_buf, 1);
 
   if (marker_count == 1) {
@@ -9466,7 +9478,7 @@ void unit_cause_player_melee_damage(int unit_handle)
   material_idx = -1;
   melee_response_effect = -1;
 
-  object_get_markers_by_string_id(unit_handle, (void *)0x2909e4, marker_buf, 1);
+  object_get_marker_by_name(unit_handle, (void *)0x2909e4, marker_buf, 1);
 
   ray_origin[0] = *(float *)(marker_buf + 0x60);
   ray_origin[1] = *(float *)(marker_buf + 0x64);
@@ -11931,16 +11943,19 @@ char unit_melee_attack_begin(int unit_handle, char param_2, int param_3)
  *
  * Source: units.c
  */
-char unit_leap_begin(int unit_handle, float *forward)
+char unit_leap_begin(int unit_handle, float *alignment_vector)
 {
+  /* name: PAL 2342 units.c:4249 alignment_vector */
   char *unit;
   char result;
   char biped_limping;
+  char state;
 
-  result = 0;
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  state = *(char *)(unit + 0x253);
+  result = 0;
 
-  switch (*(uint8_t *)(unit + 0x253)) {
+  switch (state) {
   case 0x17:
   case 0x18:
   case 0x19:
@@ -11961,8 +11976,8 @@ char unit_leap_begin(int unit_handle, float *forward)
     if (*(short *)(unit + 0x64) == 0)
       biped_limping = (char)(*(uint8_t *)(unit + 0x424) & 1);
     if (!biped_limping && unit_animation_set_state(unit_handle, 0x27)) {
-      if (forward != 0)
-        unit_apply_alignment_vector(unit_handle, forward);
+      if (alignment_vector != 0)
+        unit_apply_alignment_vector(unit_handle, alignment_vector);
       result = 1;
     }
     break;
@@ -12912,7 +12927,7 @@ bool unit_board_vehicle(int unit_handle, int vehicle_handle, int16_t seat_index)
 
   /* Find the seat marker on the vehicle */
   marker_name = (char *)seat_def + 0x24;
-  object_get_markers_by_string_id(vehicle_handle, marker_name, markers, 1);
+  object_get_marker_by_name(vehicle_handle, marker_name, markers, 1);
 
   /* Compute position delta: unit_pos - marker_pos */
   /* Marker position is at offset 0x60 in the marker output buffer */
@@ -13034,7 +13049,7 @@ void unit_exit_seat_end(int unit_handle)
   node_matrix = (char *)object_get_node_matrix(unit_handle, 0);
 
   /* Get marker position from seat */
-  object_get_markers_by_string_id(seat_handle, (void *)(seat_element + 0x24),
+  object_get_marker_by_name(seat_handle, (void *)(seat_element + 0x24),
                                   marker_buf, 1);
 
   /* Compute exit offset: node_matrix.position - marker_position */

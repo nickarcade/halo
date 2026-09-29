@@ -893,7 +893,7 @@ void FUN_00181410(void)
  * rendering. Iterates light-marker block entries for param_1 scenery_light
  * index. Builds a 0x28-byte params struct and calls FUN_00181670 (the lens
  * flare queue submission function) for each entry. (0x181900) */
-void FUN_00181900(short param_1)
+void rasterizer_lens_flare_submit_for_cluster(short param_1)
 {
   int scenario; /* scenario base ptr */
   int light_block; /* scenario->scenery_lights[param_1] element ptr */

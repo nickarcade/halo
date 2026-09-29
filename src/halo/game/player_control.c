@@ -282,7 +282,7 @@ real player_control_get_field_of_view(int16_t local_player_index)
  *   +0x04 int16   seat index within that vehicle (NONE when on foot)
  *   +0x08 void*   camera/seat limit block (vehicle seat +0x84, else unit
  *                 tag +0x1a8)
- *   +0x0c real[3] seat position, written by unit_set_seat_state (0x1a9240)
+ *   +0x0c real[3] seat position, written by unit_get_camera_position (0x1a9240)
  *
  * On foot the block comes from the unit's own 'unit' tag. When the unit is
  * riding something (unit+0xcc is the vehicle handle, unit+0x2a0 the seat
@@ -318,7 +318,7 @@ void player_control_get_unit_camera_info(int16_t local_player_index,
   *(int16_t *)(info + 4) = NONE;
   if (handle != NONE) {
     unit_obj = (char *)object_get_and_verify_type(handle, 3);
-    unit_set_seat_state(*(int *)info, (real *)(info + 0xc));
+    unit_get_camera_position(*(int *)info, (real *)(info + 0xc));
     if (*(int *)(unit_obj + 0xcc) != NONE) {
       vehicle_obj = (char *)object_try_and_get_and_verify_type(
         *(int *)(unit_obj + 0xcc), 2);
@@ -1431,14 +1431,14 @@ void player_control_modify_desired_angles(int16_t local_player_index,
   /* +0x00 unit handle, +0x04 seat index, +0x08 seat-limit block ptr -- the
    * three fields player_control_get_unit_camera_info (0xb6740) stores
    * directly. It ALSO does `lea eax,[esi+0xc]` and forwards that to
-   * unit_set_seat_state (0x1a9240), which writes a float[3] seat position at
+   * unit_get_camera_position (0x1a9240), which writes a float[3] seat position at
    * +0x0c..+0x18, so the buffer is larger than the three visible stores. The
    * original reserves it at [ebp-0x38] with the next local (desired_pitch) at
    * [ebp-0x10] -- 0x28 bytes of headroom; matched here. Sizing this 0xc let
    * the callee's write land on marker_angles and hang a10 after the opening
    * cinematic. */
   char camera_info[0x28];
-  char marker_buf[0x6c]; /* object_get_markers_by_string_id output */
+  char marker_buf[0x6c]; /* object_get_marker_by_name output */
   float marker_angles[2]; /* yaw, pitch */
   float forward[3];
   float pitch_minimum_target;
@@ -1502,7 +1502,7 @@ void player_control_modify_desired_angles(int16_t local_player_index,
       float arc;
       float delta_high;
 
-      object_get_markers_by_string_id(*(int *)camera_info, seat + 0x24,
+      object_get_marker_by_name(*(int *)camera_info, seat + 0x24,
                                       marker_buf, 1);
       /* the marker's forward vector sits at +0x3c in the marker record */
       vector_to_angles(marker_angles, (float *)(marker_buf + 0x3c));
@@ -2092,10 +2092,10 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
         vehicle = (char *)object_get_and_verify_type(*(int *)(unit + 0xcc), 3);
         unit_tag = (char *)tag_get(0x756e6974, *(int *)vehicle);
         seat = (char *)tag_block_get_element(unit_tag + 0x2e4, *(int16_t *)(unit + 0x2a0), 0x11c);
-        if (*(real *)(seat + 0x7c) != 0.0f) {
+        if (*(real *)(seat + 0x7c) > 0.0f) {
           yaw_rate = *(real *)(seat + 0x7c) * 0.017453292f * 0.033333335f;
         }
-        if (*(real *)(seat + 0x80) != 0.0f) {
+        if (*(real *)(seat + 0x80) > 0.0f) {
           pitch_rate = *(real *)(seat + 0x80) * 0.017453292f * 0.033333335f;
         }
       }
@@ -2108,7 +2108,7 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
     abs_look_yaw = (real)fabs(*(real *)(input_state + 0x14));
     scale = 1.0f;
 
-    if (abs_look_pitch >= 0.10000000149011612f || abs_look_yaw >= 0.10000000149011612f) {
+    if (abs_look_pitch > 0.10000000149011612f && abs_look_yaw > 0.10000000149011612f) {
       if (abs_look_pitch > abs_look_yaw) {
         temp = abs_look_yaw / abs_look_pitch;
         scale = sqrtf(temp * temp + 1.0f);
@@ -2249,7 +2249,7 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
       unit = (char *)object_try_and_get_and_verify_type(unit_index, 1);
       if (unit) {
         if (*(uint8_t *)0x4570b8 || (*(uint8_t *)(unit + 0x424) & 1) ||
-            (input->field_0x04 * input->field_0x04 + input->field_0x00 * input->field_0x00 > 0.01f)) {
+            (input->field_0x04 * input->field_0x04 + input->field_0x00 * input->field_0x00 < 0.01f)) {
           if (debounced_buttons[10]) {
             input->field_0x18 |= 1;
           } else {
@@ -2330,8 +2330,8 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
     char *mouse;
     mouse = (char *)input_get_mouse_state();
 
-    input->field_0x00 = (real)((int)input_key_is_down(0x2f) - (int)input_key_is_down(0x2e));
-    input->field_0x04 = (real)((int)input_key_is_down(0x2d) - (int)input_key_is_down(0x20));
+    input->field_0x00 = (real)((int)input_key_is_down(0x20) - (int)input_key_is_down(0x2e));
+    input->field_0x04 = (real)((int)input_key_is_down(0x2d) - (int)input_key_is_down(0x2f));
 
     if (!(*(uint8_t *)((char *)player_control_globals + 0xc) & 1) && !game_time_get_paused()) {
       input->look_yaw_delta = -(real)*(int *)mouse * 0.0031415927f;

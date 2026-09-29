@@ -2968,7 +2968,7 @@
       "reason": "divergence"
     },
     {
-      "name": "object_get_child_marker_definition",
+      "name": "object_get_attachment_marker_name",
       "status": "fail",
       "reason": "divergence"
     },

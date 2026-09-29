@@ -69,3 +69,16 @@ rtk .venv/bin/python tools/verify/raw_xbe_structural.py populate --source PATH
 Also run the function's appropriate equivalence gate. Exact VC7.1 bytes are
 comparison evidence, not proof of runtime equivalence or compiler identity.
 The original compiler and flags remain unproven.
+
+## Track raw-byte completion
+
+```bash
+rtk .venv/bin/python tools/bytematch/pal_campaign.py metrics
+```
+
+The headline completion metrics are exact functions and exact bytes. Aligned-byte
+accuracy is the optimization signal for partial matches; it is not exact
+coverage. PAL 2342 uses an object-level `Matching` status: those objects compile
+byte-exact against build 2342, while `NonMatching` objects make no exactness
+claim. PAL status is therefore strong source-shape evidence for 2276, not a
+repository-wide PAL percentage or proof that the two builds share bytes.

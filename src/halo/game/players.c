@@ -2652,7 +2652,7 @@ void player_examine_nearby_device(int datum_handle, int object_handle)
   unit = (char *)object_get_and_verify_type(*(int *)(player + 0x34), 3);
   weapon = (char *)object_get_and_verify_type(object_handle, 0x380);
 
-  unit_set_seat_state(*(int *)(player + 0x34), local_position);
+  unit_get_camera_position(*(int *)(player + 0x34), local_position);
   if (!fast_vector_intersects_sphere(local_position, (float *)(unit + 0x1ec),
                                      (float *)(weapon + 0x50),
                                      *(float *)(weapon + 0x5c)))
@@ -14173,6 +14173,7 @@ char player_teleport_internal(int player_index, int object_handle, void *positio
     if (root_parent != object_handle) {
       source_unit = (char *)object_get_and_verify_type(object_handle, 3);
       root_unit = (char *)object_get_and_verify_type(root_parent, -1);
+      object_handle = root_parent;
 
       best_adjustment_vector[0] = *(real *)(root_unit + 0x18);
       best_adjustment_vector[1] = *(real *)(root_unit + 0x1c);
@@ -14190,6 +14191,7 @@ char player_teleport_internal(int player_index, int object_handle, void *positio
           best_adjustment_vector[2] = *(real *)(root_unit + 0x2c);
         }
       }
+      best_adjustment_vector[2] = 0.0f;
 
       biped_tag = (char *)tag_get(0x62697064, *(int *)unit);
       biped_radius = *(real *)(biped_tag + 0x42c);
@@ -14267,7 +14269,7 @@ finish_teleport:
       facing[1] = *(real *)(source_unit + 0x28);
       facing[2] = *(real *)(source_unit + 0x2c);
 
-      root_unit = (char *)object_get_and_verify_type(object_handle, 1);
+      root_unit = (char *)object_try_and_get_and_verify_type(object_handle, 1);
       if (root_unit != NULL && *(int *)(root_unit + 0x42c) != -1) {
         *(int *)(unit + 0x42c) = *(int *)(root_unit + 0x42c);
         unit[0x42b] = root_unit[0x42b];

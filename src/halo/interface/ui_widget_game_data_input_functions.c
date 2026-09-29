@@ -548,7 +548,6 @@ bool playlist_profile_initialize_racing_rules(void *widget)
       *(int16_t *)((char *)option_spinner + 0x3c) = 0;
       break;
     }
-
     list_item = *(void **)((char *)list_item + 0x2c);
     if (list_item == NULL) {
       display_assert(
@@ -557,7 +556,6 @@ bool playlist_profile_initialize_racing_rules(void *widget)
         0xc6e, true);
       system_exit(-1);
     }
-
     option_spinner = *(void **)((char *)list_item + 0x34);
     while (option_spinner != NULL &&
            *(int16_t *)((char *)option_spinner + 0xe) != 2) {
@@ -594,7 +592,6 @@ bool playlist_profile_initialize_racing_rules(void *widget)
         0xc7a, true);
       system_exit(-1);
     }
-
     option_spinner = *(void **)((char *)list_item + 0x34);
     while (option_spinner != NULL &&
            *(int16_t *)((char *)option_spinner + 0xe) != 2) {
@@ -609,6 +606,9 @@ bool playlist_profile_initialize_racing_rules(void *widget)
     }
 
     switch (*(int *)((char *)profile + 0x40)) {
+    case 1: /* name: PAL 2342 ui_widget_event_handler_functions.c:4824 */
+      *(int16_t *)((char *)option_spinner + 0x3c) = 0;
+      break;
     case 3:
       *(int16_t *)((char *)option_spinner + 0x3c) = 1;
       break;
@@ -654,7 +654,7 @@ bool playlist_profile_initialize_racing_rules(void *widget)
     switch (*(uint8_t *)((char *)profile + 0x1c)) {
     case 0:
       *(int16_t *)((char *)option_spinner + 0x3c) = 1;
-      break;
+      return true;
     case 1:
       *(int16_t *)((char *)option_spinner + 0x3c) = 0;
       break;
@@ -1022,7 +1022,6 @@ bool playlist_profile_initialize_item_options(void *widget)
   void *profile;
   void *list_item;
   void *option_spinner;
-  unsigned int value;
 
   profile = player_ui_get_edit_playlist_profile();
 
@@ -1034,171 +1033,102 @@ bool playlist_profile_initialize_item_options(void *widget)
     system_exit(-1);
   }
 
-  if (profile == NULL) {
-    error(2, "failed to retrieve editable game variant");
-    return false;
+  if (profile != NULL) {
+    list_item = *(void **)((char *)widget + 0x34);
+    if (list_item == NULL) {
+      display_assert("expected 'infinite grenades' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd2e, true);
+      system_exit(-1);
+    }
+    option_spinner = *(void **)((char *)list_item + 0x34);
+    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2)
+      option_spinner = *(void **)((char *)option_spinner + 0x2c);
+    if (option_spinner == NULL) {
+      display_assert("expected 'infinite grenades' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd30, true);
+      system_exit(-1);
+    }
+    switch ((*(unsigned int *)((char *)profile + 0x20) >> 2) & 1) {
+    case 0: *(int16_t *)((char *)option_spinner + 0x3c) = 1; break;
+    case 1: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
+    default: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
+    }
+
+    list_item = *(void **)((char *)list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert("expected 'vehicle set' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd3a, true);
+      system_exit(-1);
+    }
+    option_spinner = *(void **)((char *)list_item + 0x34);
+    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2)
+      option_spinner = *(void **)((char *)option_spinner + 0x2c);
+    if (option_spinner == NULL) {
+      display_assert("expected 'vehicle set' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd3c, true);
+      system_exit(-1);
+    }
+    switch (*(int *)((char *)profile + 0x48)) {
+    case 0: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
+    case 1: *(int16_t *)((char *)option_spinner + 0x3c) = 1; break;
+    case 2: *(int16_t *)((char *)option_spinner + 0x3c) = 2; break;
+    case 3: *(int16_t *)((char *)option_spinner + 0x3c) = 3; break;
+    case 4: *(int16_t *)((char *)option_spinner + 0x3c) = 4; break;
+    default: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
+    }
+
+    list_item = *(void **)((char *)list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert("expected 'weapon set' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd48, true);
+      system_exit(-1);
+    }
+    option_spinner = *(void **)((char *)list_item + 0x34);
+    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2)
+      option_spinner = *(void **)((char *)option_spinner + 0x2c);
+    if (option_spinner == NULL) {
+      display_assert("expected 'weapon set' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd4a, true);
+      system_exit(-1);
+    }
+    switch (*(int *)((char *)profile + 0x44)) {
+    case 0: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
+    case 1: *(int16_t *)((char *)option_spinner + 0x3c) = 1; break;
+    case 2: *(int16_t *)((char *)option_spinner + 0x3c) = 2; break;
+    case 3: *(int16_t *)((char *)option_spinner + 0x3c) = 3; break;
+    case 4: *(int16_t *)((char *)option_spinner + 0x3c) = 4; break;
+    case 5: *(int16_t *)((char *)option_spinner + 0x3c) = 5; break;
+    case 6: *(int16_t *)((char *)option_spinner + 0x3c) = 6; break;
+    case 7: *(int16_t *)((char *)option_spinner + 0x3c) = 7; break;
+    case 8: *(int16_t *)((char *)option_spinner + 0x3c) = 8; break;
+    case 9: *(int16_t *)((char *)option_spinner + 0x3c) = 9; break;
+    case 10: *(int16_t *)((char *)option_spinner + 0x3c) = 10; break;
+    default: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
+    }
+
+    list_item = *(void **)((char *)list_item + 0x2c);
+    if (list_item == NULL) {
+      display_assert("expected 'starting equipment' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd5d, true);
+      system_exit(-1);
+    }
+    option_spinner = *(void **)((char *)list_item + 0x34);
+    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2)
+      option_spinner = *(void **)((char *)option_spinner + 0x2c);
+    if (option_spinner == NULL) {
+      display_assert("expected 'starting equpiment' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd5f, true);
+      system_exit(-1);
+    }
+    switch ((*(unsigned int *)((char *)profile + 0x20) >> 5) & 1) {
+    case 0: *(int16_t *)((char *)option_spinner + 0x3c) = 0; return true;
+    case 1: *(int16_t *)((char *)option_spinner + 0x3c) = 1; return true;
+    default: *(int16_t *)((char *)option_spinner + 0x3c) = 0; return true;
+    }
   }
 
-  list_item = *(void **)((char *)widget + 0x34);
-  if (list_item == NULL) {
-    display_assert(
-      "expected 'infinite grenades' list item",
-      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd2e,
-      true);
-    system_exit(-1);
-  }
-  option_spinner = *(void **)((char *)list_item + 0x34);
-  while (option_spinner != NULL &&
-         *(int16_t *)((char *)option_spinner + 0xe) != 2) {
-    option_spinner = *(void **)((char *)option_spinner + 0x2c);
-  }
-  if (option_spinner == NULL) {
-    display_assert(
-      "expected 'infinite grenades' option spinner list",
-      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd30,
-      true);
-    system_exit(-1);
-  }
-  value = *(unsigned int *)((char *)profile + 0x20);
-  value = (value >> 2) & 1;
-  switch (value) {
-  case 0:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 1;
-    break;
-  case 1:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 0;
-    break;
-  default:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 0;
-    break;
-  }
-
-  list_item = *(void **)((char *)list_item + 0x2c);
-  if (list_item == NULL) {
-    display_assert(
-      "expected 'vehicle set' list item",
-      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd3a,
-      true);
-    system_exit(-1);
-  }
-  option_spinner = *(void **)((char *)list_item + 0x34);
-  while (option_spinner != NULL &&
-         *(int16_t *)((char *)option_spinner + 0xe) != 2) {
-    option_spinner = *(void **)((char *)option_spinner + 0x2c);
-  }
-  if (option_spinner == NULL) {
-    display_assert(
-      "expected 'vehicle set' option spinner list",
-      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd3c,
-      true);
-    system_exit(-1);
-  }
-  switch (*(int *)((char *)profile + 0x48)) {
-  case 1:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 1;
-    break;
-  case 2:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 2;
-    break;
-  case 3:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 3;
-    break;
-  case 4:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 4;
-    break;
-  default:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 0;
-    break;
-  }
-
-  list_item = *(void **)((char *)list_item + 0x2c);
-  if (list_item == NULL) {
-    display_assert(
-      "expected 'weapon set' item",
-      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd48,
-      true);
-    system_exit(-1);
-  }
-  option_spinner = *(void **)((char *)list_item + 0x34);
-  while (option_spinner != NULL &&
-         *(int16_t *)((char *)option_spinner + 0xe) != 2) {
-    option_spinner = *(void **)((char *)option_spinner + 0x2c);
-  }
-  if (option_spinner == NULL) {
-    display_assert(
-      "expected 'weapon set' option spinner list",
-      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd4a,
-      true);
-    system_exit(-1);
-  }
-  switch (*(int *)((char *)profile + 0x44)) {
-  case 1:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 1;
-    break;
-  case 2:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 2;
-    break;
-  case 3:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 3;
-    break;
-  case 4:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 4;
-    break;
-  case 5:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 5;
-    break;
-  case 6:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 6;
-    break;
-  case 7:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 7;
-    break;
-  case 8:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 8;
-    break;
-  case 9:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 9;
-    break;
-  case 10:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 10;
-    break;
-  default:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 0;
-    break;
-  }
-
-  list_item = *(void **)((char *)list_item + 0x2c);
-  if (list_item == NULL) {
-    display_assert(
-      "expected 'starting equipment' item",
-      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd5d,
-      true);
-    system_exit(-1);
-  }
-  option_spinner = *(void **)((char *)list_item + 0x34);
-  while (option_spinner != NULL &&
-         *(int16_t *)((char *)option_spinner + 0xe) != 2) {
-    option_spinner = *(void **)((char *)option_spinner + 0x2c);
-  }
-  if (option_spinner == NULL) {
-    display_assert(
-      "expected 'starting equpiment' option spinner list",
-      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd5f,
-      true);
-    system_exit(-1);
-  }
-  value = *(unsigned int *)((char *)profile + 0x20);
-  value = (value >> 5) & 1;
-  switch (value) {
-  case 1:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 1;
-    break;
-  default:
-    *(int16_t *)((char *)option_spinner + 0x3c) = 0;
-    break;
-  }
-
-  return true;
+  error(2, "failed to retrieve editable game variant");
+  return false;
 }
 
 /* playlist profile indicator options initializer (0x0ee810) — fetches the
@@ -2900,14 +2830,14 @@ bool solo_level_initialize_list_single_player(void *widget, void *event_data,
                                               bool *widget_deleted)
 {
   uint8_t profile[0x30];
-  int16_t last_level;
-  int16_t last_level_unused;
+  int16_t highest_level; /* name: PAL 2342 ui_widget_event_handler_functions.c:5786 */
+  int16_t highest_difficulty; /* name: PAL 2342 ui_widget_event_handler_functions.c:5787 */
   int profile_index;
-  int i;
+  int i, name_stride;
   signed char level_flags;
   unsigned int flags;
   int16_t *list_tag;
-  int16_t selected;
+  int selected;
   int16_t stored_index;
 
   if (*(int16_t *)0x31fa94 >= 2) {
@@ -2927,15 +2857,15 @@ bool solo_level_initialize_list_single_player(void *widget, void *event_data,
   }
 
   player_ui_get_active_player_profile(0, profile);
-  player_profile_save_last_level_played(profile, &last_level,
-                                        &last_level_unused);
+  player_profile_save_last_level_played(profile, &highest_level,
+                                        &highest_difficulty);
 
-  /* Bottom-tested rolled loop in the reference (INC EAX / CMP EAX,0xa / JL). */
+  name_stride = 4; /* scaled index, not a walking pointer */
   i = 0;
   do {
-    *(const char **)(0x46cce8 + i * 8) = ((const char **)0x31e498)[i];
+    *(const char **)(0x46cce8 + i * 8) = *(const char **)(0x31e498 + i * name_stride);
     level_flags = (signed char)profile[0x1c + i];
-    if ((level_flags != 0) || (i == (int)last_level + 1) || (i == 0)) {
+    if ((level_flags != 0) || (i == (int)highest_level + 1) || (i == 0)) {
       flags = (unsigned int)(int)level_flags;
       *(uint8_t *)(0x46cce8 + i * 8 + 5) = (uint8_t)((flags >> 1) & 1);
       *(uint8_t *)(0x46cce8 + i * 8 + 4) = 1;
@@ -2977,8 +2907,8 @@ bool solo_level_initialize_list_single_player(void *widget, void *event_data,
     *(uint8_t *)0x46ce37 = 0;
     i = 0;
     do {
-      if (crt_stricmp((const char *)0x46cd38, ((const char **)0x31e498)[i]) ==
-          0) {
+      if (crt_stricmp((const char *)0x46cd38,
+                      *(const char **)(0x31e498 + i * name_stride)) == 0) {
         stored_index = *(int16_t *)0x46ce38;
         *(uint8_t *)0x46ce3a = (uint8_t)i;
         if (stored_index < 0) {
@@ -3367,31 +3297,31 @@ void difficulty_select_menu_update_extended_description(void *widget)
 
 void set_textbox_to_build_number(int widget)
 {
-  wchar_t *v1, *v2; // eax
+  wchar_t *text; /* name: PAL 2342 ui_widget_game_data_input_functions.c:1963 */
 
   if (!ui_widget_game_data_build_version_wide_str[0]) {
     ascii_to_wide(
-#if DECOMP_CUSTOM
-      build_ui_widget_text,
-#else
+#if defined(_MSC_VER) && !defined(__clang__)
       "01.10.12.2276",
+#else
+      build_ui_widget_text,
 #endif
-      ui_widget_game_data_build_version_wide_str,
-      sizeof(ui_widget_game_data_build_version_wide_str));
+      ui_widget_game_data_build_version_wide_str, 0x80);
   }
 
   if (!*(uint32_t *)(widget + 60)) {
-    v1 =
-      ui_widget_realloc(0, sizeof(ui_widget_game_data_build_version_wide_str),
-                        __FILE__, __LINE__);
-    *(uint32_t *)(widget + 60) = (uint32_t)v1;
-    if (v1) {
-      csmemset(v1, 0, sizeof(ui_widget_game_data_build_version_wide_str));
+    text = ui_widget_realloc(
+      0, 0x80,
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x25e);
+    *(uint32_t *)(widget + 60) = (uint32_t)text;
+    if (text) {
+      csmemset(text, 0, 0x80);
     }
   }
-  v2 = *(wchar_t **)(widget + 60);
-  if (v2) {
-    ustrncpy(v2, ui_widget_game_data_build_version_wide_str, 0x3Fu);
+  if (*(wchar_t **)(widget + 60)) {
+    ustrncpy(*(wchar_t **)(widget + 60),
+             ui_widget_game_data_build_version_wide_str, 0x3Fu);
     *(wchar_t *)(*(uint32_t *)(widget + 60) + 126) = 0;
   }
 }

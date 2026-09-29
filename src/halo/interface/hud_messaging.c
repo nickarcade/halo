@@ -132,72 +132,77 @@ LAB_000d41e7:
  * Draw overlay bitmap elements for a HUD widget. Iterates over the overlay
  * element tag block, performs bitmap lookup with optional animation cycling,
  * optional color interpolation, and renders each visible element via
- * hud_draw_bitmap_with_meter. Protected by a stack canary (0x200 bytes of 0x62). */
-void hud_draw_weapon_overlays(int param_1, int param_2, int param_3, unsigned int param_4,
-                  int param_5, unsigned char param_6, int param_7)
+ * hud_draw_bitmap_with_meter.
+ */
+void hud_draw_weapon_overlays(int local_player_index, int absolute_placement, int overlays,
+                  unsigned int type_flags, int reference_time, unsigned char draw_flags,
+                  int in_multiplayer)
 {
-  int element;
-  int bitmap_seq;
+  int item;
+  int sequence;
   int color;
-  int frame_idx;
+  int frame_index;
   int i1;
   short s5;
-  int l_214[128];
-  int l_14;
-  int out_sprite;
-  int out_bitmap;
-  int l_4;
+  short canary_i;
+  int stack_buffer[128];
+  int return_eip;
+  int item_index;
+  int bitmap;
+  int clip;
 
-  l_14 = get_return_eip();
-  csmemset(l_214, 0x62, 0x200);
-  l_4 = 0;
-  if (0 < *(int *)(param_3 + 0x10)) {
+  return_eip = get_return_eip();
+  csmemset(stack_buffer, 0x62, 0x200);
+  item_index = 0;
+  if (0 < *(int *)(overlays + 0x10)) {
     do {
-      element =
-        (int)tag_block_get_element((void *)(param_3 + 0x10), l_4, 0x88);
-      if ((*(unsigned char *)(element + 0x4c) & 2) == 0 &&
-          (param_4 & (int)*(short *)(element + 0x4a)) != 0) {
-        bitmap_seq = (int)tag_block_get_element(
-          (void *)((int)tag_get(0x6269746d, *(int *)(param_3 + 0xc)) + 0x54),
-          (int)*(short *)(element + 0x48), 0x40);
-        if ((*(unsigned char *)(element + 0x4c) & 1) == 0 ||
-            (param_6 & 1) == 0) {
-          color = *(int *)(element + 0x24);
+      item =
+        (int)tag_block_get_element((void *)(overlays + 0x10), item_index, 0x88);
+      if ((*(unsigned char *)(item + 0x4c) & 2) == 0 &&
+          (type_flags & (int)*(short *)(item + 0x4a)) != 0) {
+        sequence = (int)tag_block_get_element(
+          (void *)((int)tag_get(0x6269746d, *(int *)(overlays + 0xc)) + 0x54),
+          (int)*(short *)(item + 0x48), 0x40);
+        if ((*(unsigned char *)(item + 0x4c) & 1) == 0 ||
+            (draw_flags & 1) == 0) {
+          color = *(int *)(item + 0x24);
         } else {
-          color = get_flash_color((int *)(element + 0x24), param_5);
+          color = get_flash_color((int *)(item + 0x24), reference_time);
         }
-        if ((*(unsigned char *)(element + 0x4c) & 1) == 0 ||
-            (param_6 & 1) == 0 || *(short *)(element + 0x44) < 1) {
-          frame_idx = 0;
+        if ((*(unsigned char *)(item + 0x4c) & 1) != 0 &&
+            (draw_flags & 1) != 0 && *(short *)(item + 0x44) > 0) {
+          frame_index =
+            ((game_time_get() - reference_time) / (int)*(short *)(item + 0x44)) /
+            30 % *(int *)(sequence + 0x34);
         } else {
-          frame_idx =
-            ((game_time_get() - param_5) / (int)*(short *)(element + 0x44)) /
-            30 % *(int *)(bitmap_seq + 0x34);
+          frame_index = 0;
         }
-        out_bitmap = 0;
-        out_sprite = 0;
-        hud_retrieve_bitmap_and_bounding_rect(*(int *)(param_3 + 0xc),
-                     *(unsigned short *)(element + 0x48), frame_idx,
-                     &out_bitmap, &out_sprite);
-        if (out_bitmap != 0 && (int)xbox_texture_cache_get_hardware_format(
-                                 (void *)out_bitmap, 0, 1) != 0) {
-          hud_draw_bitmap_with_meter(out_sprite, element, out_bitmap, 0, (short *)param_2,
-                       1.0f, 0, color, param_7, 0, 0);
+        bitmap = 0;
+        clip = 0;
+        hud_retrieve_bitmap_and_bounding_rect(*(int *)(overlays + 0xc),
+                     *(unsigned short *)(item + 0x48), frame_index,
+                     &bitmap, &clip);
+        if (bitmap != 0 && (int)xbox_texture_cache_get_hardware_format(
+                                 (void *)bitmap, 0, 1) != 0) {
+          hud_draw_bitmap_with_meter(clip, item, bitmap, 0, (short *)absolute_placement,
+                       1.0f, 0, color, in_multiplayer, 0, 0);
         }
       }
-      l_4 = l_4 + 1;
-    } while (l_4 < *(int *)(param_3 + 0x10));
+      item_index = item_index + 1;
+    } while (item_index < *(int *)(overlays + 0x10));
   }
-  s5 = 0x7f;
+  canary_i = 0x7f;
   do {
-    if (l_214[(int)s5] != 0x62626262)
+    if (stack_buffer[(int)canary_i] != 0x62626262) {
+      s5 = canary_i;
       goto LAB_000d43f5;
-    s5 = s5 - 1;
-  } while (-1 < s5);
+    }
+    canary_i = (short)(canary_i - 1);
+  } while (canary_i >= 0);
   s5 = -1;
 LAB_000d43f5:
   i1 = get_return_eip();
-  if (l_14 != i1) {
+  if (return_eip != i1) {
     display_assert("corrupt return address!",
                    "c:\\halo\\SOURCE\\interface\\hud_draw.c", 0x2ec, 1);
     system_exit(-1);
@@ -1985,7 +1990,7 @@ void custom_render_nav_point(int param_1, float *param_2, short param_3, short p
     i9 = (int)datum_get(*(data_t **)0x5aa6d4, u11);
     u11 = *(int *)(i9 + 0x34);
   }
-  unit_set_seat_state(u11, l_24);
+  unit_get_camera_position(u11, l_24);
   distance = sqrtf((*pf4 - l_24[0]) * (*pf4 - l_24[0]) +
                    (pf4[1] - l_24[1]) * (pf4[1] - l_24[1]) +
                    (pf4[2] - l_24[2]) * (pf4[2] - l_24[2]));
@@ -2397,37 +2402,38 @@ void hud_update_nav_points(void)
 }
 
 /* hud_sounds_update (0xd70b0)
- * Update HUD sound effects based on state flags. */
-void hud_play_sound(short param_1, unsigned int param_2, int *param_3,
-                  int param_4, unsigned short *param_5)
+ * Update HUD sound effects based on state flags.
+*/
+void hud_play_sound(short local_player_index, unsigned int state_flags, int *sounds,
+                  int sound_indices, unsigned short *played_flags)
 {
   int i1;
-  short s2;
-  int *pi3;
-  int i6;
+  short sound_index;
+  int *sound;
+  int absolute_sound_index;
 
-  i6 = 0;
-  s2 = 0;
-  if (0 < *param_3) {
+  absolute_sound_index = 0;
+  sound_index = 0;
+  if (0 < *sounds) {
     do {
-      pi3 = (int *)tag_block_get_element((void *)param_3, i6, 0x38);
-      if ((param_2 & pi3[4]) != 0) {
-        switch (*pi3) {
+      sound = (int *)tag_block_get_element((void *)sounds, absolute_sound_index, 0x38);
+      if ((state_flags & sound[4]) != 0) {
+        switch (*sound) {
         case 0x6c736e64:
-          if (*(int *)(param_4 + i6 * 4) == -1) {
-            i1 = unattached_looping_sound_start(pi3[3], -1, pi3[5]);
+          if (*(int *)(sound_indices + absolute_sound_index * 4) == -1) {
+            i1 = unattached_looping_sound_start(sound[3], -1, sound[5]);
             goto store_sound;
           }
           break;
         case 0x736e6421:
-          i1 = *(int *)(param_4 + i6 * 4);
-          if (i1 == -1 || !((unsigned int)*param_5 & (1 << i6))) {
-            if (i1 != -1) {
-              sound_stop_impulse(i1);
+          if (*(int *)(sound_indices + absolute_sound_index * 4) == -1 ||
+              !((unsigned int)*played_flags & (1 << absolute_sound_index))) {
+            if (*(int *)(sound_indices + absolute_sound_index * 4) != -1) {
+              sound_stop_impulse(*(int *)(sound_indices + absolute_sound_index * 4));
             }
-            i1 = sound_impulse_start(pi3[3], *(float *)(pi3 + 5));
+            i1 = sound_impulse_start(sound[3], *(float *)(sound + 5));
           store_sound:
-            *(int *)(param_4 + i6 * 4) = i1;
+            *(int *)(sound_indices + absolute_sound_index * 4) = i1;
           }
           break;
         default:
@@ -2436,11 +2442,11 @@ void hud_play_sound(short param_1, unsigned int param_2, int *param_3,
           system_exit(-1);
           break;
         }
-        *param_5 = *param_5 | (unsigned short)(1 << i6);
+        *played_flags = *played_flags | (unsigned short)(1 << absolute_sound_index);
       } else {
-        i1 = *(int *)(param_4 + i6 * 4);
+        i1 = *(int *)(sound_indices + absolute_sound_index * 4);
         if (i1 != -1) {
-          switch (*pi3) {
+          switch (*sound) {
           case 0x6c736e64:
             unattached_looping_sound_stop(i1);
             break;
@@ -2453,13 +2459,13 @@ void hud_play_sound(short param_1, unsigned int param_2, int *param_3,
             system_exit(-1);
             break;
           }
-          *(int *)(param_4 + i6 * 4) = -1;
-          *param_5 = *param_5 & ~(unsigned short)(1 << i6);
+          *(int *)(sound_indices + absolute_sound_index * 4) = -1;
+          *played_flags = *played_flags & ~(unsigned short)(1 << absolute_sound_index);
         }
       }
-      s2 = s2 + 1;
-      i6 = (int)s2;
-    } while (i6 < *param_3);
+      sound_index = sound_index + 1;
+      absolute_sound_index = (int)sound_index;
+    } while (absolute_sound_index < *sounds);
   }
 }
 

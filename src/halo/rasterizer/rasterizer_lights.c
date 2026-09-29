@@ -25,7 +25,7 @@ typedef struct lens_flare_definition {
 
 /* Submission parameters, 0x28 bytes, copied wholesale into the frame queue.
  * Offsets confirmed against the disassembly and against the caller
- * FUN_00181900 (rasterizer_text.c), which fills the same buffer. */
+ * rasterizer_lens_flare_submit_for_cluster (rasterizer_text.c), which fills the same buffer. */
 typedef struct lens_flare_parameters {
   lens_flare_definition *definition; /* +0x00 */
   real position[3];                  /* +0x04 FLD dword, not FILD */

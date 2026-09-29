@@ -78,6 +78,27 @@ fi
 echo "vc71-regression: checking ${#SRC_ARGS[@]} source file(s)..."
 python3 "$REGR" check --source "${SRC_ARGS[@]}" --quiet
 RC=$?
+
+# Raw-byte waiver. VC71 mnemonic % is the coarser metric. A function whose raw
+# aligned bytes against the XBE went UP, in a TU where no function lost any, may
+# lower its own mnemonic floor. raw_waiver.py measures HEAD and the index
+# itself; nothing is taken on trust. Only those functions are waived and lowered.
+LOWER=()
+if [ $RC -ne 0 ]; then
+    PY="$ROOT/.venv/bin/python"; [ -x "$PY" ] || PY=python3
+    WAIVER_JSON=$(mktemp)
+    if "$PY" "$ROOT/tools/verify/raw_waiver.py" --source "${SRC_ARGS[@]}" --json "$WAIVER_JSON"; then
+        mapfile -t LOWER < <("$PY" -c 'import json,sys
+for row in json.load(open(sys.argv[1])).values():
+    for fn in row.get("waivable", []): print(fn)' "$WAIVER_JSON")
+    fi
+    rm -f "$WAIVER_JSON"
+    if [ ${#LOWER[@]} -gt 0 ]; then
+        echo "vc71-regression: re-checking with raw-byte waiver for: ${LOWER[*]}"
+        python3 "$REGR" check --source "${SRC_ARGS[@]}" --quiet --waive "${LOWER[@]}"
+        RC=$?
+    fi
+fi
 if [ $RC -ne 0 ]; then
     echo ""
     echo "A score drop: investigate, fix, then update the floor:"
@@ -104,7 +125,9 @@ SCORES_BEFORE=""
 if [ -f "$SCORES" ]; then
     SCORES_BEFORE=$(git hash-object "$SCORES")
 fi
-python3 "$REGR" update --source "${SRC_ARGS[@]}" >/dev/null 2>&1 || {
+LOWER_ARGS=()
+[ ${#LOWER[@]} -gt 0 ] && LOWER_ARGS=(--lower "${LOWER[@]}")
+python3 "$REGR" update --source "${SRC_ARGS[@]}" "${LOWER_ARGS[@]}" >/dev/null 2>&1 || {
     echo "vc71-regression: update failed (non-blocking); scores not refreshed"
     exit 0
 }

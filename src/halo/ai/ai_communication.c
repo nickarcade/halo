@@ -1309,6 +1309,7 @@ bool ai_conversation_line_perform(int conversation_handle)
   int sound_definition_index;
   int vocalization_type;
   int actor_handle;
+  int speaking_unit_index; /* name: PAL 2342 source/ai/ai_communication.c:5479 */
   short index;
   short communication_count;
   char blocked;
@@ -1342,15 +1343,15 @@ bool ai_conversation_line_perform(int conversation_handle)
       if (sound_scripted_dialog_is_playing() || blocked != 0) {
         goto check_started;
       }
-      if (*(int32_t *)(conversation + 0x54) == -1 ||
-          *(char *)(conversation + 0x60) != 0) {
+      speaking_unit_index = *(int32_t *)(conversation + 0x54);
+      if (speaking_unit_index == -1 || *(char *)(conversation + 0x60) != 0) {
         scripted_sound_new(*(int32_t *)(conversation + 0x5c), -1, 1.0f);
       } else {
         sound_definition_index = *(int32_t *)(conversation + 0x5c);
         vocalization_type = -1;
         communication_count = unit_test_speech(
-          *(int32_t *)(conversation + 0x54), 6, 0, 1, NULL,
-          (short *)&vocalization_type, &sound_definition_index);
+          speaking_unit_index, 6, 0, 1, NULL, (short *)&vocalization_type,
+          &sound_definition_index);
         if (communication_count == 1) {
           goto check_started;
         }
@@ -1586,9 +1587,9 @@ void actor_communication_update(int actor_handle)
                          (short *)&vocalization_type, &sound_definition_index);
       if (communication_count > 0) {
         csmemset(communication, 0, 0x30);
-        *(short *)(communication + 0x00) = 1;
         *(short *)(communication + 0x02) = (short)vocalization_type;
         *(int32_t *)(communication + 0x04) = sound_definition_index;
+        *(short *)(communication + 0x00) = 1;
         ai_communication_packet_new(communication + 0x10);
         unit_speak(actor->field_018, communication_count, communication);
       }

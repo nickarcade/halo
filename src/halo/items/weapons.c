@@ -495,7 +495,8 @@ int weapon_overcharged(int weapon_handle)
   return 1;
 }
 
-void *weapon_trigger_get(void *weapon_obj, int16_t trigger_index)
+__declspec(noinline) void *weapon_trigger_get(void *weapon_obj,
+                                            int16_t trigger_index)
 {
   int *tag_data = (int *)tag_get(0x77656170, *(int *)weapon_obj);
 
@@ -1427,8 +1428,9 @@ void weapon_export_function_values(int weapon_handle)
           magazine_defn =
             (char *)tag_block_get_element(weapon_defn + 0x4f0, (int)i, 0x70);
           if (*(int16_t *)(magazine_defn + 10) != 0) {
-            function_value = (float)(int)*(int16_t *)(weapon_obj + 0x260 + i * 12) /
-                    (float)(int)*(int16_t *)(magazine_defn + 10);
+            function_value =
+              (float)(int)*(int16_t *)(weapon_obj + 0x260 + i * 12) /
+              (float)(int)*(int16_t *)(magazine_defn + 10);
           }
         }
         break;
@@ -1462,7 +1464,8 @@ void weapon_export_function_values(int weapon_handle)
         if ((int)i < *(int *)(weapon_defn + 0x4fc)) {
           tag_block_get_element(weapon_defn + 0x4fc, (int)i, 0x114);
           weapon_trigger_get(weapon_obj, i);
-          function_value = weapon_trigger_get_charged_fraction(weapon_handle, i);
+          function_value =
+            weapon_trigger_get_charged_fraction(weapon_handle, i);
         }
         break;
       case 14:
@@ -2320,6 +2323,29 @@ void weapon_trigger_locked(int weapon_handle, int16_t trigger_index)
   trigger_entry = weapon_data + (int)trigger_index * 36 + 0x210;
   *(char *)(trigger_entry + 1) = 7;
   *(int16_t *)(trigger_entry + 2) = -1;
+}
+
+/* 0xfcec0 — weapon_trigger_recover
+ *
+ * Confirmed: EAX=trigger_index (copied to ESI, used as SI / MOVSX ECX,SI),
+ * EBX=weapon_handle.
+ * Confirmed call order: object_get_and_verify_type(handle, 4) ->
+ * weapon_trigger_get(EDI=object, SI=index) -> tag_get('weap', *object) ->
+ * tag_block_get_element(tag + 0x4fc, (short)index, 0x114) (result unused) ->
+ * byte [trigger + 0] = 0 -> weapon_trigger_idle(AX=index, ECX=handle).
+ */
+void weapon_trigger_recover(int trigger_index, int weapon_handle)
+{
+  void *weapon_data;
+  char *trigger;
+  char *weapon_tag;
+
+  weapon_data = object_get_and_verify_type(weapon_handle, 4);
+  trigger = (char *)weapon_trigger_get(weapon_data, (int16_t)trigger_index);
+  weapon_tag = (char *)tag_get(0x77656170, *(int *)weapon_data);
+  tag_block_get_element(weapon_tag + 0x4fc, (int16_t)trigger_index, 0x114);
+  *trigger = 0;
+  weapon_trigger_idle((int16_t)trigger_index, weapon_handle);
 }
 
 /* 0xfcf20 — weapon_reset
@@ -3415,8 +3441,8 @@ void weapon_trigger_release_charge(int trigger_index, int weapon_handle)
     (char *)tag_block_get_element((void *)(weapon_defn + 0x4fc), tindex, 0x114);
 
   if (*(float *)(trigger_defn + 0x58) > *(float *)0x2533c0) {
-    charge_ticks =
-      (int16_t)(int)(*(float *)(trigger_defn + 0x58) * 30.0f); /* TICKS_PER_SECOND */
+    charge_ticks = (int16_t)(int)(*(float *)(trigger_defn + 0x58) *
+                                  30.0f); /* TICKS_PER_SECOND */
 
     weapon_data = (char *)object_get_and_verify_type(weapon_handle, 4);
 

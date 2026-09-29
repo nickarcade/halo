@@ -1645,7 +1645,7 @@ char valid_real_matrix4x3(float *mat)
  * Confirmed: CALL 0x8d9f0 (display_assert) for collision depth checks.
  * Confirmed: CALL 0xa8e30 (game_engine_running) for flag-dependent branch.
  * Confirmed: CALL 0xf6af0 (item_detonate) if flag set and engine not running.
- * Confirmed: CALL 0x140f10 (object_get_markers_by_string_id) for "ground
+ * Confirmed: CALL 0x140f10 (object_get_marker_by_name) for "ground
  * point". Confirmed: CALL 0x18e3f0 (global_collision_bsp_get) to get collision
  * BSP. Confirmed: CALL 0x19b210 (tag_block_get_element) at bsp+0x3c. Confirmed:
  * CALL 0x99640 (bsp3d_get_plane_from_designator) for plane extraction.
@@ -1728,7 +1728,7 @@ void item_accelerate(int item_handle, float *position, int flag)
                                        position[2] * position[2]) {
       /* Grounded and velocity magnitude squared >= epsilon:
        * Try to reposition item to ground plane */
-      marker_count = object_get_markers_by_string_id(
+      marker_count = object_get_marker_by_name(
         item_handle, (void *)0x28aa90, marker_buf, 1);
       if (marker_count != 0) {
         /* Ground point marker found: project position onto ground plane */
@@ -1792,7 +1792,7 @@ void item_accelerate(int item_handle, float *position, int flag)
       }
     } else {
       /* Slow/grounded path: apply random angular jolt from ground normal */
-      marker_count = object_get_markers_by_string_id(
+      marker_count = object_get_marker_by_name(
         item_handle, (void *)0x28aa90, marker_buf, 1);
       if (marker_count == 0) {
         /* No marker: use global up vector as normal */
@@ -2097,7 +2097,7 @@ bool item_update(int item_handle)
       object_translate(item_handle, new_point, marker_buf + 0x28);
     } else if (!(*(uint8_t *)(item_tag + 0x17c) & 0x4)) {
       /* ---- at rest: re-validate the attachment -------------------- */
-      object_get_markers_by_string_id(item_handle, (void *)0x28aa90, marker_buf,
+      object_get_marker_by_name(item_handle, (void *)0x28aa90, marker_buf,
                                       1);
 
       if ((*(uint8_t *)(item_obj + 0x1a4) & 0x8) &&
@@ -2143,7 +2143,7 @@ bool item_update(int item_handle)
     if (*(uint8_t *)(item_obj + 0x1a4) & 0x4) {
       /* ---- spinning ------------------------------------------------ */
       if ((*(uint8_t *)(item_obj + 0x4) & 0x20) &&
-          object_get_markers_by_string_id(item_handle, (void *)0x28aa90,
+          object_get_marker_by_name(item_handle, (void *)0x28aa90,
                                           marker_buf, 1) != 0) {
         *(item_ground_matrix *)matrix =
           *(item_ground_matrix *)(marker_buf + 0x38);

@@ -3582,7 +3582,7 @@ int FUN_000ac220(int param_1)
   char facing[12];
   char out2[4];
   /* keep: this must stay a 3-float array, not three scalars.
-   * Position vec3 filled by unit_set_seat_state (a 12-byte write to position).
+   * Position vec3 filled by unit_get_camera_position (a 12-byte write to position).
    * MUST be one contiguous 3-float buffer. The original keeps `player` in EDI
    * (a register untouched by callees), but our clang lift spills `player` to
    * the stack at EBP-0x10 -- 4 bytes after this buffer at EBP-0x14. Declaring
@@ -3606,7 +3606,7 @@ int FUN_000ac220(int param_1)
         return player_index_from_unit_index(best);
     }
   }
-  ((void (*)(int, float *))unit_set_seat_state)(*(int *)(player + 0x34),
+  ((void (*)(int, float *))unit_get_camera_position)(*(int *)(player + 0x34),
                                                 position);
   ((void (*)(int16_t, float *))player_control_get_facing_direction)(
     *(int16_t *)(player + 2), (float *)facing);

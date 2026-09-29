@@ -203,4 +203,197 @@ typedef struct {
   char unk_420[4];        ///< offset=0x1A4
 } sound_scenery_data_t;
 
+/* ---------- lights (object_lights.c) */
+
+#define LIGHT_DEFINITION_FLAG_DYNAMIC 0x1
+#define LIGHT_DEFINITION_FLAG_NO_SPECULAR 0x2
+#define LIGHT_DEFINITION_FLAG_DONT_LIGHT_OWN_OBJECT 0x4
+#define LIGHT_DEFINITION_FLAG_SUPERSIZE_IN_FIRST_PERSON 0x8
+#define LIGHT_DEFINITION_FLAG_FIRST_PERSON_FLASHLIGHT 0x10
+#define LIGHT_DEFINITION_FLAG_DONT_FADE_ACTIVE_CAMOUFLAGE 0x20
+
+#define POINT_LIGHT_FLAG_DYNAMIC 0x1
+#define POINT_LIGHT_FLAG_CONNECTS_TO_MAP 0x2
+#define POINT_LIGHT_FLAG_CONNECTED_TO_MAP 0x4
+#define POINT_LIGHT_FLAG_ATTACHED_TO_FIRST_PERSON_WEAPON 0x8
+
+#define MAXIMUM_SCENE_POINT_LIGHTS 0x80
+#define MAXIMUM_QUEUED_LENS_FLARES 8
+#define MAXIMUM_LENS_FLARES_PER_LIGHT 8
+#define MAXIMUM_RENDERED_POINT_LIGHTS 2
+#define MAXIMUM_CLUSTERS_PER_LIGHT 0x200
+
+/// size=0xc.
+typedef struct {
+  real red;   ///< offset=0x00
+  real green; ///< offset=0x04
+  real blue;  ///< offset=0x08
+} real_rgb_color;
+cs(real_rgb_color, 0xc);
+co(real_rgb_color, green, 0x04);
+co(real_rgb_color, blue, 0x08);
+
+/// Prefix of the 'ligh' tag definition; the full size is not yet proven.
+typedef struct {
+  int32_t flags;                     ///< offset=0x00  LIGHT_DEFINITION_FLAG_*
+  real radius;                       ///< offset=0x04
+  real radius_modifier_lower;        ///< offset=0x08
+  real radius_modifier_upper;        ///< offset=0x0c
+  char pad_10[4];                    ///< offset=0x10
+  real cutoff_angle;                 ///< offset=0x14
+  real lens_flare_only_radius;       ///< offset=0x18
+  char pad_1c[4];                    ///< offset=0x1c
+  real cosine_cutoff_angle;          ///< offset=0x20
+  real specular_radius_multiplier;   ///< offset=0x24
+  real sine_cutoff_angle;            ///< offset=0x28
+  char pad_2c[8];                    ///< offset=0x2c
+  uint32_t color_interpolation_flags; ///< offset=0x34
+  real_argb_color color_lower_bound; ///< offset=0x38
+  real_argb_color color_upper_bound; ///< offset=0x48
+  char pad_58[0x60];                 ///< offset=0x58
+  int32_t lens_flare_index;          ///< offset=0xb8  'lens' tag index
+  char pad_bc[0x38];                 ///< offset=0xbc
+  real transition_duration;          ///< offset=0xf4
+  char pad_f8[2];                    ///< offset=0xf8
+  int16_t falloff_function;          ///< offset=0xfa
+} light_definition_t;
+co(light_definition_t, radius, 0x04);
+co(light_definition_t, radius_modifier_lower, 0x08);
+co(light_definition_t, radius_modifier_upper, 0x0c);
+co(light_definition_t, cutoff_angle, 0x14);
+co(light_definition_t, lens_flare_only_radius, 0x18);
+co(light_definition_t, cosine_cutoff_angle, 0x20);
+co(light_definition_t, specular_radius_multiplier, 0x24);
+co(light_definition_t, sine_cutoff_angle, 0x28);
+co(light_definition_t, color_interpolation_flags, 0x34);
+co(light_definition_t, color_lower_bound, 0x38);
+co(light_definition_t, color_upper_bound, 0x48);
+co(light_definition_t, lens_flare_index, 0xb8);
+co(light_definition_t, transition_duration, 0xf4);
+co(light_definition_t, falloff_function, 0xfa);
+
+/// Attached lights use color_function_index; lights created unattached reuse
+/// the same bytes as a node-relative position (see light_datum_t.field_58).
+typedef union {
+  int16_t color_function_index;   ///< offset=0x00
+  real_point3d relative_position; ///< offset=0x00
+} light_attachment_t;
+cs(light_attachment_t, 0xc);
+
+/// size=0x7c (game_state_data_new("lights", 0x380, 0x7c)).
+typedef struct {
+  char pad_00[2];                  ///< offset=0x00
+  uint16_t flags;                  ///< offset=0x02  POINT_LIGHT_FLAG_*
+  int32_t definition_index;        ///< offset=0x04
+  int32_t rasterizer_light_index;  ///< offset=0x08
+  int32_t marker;                  ///< offset=0x0c
+  int32_t cluster_reference;       ///< offset=0x10
+  real_rgb_color color;            ///< offset=0x14
+  char pad_20[0xc];                ///< offset=0x20
+  int32_t object_index;            ///< offset=0x2c
+  real_point3d position;           ///< offset=0x30
+  real_vector3d forward;           ///< offset=0x3c
+  real_vector3d up;                ///< offset=0x48
+  real radius;                     ///< offset=0x54
+  int32_t field_58;                ///< offset=0x58  creation game time; NONE when attached
+  int16_t attachment_marker_index; ///< offset=0x5c
+  int16_t function_index;          ///< offset=0x5e
+  light_attachment_t attachment;   ///< offset=0x60
+  real_vector3d relative_forward;  ///< offset=0x6c
+  real scale;                      ///< offset=0x78
+} light_datum_t;
+cs(light_datum_t, 0x7c);
+co(light_datum_t, flags, 0x02);
+co(light_datum_t, rasterizer_light_index, 0x08);
+co(light_datum_t, marker, 0x0c);
+co(light_datum_t, color, 0x14);
+co(light_datum_t, object_index, 0x2c);
+co(light_datum_t, position, 0x30);
+co(light_datum_t, forward, 0x3c);
+co(light_datum_t, up, 0x48);
+co(light_datum_t, radius, 0x54);
+co(light_datum_t, field_58, 0x58);
+co(light_datum_t, attachment_marker_index, 0x5c);
+co(light_datum_t, function_index, 0x5e);
+co(light_datum_t, attachment, 0x60);
+co(light_datum_t, relative_forward, 0x6c);
+co(light_datum_t, scale, 0x78);
+
+/// size=0x28 (the lens flare queue stride).
+typedef struct {
+  void *definition;                ///< offset=0x00  'lens' tag
+  real_point3d position;           ///< offset=0x04
+  uint32_t compressed_direction;   ///< offset=0x10
+  uint32_t compressed_up;          ///< offset=0x14
+  uint32_t compressed_light_color; ///< offset=0x18
+  int16_t light_identifier;        ///< offset=0x1c
+  int16_t light_index;             ///< offset=0x1e
+  int16_t lens_flare_index;        ///< offset=0x20
+  uint8_t compressed_window_index; ///< offset=0x22
+  uint8_t compressed_light_scale;  ///< offset=0x23
+  char pad_24[4];                  ///< offset=0x24
+} lens_flare_parameters_t;
+cs(lens_flare_parameters_t, 0x28);
+co(lens_flare_parameters_t, position, 0x04);
+co(lens_flare_parameters_t, compressed_direction, 0x10);
+co(lens_flare_parameters_t, compressed_up, 0x14);
+co(lens_flare_parameters_t, compressed_light_color, 0x18);
+co(lens_flare_parameters_t, light_identifier, 0x1c);
+co(lens_flare_parameters_t, light_index, 0x1e);
+co(lens_flare_parameters_t, lens_flare_index, 0x20);
+co(lens_flare_parameters_t, compressed_window_index, 0x22);
+co(lens_flare_parameters_t, compressed_light_scale, 0x23);
+
+/// size=0x350.
+typedef struct {
+  char marker_initialized;                ///< offset=0x000
+  char pad_001[3];                        ///< offset=0x001
+  int32_t marker;                         ///< offset=0x004
+  int16_t scene_point_light_count;        ///< offset=0x008
+  char pad_00a[2];                        ///< offset=0x00a
+  int32_t scene_point_lights[MAXIMUM_SCENE_POINT_LIGHTS]; ///< offset=0x00c
+  lens_flare_parameters_t queued_lens_flares[MAXIMUM_QUEUED_LENS_FLARES]; ///< offset=0x20c
+  int16_t queued_lens_flare_count;        ///< offset=0x34c
+  char pad_34e[2];                        ///< offset=0x34e
+} lights_globals_t;
+cs(lights_globals_t, 0x350);
+co(lights_globals_t, marker, 0x04);
+co(lights_globals_t, scene_point_light_count, 0x08);
+co(lights_globals_t, scene_point_lights, 0x0c);
+co(lights_globals_t, queued_lens_flares, 0x20c);
+co(lights_globals_t, queued_lens_flare_count, 0x34c);
+
+#define debug_lights (*(char *)0x5a8d58)
+#define lights_globals (*(lights_globals_t *)0x5a8d60)
+#define light_data (*(data_t **)0x5a90bc)
+#define light_cluster_partition ((void *)0x5a90b0) /* partition type not recovered */
+#define global_real_argb_white (*(real_argb_color **)0x2ee6c4)
+#define global_real_argb_orange (*(real_argb_color **)0x2ee6f0)
+#define REAL_0_8_POOL (*(float *)0x2533f0) /* 0.8f */
+#define debug_object_lights (*(char *)0x5a8d59) /* hs global */
+#define debug_rasterizer_light_count (*(short *)0x5a8d5a)
+#define rendered_cluster_count (*(short *)0x5137cc)
+#define render_window_index (*(char *)0x50654a)
+#define object_light_ambient_base (*(float *)0x323bf8) /* hs global */
+#define object_light_ambient_scale (*(float *)0x323bfc) /* hs global */
+#define object_light_secondary_scale (*(float *)0x323c00) /* hs global */
+#define REAL_ZERO_POOL (*(float *)0x2533c0) /* 0.0f */
+#define REAL_ONE_POOL (*(float *)0x2533c8) /* 1.0f */
+#define REAL_0_25_POOL (*(float *)0x25337c) /* 0.25f */
+#define REAL_0_5_POOL (*(float *)0x253398) /* 0.5f */
+#define REAL_1_5_POOL (*(float *)0x2533ec) /* 1.5f */
+#define REAL_3_0_POOL (*(float *)0x254644) /* 3.0f */
+#define REAL_1_3_POOL (*(float *)0x255b9c) /* 1.3f */
+#define REAL_0_707_POOL (*(float *)0x29b4d0) /* 0.707f */
+#define REAL_SQRT_HALF_POOL (*(float *)0x254b50) /* 0.70710677f */
+#define REAL_NEGATIVE_SQRT_HALF_POOL (*(float *)0x29b5e0) /* -0.70710677f */
+#define REAL_QUARTER_PI_POOL (*(float *)0x254a58) /* 0.7853982f */
+#define REAL_HALF_PI_POOL (*(float *)0x2568bc) /* 1.5707964f */
+#define REAL_MAX_POOL (*(float *)0x2548fc) /* 3.4028235e38f */
+#define DOUBLE_0_25_POOL (*(double *)0x28c8d8) /* 0.25 */
+
+#define light_get(index) ((light_datum_t *)datum_get(light_data, (index)))
+#define light_definition_get(index) \
+  ((light_definition_t *)tag_get(TAG_GROUP_LIGH, (index)))
+
 #endif /* HALO_OBJECTS_OBJECTS_H */

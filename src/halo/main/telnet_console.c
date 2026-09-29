@@ -424,7 +424,7 @@ void antenna_debug_data_remove(int datum_handle)
  * points (built by antenna_debug_data_add) by the movement delta.
  *
  * rec (@<esi>) is an antenna_debug_data_add record: [+0xc] holds the
- * object handle passed to object_get_markers_by_string_id, [+0x10/14/18]
+ * object handle passed to object_get_marker_by_name, [+0x10/14/18]
  * the last-synced marker world position, [+0x1c+i*0x20] the per-marker
  * (and, at i==count, trailing total) point table.
  *
@@ -452,7 +452,7 @@ void antenna_debug_data_relocate_marker(void *world_pos_out, void *rec,
   float dz;
   int abs_delta;
 
-  object_get_markers_by_string_id(*(int *)((char *)rec + 0xc), tag_def, buf, 1);
+  object_get_marker_by_name(*(int *)((char *)rec + 0xc), tag_def, buf, 1);
 
   *(int *)((char *)marker_pos + 0x00) = *(int *)(buf + 0x60);
   *(int *)((char *)marker_pos + 0x04) = *(int *)(buf + 0x64);

@@ -669,9 +669,9 @@ void create_pelican_effect(int vehicle_handle)
     return;
   }
 
-  hover_count = object_get_markers_by_string_id(
+  hover_count = object_get_marker_by_name(
     vehicle_handle, (void *)"hover thrusters", markers, 0xf);
-  jet_count = object_get_markers_by_string_id(
+  jet_count = object_get_marker_by_name(
     vehicle_handle, (void *)"jet thrusters", markers + (int)hover_count * 0x6c,
     0x10 - (int)hover_count);
   marker_count = (int)hover_count + (int)jet_count;

@@ -2113,7 +2113,7 @@ void hs_effect_new(int effect_tag_index, short flag_index)
  * locals):
  *
  *   SUB ESP,0x6c is exactly one object marker record: FUN_00140f10
- *   (object_get_markers_by_string_id) writes +0x00, +0x04.. and a 13-dword
+ *   (object_get_marker_by_name) writes +0x00, +0x04.. and a 13-dword
  *   block at +0x38, i.e. through +0x6b.  The later LEA [EBP-0xc] and
  *   LEA [EBP-0x30] are therefore marker+0x60 and marker+0x3c, NOT independent
  *   locals — the buffer-alias trap.  MOV EDX,[EBP-0x6c] is likewise marker+0.
@@ -2134,7 +2134,7 @@ void hs_effect_new_from_object_marker(int effect_tag_index, int object_handle,
 
   if (effect_tag_index != -1) {
     if (object_handle != -1) {
-      if (object_get_markers_by_string_id(object_handle, (void *)marker_name,
+      if (object_get_marker_by_name(object_handle, (void *)marker_name,
                                           marker, 1) != 0) {
         effect_new_attached_from_markers(
           effect_tag_index, -1, object_handle, *(int *)marker, 1, &marker_name,
@@ -3384,6 +3384,7 @@ void hs_wake(int thread_handle)
 {
   char *thread;
   char *node;
+  char *frame;
   int node_index;
 
   thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
@@ -3398,7 +3399,23 @@ void hs_wake(int thread_handle)
     if (node_index != -1) {
       node = (char *)datum_get(*(data_t **)0x5aa6c8, node_index);
       if (*(int16_t *)(node + 2) == 0x14) {
+        thread = (char *)datum_get(*(data_t **)0x5aa6c4, thread_handle);
         *(char **)(thread + 0x10) = **(char ***)(thread + 0x10);
+        return;
+      }
+    }
+    /* 0xcad64: otherwise inspect the parent frame and pop two frames when
+     * it is also a type-0x14 node. */
+    frame = **(char ***)(thread + 0x10);
+    if (frame != NULL) {
+      node_index = *(int *)(frame + 4);
+      if (node_index != -1) {
+        node = (char *)datum_get(*(data_t **)0x5aa6c8, node_index);
+        if (*(int16_t *)(node + 2) == 0x14) {
+          hs_thread_pop_frame(thread_handle);
+          hs_thread_pop_frame(thread_handle);
+          *(uint8_t *)(thread + 3) &= ~1;
+        }
       }
     }
   }

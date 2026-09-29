@@ -441,7 +441,7 @@ void contrail_add_points(int contrail_handle /* @<eax> */, int count, int flag)
   obj_tag = (char *)tag_get(0x6f626a65, *(int *)obj_struct);
   marker_elem =
     tag_block_get_element(obj_tag + 0x140, *(int16_t *)(datum + 0xc), 0x48);
-  marker_count = object_get_markers_by_string_id(
+  marker_count = object_get_marker_by_name(
     *(int *)(datum + 8), (char *)marker_elem + 0x10, marker_buf, 4);
 
   if (marker_count <= 0)

@@ -229,10 +229,10 @@ bool ui_widgets_active_for_local_player(int16_t local_player_index)
  * flag at 0x46cc85 in the widget globals block. When suppressed, the
  * per-frame event dispatch in process_ui_widgets skips input processing.
  * Asserts that the widget subsystem has been initialized (0x46cc82). */
-void ui_widgets_inhibit_processing(bool suppress)
+void ui_widgets_inhibit_processing(bool inhibit) /* name: PAL 2342 ui_widget.c:1624 */
 {
-  assert_halt(*(uint8_t *)0x46cc82);
-  *(uint8_t *)0x46cc85 = (uint8_t)suppress;
+  assert_halt_msg_at("widget_globals.initialized", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x496, *(uint8_t *)0x46cc82);
+  *(uint8_t *)0x46cc85 = (uint8_t)inhibit;
 }
 
 /* compute_offset_coordinate (0xe3e60-0xe3e7b) — returns the fractional part
@@ -2042,17 +2042,17 @@ void widget_instance_go_back_to_previous(void *widget);
  * procedure synchronously (0xe5590) and re-clears the suppress flag. */
 void perform_filesystem_initialization(void)
 {
-  assert_halt(*(int *)0x46cc7c == 0);
+  assert_halt_msg_at("widget_globals.initialization_thread==NULL", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x153f, *(int *)0x46cc7c == 0);
   error(2, "begining filesystem checks & saved game file enumeration...");
-  assert_halt(*(uint8_t *)0x46cc82);
+  assert_halt_msg_at("widget_globals.initialized", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x496, *(uint8_t *)0x46cc82);
   *(uint8_t *)0x46cc85 = 1;
   *(int16_t *)0x46cc80 = 0;
   if (!thread_new(0, (void *)0xe5590, 0, (void **)0x46cc7c)) {
     error(2, "failed to spawn thread for filesystem checks - running "
              "synchronously!");
     *(int *)0x46cc7c = 0;
-    /* hazard-ok: fnptr-conv */ ((void(__stdcall *)(int))0xe5590)(0);
-    assert_halt(*(uint8_t *)0x46cc82);
+    filesystem_initialization_thread_proc(0);
+    assert_halt_msg_at("widget_globals.initialized", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x496, *(uint8_t *)0x46cc82);
     *(uint8_t *)0x46cc85 = 0;
   }
 }
@@ -4050,35 +4050,27 @@ bool network_server_list_dispose(void *widget, void *event_data,
  * success. */
 bool split_screen_game_initialize(void)
 {
-  void *server;
-  void *client;
-  bool result;
+  bool result; /* name: PAL 2342 ui_widget_event_handler_functions.c:2707 */
 
+  result = true;
   network_game_set_accept_remote_connections(0);
-  server = global_network_game_server_get();
-  if (server == NULL) {
+  if (global_network_game_server_get() == NULL) {
     game_engine_playlist_initialize();
     result = create_global_network_game_server();
-    if (!result) {
-      goto fail;
+    if (result == true) {
+      game_engine_playlist_begin();
+      set_game_connection(2);
     }
-    game_engine_playlist_begin();
-    set_game_connection(2);
   }
-  result = true;
-  client = global_network_game_client_get();
-  if (client == NULL) {
+  if (result && global_network_game_client_get() == NULL) {
     result = create_global_network_game_client();
   }
-  if (result) {
-    return result;
+  if (!result) {
+    dispose_global_network_game_server();
+    dispose_global_network_game_client();
+    player_ui_clear_multiplayer_variant();
+    error(2, "failed to initiate split screen game networking");
   }
-
-fail:
-  dispose_global_network_game_server();
-  dispose_global_network_game_client();
-  player_ui_clear_multiplayer_variant();
-  error(2, "failed to initiate split screen game networking");
   return result;
 }
 
@@ -6836,7 +6828,7 @@ bool FUN_000ecb60(void *widget)
 bool playlist_profile_initialize_game_engine(void *widget)
 {
   void *profile;
-  void *child;
+  void *focused_child; /* name: PAL 2342 ui_widget_event_handler_functions.c:3353 */
 
   profile = player_ui_get_edit_playlist_profile();
 
@@ -6863,14 +6855,16 @@ bool playlist_profile_initialize_game_engine(void *widget)
       *(int16_t *)((char *)widget + 0x3c) = 4;
       break;
     case 1:
+      goto default_game_engine;
     default:
+    default_game_engine:
       *(int16_t *)((char *)widget + 0x3c) = 0;
       break;
     }
 
-    child = widget_instance_get_nth_child(widget,
-                                          *(int16_t *)((char *)widget + 0x3c));
-    *(void **)((char *)widget + 0x38) = child;
+    focused_child = widget_instance_get_nth_child(widget,
+                                                  *(int16_t *)((char *)widget + 0x3c));
+    *(void **)((char *)widget + 0x38) = focused_child;
 
     return true;
   }

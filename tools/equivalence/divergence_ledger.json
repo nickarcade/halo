@@ -8508,7 +8508,7 @@
       "resolved_in": "2026-09-13"
     },
     "0x13fea0": {
-      "name": "object_get_child_marker_definition",
+      "name": "object_get_attachment_marker_name",
       "obj": "objects.obj",
       "addr": "0x13fea0",
       "category": "arg_mismatch",
@@ -8530,7 +8530,7 @@
       "resolved_in": "2026-09-13"
     },
     "0x140f10": {
-      "name": "object_get_markers_by_string_id",
+      "name": "object_get_marker_by_name",
       "obj": "objects.obj",
       "addr": "0x140f10",
       "category": "call_seq",

@@ -197,11 +197,24 @@ def _validate(snapshot):
             raise GuardError("malformed baseline")
 
 
+def _emitted(record):
+    """Drop the source line when an explicit literal line pins the emitted one.
+
+    An ``*_at`` site whose line argument is not ``__LINE__`` compiles to the same
+    bytes wherever it sits in the file, so moving it (for example by deleting a
+    comment above it) is not assertion drift.
+    """
+    if record.get("explicit_line", "__LINE__") == "__LINE__":
+        return record
+    return {key: value for key, value in record.items() if key != "line"}
+
+
 def compare_snapshots(before, after):
     _validate(before)
     _validate(after)
     errors = []
-    if before["assertions"] != after["assertions"]:
+    if ([_emitted(r) for r in before["assertions"]] !=
+            [_emitted(r) for r in after["assertions"]]):
         errors.append("assertion metadata changed")
     return {"ok": not errors, "errors": errors}
 
@@ -225,6 +238,11 @@ def _self_test():
         altered = json.loads(json.dumps(snapshot))
         altered["assertions"][0]["condition"] = "changed"
         checks.append(("condition change fails", not compare_snapshots(snapshot, altered)["ok"]))
+        moved = json.loads(json.dumps(snapshot))
+        moved["assertions"][2]["line"] += 5
+        checks.append(("explicit-line move passes", compare_snapshots(snapshot, moved)["ok"]))
+        moved["assertions"][0]["line"] += 5
+        checks.append(("__LINE__ move fails", not compare_snapshots(snapshot, moved)["ok"]))
         try:
             _invocation_end("assert_halt(foo", 11)
         except GuardError:

@@ -618,19 +618,19 @@ void actor_move_avoidance_setup(int actor_handle)
 {
   int handles[2048];
   float world_matrix[13];
-  void *obj;
-  void *obj_tag;
-  void *coll_tag;
-  int *coll_count;
+  float out[3];
   int object_handle;
-  int16_t found;
-  int16_t i;
+  float center[3];
   int j;
   float obj_radius;
+  int left;
+  int *scan;
   float maxdist;
+  void *obj;
+  void *obj_tag;
+  int *coll_count;
+  int16_t found;
   float scale_term;
-  float center[3];
-  float out[3];
   float kbase;
   void *matrix;
   unsigned short *marker;
@@ -653,76 +653,80 @@ void actor_move_avoidance_setup(int actor_handle)
                                 handles, 0x800);
   *(int16_t *)(actor_handle + 0x3c) = 0;
 
-  for (i = 0; i < found; i++) {
-    object_handle = handles[i];
-    obj = object_get_and_verify_type(object_handle, -1);
-    if (object_handle == -1 || object_handle == *(int *)(actor_handle + 8)) {
-      continue;
-    }
+  /* 0x2ae5e: movzx count; cursor walks handles[]; dec/jnz, not an index. */
+  if (found > 0) {
+    scan = handles;
+    left = (int)(unsigned short)found;
+    do {
+      object_handle = *scan;
+      obj = object_get_and_verify_type(object_handle, -1);
+      if (object_handle != -1 &&
+          object_handle != *(int *)(actor_handle + 8)) {
+        obj_tag = tag_get(0x6f626a65, *(int *)obj); /* 'obje' */
+        coll_count =
+            (int *)((char *)tag_get(0x636f6c6c,
+                                    *(int *)((char *)obj_tag + 0x7c)) +
+                    0x280); /* 'coll' */
+        if (*coll_count > 0) {
+          /* 0x2aecc: maxdist home is written 0 before the sphere call. */
+          maxdist = 0.0f;
+          object_get_bounding_sphere(object_handle, center, &obj_radius);
+          object_get_world_matrix(object_handle, world_matrix);
 
-    obj_tag = tag_get(0x6f626a65, *(int *)obj); /* 'obje' */
-    coll_tag =
-      tag_get(0x636f6c6c, *(int *)((char *)obj_tag + 0x7c)); /* 'coll' */
-    coll_count = (int *)((char *)coll_tag + 0x280);
-    if (*coll_count <= 0) {
-      continue;
-    }
+          /* disasm 0x2af81-0x2af8a: j incremented full-width (INC EAX), but the
+           * loop-continue test compares the sign-extended low 16 bits
+           * (MOVSX EAX,AX) against *coll_count. */
+          j = 0;
+          if (j < *coll_count) {
+            do {
+              marker =
+                  (unsigned short *)tag_block_get_element(coll_count, j, 0x20);
+              /* disasm 0x2af07: CMP AX,0xffff; JZ — node!=0xffff is fall-through. */
+              if (*marker != 0xffff) {
+                matrix = object_get_node_matrix(object_handle, (int16_t)*marker);
+                matrix_transform_point((float *)matrix,
+                                       (float *)((char *)marker + 0x10), out);
+                scale_term = *(float *)((char *)marker + 0x1c) * *(float *)matrix;
+              } else {
+                matrix_transform_point(world_matrix,
+                                       (float *)((char *)marker + 0x10), out);
+                scale_term = world_matrix[0] * *(float *)((char *)marker + 0x1c);
+              }
+              scale_term = sqrtf((out[0] - center[0]) * (out[0] - center[0]) +
+                                 (out[1] - center[1]) * (out[1] - center[1])) +
+                           scale_term;
+              /* disasm 0x2af69: FLD maxdist; FCOMP scale_term; JZ keeps maxdist. */
+              if (maxdist > scale_term) {
+              } else {
+                maxdist = scale_term;
+              }
+              j++;
+            } while ((int16_t)j < *coll_count);
+          }
 
-    object_get_bounding_sphere(object_handle, center, &obj_radius);
-    object_get_world_matrix(object_handle, world_matrix);
-
-    maxdist = 0.0f;
-    /* disasm 0x2af81-0x2af8a: j incremented full-width (INC EAX), but the
-     * loop-continue test compares the sign-extended low 16 bits
-     * (MOVSX EAX,AX) against *coll_count. */
-    j = 0;
-    while ((int16_t)j < *coll_count) {
-      marker = (unsigned short *)tag_block_get_element(coll_count, j, 0x20);
-      /* disasm 0x2af07: CMP AX,0xffff; JZ — node!=0xffff path is fall-through.
-       * Written != so VC71 lays out the node-matrix branch first (JE shape). */
-      if (*marker != 0xffff) {
-        matrix = object_get_node_matrix(object_handle, (int16_t)*marker);
-        matrix_transform_point((float *)matrix,
-                               (float *)((char *)marker + 0x10), out);
-        scale_term = *(float *)((char *)marker + 0x1c) * *(float *)matrix;
-      } else {
-        matrix_transform_point(world_matrix, (float *)((char *)marker + 0x10),
-                               out);
-        scale_term = world_matrix[0] * *(float *)((char *)marker + 0x1c);
+          record_count = *(int16_t *)(actor_handle + 0x3c);
+          if (record_count < 0x400) {
+            *(int16_t *)(actor_handle + 0x3c) = record_count + 1;
+            record = actor_handle + record_count * 0x18;
+            *(float *)(record + 0x54) = maxdist;
+            *(real_vector3d *)(record + 0x44) = *(real_vector3d *)center;
+            *(int *)(record + 0x40) = object_handle;
+            *(float *)(record + 0x4c) =
+                *(float *)(record + 0x4c) - (obj_radius - maxdist);
+            scale_term = (obj_radius + obj_radius) - (maxdist + maxdist);
+            /* disasm 0x2afe4: FLD [0x2533c0]; FCOMP scale_term; JNZ keeps
+             * scale_term — i.e. max(const, scale_term). */
+            if (scale_term > *(float *)0x2533c0) {
+            } else {
+              scale_term = *(float *)0x2533c0;
+            }
+            *(float *)(record + 0x50) = scale_term;
+          }
+        }
       }
-      scale_term = sqrtf((out[0] - center[0]) * (out[0] - center[0]) +
-                         (out[1] - center[1]) * (out[1] - center[1])) +
-                   scale_term;
-      /* disasm 0x2af69: FLD maxdist; FCOMP scale_term; JZ keeps maxdist.
-       * Written maxdist-first with > so VC71 emits the JNE/JE shape. */
-      if (maxdist > scale_term) {
-        /* keep maxdist */
-      } else {
-        maxdist = scale_term;
-      }
-      j++;
-    }
-
-    record_count = *(int16_t *)(actor_handle + 0x3c);
-    if (record_count < 0x400) {
-      *(int16_t *)(actor_handle + 0x3c) = record_count + 1;
-      record = actor_handle + record_count * 0x18;
-      *(float *)(record + 0x54) = maxdist;
-      *(float *)(record + 0x44) = center[0];
-      *(float *)(record + 0x48) = center[1];
-      *(float *)(record + 0x4c) = center[2];
-      *(int *)(record + 0x40) = object_handle;
-      *(float *)(record + 0x4c) =
-        *(float *)(record + 0x4c) - (obj_radius - maxdist);
-      scale_term = (obj_radius + obj_radius) - (maxdist + maxdist);
-      /* disasm 0x2afe4: FLD [0x2533c0]; FCOMP scale_term; JNZ keeps
-       * scale_term — i.e. max(const, scale_term). */
-      if (scale_term > *(float *)0x2533c0) {
-      } else {
-        scale_term = *(float *)0x2533c0;
-      }
-      *(float *)(record + 0x50) = scale_term;
-    }
+      scan += 1;
+      left -= 1;
+    } while (left != 0);
   }
 }
 

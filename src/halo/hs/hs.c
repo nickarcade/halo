@@ -9824,7 +9824,7 @@ void hs_hack(void)
     if (scenario != NULL && *(int *)((char *)scenario + 0x474) != 0) {
       hs_load_scenario_scripts(0);
     }
-    hs_runtime_initialize();
+    object_lists_initialize_for_new_map();
     hs_runtime_initialize_for_new_map();
   }
 }

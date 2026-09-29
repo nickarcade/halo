@@ -263,7 +263,7 @@ bool FUN_000971a0(int object_handle, float *position, float *aim_position)
   if (obj && (*(uint8_t *)(obj + 0x1c4) & 1) == 0) {
     char marker_buf[0x6c];
     int16_t count =
-      object_get_markers_by_string_id(object_handle, "front", marker_buf, 1);
+      object_get_marker_by_name(object_handle, "front", marker_buf, 1);
     if (count == 1) {
       float *fwd = (float *)(marker_buf + 0x3c);
       float dot = fwd[0] * aim_position[0] + fwd[1] * aim_position[1] +

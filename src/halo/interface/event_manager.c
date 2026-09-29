@@ -528,7 +528,7 @@ void motion_sensor_update(void)
                    0x34);
       players[i] = local_player_index;
       if (unit_handle != -1) {
-        unit_set_seat_state(unit_handle, positions[local_player_index]);
+        unit_get_camera_position(unit_handle, positions[local_player_index]);
       }
       *(int *)(record + 0x78) = 0;
       for (slot = 0; slot < 0x10; slot++) {

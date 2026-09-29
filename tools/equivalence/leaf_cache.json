@@ -4698,9 +4698,12 @@
     "call_count": 15
   },
   "0x135210": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 10,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "moderate",
+    "coverage_pct": 30.5,
+    "oracle": "xbe"
   },
   "0x1353b0": {
     "class": "stubbable",
@@ -5016,9 +5019,12 @@
     "call_count": 3
   },
   "0x139a30": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 10,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "none",
+    "coverage_pct": 8.5,
+    "oracle": "xbe"
   },
   "0x139b40": {
     "class": "stubbable",
@@ -5026,9 +5032,12 @@
     "call_count": 5
   },
   "0x139c20": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 18,
-    "call_count": 13
+    "call_count": 13,
+    "confidence": "none",
+    "coverage_pct": 8.0,
+    "oracle": "xbe"
   },
   "0x139e50": {
     "class": "stubbable",
@@ -5051,17 +5060,23 @@
     "call_count": 9
   },
   "0x13a5f0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 7,
-    "call_count": 9
+    "call_count": 9,
+    "confidence": "weak",
+    "coverage_pct": 11.3,
+    "oracle": "xbe"
   },
   "0x13a740": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 25,
-    "call_count": 16
+    "call_count": 16,
+    "confidence": "moderate",
+    "coverage_pct": 43.8,
+    "oracle": "xbe"
   },
   "0x13aa10": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 10,
     "call_count": 9
   },
@@ -5091,7 +5106,7 @@
     "call_count": 5
   },
   "0x13b380": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 91,
     "call_count": 74
   },
@@ -5757,9 +5772,12 @@
     "call_count": 4
   },
   "0x141970": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 13,
-    "call_count": 9
+    "call_count": 9,
+    "confidence": "none",
+    "coverage_pct": 23.1,
+    "oracle": "xbe"
   },
   "0x141b70": {
     "class": "stubbable",
@@ -11190,9 +11208,12 @@
     "call_count": 3
   },
   "0x19c5d0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 25,
-    "call_count": 14
+    "call_count": 14,
+    "confidence": "moderate",
+    "coverage_pct": 52.7,
+    "oracle": "xbe"
   },
   "0x19c70": {
     "class": "stubbable",
@@ -11927,9 +11948,12 @@
     "call_count": 3
   },
   "0x1a68d0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 16,
-    "call_count": 14
+    "call_count": 14,
+    "confidence": "moderate",
+    "coverage_pct": 30.4,
+    "oracle": "xbe"
   },
   "0x1a6bc0": {
     "class": "stubbable",
@@ -12028,8 +12052,11 @@
     "call_count": 1
   },
   "0x1a7d80": {
-    "class": "stubbable",
-    "call_count": 3
+    "class": "non_leaf",
+    "call_count": 3,
+    "confidence": "none",
+    "coverage_pct": 0.0,
+    "oracle": "xbe"
   },
   "0x1a7df0": {
     "class": "stubbable",
@@ -12290,9 +12317,12 @@
     "call_count": 8
   },
   "0x1aa170": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "weak",
+    "coverage_pct": 28.9,
+    "oracle": "xbe"
   },
   "0x1aa240": {
     "class": "stubbable",
@@ -12832,9 +12862,12 @@
     "call_count": 4
   },
   "0x1b1c70": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 3
+    "call_count": 3,
+    "confidence": "high",
+    "coverage_pct": 73.0,
+    "oracle": "xbe"
   },
   "0x1b1d00": {
     "class": "stubbable",
@@ -14078,9 +14111,12 @@
     "call_count": 12
   },
   "0x1c0e0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 3,
-    "call_count": 7
+    "call_count": 7,
+    "confidence": "high",
+    "coverage_pct": 94.1,
+    "oracle": "xbe"
   },
   "0x1c0ed0": {
     "class": "leaf"
@@ -14585,9 +14621,12 @@
     "call_count": 35
   },
   "0x1c660": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "moderate",
+    "coverage_pct": 31.6,
+    "oracle": "xbe"
   },
   "0x1c6870": {
     "class": "stubbable",
@@ -14884,9 +14923,12 @@
     "call_count": 2
   },
   "0x1c8d0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 2
+    "call_count": 2,
+    "confidence": "moderate",
+    "coverage_pct": 54.4,
+    "oracle": "xbe"
   },
   "0x1c8d10": {
     "class": "stubbable",
@@ -15033,9 +15075,12 @@
     "call_count": 22
   },
   "0x1ca00": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 2
+    "call_count": 2,
+    "confidence": "moderate",
+    "coverage_pct": 43.0,
+    "oracle": "xbe"
   },
   "0x1ca130": {
     "class": "stubbable",
@@ -15119,9 +15164,12 @@
     "call_count": 20
   },
   "0x1cb70": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "moderate",
+    "coverage_pct": 36.9,
+    "oracle": "xbe"
   },
   "0x1cb790": {
     "class": "leaf"
@@ -15408,9 +15456,12 @@
     "call_count": 26
   },
   "0x1cf10": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 3,
-    "call_count": 3
+    "call_count": 3,
+    "confidence": "moderate",
+    "coverage_pct": 44.2,
+    "oracle": "xbe"
   },
   "0x1cf100": {
     "class": "stubbable",
@@ -21462,9 +21513,12 @@
     "call_count": 2
   },
   "0x2a610": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 6,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "moderate",
+    "coverage_pct": 36.7,
+    "oracle": "xbe"
   },
   "0x2a7e0": {
     "class": "stubbable",
@@ -21477,9 +21531,12 @@
     "call_count": 5
   },
   "0x2a8f0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 12,
-    "call_count": 12
+    "call_count": 12,
+    "confidence": "high",
+    "coverage_pct": 94.6,
+    "oracle": "xbe"
   },
   "0x2ab40": {
     "class": "stubbable",
@@ -21487,14 +21544,20 @@
     "call_count": 8
   },
   "0x2ace0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 3
+    "call_count": 3,
+    "confidence": "weak",
+    "coverage_pct": 23.0,
+    "oracle": "xbe"
   },
   "0x2ade0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 6,
-    "call_count": 12
+    "call_count": 12,
+    "confidence": "weak",
+    "coverage_pct": 21.5,
+    "oracle": "xbe"
   },
   "0x2b020": {
     "class": "non_leaf",
@@ -21509,8 +21572,11 @@
     "dir32_count": 2
   },
   "0x2b400": {
-    "class": "data_only",
-    "dir32_count": 1
+    "class": "non_leaf",
+    "dir32_count": 1,
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x2b490": {
     "class": "non_leaf",
@@ -21559,9 +21625,12 @@
     "call_count": 36
   },
   "0x2d350": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 14,
-    "call_count": 10
+    "call_count": 10,
+    "confidence": "none",
+    "coverage_pct": 15.4,
+    "oracle": "xbe"
   },
   "0x2d720": {
     "class": "non_leaf",
@@ -21651,9 +21720,12 @@
     "oracle": "xbe"
   },
   "0x2f6e0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 11,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "moderate",
+    "coverage_pct": 41.0,
+    "oracle": "xbe"
   },
   "0x2f910": {
     "class": "stubbable",
@@ -21692,9 +21764,12 @@
     "call_count": 4
   },
   "0x2fc20": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 2
+    "call_count": 2,
+    "confidence": "moderate",
+    "coverage_pct": 35.3,
+    "oracle": "xbe"
   },
   "0x2fd10": {
     "class": "non_leaf",
@@ -21746,17 +21821,23 @@
     "dir32_count": 10
   },
   "0x30d10": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 10,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "moderate",
+    "coverage_pct": 40.3,
+    "oracle": "xbe"
   },
   "0x30e60": {
     "class": "leaf"
   },
   "0x30f50": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 8,
-    "call_count": 20
+    "call_count": 20,
+    "confidence": "weak",
+    "coverage_pct": 11.6,
+    "oracle": "xbe"
   },
   "0x31440": {
     "class": "stubbable",
@@ -21774,9 +21855,12 @@
     "call_count": 6
   },
   "0x31a90": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 9,
-    "call_count": 10
+    "call_count": 10,
+    "confidence": "weak",
+    "coverage_pct": 17.1,
+    "oracle": "xbe"
   },
   "0x31c00": {
     "class": "stubbable",
@@ -21824,14 +21908,20 @@
     "call_count": 6
   },
   "0x32cb0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 13,
-    "call_count": 20
+    "call_count": 20,
+    "confidence": "weak",
+    "coverage_pct": 24.6,
+    "oracle": "xbe"
   },
   "0x33330": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "high",
+    "coverage_pct": 96.3,
+    "oracle": "xbe"
   },
   "0x33440": {
     "class": "stubbable",
@@ -21987,9 +22077,12 @@
     "call_count": 10
   },
   "0x378e0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "none",
+    "coverage_pct": 85.2,
+    "oracle": "xbe"
   },
   "0x379f0": {
     "class": "stubbable",
@@ -22935,9 +23028,12 @@
     "call_count": 10
   },
   "0x43a20": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 13
+    "call_count": 13,
+    "confidence": "weak",
+    "coverage_pct": 11.6,
+    "oracle": "xbe"
   },
   "0x43ce0": {
     "class": "stubbable",
@@ -22945,9 +23041,12 @@
     "call_count": 7
   },
   "0x43db0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 7
+    "call_count": 7,
+    "confidence": "weak",
+    "coverage_pct": 18.9,
+    "oracle": "xbe"
   },
   "0x43ea0": {
     "class": "non_leaf",
@@ -30317,9 +30416,12 @@
     "call_count": 1
   },
   "0xad160": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 2
+    "call_count": 2,
+    "confidence": "weak",
+    "coverage_pct": 20.1,
+    "oracle": "xbe"
   },
   "0xad270": {
     "class": "stubbable",
@@ -30831,9 +30933,12 @@
     "call_count": 7
   },
   "0xb3df0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 18,
-    "call_count": 24
+    "call_count": 24,
+    "confidence": "none",
+    "coverage_pct": 6.7,
+    "oracle": "xbe"
   },
   "0xb40f0": {
     "class": "stubbable",
@@ -34788,9 +34893,12 @@
     "call_count": 20
   },
   "0xd4260": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 5,
-    "call_count": 16
+    "call_count": 16,
+    "confidence": "weak",
+    "coverage_pct": 23.2,
+    "oracle": "xbe"
   },
   "0xd4470": {
     "class": "stubbable",
@@ -35099,9 +35207,12 @@
     "oracle": "xbe"
   },
   "0xd70b0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 9
+    "call_count": 9,
+    "confidence": "moderate",
+    "coverage_pct": 34.4,
+    "oracle": "xbe"
   },
   "0xd7240": {
     "class": "stubbable",
@@ -35153,9 +35264,12 @@
     "dir32_count": 1
   },
   "0xd7560": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 9,
-    "call_count": 10
+    "call_count": 10,
+    "confidence": "weak",
+    "coverage_pct": 10.6,
+    "oracle": "xbe"
   },
   "0xd7780": {
     "class": "stubbable",
@@ -36117,9 +36231,12 @@
     "call_count": 2
   },
   "0xe3e10": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 5,
-    "call_count": 2
+    "call_count": 2,
+    "confidence": "moderate",
+    "coverage_pct": 63.1,
+    "oracle": "xbe"
   },
   "0xe3e60": {
     "class": "non_leaf",
@@ -36378,9 +36495,12 @@
     "call_count": 4
   },
   "0xe6980": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 17,
-    "call_count": 10
+    "call_count": 10,
+    "confidence": "moderate",
+    "coverage_pct": 82.7,
+    "oracle": "xbe"
   },
   "0xe6a60": {
     "class": "stubbable",
@@ -36412,9 +36532,12 @@
     "call_count": 2
   },
   "0xe7760": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 3,
-    "call_count": 3
+    "call_count": 3,
+    "confidence": "high",
+    "coverage_pct": 91.7,
+    "oracle": "xbe"
   },
   "0xe78e0": {
     "class": "stubbable",
@@ -36534,9 +36657,12 @@
     "class": "leaf"
   },
   "0xea010": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 1,
-    "call_count": 12
+    "call_count": 12,
+    "confidence": "moderate",
+    "coverage_pct": 68.8,
+    "oracle": "xbe"
   },
   "0xea100": {
     "class": "non_leaf",
@@ -36706,14 +36832,20 @@
     "call_count": 24
   },
   "0xed7c0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 38,
-    "call_count": 36
+    "call_count": 36,
+    "confidence": "none",
+    "coverage_pct": 4.6,
+    "oracle": "xbe"
   },
   "0xedcd0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 20,
-    "call_count": 20
+    "call_count": 20,
+    "confidence": "none",
+    "coverage_pct": 8.4,
+    "oracle": "xbe"
   },
   "0xedfb0": {
     "class": "stubbable",
@@ -36902,9 +37034,12 @@
     "call_count": 2
   },
   "0xf0790": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 35,
-    "call_count": 19
+    "call_count": 19,
+    "confidence": "moderate",
+    "coverage_pct": 50.4,
+    "oracle": "xbe"
   },
   "0xf0a30": {
     "class": "stubbable",
@@ -36937,9 +37072,12 @@
     "call_count": 9
   },
   "0xf0ea0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 5,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "high",
+    "coverage_pct": 68.5,
+    "oracle": "xbe"
   },
   "0xf0f30": {
     "class": "stubbable",

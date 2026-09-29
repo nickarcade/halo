@@ -562,7 +562,7 @@ int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3)
 
   if (result == 0) {
     /* 0x88c80 proves both forwarded arguments are float[3] out-pointers (it
-     * hands param_2 to unit_set_seat_state's `float *position`); the casts
+     * hands param_2 to unit_get_camera_position's `float *position`); the casts
      * are type-only and do not change the pushed dwords. */
     FUN_00088c80(unit_handle, (float *)param_2, (float *)param_3);
   } else {
@@ -1792,7 +1792,7 @@ void first_person_camera_new(void *camera)
  * ESI after the first call), [EBP+0xc] (EBX) and [EBP+0x10] (EDI) at
  * 0x88c89/0x88c94/0x88ca0, so it is a three-parameter cdecl function.
  *
- * Baseline: unit_set_seat_state fills the caller's position vector, and the
+ * Baseline: unit_get_camera_position fills the caller's position vector, and the
  * unit's own aiming vector at +0x1ec..+0x1f4 is copied out as the forward
  * vector.  Both copies are plain dword moves in the reference
  * (MOV EDX,[EAX] / MOV [ECX],EDX at 0x88ca9..0x88cb8), so they are spelled as
@@ -1810,7 +1810,7 @@ void first_person_camera_new(void *camera)
  * record, one marker requested).
  *
  * Note the two halves are written to opposite parameters: the marker position
- * (+0x60, read at [EBP-0xc]) goes to the EBX parameter that unit_set_seat_state
+ * (+0x60, read at [EBP-0xc]) goes to the EBX parameter that unit_get_camera_position
  * filled, and the marker forward (+0x3c, read at [EBP-0x30]) goes to the EDI
  * parameter that received the unit's aiming vector. */
 void FUN_00088c80(int unit_handle, float *out_position, float *out_forward)
@@ -1818,10 +1818,10 @@ void FUN_00088c80(int unit_handle, float *out_position, float *out_forward)
   char *unit;
   char *vehicle;
   char *seat;
-  char marker_buf[0x6c]; /* object_get_markers_by_string_id output */
+  char marker_buf[0x6c]; /* object_get_marker_by_name output */
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
-  unit_set_seat_state(unit_handle, out_position);
+  unit_get_camera_position(unit_handle, out_position);
 
   ((uint32_t *)out_forward)[0] = *(uint32_t *)(unit + 0x1ec);
   ((uint32_t *)out_forward)[1] = *(uint32_t *)(unit + 0x1f0);
@@ -1838,7 +1838,7 @@ void FUN_00088c80(int unit_handle, float *out_position, float *out_forward)
         *(int16_t *)(unit + 0x2a0), 0x11c);
 
       if (*seat < 0) {
-        if (object_get_markers_by_string_id(*(int *)(unit + 0xcc),
+        if (object_get_marker_by_name(*(int *)(unit + 0xcc),
                                             (void *)"primary trigger",
                                             marker_buf, 1) != 0) {
           ((uint32_t *)out_position)[0] = *(uint32_t *)(marker_buf + 0x60);

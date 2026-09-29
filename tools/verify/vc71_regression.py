@@ -1355,7 +1355,8 @@ def _measure_source(src: Path, per_function_fallback: bool = False):
 
 
 def _apply_floor(baseline: dict, src_rel: str, scored: list, force: bool,
-                 info_map: dict = None, rebaseline: bool = False):
+                 info_map: dict = None, rebaseline: bool = False,
+                 lower: frozenset = frozenset()):
     """Merge one TU's scored functions into ``baseline`` (in place).  Serial and
     order-independent for distinct functions.  Returns ``(n_changed, log)``.
 
@@ -1372,6 +1373,9 @@ def _apply_floor(baseline: dict, src_rel: str, scored: list, force: bool,
       fresh measurement regardless of direction, because the point of a
       re-baseline is to make the file say what the scorer says today.  ``force``
       is irrelevant here and ignored.
+
+    ``lower`` is ``force`` for the named functions only: the raw-byte waiver
+    (tools/verify/raw_waiver.py) lowers exactly the floors it proved.
     """
     n_changed = 0
     log: list = []
@@ -1407,9 +1411,10 @@ def _apply_floor(baseline: dict, src_rel: str, scored: list, force: bool,
             log.append(f"  ↑ {fn_name}: {old_score:.1f}% → {new_score:.1f}%")
             n_changed += 1
         elif new_score < old_score - 0.1:
-            if force:
+            if force or fn_name in lower:
                 baseline[fn_name] = _entry(fn_name, new_score)
-                log.append(f"  ↓ {fn_name}: {old_score:.1f}% → {new_score:.1f}% (forced lower)")
+                why = "forced lower" if force else "raw-byte waiver"
+                log.append(f"  ↓ {fn_name}: {old_score:.1f}% → {new_score:.1f}% ({why})")
                 n_changed += 1
             else:
                 log.append(f"  ! {fn_name}: {old_score:.1f}% → {new_score:.1f}%"
@@ -1418,7 +1423,8 @@ def _apply_floor(baseline: dict, src_rel: str, scored: list, force: bool,
     return n_changed, log
 
 
-def _verify_source(src: Path, baseline: dict, force: bool):
+def _verify_source(src: Path, baseline: dict, force: bool,
+                   lower: frozenset = frozenset()):
     """Verify one source TU serially: measure, print, apply the floor merge into
     ``baseline`` (in place), and return ``(n_changed, honest_slice, flagged_slice)``.
     Used by ``update`` (single-file, live output).  ``populate`` uses the
@@ -1428,7 +1434,7 @@ def _verify_source(src: Path, baseline: dict, force: bool):
     for l in log:
         print(l)
     n_changed, floor_log = _apply_floor(
-        baseline, src_rel, scored, force, info_map=honest_slice)
+        baseline, src_rel, scored, force, info_map=honest_slice, lower=lower)
     for l in floor_log:
         print(l)
     return n_changed, honest_slice, flagged_slice
@@ -1451,7 +1457,8 @@ def cmd_update(args, honest_out: dict | None = None,
             print(f"  SKIP {src_str} (not found)", file=sys.stderr)
             continue
 
-        n, honest_slice, flagged_slice = _verify_source(src, baseline, args.force)
+        n, honest_slice, flagged_slice = _verify_source(
+            src, baseline, args.force, frozenset(getattr(args, "lower", None) or ()))
         total_changed += n
         if honest_out is not None:
             honest_out.update(honest_slice)
@@ -1500,6 +1507,8 @@ def cmd_check(args) -> int:
     # passing would be a false negative.  Strict adds the "prove there were no
     # gaps at all" gates on top.
     regressions = []          # (fn, base, curr, src)               FATAL
+    waived = []               # (fn, base, curr, src)  raw-byte waiver, see raw_waiver.py
+    waive = frozenset(getattr(args, "waive", None) or ())
     measurement_changed = []  # (fn, base, curr, detail, src)       FATAL
     vanished = []             # (fn, src, reason)                   FATAL
     improvements = []
@@ -1678,7 +1687,9 @@ def cmd_check(args) -> int:
 
             checked += 1
             delta = current_score - baseline_score
-            if delta < -threshold:
+            if delta < -threshold and fn_name in waive:
+                waived.append((fn_name, baseline_score, current_score, src_rel))
+            elif delta < -threshold:
                 regressions.append((fn_name, baseline_score, current_score, src_rel))
             elif delta > threshold and not args.quiet:
                 improvements.append((fn_name, baseline_score, current_score, src_rel))
@@ -1717,6 +1728,12 @@ def cmd_check(args) -> int:
                 print(f"      {line}")
         print("  (infrastructure, not a lift regression — these functions were "
               "not checked at all)\n")
+
+    if waived:
+        print(f"WAIVED — raw aligned bytes gained, no TU function lost any ({len(waived)}):")
+        for fn, base, curr, src in waived:
+            print(f"  ~ {fn}: {base:.1f}% → {curr:.1f}% mnemonic in {src}")
+        print()
 
     if regressions:
         print(f"REGRESSIONS ({len(regressions)}):")
@@ -2727,6 +2744,9 @@ def build_parser():
                           help="Source .c file(s) to run vc71_verify on")
     p_update.add_argument("--force", action="store_true",
                           help="Allow lowering stored floors (normally disallowed)")
+    p_update.add_argument("--lower", nargs="+", metavar="FUNCTION",
+                          help="Allow lowering only these functions' floors "
+                               "(raw_waiver.py waivable set)")
 
     p_check = sub.add_parser("check", help="Check for regressions against baseline")
     p_check.add_argument("--source", "-s", nargs="+",
@@ -2737,6 +2757,9 @@ def build_parser():
                          help="Suppress improvement messages")
     p_check.add_argument("--strict", action="store_true",
                          help="Fail closed on any missing or invalid verification evidence")
+    p_check.add_argument("--waive", nargs="+", metavar="FUNCTION",
+                         help="Report these functions' drops as waived, not "
+                              "regressions (raw_waiver.py waivable set)")
 
     sub.add_parser("show", help="Display current baseline")
 
