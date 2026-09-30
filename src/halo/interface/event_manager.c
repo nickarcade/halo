@@ -643,7 +643,7 @@ void FUN_000dbfb0(int param_1, int param_2, int param_3)
  * [0x2f6708]) (FDIVR), otherwise it is 0.4f (0x3ecccccd).  The meaning of the
  * constants and of 0x46bd30 is unproven; 0x46bd30 is later pushed as the
  * float slot 2 of FUN_0017d070 (see rasterizer_sprites.c). */
-void motion_sensor_tick(void)
+void FUN_000dc000(void)
 {
 #if defined(_MSC_VER) && !defined(__clang__)
   double __cdecl fmod(double, double);
@@ -666,9 +666,9 @@ void motion_sensor_tick(void)
   motion_sensor_update();
 }
 
-void FUN_000dc000(void)
+void motion_sensor_tick(void)
 {
-  motion_sensor_tick();
+  FUN_000dc000();
 }
 
 /**
