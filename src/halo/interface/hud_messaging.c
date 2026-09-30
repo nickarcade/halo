@@ -2469,6 +2469,21 @@ void hud_play_sound(short local_player_index, unsigned int state_flags, int *sou
   }
 }
 
+/* 0xd7210 */
+void unit_hud_outline_mapper_tick(void)
+{
+}
+
+/* 0xd7220 */
+void unit_hud_shield_meter_mapper_tick(void)
+{
+}
+
+/* 0xd7230 */
+void unit_hud_shield_meter_mapper_init(void)
+{
+}
+
 /* unit_hud_slot_reset (0xd7240)
  * Reset a unit HUD slot to default values.
  * ABI: @esi=slot_pointer */

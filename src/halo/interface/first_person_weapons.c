@@ -42,11 +42,6 @@ void first_person_weapons_initialize_for_new_map(void)
   } while (i != 0);
 }
 
-/* Dispose first-person weapons from old map (0xdc7f0, stub). */
-void FUN_000dc7f0(void)
-{
-}
-
 /* Map a first-person weapon state to an animation graph index (0xdc8c0).
  * Pure lookup table: 24 states (0..23) map to animation indices; any
  * out-of-range state returns -1. The return is 32-bit (every arm is

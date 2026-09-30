@@ -868,7 +868,7 @@ after_cinematic:
   c = game_time_get_paused();
   if (c == '\0') {
     if ((int16_t) * (short *)0x506548 == local_player_get_next(-1)) {
-      FUN_000dc000();
+      motion_sensor_tick();
     }
   }
   if (*(char *)*(void **)0x46bd10 == '\0') {
@@ -879,7 +879,7 @@ after_cinematic:
       hud_show_action_response(player_index);
       hud_play_unit_sounds((int)player_datum, (char)*(char *)*(void **)0x46bd10);
     } else {
-      FUN_000dabf0((int)player_datum);
+      hud_render_weapon_interface((int)player_datum);
       hud_show_action_response(player_index);
       hud_play_unit_sounds((int)player_datum, (char)*(char *)*(void **)0x46bd10);
       hud_render_unit_interface((int)player_datum);

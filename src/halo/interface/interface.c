@@ -1,3 +1,8 @@
+#include "common.h"
+
+#define rasterizer_screen_effect FUN_0017cb90
+#define game_engine_post_rasterize FUN_000afdf0
+
 void first_person_weapons_dispose(void);
 void FUN_000dc7f0(void);
 /* UI/HUD interface subsystem init/dispose. */
@@ -296,3 +301,291 @@ void interface_draw_fullscreen_overlays(void)
   main_framerate_render();
   render_debug_profile();
 }
+
+/* 0xdefb0 */
+void interface_draw_screen(void)
+{
+  int zoom_level;
+  bool has_zoom;
+  char screen_effect_buf[0x38];
+  float local_4;
+  int wphi_index;
+  char *wphi_tag;
+  char *element;
+  int bitm_index;
+  char *bitm_tag;
+  float scalar;
+  float eff_val;
+  float zoom_val;
+  float t;
+  float clamped;
+
+  if (*(int *)0x506548 == -1) {
+    return;
+  }
+
+  wphi_index = FUN_000dedf0((int32_t *)&local_4);
+  if (wphi_index == -1) {
+    rasterizer_screen_effect(NULL);
+    hud_draw_screen();
+    game_engine_post_rasterize();
+    return;
+  }
+
+  wphi_tag = (char *)tag_get(0x77706869, wphi_index);
+  if (*(int *)(wphi_tag + 0xac) <= 0) {
+    rasterizer_screen_effect(NULL);
+    hud_draw_screen();
+    game_engine_post_rasterize();
+    return;
+  }
+
+  element = (char *)tag_block_get_element(wphi_tag + 0xac, 0, 0xb8);
+  zoom_level = player_control_get_zoom_level(*(short *)0x506548);
+  has_zoom = (zoom_level != -1);
+
+  csmemset(screen_effect_buf, 0, 0x38);
+  if (has_zoom || (!(*(uint8_t *)(element + 4) & 1))) {
+    if (main_get_window_count() >= 2) {
+      bitm_index = *(int *)(element + 0x34);
+    } else {
+      bitm_index = *(int *)(element + 0x24);
+    }
+    if (bitm_index != -1) {
+      bitm_tag = (char *)tag_get(0x6269746d, bitm_index);
+      *(void **)(screen_effect_buf + 0x8) = tag_block_get_element(bitm_tag + 0x60, 0, 0x30);
+      *(uint8_t *)(screen_effect_buf + 0x21) = (*(uint8_t *)(element + 0x6c) >> 2) & 1;
+      *(uint8_t *)(screen_effect_buf + 0x22) = (*(uint8_t *)(element + 0x8c) >> 3) & 1;
+    }
+  }
+
+  if (main_get_window_count() >= 2) {
+    if (!has_zoom) {
+      goto check_nightvision;
+    }
+fullscreen_branch:
+    scalar = *(float *)(element + 0x70);
+    if (*(uint8_t *)(element + 0x6c) & 2) {
+      clamped = local_4;
+      if (clamped < 0.0f) {
+        clamped = 0.0f;
+      } else if (clamped > 1.0f) {
+        clamped = 1.0f;
+      }
+      scalar *= clamped;
+    }
+    eff_val = FUN_0017d9d0(*(int16_t *)(element + 0x6e));
+    if (eff_val < 0.0f) {
+      eff_val = 0.0f;
+    } else if (eff_val > 1.0f) {
+      eff_val = 1.0f;
+    }
+    if (eff_val * scalar > 0.0f) {
+      *(float *)(screen_effect_buf + 0xc) = eff_val * scalar;
+    }
+    if (!has_zoom) {
+      goto check_thermal;
+    }
+  } else {
+    if (has_zoom || (!(*(uint8_t *)(element + 0x40) & 1))) {
+      zoom_val = 0.0f;
+      if (*(float *)(element + 0x44) != *(float *)(element + 0x48)) {
+        t = (*(float *)0x506578 - *(float *)(element + 0x44)) /
+            (*(float *)(element + 0x48) - *(float *)(element + 0x44));
+        if (t < 0.0f) {
+          t = 0.0f;
+        } else if (t > 1.0f) {
+          t = 1.0f;
+        }
+        scalars_interpolate(*(int *)(element + 0x4c), *(int *)(element + 0x50), t, &zoom_val);
+        scalar = zoom_val;
+      } else {
+        scalar = *(float *)(element + 0x50);
+      }
+      if (scalar > 0.0f) {
+        *(uint16_t *)(screen_effect_buf + 0x2) = 2;
+        *(float *)(screen_effect_buf + 0x4) = scalar;
+      }
+      goto fullscreen_branch;
+    }
+check_nightvision:
+    if (!(*(uint8_t *)(element + 0x6c) & 1)) {
+      goto fullscreen_branch;
+    }
+check_thermal:
+    if (*(uint8_t *)(element + 0x8c) & 1) {
+      goto done;
+    }
+  }
+
+  scalar = *(float *)(element + 0x90);
+  if (*(uint8_t *)(element + 0x8c) & 2) {
+    clamped = local_4;
+    if (clamped < 0.0f) {
+      clamped = 0.0f;
+    } else if (clamped > 1.0f) {
+      clamped = 1.0f;
+    }
+    scalar *= clamped;
+  }
+  eff_val = FUN_0017d9d0(*(int16_t *)(element + 0x8e));
+  if (eff_val < 0.0f) {
+    eff_val = 0.0f;
+  } else if (eff_val > 1.0f) {
+    eff_val = 1.0f;
+  }
+  if (eff_val * scalar > 0.0f) {
+    *(float *)(screen_effect_buf + 0x10) = eff_val * scalar;
+    *(uint8_t *)(screen_effect_buf + 0x20) = (*(uint8_t *)(element + 0x8c) >> 2) & 1;
+    *(uint32_t *)(screen_effect_buf + 0x14) = *(uint32_t *)(element + 0x94);
+    *(uint32_t *)(screen_effect_buf + 0x18) = *(uint32_t *)(element + 0x98);
+    *(uint32_t *)(screen_effect_buf + 0x1c) = *(uint32_t *)(element + 0x9c);
+  }
+
+done:
+  rasterizer_screen_effect((void *)screen_effect_buf);
+  hud_draw_screen();
+  game_engine_post_rasterize();
+}
+
+/* 0xdf3d0 */
+void render_debug_profile_stall_tick(void)
+{
+}
+
+/* 0xdf4e0 */
+void render_debug_profile(void)
+{
+  if (*(int16_t *)0x306d20 <= 0) {
+    return;
+  }
+}
+
+/* 0xdff90 */
+void interface_draw_bitmap(int sprite_handle, short *offset_xy, void *uv_bounds, float scale_a, float rotation, float alpha_scale)
+{
+  float default_uv[4];
+  float quad_vertices[20];
+  uint32_t quad_desc[35];
+  int i;
+  int alpha_val;
+  float *uv;
+  float sin_r;
+  float cos_r;
+  short width;
+  short height;
+  short center_x;
+  short center_y;
+  char *sprite;
+
+  double __cdecl sin(double);
+  double __cdecl cos(double);
+
+  sin_r = (float)sin((double)rotation);
+  cos_r = (float)cos((double)rotation);
+  default_uv[0] = 0.0f;
+  default_uv[1] = 1.0f;
+  default_uv[2] = 0.0f;
+  default_uv[3] = 1.0f;
+
+  uv = (float *)uv_bounds;
+  if (!uv) {
+    uv = default_uv;
+  }
+  alpha_val = (int)(alpha_scale * 255.0f);
+  sprite = (char *)sprite_handle;
+  width = *(short *)(sprite + 4);
+  height = *(short *)(sprite + 6);
+  center_x = *(short *)(sprite + 0x10);
+  center_y = *(short *)(sprite + 0x12);
+
+  for (i = 0; i < 4; i++) {
+    float u = (i & 1) ? uv[1] : uv[0];
+    float v = (i >= 2) ? uv[3] : uv[2];
+    float dx = ((float)width * u - (float)center_x) * scale_a;
+    float dy = ((float)height * v - (float)center_y) * scale_a;
+
+    quad_vertices[i * 5 + 0] = (dx * cos_r + (float)offset_xy[0]) - dy * sin_r;
+    quad_vertices[i * 5 + 1] = dx * sin_r + dy * cos_r + (float)offset_xy[1];
+    quad_vertices[i * 5 + 2] = u;
+    quad_vertices[i * 5 + 3] = v;
+    *(uint32_t *)&quad_vertices[i * 5 + 4] = ((uint32_t)alpha_val << 24) | 0x00ffffff;
+  }
+
+  csmemset(quad_desc, 0, 0x8c);
+  *(float *)&quad_desc[0x60 / 4] = 1.0f;
+  *(float *)&quad_desc[0x64 / 4] = 1.0f;
+  *(float *)&quad_desc[0x78 / 4] = 1.0f;
+  *(float *)&quad_desc[0x7c / 4] = 1.0f;
+  *(uint16_t *)((char *)quad_desc + 0x6c) = 7;
+  *(int *)((char *)quad_desc + 0x70) = sprite_handle;
+  rasterizer_psuedo_dynamic_screen_quad_draw(0);
+}
+
+/* 0xe0110 */
+void interface_draw_bitmap_modulated(int sprite_handle, short *offset_xy, void *uv_bounds, float scale_a, float rotation, float *color_argb, uint16_t render_mode)
+{
+  float default_uv[4];
+  float quad_vertices[20];
+  uint32_t quad_desc[35];
+  int i;
+  float *uv;
+  float sin_r;
+  float cos_r;
+  short width;
+  short height;
+  short center_x;
+  short center_y;
+  uint32_t color;
+  char *sprite;
+
+  double __cdecl sin(double);
+  double __cdecl cos(double);
+
+  default_uv[0] = 0.0f;
+  default_uv[1] = 0.0f;
+  default_uv[2] = 0.0f;
+  default_uv[3] = 0.0f;
+
+  sin_r = (float)sin((double)rotation);
+  cos_r = (float)cos((double)rotation);
+  uv = (float *)uv_bounds;
+  if (!uv) {
+    uv = default_uv;
+  }
+  color = (((uint32_t)(color_argb[0] * 255.0f) << 24) |
+           ((uint32_t)(color_argb[1] * 255.0f) << 16) |
+           ((uint32_t)(color_argb[2] * 255.0f) << 8) |
+           ((uint32_t)(color_argb[3] * 255.0f)));
+
+  sprite = (char *)sprite_handle;
+  width = *(short *)(sprite + 4);
+  height = *(short *)(sprite + 6);
+  (void)width;
+  (void)height;
+  center_x = *(short *)(sprite + 0x10);
+  center_y = *(short *)(sprite + 0x12);
+
+  for (i = 0; i < 4; i++) {
+    float u = (i & 1) ? uv[1] : uv[0];
+    float v = (i >= 2) ? uv[3] : uv[2];
+    float dx = (u - (float)center_x) * scale_a;
+    float dy = (v - (float)center_y) * scale_a;
+
+    quad_vertices[i * 5 + 0] = (dx * cos_r + (float)offset_xy[0]) - dy * sin_r;
+    quad_vertices[i * 5 + 1] = dx * sin_r + dy * cos_r + (float)offset_xy[1];
+    quad_vertices[i * 5 + 2] = u;
+    quad_vertices[i * 5 + 3] = v;
+    *(uint32_t *)&quad_vertices[i * 5 + 4] = color;
+  }
+
+  csmemset(quad_desc, 0, 0x8c);
+  *(float *)&quad_desc[0x60 / 4] = 1.0f;
+  *(float *)&quad_desc[0x64 / 4] = 1.0f;
+  *(float *)&quad_desc[0x78 / 4] = 1.0f;
+  *(float *)&quad_desc[0x7c / 4] = 1.0f;
+  *(uint16_t *)((char *)quad_desc + 0x70) = render_mode;
+  *(int *)((char *)quad_desc + 0x74) = sprite_handle;
+  rasterizer_psuedo_dynamic_screen_quad_draw(0);
+}
+

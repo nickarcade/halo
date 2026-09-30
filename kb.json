@@ -7885,11 +7885,15 @@
       "functions": [
         {
           "addr": "0xd9960",
-          "decl": "void FUN_000d9960(int16_t local_player_index@<eax>, int weapon_handle, int tag_index, void *interface_state);"
+          "decl": "void FUN_000d9960(int16_t local_player_index@<eax>, int weapon_handle, int tag_index, void *interface_state);",
+          "ported": true,
+          "name": "FUN_000d9960"
         },
         {
           "addr": "0xd9f20",
-          "decl": "void render_weapon_hud(int whud_index, int local_player_index, void *weapon_tag, void *param_4, int param_5, int param_6, int param_7);"
+          "decl": "void render_weapon_hud(int whud_index, int local_player_index, void *weapon_tag, void *param_4, int param_5, int param_6, int param_7);",
+          "ported": true,
+          "name": "render_weapon_hud"
         },
         {
           "addr": "0xda980",
@@ -7898,19 +7902,22 @@
         },
         {
           "addr": "0xdabf0",
-          "decl": "void FUN_000dabf0(int param_1);",
-          "ported": true
+          "decl": "void hud_render_weapon_interface(int player_handle);",
+          "ported": true,
+          "name": "hud_render_weapon_interface"
         },
         {
           "addr": "0xdade0",
           "decl": "void tiny_point2d_set(float *position@<esi>, char *tiny_point@<edi>);",
-          "ported": true
+          "ported": true,
+          "name": "tiny_point2d_set"
         },
         {
           "addr": "0xdae90",
           "decl": "void tiny_point2d_get(char *tiny_point@<ecx>, float *position@<eax>);",
           "comment": "[NAME: tiny_point2d_get \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-          "ported": true
+          "ported": true,
+          "name": "tiny_point2d_get"
         },
         {
           "addr": "0xdaee0",
@@ -7954,24 +7961,32 @@
           "addr": "0xdb250",
           "decl": "char FUN_000db250(int object_handle@<esi>);",
           "file": "src/halo/interface/event_manager.c",
-          "ported": false
+          "ported": true,
+          "name": "FUN_000db250"
         },
         {
           "addr": "0xdb330",
-          "decl": "void render_blip(void);"
+          "decl": "void render_blip(float *point, float center_dir, char type, float scale, unsigned int color, float blend);",
+          "ported": true,
+          "name": "render_blip"
         },
         {
           "addr": "0xdb4c0",
           "decl": "void motion_sensor_update(void);",
-          "ported": true
+          "ported": true,
+          "name": "motion_sensor_update"
         },
         {
           "addr": "0xdb950",
-          "decl": "void update_motion_sensor(int local_player_index);"
+          "decl": "void update_motion_sensor(int local_player_index);",
+          "ported": true,
+          "name": "update_motion_sensor"
         },
         {
           "addr": "0xdbcb0",
-          "decl": "void FUN_000dbcb0(short *pt@<eax>, int local_player_index@<ecx>, int param_3);"
+          "decl": "void FUN_000dbcb0(short *pt@<eax>, int local_player_index@<ecx>, int param_3);",
+          "ported": true,
+          "name": "FUN_000dbcb0"
         },
         {
           "addr": "0xdbfb0",
@@ -7980,8 +7995,9 @@
         },
         {
           "addr": "0xdc000",
-          "decl": "void FUN_000dc000(void);",
-          "ported": true
+          "decl": "void motion_sensor_tick(void);",
+          "ported": true,
+          "name": "motion_sensor_tick"
         },
         {
           "addr": "0xdc070",
@@ -8052,6 +8068,30 @@
           "addr": "0xdc800",
           "decl": "int16_t FUN_000dc800(int event @<eax>);",
           "ported": true
+        },
+        {
+          "addr": "0xdb040",
+          "decl": "void motion_sensor_blip_set_type_and_size(int object_handle);",
+          "ported": true,
+          "name": "motion_sensor_blip_set_type_and_size"
+        },
+        {
+          "addr": "0xdb0a0",
+          "decl": "float blip_size_get(char type);",
+          "ported": true,
+          "name": "blip_size_get"
+        },
+        {
+          "addr": "0xdb1c0",
+          "decl": "bool should_track_object(int object_handle);",
+          "ported": true,
+          "name": "should_track_object"
+        },
+        {
+          "addr": "0xdc7f0",
+          "decl": "void first_person_weapons_dispose_from_old_map(void);",
+          "ported": true,
+          "name": "first_person_weapons_dispose_from_old_map"
         }
       ],
       "name": "event_manager.obj",
@@ -14251,6 +14291,24 @@
           "decl": "void hud_render_unit_interface(int param_1);",
           "ported": true,
           "name": "hud_render_unit_interface"
+        },
+        {
+          "addr": "0xd7210",
+          "decl": "void unit_hud_outline_mapper_tick(void);",
+          "ported": true,
+          "name": "unit_hud_outline_mapper_tick"
+        },
+        {
+          "addr": "0xd7220",
+          "decl": "void unit_hud_shield_meter_mapper_tick(void);",
+          "ported": true,
+          "name": "unit_hud_shield_meter_mapper_tick"
+        },
+        {
+          "addr": "0xd7230",
+          "decl": "void unit_hud_shield_meter_mapper_init(void);",
+          "ported": true,
+          "name": "unit_hud_shield_meter_mapper_init"
         }
       ],
       "name": "hud_messaging.obj",
@@ -14579,22 +14637,28 @@
         },
         {
           "addr": "0xdefb0",
-          "decl": "void interface_draw_screen(void);"
+          "decl": "void interface_draw_screen(void);",
+          "ported": true,
+          "name": "interface_draw_screen"
         },
         {
           "addr": "0xdf350",
-          "decl": "void profile_graph_toggle(const char *value_name);"
+          "decl": "void profile_graph_toggle(const char *value_name);",
+          "ported": true,
+          "name": "profile_graph_toggle"
         },
         {
           "addr": "0xdf3d0",
           "decl": "void render_debug_profile_stall_tick(void);",
           "comment": "[NAME: render_debug_profile_stall_tick \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-          "name": "render_debug_profile_stall_tick"
+          "name": "render_debug_profile_stall_tick",
+          "ported": true
         },
         {
           "addr": "0xdf4e0",
           "decl": "void render_debug_profile(void);",
-          "name": "render_debug_profile"
+          "name": "render_debug_profile",
+          "ported": true
         },
         {
           "addr": "0xdfdc0",
@@ -14605,7 +14669,8 @@
         {
           "addr": "0xdff00",
           "decl": "void *interface_get_rgb_color(int interface_tag_index, short color_index, int16_t *out_color);",
-          "ported": true
+          "ported": true,
+          "name": "interface_get_rgb_color"
         },
         {
           "addr": "0xdff70",
@@ -14614,13 +14679,16 @@
         },
         {
           "addr": "0xdff90",
-          "decl": "void interface_draw_bitmap(int sprite_handle, short *offset_xy, void *color, float scale_a, int flag, float scale_b);"
+          "decl": "void interface_draw_bitmap(int sprite_handle, short *offset_xy, void *uv_bounds, float scale_a, float rotation, float alpha_scale);",
+          "ported": true,
+          "name": "interface_draw_bitmap"
         },
         {
           "addr": "0xe0110",
-          "decl": "void interface_draw_bitmap_modulated(void);",
+          "decl": "void interface_draw_bitmap_modulated(int sprite_handle, short *offset_xy, void *uv_bounds, float scale_a, float rotation, float *color_argb, uint16_t render_mode);",
           "comment": "[NAME: interface_draw_bitmap_modulated_p32 \u2014 CEA PDB line-containment (high_confidence), cea-deferred 2026-09-03]",
-          "name": "interface_draw_bitmap_modulated"
+          "name": "interface_draw_bitmap_modulated",
+          "ported": true
         }
       ],
       "name": "interface.obj",
@@ -21984,13 +22052,15 @@
         {
           "addr": "0xe19c0",
           "decl": "void tgaLoad(int r1@<eax>, int r2@<ecx>, int r3@<edx>, int s1, int s2, int s3, int s4, int s5);",
-          "ported": true
+          "ported": true,
+          "name": "tgaLoad"
         },
         {
           "addr": "0xe1a10",
           "decl": "int __stdcall FUN_000e1a10(void *device, uint32_t count, void *rects, uint32_t flags, float z, uint32_t color@<edx>, uint32_t stencil@<eax>);",
           "ported": true,
-          "source_path": "src/halo/interface/progress_bar.c"
+          "source_path": "src/halo/interface/progress_bar.c",
+          "name": "FUN_000e1a10"
         },
         {
           "addr": "0xe1d00",
@@ -22002,13 +22072,15 @@
           "addr": "0xe1f00",
           "decl": "int __stdcall FUN_000e1f00(void *device, uint32_t reg@<edx>, float a, float b);",
           "ported": true,
-          "source_path": "src/halo/interface/progress_bar.c"
+          "source_path": "src/halo/interface/progress_bar.c",
+          "name": "FUN_000e1f00"
         },
         {
           "addr": "0xe1f20",
-          "decl": "int __stdcall FUN_000e1f20(void *device, uint32_t reg, float a, float b, float c, float d);",
+          "decl": "int IDirect3DDevice8_SetVertexData4f_4(unsigned int dev, unsigned int reg, float a, float b, float c, float d);",
           "ported": true,
-          "source_path": "src/halo/interface/progress_bar.c"
+          "source_path": "src/halo/interface/progress_bar.c",
+          "name": "IDirect3DDevice8_SetVertexData4f_4"
         },
         {
           "addr": "0xe2170",
@@ -22019,7 +22091,8 @@
         {
           "addr": "0xe21b0",
           "decl": "void FUN_000e21b0(unsigned int flags@<eax>, void *rect@<ecx>, void *locked_rect@<edx>, void *texture, unsigned int level);",
-          "ported": true
+          "ported": true,
+          "name": "FUN_000e21b0"
         },
         {
           "addr": "0xe21e0",
@@ -22066,6 +22139,102 @@
           "decl": "void progress_bar_eachframe(void);",
           "ported": true,
           "source_path": "src/halo/interface/progress_bar.c"
+        },
+        {
+          "addr": "0xe1960",
+          "decl": "void D3DDevice_SetTextureStageState_16(unsigned int stage, int state, unsigned int value);",
+          "ported": true,
+          "name": "D3DDevice_SetTextureStageState_16"
+        },
+        {
+          "addr": "0xe19b0",
+          "decl": "int IDirect3DDevice8_GetBackBuffer_0(unsigned int dev, unsigned int iBackBuffer, unsigned int Type);",
+          "ported": true,
+          "name": "IDirect3DDevice8_GetBackBuffer_0"
+        },
+        {
+          "addr": "0xe19e0",
+          "decl": "bool progress_bar_is_stuff_ready(void);",
+          "ported": true,
+          "name": "progress_bar_is_stuff_ready"
+        },
+        {
+          "addr": "0xe19f0",
+          "decl": "int IDirect3DDevice8_SetRenderTarget_0(unsigned int dev, unsigned int pRenderTarget, unsigned int pNewZStencil);",
+          "ported": true,
+          "name": "IDirect3DDevice8_SetRenderTarget_0"
+        },
+        {
+          "addr": "0xe1a00",
+          "decl": "void IDirect3DDevice8_GetDepthStencilSurface_0(unsigned int dev);",
+          "ported": true,
+          "name": "IDirect3DDevice8_GetDepthStencilSurface_0"
+        },
+        {
+          "addr": "0xe1a30",
+          "decl": "int IDirect3DDevice8_SetTransform(unsigned int dev, unsigned int state, unsigned int pMatrix);",
+          "ported": true,
+          "name": "IDirect3DDevice8_SetTransform"
+        },
+        {
+          "addr": "0xe1a40",
+          "decl": "int IDirect3DDevice8_GetTransform(unsigned int dev, unsigned int state, unsigned int pMatrix);",
+          "ported": true,
+          "name": "IDirect3DDevice8_GetTransform"
+        },
+        {
+          "addr": "0xe1a50",
+          "decl": "int IDirect3DDevice8_SetRenderState_17(void *dev, int state, unsigned int value);",
+          "ported": true,
+          "name": "IDirect3DDevice8_SetRenderState_17"
+        },
+        {
+          "addr": "0xe1cf0",
+          "decl": "int IDirect3DDevice8_SetTexture_1(unsigned int dev, unsigned int stage, unsigned int pTexture);",
+          "ported": true,
+          "name": "IDirect3DDevice8_SetTexture_1"
+        },
+        {
+          "addr": "0xe1d50",
+          "decl": "int IDirect3DDevice8_SetTextureStageState_16(unsigned int dev, unsigned int stage, int state, unsigned int value);",
+          "ported": true,
+          "name": "IDirect3DDevice8_SetTextureStageState_16"
+        },
+        {
+          "addr": "0xe1ec0",
+          "decl": "int IDirect3DDevice8_SetVertexShader_1(unsigned int dev, unsigned int Handle);",
+          "ported": true,
+          "name": "IDirect3DDevice8_SetVertexShader_1"
+        },
+        {
+          "addr": "0xe1ed0",
+          "decl": "int IDirect3DDevice8_SetPixelShaderProgram_0(unsigned int dev, unsigned int pProg);",
+          "ported": true,
+          "name": "IDirect3DDevice8_SetPixelShaderProgram_0"
+        },
+        {
+          "addr": "0xe1ee0",
+          "decl": "void progress_bar_create_noise_texture(void);",
+          "ported": true,
+          "name": "progress_bar_create_noise_texture"
+        },
+        {
+          "addr": "0xe1ef0",
+          "decl": "int IDirect3DDevice8_BlockUntilVerticalBlank(unsigned int dev);",
+          "ported": true,
+          "name": "IDirect3DDevice8_BlockUntilVerticalBlank"
+        },
+        {
+          "addr": "0xe1f50",
+          "decl": "int IDirect3DDevice8_Begin_11(unsigned int dev, unsigned int PrimitiveType);",
+          "ported": true,
+          "name": "IDirect3DDevice8_Begin_11"
+        },
+        {
+          "addr": "0xe1f60",
+          "decl": "int IDirect3DDevice8_End_11(unsigned int dev);",
+          "ported": true,
+          "name": "IDirect3DDevice8_End_11"
         }
       ],
       "name": "progress_bar.obj",
