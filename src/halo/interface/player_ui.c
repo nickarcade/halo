@@ -1,3 +1,19 @@
+/* 0xe05f0 */
+void overhead_map_initialize(void)
+{
+}
+
+/* 0xe0600 */
+void overhead_map_initialize_for_new_map(void)
+{
+}
+
+/* 0xe0610 */
+void overhead_map_dispose_from_old_map(void)
+{
+  *(int *)0x46beb0 = 0;
+}
+
 /* 0xe0620. No xrefs found; the first two stack arguments are never read, so
  * their types are unknown. The third argument is a pointer to two floats that
  * are cached verbatim and also converted to a halved, registration-relative
@@ -13,7 +29,7 @@ typedef struct short_rectangle2d {
   short right;
 } short_rectangle2d;
 
-void FUN_000e0620(int unknown0, int unknown1, float *position)
+void overhead_map_post_rasterize(int unknown0, int unknown1, float *position)
 {
   short_rectangle2d bounds;
   short x;
@@ -86,6 +102,19 @@ player_ui_get_single_player_local_player_controller(__int16 local_player_index)
                   "invalid local player index");
   return word_46BFC4[(__int16)local_player_index];
 }
+
+/* 0xe0810 */
+int player_ui_get_single_player_local_player_from_controller(short local_player_index)
+{
+  int i;
+  for (i = 0; i < 4; i++) {
+    if (word_46BFC4[i] == local_player_index) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 
 /* 0xe0840. The index is read as a 16-bit stack slot (MOV SI,word ptr [EBP+8])
  * and sign-extended (MOVSX EAX,SI) before both stores.
@@ -488,6 +517,20 @@ void player_ui_fast_setup_network_server(void)
   main_goto_main_menu();
 }
 
+/* 0xe0d80 */
+bool player_ui_edit_profile_is_default_profile(void)
+{
+  int val;
+  if (*(int *)0x46c038 != -1) {
+    val = saved_game_file_get_type(*(int *)0x46c038) & 0xffff;
+    if (val <= 1) {
+      return (bool)((*(unsigned int *)0x46c038 >> 30) & 1);
+    }
+    error(2, (const char *)0x282938);
+  }
+  return false;
+}
+
 /* 0xe0dd0. Returns true when the profile name currently being edited differs
  * from the pristine copy taken when editing began.
  *
@@ -636,6 +679,45 @@ void *player_ui_get_edit_playlist_profile(void)
                                                            NULL;
 }
 
+/* 0xe0ee0 */
+bool player_ui_edit_profile_is_dirty(void)
+{
+  int type;
+  bool dirty = false;
+  int diff;
+  unsigned short v1, v3;
+  unsigned int v2, v4;
+
+  if (*(int *)0x46c038 != -1) {
+    type = saved_game_file_get_type(*(int *)0x46c038);
+    v4 = *(unsigned int *)0x46c108;
+    v3 = *(unsigned short *)0x46c0be;
+    v2 = *(unsigned int *)0x46c0a0;
+    v1 = *(unsigned short *)0x46c056;
+
+    if (type & 0xffff) {
+      if ((type & 0xffff) - 1 != 0) {
+        error(2, (const char *)0x28298c);
+        return false;
+      }
+      *(unsigned int *)0x46c108 &= 0xffff0000;
+      *(unsigned int *)0x46c0a0 &= 0xffff0000;
+      diff = csmemcmp((void *)0x46c0a4, (void *)0x46c03c, 0x68);
+      *(unsigned int *)0x46c0a0 = v2;
+      *(unsigned int *)0x46c108 = v4;
+      return diff != 0;
+    }
+
+    *(unsigned short *)0x46c0be = 0;
+    *(unsigned short *)0x46c056 = 0;
+    diff = csmemcmp((void *)0x46c0a4, (void *)0x46c03c, 0x30);
+    dirty = (diff != 0);
+    *(unsigned short *)0x46c056 = v1;
+    *(unsigned short *)0x46c0be = v3;
+  }
+  return dirty;
+}
+
 /* 0xe0fd0. Marks every solo level complete on every difficulty in local
  * player 0's profile, then writes the profile back if that player has one.
  *
@@ -772,6 +854,159 @@ int player0_joystick_set_is_normal(void)
   return 0;
 }
 
+/* 0xe1080 */
+void generate_default_player_profile(void *profile)
+{
+  if (!profile) {
+    assert_halt(0);
+  }
+  csmemset(profile, 0, 0x30);
+  *(uint16_t *)((char *)profile + 0x18) = 0xffff;
+  *(char *)((char *)profile + 0x28) = 0;
+  *(char *)((char *)profile + 0x29) = 0;
+}
+
+/* set_local_player_controls_from_player_profile (0xe10c0) */
+void set_local_player_controls_from_player_profile(short local_player_index /* @<edi> */)
+{
+  float controls[22];
+  int profile_offset;
+  int sens_index;
+  short controller_index;
+  char *profile_base;
+  int button_layout;
+  char button_config[16];
+
+  csmemset(controls, 0, sizeof(controls));
+  if (local_player_index < 0 || local_player_index >= 4) {
+    assert_halt(0);
+  }
+
+  /* Pitch/yaw sensitivity lookups */
+  controls[10] = 10.0f;
+  controls[11] = 12.5f;
+  controls[12] = 15.0f;
+  controls[13] = 17.5f;
+  controls[14] = 20.0f;
+  controls[15] = 22.5f;
+  controls[16] = 25.0f;
+  controls[17] = 27.5f;
+  controls[18] = 30.0f;
+  controls[19] = 32.5f;
+  controls[0] = 80.0f;
+  controls[1] = 100.0f;
+  controls[2] = 120.0f;
+  controls[3] = 140.0f;
+  controls[4] = 160.0f;
+  controls[5] = 180.0f;
+  controls[6] = 200.0f;
+  controls[7] = 220.0f;
+  controls[8] = 240.0f;
+  controls[9] = 260.0f;
+
+  profile_offset = local_player_index * 0x38;
+  profile_base = (char *)(player_ui_globals + profile_offset);
+
+  sens_index = (int)((unsigned char)profile_base[0x2a]) - 1;
+  if (sens_index < 0) sens_index = 0;
+  if (sens_index > 9) sens_index = 9;
+
+  controls[20] = controls[sens_index];
+  controls[21] = controls[sens_index + 10];
+
+  button_layout = (int)((unsigned char)profile_base[0x28]);
+  csmemset(button_config, 0, sizeof(button_config));
+  switch (button_layout) {
+  case 0:
+    button_config[0] = 1;
+    button_config[1] = 5;
+    button_config[2] = 6;
+    button_config[3] = 7;
+    button_config[4] = 0;
+    button_config[5] = 4;
+    button_config[6] = 2;
+    button_config[7] = 3;
+    button_config[8] = 15;
+    break;
+  case 1:
+    button_config[0] = 1;
+    button_config[1] = 0;
+    button_config[2] = 7;
+    button_config[3] = 6;
+    button_config[4] = 0;
+    button_config[5] = 4;
+    button_config[6] = 2;
+    button_config[7] = 3;
+    button_config[8] = 15;
+    break;
+  case 2:
+    button_config[0] = 1;
+    button_config[1] = 0;
+    button_config[2] = 0;
+    button_config[3] = 7;
+    button_config[4] = 6;
+    button_config[5] = 4;
+    button_config[6] = 2;
+    button_config[7] = 3;
+    button_config[8] = 15;
+    break;
+  case 3:
+    button_config[0] = 6;
+    button_config[1] = 0;
+    button_config[2] = 1;
+    button_config[3] = 7;
+    button_config[4] = 0;
+    button_config[5] = 4;
+    button_config[6] = 2;
+    button_config[7] = 3;
+    button_config[8] = 15;
+    break;
+  case 4:
+    button_config[0] = 15;
+    button_config[1] = 5;
+    button_config[2] = 6;
+    button_config[3] = 7;
+    button_config[4] = 0;
+    button_config[5] = 4;
+    button_config[6] = 2;
+    button_config[7] = 3;
+    button_config[8] = 1;
+    break;
+  default:
+    break;
+  }
+
+  controller_index = word_46BFC4[local_player_index];
+  if (controller_index != -1) {
+    input_abstraction_update_local_player_preferences(controller_index, (real *)&controls[20]);
+  }
+}
+
+/* 0xe12d0 */
+void clear_profile_edit_data(void)
+{
+  *(int *)0x46c038 = -1;
+}
+
+/* 0xe12e0 */
+void reset_local_player_profile(short local_player_index)
+{
+  int offset;
+  char *profile;
+
+  offset = local_player_index * 0x38;
+  profile = player_ui_globals + offset;
+  if (!profile) {
+    assert_halt(0);
+  }
+  csmemset(profile, 0, 0x30);
+  *(uint16_t *)(profile + 0x18) = 0xffff;
+  profile[0x28] = 0;
+  profile[0x29] = 0;
+  *(int *)(profile + 0x30) = -1;
+  word_46BFC4[local_player_index] = -1;
+}
+
 void player_ui_initialize(void)
 {
   int i;
@@ -906,6 +1141,94 @@ void player_ui_set_active_player_profile(short local_player_index,
   set_local_player_controls_from_player_profile(local_player_index);
 }
 
+/* 0xe1500 */
+void player_ui_begin_editing_profile(int a1)
+{
+  int profile_type;
+  size_t copy_size;
+
+  *(int *)0x46c038 = -1;
+  profile_type = saved_game_file_get_type(a1) & 0xffff;
+  if (profile_type) {
+    if (profile_type != 1) {
+      error(2, (const char *)0x282a28, a1);
+      return;
+    }
+    if (!playlist_profile_delete(a1, (game_variant_t *)0x46c0a4)) {
+      error(2, (const char *)0x2829f0, a1);
+      return;
+    }
+    copy_size = 0x68;
+  } else {
+    if (!player_profile_new(a1, (wchar_t *)0x46c0a4)) {
+      error(2, (const char *)0x2829b8, a1);
+      return;
+    }
+    copy_size = 0x30;
+  }
+  csmemcpy((void *)0x46c03c, (void *)0x46c0a4, copy_size);
+  *(int *)0x46c038 = a1;
+}
+
+/* 0xe15b0 */
+bool player_ui_save_profile(void)
+{
+  int profile_index;
+  int profile_type;
+  char filename[256];
+  int new_index;
+
+  profile_index = *(int *)0x46c038;
+  profile_type = saved_game_file_get_type(profile_index) & 0xffff;
+  if (profile_type) {
+    if (profile_type != 1) {
+      error(2, (const char *)0x282b40);
+    } else {
+      if (!player_ui_edit_profile_is_dirty()) {
+        error(2, (const char *)0x282af8);
+      }
+      if (!(profile_index & 0x40000000)) {
+        playlist_profile_get_display_name(profile_index, (game_variant_t *)0x46c03c);
+        if (saved_game_file_get_path_to_enclosing_directory(profile_index, filename)) {
+          *(int *)0x46c038 = -1;
+          saved_game_file_remember_last_used_multiplayer_variant_directory(filename);
+          return true;
+        }
+        *(int *)0x46c038 = -1;
+        return true;
+      }
+      if (ustrncmp((const wchar_t *)0x46c03c, (const wchar_t *)0x46c0a4, 0xc) != 0) {
+        *(unsigned char *)0x46c0a0 &= ~1;
+        new_index = playlist_profile_new(0, (wchar_t *)0x46c03c);
+        if (new_index != -1) {
+          playlist_profile_get_display_name(new_index, (game_variant_t *)0x46c03c);
+          *(int *)0x46c038 = new_index;
+          if (saved_game_file_get_path_to_enclosing_directory(new_index, filename)) {
+            saved_game_file_remember_last_used_multiplayer_variant_directory(filename);
+          }
+          *(int *)0x46c038 = -1;
+          return true;
+        }
+        error(2, (const char *)0x282acc);
+      } else {
+        error(2, (const char *)0x282a80);
+      }
+    }
+  } else {
+    if (profile_index & 0x40000000) {
+      error(2, (const char *)0x282a48);
+    }
+    if (!player_ui_edit_profile_is_dirty()) {
+      error(2, (const char *)0x282af8);
+    }
+    player_profile_get_from_path(profile_index, (void *)0x46c03c);
+    *(int *)0x46c038 = -1;
+    return true;
+  }
+  *(int *)0x46c038 = -1;
+  return false;
+}
+
 /* player_ui_end_editing_profile (0xe1760)
  *
  * Reference is two instructions:
@@ -964,3 +1287,9 @@ void player0_look_invert_pitch(char invert)
   }
   set_local_player_controls_from_player_profile(0);
 }
+
+/* 0xe17b0 */
+void D3DDevice_SetRenderState_17(void)
+{
+}
+
