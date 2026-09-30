@@ -2147,7 +2147,7 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
         yaw_sens = (int)*(uint8_t *)0x4570ba + 1; /* hazard-ok: value-add */
       }
 
-      assert_halt_at("c:\\halo\\SOURCE\\game\\player_control.c", 0x1c8, *(int16_t *)(constants + 0x74) > 1);
+      assert_halt_at("c:\\halo\\SOURCE\\game\\player_control.c", 0x1c8, *(int32_t *)(constants + 0x74) > 1);
       yaw_delta = evaluate_piecewise_linear_function(*(int16_t *)(constants + 0x74), (float *)*(uint32_t *)(constants + 0x78), norm_look_yaw) * (real)yaw_sens * yaw_rate;
       pitch_delta = evaluate_piecewise_linear_function(*(int16_t *)(constants + 0x74), (float *)*(uint32_t *)(constants + 0x78), norm_look_pitch) * (real)pitch_sens * pitch_rate;
 
@@ -2167,7 +2167,7 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
       }
 
       assert_halt_at("c:\\halo\\SOURCE\\game\\player_control.c", 0x1e3, *(real *)(constants + 0x40) > 0.0f);
-      if ((real)fabs(norm_look_yaw) > *(real *)(constants + 0x48)) {
+      if ((real)fabs(norm_look_yaw) >= *(real *)(constants + 0x48)) {
         accel = control->field_0x34 / *(real *)(constants + 0x40);
         if (accel < 0.0f) {
           accel = 0.0f;
@@ -2182,8 +2182,8 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
 
       control->target_object_index = local_player_aim_assist(local_player_index, &control->autoaim_level, &control->field_0x30, &local_44, &local_34);
       if (*(uint8_t *)0x2f0291 && control->field_0x30 > 0.0f) {
-        if (fabs(norm_look_yaw) > 0.0001 || fabs(norm_look_pitch) > 0.0001 ||
-            fabs(input->field_0x00) > 0.0001 || fabs(input->field_0x04) > 0.0001) {
+        if (fabs(norm_look_yaw) > 0.0001f || fabs(norm_look_pitch) > 0.0001f ||
+            fabs(input->field_0x00) > 0.0001f || fabs(input->field_0x04) > 0.0001f) {
           game_speed = game_time_get_speed();
           scale_yaw = *(real *)constants;
           scale_pitch = *(real *)(constants + 4);
@@ -2204,7 +2204,7 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
           scale_pitch *= control->field_0x30;
 
           if (game_players_are_double_speed()) {
-            game_speed *= 2.0f;
+            game_speed *= 0.5f; /* [0x253398] = 0.5 */
           }
           local_34.x *= game_speed;
           local_34.y *= game_speed;
@@ -2249,7 +2249,7 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
       unit = (char *)object_try_and_get_and_verify_type(unit_index, 1);
       if (unit) {
         if (*(uint8_t *)0x4570b8 || (*(uint8_t *)(unit + 0x424) & 1) ||
-            (input->field_0x04 * input->field_0x04 + input->field_0x00 * input->field_0x00 < 0.01f)) {
+            (input->field_0x04 * input->field_0x04 + input->field_0x00 * input->field_0x00 < 0.9604f)) { /* [0x26e2e8] */
           if (debounced_buttons[10]) {
             input->field_0x18 |= 1;
           } else {

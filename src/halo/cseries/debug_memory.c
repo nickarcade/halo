@@ -121,8 +121,7 @@ void debug_dump_memory_by_file(void)
           system_exit(-1);
         }
         crt_fprintf(stream,
-                    "\r\nTotal: %40d bytes in %4d pointers\r\nLargest Heap "
-                    "Size: %28d bytes\r\n\r\n",
+                    "\r\nTotal: %40d bytes in %4d pointers\r\n\r\nLargest Heap Size: %28d bytes\r\n\r\n",
                     total_size, alloc_count, *(int *)0x2ee754);
         crt_fclose(stream);
       }

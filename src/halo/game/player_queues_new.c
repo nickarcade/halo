@@ -1,3 +1,107 @@
+/* Update-queue state. Layouts are read off this file's own accesses:
+ * update_server_new/update_client_new clear exactly 0x410c/0x10494 bytes,
+ * the rings are 0x20 x 0x208 (server, index & 0x1f) and 0x80 x 0x208
+ * (client, index & 0x7f), and the queue data_t pools are
+ * data_new(..., 0x10, 0x28). "initialized", "queue_index" and
+ * "queue->current_action.desired_facing.*" come from this file's asserts. */
+
+/* size=0x204 — one server update: action count (0 = empty, 0xffff = gap
+ * marker written by update_client_handle_server_update, valid 1..16) and
+ * one action per queue datum. */
+typedef struct server_update_t {
+  uint16_t action_count;        /* 0x00 */
+  uint8_t pad_02[2];            /* 0x02 */
+  player_action_t actions[16];  /* 0x04 */
+} server_update_t;
+cs(server_update_t, 0x204);
+co(server_update_t, action_count, 0x00);
+co(server_update_t, actions, 0x04);
+
+/* size=0x208 — one ring entry */
+typedef struct update_t {
+  int update_number;       /* 0x00 */
+  server_update_t update;  /* 0x04 */
+} update_t;
+cs(update_t, 0x208);
+co(update_t, update_number, 0x00);
+co(update_t, update, 0x04);
+
+/* size=0x28 — element of the "update server queues" pool */
+typedef struct update_server_queue_datum_t {
+  int16_t datum_salt;              /* 0x00 data_t element prefix */
+  uint8_t pad_02[2];               /* 0x02 */
+  int next_update_number;          /* 0x04 */
+  player_action_t current_action;  /* 0x08 */
+} update_server_queue_datum_t;
+cs(update_server_queue_datum_t, 0x28);
+co(update_server_queue_datum_t, next_update_number, 0x04);
+co(update_server_queue_datum_t, current_action, 0x08);
+
+/* size=0x28 — element of the "update client queues" pool. The three index
+ * names are from update_client_dequeue's "queue->..." asserts; the rest
+ * mirror the player_action_t fields they are copied from/to. */
+typedef struct update_client_queue_datum_t {
+  int16_t datum_salt;              /* 0x00 data_t element prefix */
+  uint8_t pad_02[2];               /* 0x02 */
+  uint32_t buttons;                /* 0x04 */
+  uint32_t latched_buttons;        /* 0x08 kept as buttons & 0x4d0 */
+  real desired_facing_yaw;         /* 0x0c */
+  real desired_facing_pitch;       /* 0x10 */
+  real throttle_x;                 /* 0x14 */
+  real throttle_y;                 /* 0x18 */
+  real primary_trigger;            /* 0x1c */
+  int16_t desired_weapon_index;    /* 0x20 */
+  int16_t desired_grenade_index;   /* 0x22 */
+  int16_t desired_zoom_level;      /* 0x24 */
+  uint8_t pad_26[2];               /* 0x26 */
+} update_client_queue_datum_t;
+cs(update_client_queue_datum_t, 0x28);
+co(update_client_queue_datum_t, buttons, 0x04);
+co(update_client_queue_datum_t, latched_buttons, 0x08);
+co(update_client_queue_datum_t, desired_facing_yaw, 0x0c);
+co(update_client_queue_datum_t, desired_facing_pitch, 0x10);
+co(update_client_queue_datum_t, throttle_x, 0x14);
+co(update_client_queue_datum_t, throttle_y, 0x18);
+co(update_client_queue_datum_t, primary_trigger, 0x1c);
+co(update_client_queue_datum_t, desired_weapon_index, 0x20);
+co(update_client_queue_datum_t, desired_grenade_index, 0x22);
+co(update_client_queue_datum_t, desired_zoom_level, 0x24);
+
+/* size=0x410c at 0x4570c0 */
+typedef struct update_server_globals_t {
+  bool initialized;                  /* 0x00 */
+  uint8_t pad_01[3];                 /* 0x01 */
+  int next_update_number_to_build;   /* 0x04 */
+  data_t *queues;                    /* 0x08 */
+  update_t updates[0x20];            /* 0x0c */
+} update_server_globals_t;
+cs(update_server_globals_t, 0x410c);
+co(update_server_globals_t, next_update_number_to_build, 0x04);
+co(update_server_globals_t, queues, 0x08);
+co(update_server_globals_t, updates, 0x0c);
+
+/* size=0x10494 at 0x45b1d0 */
+typedef struct update_client_globals_t {
+  bool initialized;                             /* 0x00 */
+  uint8_t pad_01[3];                            /* 0x01 */
+  int next_update_number_to_dequeue;            /* 0x04 */
+  int latest_update_number_received;            /* 0x08 */
+  player_action_t saved_action_collection[4];   /* 0x0c */
+  int current_local_player;                     /* 0x8c */
+  data_t *queues;                               /* 0x90 */
+  update_t updates[0x80];                       /* 0x94 */
+} update_client_globals_t;
+cs(update_client_globals_t, 0x10494);
+co(update_client_globals_t, next_update_number_to_dequeue, 0x04);
+co(update_client_globals_t, latest_update_number_received, 0x08);
+co(update_client_globals_t, saved_action_collection, 0x0c);
+co(update_client_globals_t, current_local_player, 0x8c);
+co(update_client_globals_t, queues, 0x90);
+co(update_client_globals_t, updates, 0x94);
+
+#define update_server_globals (*(update_server_globals_t *)0x4570c0)
+#define update_client_globals (*(update_client_globals_t *)0x45b1d0)
+
 /* Reserve a server-side update-queue slot for a player datum handle.
  *
  * Server-side mirror of update_client_add_player (0xb8f00): allocates a
@@ -13,7 +117,7 @@
 void update_server_add_player(int handle)
 {
   int queue_index;
-  queue_index = data_new_datum(*(data_t **)0x4570c8, handle);
+  queue_index = data_new_datum(update_server_globals.queues, handle);
   if (queue_index == -1) {
     display_assert("queue_index!=NONE",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0xeb, 1);
@@ -32,21 +136,22 @@ void update_server_add_player(int handle)
  * (false) on allocation failure. */
 bool update_client_new(void)
 {
-  if (*(uint8_t *)0x45b1d0 != 0) {
+  if (update_client_globals.initialized != 0) {
     display_assert("!update_client_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x146, 1);
     system_exit(-1);
   }
-  csmemset((void *)0x45b1d0, 0, 0x10494);
-  *(data_t **)0x45b260 = data_new("update client queues", 0x10, 0x28);
-  if (*(data_t **)0x45b260 != NULL) {
-    csmemset((void *)0x45b264, 0xFF, 0x10400);
-    *(int *)0x45b1d8 = -1;
-    *(int *)0x45b1d4 = 0;
-    *(uint8_t *)0x45b1d0 = 1;
+  csmemset(&update_client_globals, 0, sizeof(update_client_globals));
+  update_client_globals.queues = data_new("update client queues", 0x10, 0x28);
+  if (update_client_globals.queues != NULL) {
+    csmemset(update_client_globals.updates, 0xFF,
+             sizeof(update_client_globals.updates));
+    update_client_globals.latest_update_number_received = -1;
+    update_client_globals.next_update_number_to_dequeue = 0;
+    update_client_globals.initialized = 1;
     return true;
   }
-  return *(uint8_t *)0x45b1d0;
+  return update_client_globals.initialized;
 }
 
 /* Reset the client-side action queue storage and allocate one queue slot
@@ -65,16 +170,16 @@ void update_client_start(void)
   data_iter_t iter;
   int queue_index;
 
-  if (*(uint8_t *)0x45b1d0 == 0) {
+  if (update_client_globals.initialized == 0) {
     display_assert("update_client_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x168, 1);
     system_exit(-1);
   }
-  data_delete_all(*(data_t **)0x45b260);
-  data_make_valid(*(data_t **)0x45b260);
+  data_delete_all(update_client_globals.queues);
+  data_make_valid(update_client_globals.queues);
   data_iterator_new(&iter, player_data);
   while (data_iterator_next(&iter) != NULL) {
-    queue_index = data_new_datum(*(data_t **)0x45b260, (int)iter.datum_handle);
+    queue_index = data_new_datum(update_client_globals.queues, (int)iter.datum_handle);
     if (queue_index == -1) {
       display_assert("queue_index!=NONE",
                      "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x176, 1);
@@ -86,7 +191,7 @@ void update_client_start(void)
 void update_client_add_player(int handle)
 {
   int queue_index;
-  queue_index = data_new_datum(*(data_t **)0x45b260, handle);
+  queue_index = data_new_datum(update_client_globals.queues, handle);
   if (queue_index == -1) {
     display_assert("queue_index!=NONE",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x182, 1);
@@ -96,21 +201,25 @@ void update_client_add_player(int handle)
 
 void update_client_queue(void *data)
 {
-  qmemcpy((void *)(0x45b1dc + *(int *)0x45b25c * 0x20), data, 0x20);
-  *(int *)0x45b25c = *(int *)0x45b25c + 1;
+  qmemcpy(&update_client_globals
+               .saved_action_collection[update_client_globals.current_local_player],
+          data, sizeof(player_action_t));
+  update_client_globals.current_local_player =
+      update_client_globals.current_local_player + 1;
 }
 
 void update_client_queue_push(void)
 {
-  *(int *)0x45b25c = 0;
-  csmemset((void *)0x45b1dc, 0, 0x80);
+  update_client_globals.current_local_player = 0;
+  csmemset(update_client_globals.saved_action_collection, 0,
+           sizeof(update_client_globals.saved_action_collection));
 }
 
 /* Return the number of queued action ticks (inclusive range from
  * first_action_index to last_action_index in the client globals). */
 int update_client_get_maximum_actions(void)
 {
-  return *(int *)0x45b1d8 - *(int *)0x45b1d4 +
+  return update_client_globals.latest_update_number_received - update_client_globals.next_update_number_to_dequeue +
          1; /* hazard-ok: value-arithmetic (queue count = last-first+1) */
 }
 
@@ -120,18 +229,19 @@ int update_client_get_maximum_actions(void)
  * (address 0x45b1dc) into the caller-provided buffer. */
 void update_client_build_client_update(void *action_collection)
 {
-  if (!action_collection || *(uint8_t *)0x45b1d0 == 0) {
+  if (!action_collection || update_client_globals.initialized == 0) {
     display_assert("action_collection && update_client_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x244, 1);
     system_exit(-1);
   }
-  csmemcpy(action_collection, (void *)0x45b1dc, 0x80);
+  csmemcpy(action_collection, update_client_globals.saved_action_collection,
+           sizeof(update_client_globals.saved_action_collection));
 }
 
 int player_new_queue(int handle)
 {
   int queue_index;
-  queue_index = data_new_datum(*(data_t **)0x4570c8, handle);
+  queue_index = data_new_datum(update_server_globals.queues, handle);
   if (queue_index == -1) {
     display_assert("queue_index!=NONE",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x292, 1);
@@ -146,15 +256,15 @@ int player_new_queue(int handle)
  * snapshot_index is passed in EAX (register arg). */
 void *update_server_get_update(int snapshot_index /* @<eax> */)
 {
-  if (*(uint8_t *)0x4570c0 == 0) {
+  if (update_server_globals.initialized == 0) {
     display_assert("update_server_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x29e, 1);
     system_exit(-1);
   }
 
-  if (snapshot_index < *(int *)0x4570c4 &&
-      snapshot_index >= *(int *)0x4570c4 - 0x20) {
-    return (void *)(0x4570cc + (snapshot_index & 0x1f) * 0x208);
+  if (snapshot_index < update_server_globals.next_update_number_to_build &&
+      snapshot_index >= update_server_globals.next_update_number_to_build - 0x20) {
+    return &update_server_globals.updates[snapshot_index & 0x1f];
   }
   return (void *)0;
 }
@@ -170,21 +280,22 @@ void *update_server_get_update(int snapshot_index /* @<eax> */)
  * failure. */
 bool update_server_new(void)
 {
-  if (*(uint8_t *)0x4570c0 != 0) {
+  if (update_server_globals.initialized != 0) {
     display_assert("!update_server_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0xac, 1);
     system_exit(-1);
   }
-  csmemset((void *)0x4570c0, 0, 0x410c);
-  *(data_t **)0x4570c8 = data_new("update server queues", 0x10, 0x28);
-  if (*(data_t **)0x4570c8 != NULL) {
-    csmemset((void *)0x4570cc, 0, 0x4100);
+  csmemset(&update_server_globals, 0, sizeof(update_server_globals));
+  update_server_globals.queues = data_new("update server queues", 0x10, 0x28);
+  if (update_server_globals.queues != NULL) {
+    csmemset(update_server_globals.updates, 0,
+             sizeof(update_server_globals.updates));
     if (update_client_new()) {
-      *(uint8_t *)0x4570c0 = 1;
+      update_server_globals.initialized = 1;
       return true;
     }
   }
-  return *(uint8_t *)0x4570c0;
+  return update_server_globals.initialized;
 }
 
 /* Tear down both server and client update queue subsystems.
@@ -195,19 +306,19 @@ bool update_server_new(void)
  * (first_action_index=0, initialized=0, last_action_index=-1). */
 void update_server_delete(void)
 {
-  if (*(data_t **)0x4570c8 != NULL) {
-    data_dispose(*(data_t **)0x4570c8);
-    *(data_t **)0x4570c8 = NULL;
+  if (update_server_globals.queues != NULL) {
+    data_dispose(update_server_globals.queues);
+    update_server_globals.queues = NULL;
   }
-  *(uint8_t *)0x4570c0 = 0;
-  *(int *)0x4570c4 = 0;
-  if (*(data_t **)0x45b260 != NULL) {
-    data_dispose(*(data_t **)0x45b260);
-    *(data_t **)0x45b260 = NULL;
+  update_server_globals.initialized = 0;
+  update_server_globals.next_update_number_to_build = 0;
+  if (update_client_globals.queues != NULL) {
+    data_dispose(update_client_globals.queues);
+    update_client_globals.queues = NULL;
   }
-  *(int *)0x45b1d4 = 0;
-  *(uint8_t *)0x45b1d0 = 0;
-  *(int *)0x45b1d8 = -1;
+  update_client_globals.next_update_number_to_dequeue = 0;
+  update_client_globals.initialized = 0;
+  update_client_globals.latest_update_number_received = -1;
 }
 
 /* Prepare both server and client queues for a new frame.
@@ -222,16 +333,16 @@ void update_server_start(void)
   data_iter_t iter;
   int queue_index;
 
-  if (*(uint8_t *)0x4570c0 == 0) {
+  if (update_server_globals.initialized == 0) {
     display_assert("update_server_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0xcf, 1);
     system_exit(-1);
   }
-  data_delete_all(*(data_t **)0x4570c8);
-  data_make_valid(*(data_t **)0x4570c8);
+  data_delete_all(update_server_globals.queues);
+  data_make_valid(update_server_globals.queues);
   data_iterator_new(&iter, player_data);
   while (data_iterator_next(&iter) != NULL) {
-    queue_index = data_new_datum(*(data_t **)0x4570c8, (int)iter.datum_handle);
+    queue_index = data_new_datum(update_server_globals.queues, (int)iter.datum_handle);
     if (queue_index == -1) {
       display_assert("queue_index!=NONE",
                      "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0xdd, 1);
@@ -258,15 +369,15 @@ void update_server_start(void)
 void update_server_build_server_update(int machine_index, void *update_buf,
                               int *update_number)
 {
-  void *datum_ptr;
-  void *update_entry;
+  update_server_queue_datum_t *queue;
+  update_t *update;
 
   system_milliseconds();
 
-  datum_ptr = NULL;
+  queue = NULL;
 
   if (update_buf == NULL || update_number == NULL ||
-      *(uint8_t *)0x4570c0 == 0) {
+      update_server_globals.initialized == 0) {
     display_assert(
       "update && update_number && update_server_globals.initialized",
       "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x11a, 1);
@@ -279,9 +390,11 @@ void update_server_build_server_update(int machine_index, void *update_buf,
                      "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x11e, 1);
       system_exit(-1);
     }
-    datum_ptr = datum_get(*(data_t **)0x4570c8, machine_index);
-    if (*(int *)((char *)datum_ptr + 4) < *(int *)0x4570c4) {
-      *update_number = *(int *)((char *)datum_ptr + 4);
+    queue = (update_server_queue_datum_t *)datum_get(
+        update_server_globals.queues, machine_index);
+    if (queue->next_update_number <
+        update_server_globals.next_update_number_to_build) {
+      *update_number = queue->next_update_number;
     } else {
       *update_number = -1;
       return;
@@ -290,12 +403,12 @@ void update_server_build_server_update(int machine_index, void *update_buf,
 
   if (*update_number != -1) {
     /* Look up the update buffer entry for this snapshot index. */
-    update_entry = update_server_get_update(*update_number);
-    if (update_entry != NULL) {
-      csmemcpy(update_buf, (char *)update_entry + 4, 0x204);
+    update = (update_t *)update_server_get_update(*update_number);
+    if (update != NULL) {
+      csmemcpy(update_buf, &update->update, sizeof(server_update_t));
     }
-    if (datum_ptr != NULL) {
-      *(int *)((char *)datum_ptr + 4) = *(int *)((char *)datum_ptr + 4) + 1;
+    if (queue != NULL) {
+      queue->next_update_number = queue->next_update_number + 1;
     }
   }
 }
@@ -325,59 +438,63 @@ void update_server_build_server_update(int machine_index, void *update_buf,
 bool update_client_dequeue(void *action_buf)
 {
   int first;
-  int slot_addr;
+  update_t *update;
   uint16_t action_count;
   data_t *queue;
-  char *datum_ptr;
-  char *src;
+  update_client_queue_datum_t *datum;
+  player_action_t *src;
   int16_t i;
   int idx;
-  char *out;
+  player_action_t *out;
   int16_t desired_weapon;
   int16_t desired_grenade;
   int16_t desired_zoom;
 
-  if (*(uint8_t *)0x45b1d0 == 0) {
+  if (update_client_globals.initialized == 0) {
     display_assert("update_client_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x1af, 1);
     system_exit(-1);
   }
 
-  first = *(int *)0x45b1d4;
+  first = update_client_globals.next_update_number_to_dequeue;
   if (first >= first + 0x80)
     return false;
 
-  slot_addr = (first & 0x7f) * 0x208 + 0x45b264;
-  if (slot_addr == 0)
+  update = &update_client_globals.updates[first & 0x7f];
+  if (update == NULL)
     return false;
 
-  if (first > *(int *)0x45b1d8)
+  if (first > update_client_globals.latest_update_number_received)
     return false;
 
-  action_count = *(uint16_t *)(slot_addr + 4);
+  action_count = update->update.action_count;
   if (action_count == 0 || action_count > 0x10)
     return false;
 
-  /* Loop 1: copy action data from the action buffer slot into queue datums. */
-  queue = *(data_t **)0x45b260;
+  /* Loop 1: copy action data from the ring entry into the queue datums.
+   * Dword copies (not float loads) in the original, kept as such. */
+  queue = update_client_globals.queues;
   i = 0;
   if (i < queue->current_count) {
-    datum_ptr = (char *)queue->data + 0x20;
+    datum = (update_client_queue_datum_t *)queue->data;
     do {
       idx = (int)i;
-      if (idx < (int)(uint16_t)(*(uint16_t *)(slot_addr + 4))) {
-        src = (char *)(slot_addr + 8 + idx * 0x20);
-        *(uint32_t *)(datum_ptr - 0x1c) = *(uint32_t *)(src + 0x00);
-        *(uint32_t *)(datum_ptr - 0x14) = *(uint32_t *)(src + 0x04);
-        *(uint32_t *)(datum_ptr - 0x10) = *(uint32_t *)(src + 0x08);
-        *(uint32_t *)(datum_ptr - 0x0c) = *(uint32_t *)(src + 0x0c);
-        *(uint32_t *)(datum_ptr - 0x08) = *(uint32_t *)(src + 0x10);
-        *(uint32_t *)(datum_ptr - 0x04) = *(uint32_t *)(src + 0x14);
-        *(int16_t *)(datum_ptr + 0x00) = *(int16_t *)(src + 0x18);
-        *(int16_t *)(datum_ptr + 0x02) = *(int16_t *)(src + 0x1a);
-        *(int16_t *)(datum_ptr + 0x04) = *(int16_t *)(src + 0x1c);
+      if (idx < (int)update->update.action_count) {
+        src = &update->update.actions[idx];
+        datum->buttons = src->buttons;
+        *(uint32_t *)&datum->desired_facing_yaw =
+            *(uint32_t *)&src->desired_facing_yaw;
+        *(uint32_t *)&datum->desired_facing_pitch =
+            *(uint32_t *)&src->desired_facing_pitch;
+        *(uint32_t *)&datum->throttle_x = *(uint32_t *)&src->throttle_x;
+        *(uint32_t *)&datum->throttle_y = *(uint32_t *)&src->throttle_y;
+        *(uint32_t *)&datum->primary_trigger =
+            *(uint32_t *)&src->primary_trigger;
+        datum->desired_weapon_index = src->desired_weapon_index;
+        datum->desired_grenade_index = src->desired_grenade_index;
+        datum->desired_zoom_level = src->desired_zoom_level;
 
-        desired_weapon = *(int16_t *)(datum_ptr + 0x00);
+        desired_weapon = datum->desired_weapon_index;
         if (desired_weapon != -1 &&
             (desired_weapon < 0 || desired_weapon >= 4)) {
           display_assert(
@@ -387,7 +504,7 @@ bool update_client_dequeue(void *action_buf)
             "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x1c9, 1);
           system_exit(-1);
         }
-        desired_grenade = *(int16_t *)(datum_ptr + 0x02);
+        desired_grenade = datum->desired_grenade_index;
         if (desired_grenade != -1 &&
             (desired_grenade < 0 || desired_grenade >= 2)) {
           display_assert(
@@ -397,41 +514,44 @@ bool update_client_dequeue(void *action_buf)
             "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x1ca, 1);
           system_exit(-1);
         }
-        queue = *(data_t **)0x45b260;
-        desired_zoom = *(int16_t *)(datum_ptr + 0x04);
+        queue = update_client_globals.queues;
+        desired_zoom = datum->desired_zoom_level;
         if (desired_zoom != -1 && desired_zoom < 0) {
           display_assert("(NONE == queue->desired_zoom_level) || "
                          "(queue->desired_zoom_level>=0)",
                          "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x1cb,
                          1);
           system_exit(-1);
-          queue = *(data_t **)0x45b260;
+          queue = update_client_globals.queues;
         }
       }
       i++;
-      datum_ptr += 0x28;
+      datum++;
     } while (i < queue->current_count);
   }
 
-  /* Loop 2: compute newly-pressed buttons, update persistent flags, copy
-   * action data into the output buffer (param_1). */
+  /* Loop 2: newly pressed buttons (~latched & current) go out, the latch
+   * keeps current & 0x4d0, the rest of the action is copied as dwords. */
   i = 0;
   if (i < queue->current_count) {
-    char *di = (char *)queue->data + 0x08;
+    datum = (update_client_queue_datum_t *)queue->data;
     do {
-      out = (char *)action_buf + (int)i * 0x20;
-      *(uint32_t *)(out + 0x00) = ~(*(uint32_t *)di) & *(uint32_t *)(di - 0x04);
-      *(uint32_t *)di = *(uint32_t *)(di - 0x04) & 0x4d0;
-      *(uint32_t *)(out + 0x04) = *(uint32_t *)(di + 0x04);
-      *(uint32_t *)(out + 0x08) = *(uint32_t *)(di + 0x08);
-      *(uint32_t *)(out + 0x0c) = *(uint32_t *)(di + 0x0c);
-      *(uint32_t *)(out + 0x10) = *(uint32_t *)(di + 0x10);
-      *(uint32_t *)(out + 0x14) = *(uint32_t *)(di + 0x14);
-      *(int16_t *)(out + 0x18) = *(int16_t *)(di + 0x18);
-      *(int16_t *)(out + 0x1a) = *(int16_t *)(di + 0x1a);
-      *(int16_t *)(out + 0x1c) = *(int16_t *)(di + 0x1c);
+      out = (player_action_t *)action_buf + (int)i;
+      out->buttons = ~datum->latched_buttons & datum->buttons;
+      datum->latched_buttons = datum->buttons & 0x4d0;
+      *(uint32_t *)&out->desired_facing_yaw =
+          *(uint32_t *)&datum->desired_facing_yaw;
+      *(uint32_t *)&out->desired_facing_pitch =
+          *(uint32_t *)&datum->desired_facing_pitch;
+      *(uint32_t *)&out->throttle_x = *(uint32_t *)&datum->throttle_x;
+      *(uint32_t *)&out->throttle_y = *(uint32_t *)&datum->throttle_y;
+      *(uint32_t *)&out->primary_trigger =
+          *(uint32_t *)&datum->primary_trigger;
+      out->desired_weapon_index = datum->desired_weapon_index;
+      out->desired_grenade_index = datum->desired_grenade_index;
+      out->desired_zoom_level = datum->desired_zoom_level;
 
-      desired_weapon = *(int16_t *)(out + 0x18);
+      desired_weapon = out->desired_weapon_index;
       if (desired_weapon != -1 && (desired_weapon < 0 || desired_weapon >= 4)) {
         display_assert(
           "(NONE == actions[queue_index].desired_weapon_index) || "
@@ -441,7 +561,7 @@ bool update_client_dequeue(void *action_buf)
           "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x1e6, 1);
         system_exit(-1);
       }
-      desired_grenade = *(int16_t *)(out + 0x1a);
+      desired_grenade = out->desired_grenade_index;
       if (desired_grenade != -1 &&
           (desired_grenade < 0 || desired_grenade >= 2)) {
         display_assert(
@@ -452,7 +572,7 @@ bool update_client_dequeue(void *action_buf)
           "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x1e7, 1);
         system_exit(-1);
       }
-      desired_zoom = *(int16_t *)(out + 0x1c);
+      desired_zoom = out->desired_zoom_level;
       if (desired_zoom != -1 && desired_zoom < 0) {
         display_assert("(NONE == actions[queue_index].desired_zoom_level) || "
                        "(actions[queue_index].desired_zoom_level>=0)",
@@ -460,11 +580,11 @@ bool update_client_dequeue(void *action_buf)
         system_exit(-1);
       }
       i++;
-      di += 0x28;
-    } while (i < (*(data_t **)0x45b260)->current_count);
+      datum++;
+    } while (i < update_client_globals.queues->current_count);
   }
 
-  *(int *)0x45b1d4 = *(int *)0x45b1d4 + 1;
+  update_client_globals.next_update_number_to_dequeue = update_client_globals.next_update_number_to_dequeue + 1;
   return true;
 }
 
@@ -484,11 +604,11 @@ int update_client_get_maximum_possible_server_time(void)
   int first;
   int last;
   int tick;
-  uintptr_t slot_addr;
+  update_t *update;
   uint16_t action_count;
 
-  first = *(int *)0x45b1d4;
-  last = *(int *)0x45b1d8;
+  first = update_client_globals.next_update_number_to_dequeue;
+  last = update_client_globals.latest_update_number_received;
   tick = first;
 
   if (first <= last) {
@@ -498,11 +618,11 @@ int update_client_get_maximum_possible_server_time(void)
       if (tick >= first + 0x80)
         break;
 
-      slot_addr = (tick & 0x7f) * 0x208 + 0x45b264;
-      if (slot_addr == 0)
+      update = &update_client_globals.updates[tick & 0x7f];
+      if (update == NULL)
         break;
 
-      action_count = *(uint16_t *)(slot_addr + 4);
+      action_count = update->update.action_count;
       if (action_count <= 0)
         break;
       if (action_count > 16)
@@ -533,51 +653,52 @@ void update_server_apply_actions(int16_t machine_index, void *actions)
 {
   int *player_list;
   int player_handle;
-  char *datum_ptr;
-  char *src;
-  char *next_src;
+  update_server_queue_datum_t *queue;
+  player_action_t *src;
+  player_action_t *next_src;
   int i;
   uint32_t pitch_bits;
   uint32_t yaw_bits;
 
   player_list = (int *)machine_get_player_list(machine_index);
 
-  if (*(uint8_t *)0x4570c0 == 0) {
+  if (update_server_globals.initialized == 0) {
     display_assert("update_server_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x22a, 1);
     system_exit(-1);
   }
 
   i = 0;
-  src = (char *)actions;
+  src = (player_action_t *)actions;
   do {
     player_handle = player_list[i];
     if (player_handle != -1) {
-      datum_ptr = (char *)datum_get(*(data_t **)0x4570c8, player_handle);
-      next_src = src + 0x20;
+      queue = (update_server_queue_datum_t *)datum_get(
+          update_server_globals.queues, player_handle);
+      next_src = src + 1;
 
-      /* REP MOVSD: copy 8 dwords (0x20 bytes) from src to datum+8 */
-      qmemcpy(datum_ptr + 8, src, 0x20);
+      /* REP MOVSD: copy 8 dwords (0x20 bytes) into current_action */
+      qmemcpy(&queue->current_action, src, sizeof(player_action_t));
       src = next_src;
 
-      /* assert_valid_real on desired_facing.pitch (datum+0x10) */
-      pitch_bits = *(uint32_t *)(datum_ptr + 0x10);
+      /* assert_valid_real on current_action.desired_facing.pitch */
+      pitch_bits = *(uint32_t *)&queue->current_action.desired_facing_pitch;
       if ((pitch_bits & 0x7f800000u) == 0x7f800000u) {
         display_assert(
           csprintf((char *)0x5ab100, "%s: assert_valid_real(0x%08X %f)",
                    "queue->current_action.desired_facing.pitch", pitch_bits,
-                   (double)*(float *)(datum_ptr + 0x10)),
+                   (double)queue->current_action.desired_facing_pitch),
           "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x238, 1);
         system_exit(-1);
       }
 
-      /* assert_valid_real on desired_facing.yaw (datum+0x0c) */
-      yaw_bits = *(uint32_t *)(datum_ptr + 0x0c);
+      /* assert_valid_real on current_action.desired_facing.yaw */
+      yaw_bits = *(uint32_t *)&queue->current_action.desired_facing_yaw;
       if ((yaw_bits & 0x7f800000u) == 0x7f800000u) {
         display_assert(
           csprintf((char *)0x5ab100, "%s: assert_valid_real(0x%08X %f)",
                    "queue->current_action.desired_facing.yaw", yaw_bits,
-                   (double)*(float *)(datum_ptr + 0x0c)),
+                   (double)queue->current_action.desired_facing_yaw),
           "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x239, 1);
         system_exit(-1);
       }
@@ -607,25 +728,25 @@ void update_client_handle_server_update(void *data, int sequence_index)
 {
   /* first_action_index (0x45b1d4), last_action_index (0x45b1d8) */
   int first_idx;
-  char *slot;
+  update_t *update;
   int last_idx;
   const char *map_name;
   int conn;
 
-  first_idx = *(int *)0x45b1d4;
+  first_idx = update_client_globals.next_update_number_to_dequeue;
   if (sequence_index >= first_idx && sequence_index < first_idx + 0x80) {
-    slot = (char *)0x45b264 + (sequence_index & 0x7f) * 0x208;
+    update = &update_client_globals.updates[sequence_index & 0x7f];
     /* Binary has TEST EAX,EAX; JZ — always non-NULL but preserved. */
-    if (slot != (char *)0) {
-      *(int *)slot = sequence_index;
-      csmemcpy(slot + 4, data, 0x204);
-      last_idx = *(int *)0x45b1d8;
+    if (update != NULL) {
+      update->update_number = sequence_index;
+      csmemcpy(&update->update, data, sizeof(server_update_t));
+      last_idx = update_client_globals.latest_update_number_received;
       if (sequence_index > last_idx) {
         if (last_idx + 1 < sequence_index) {
           /* Gap in sequence: mark first word of data area invalid. */
-          *(short *)(slot + 4) = (short)0xffff;
+          update->update.action_count = 0xffff;
         }
-        *(int *)0x45b1d8 = sequence_index;
+        update_client_globals.latest_update_number_received = sequence_index;
       }
       goto done;
     }
@@ -671,49 +792,49 @@ done:
 void update_server_next_update(void)
 {
   int old_index;
-  void *entry;
-  int16_t *action_count_ptr;
+  update_t *entry;
+  server_update_t *update;
   int16_t i;
   data_t *queue;
-  char *datum_data;
+  update_server_queue_datum_t *datum;
 
-  old_index = *(int *)0x4570c4;
+  old_index = update_server_globals.next_update_number_to_build;
 
-  if (*(uint8_t *)0x4570c0 == 0) {
+  if (update_server_globals.initialized == 0) {
     display_assert("update_server_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0xfa, 1);
     system_exit(-1);
   }
 
-  *(int *)0x4570c4 = old_index + 1;
+  update_server_globals.next_update_number_to_build = old_index + 1;
 
   /* Look up the circular update buffer entry for old_index. */
-  entry = update_server_get_update(old_index);
+  entry = (update_t *)update_server_get_update(old_index);
   if (entry == NULL) {
     display_assert("update", "c:\\halo\\SOURCE\\game\\player_queues_new.c",
                    0x100, 1);
     system_exit(-1);
   }
 
-  *(int *)entry = old_index;
-  action_count_ptr = (int16_t *)((char *)entry + 4);
-  *action_count_ptr = 0;
+  entry->update_number = old_index;
+  update = &entry->update;
+  update->action_count = 0;
 
-  queue = *(data_t **)0x4570c8;
+  queue = update_server_globals.queues;
   i = 0;
   if (i < queue->current_count) {
-    datum_data = (char *)queue->data + 8;
+    datum = (update_server_queue_datum_t *)queue->data;
     do {
-      csmemcpy((char *)entry + 8 + (int)i * 0x20, datum_data, 0x20);
-      (*action_count_ptr)++;
+      csmemcpy(&entry->update.actions[i], &datum->current_action,
+               sizeof(player_action_t));
+      update->action_count++;
       i++;
-      datum_data += 0x28;
-    } while (i < (*(data_t **)0x4570c8)->current_count);
+      datum++;
+    } while (i < update_server_globals.queues->current_count);
   }
 
-  /* Call internal store function at 0xb97b0(action_count_ptr, old_index)
-   * to push the snapshot into the client action buffer. */
-  update_client_handle_server_update(action_count_ptr, old_index);
+  /* Push the snapshot into the client ring (0xb97b0). */
+  update_client_handle_server_update(update, old_index);
 }
 
 /* Apply queued client actions for the given number of simulation ticks.
@@ -741,13 +862,13 @@ void update_client_local_ticks(int16_t ticks)
     system_exit(-1);
   }
 
-  if (*(uint8_t *)0x45b1d0 == 0) {
+  if (update_client_globals.initialized == 0) {
     display_assert("action_collection && update_client_globals.initialized",
                    "c:\\halo\\SOURCE\\game\\player_queues_new.c", 0x244, 1);
     system_exit(-1);
   }
 
-  csmemcpy(local_actions, (void *)0x45b1dc, 0x80);
+  csmemcpy(local_actions, update_client_globals.saved_action_collection, 0x80);
   update_server_apply_actions(0, local_actions);
 
   if (ticks > 0) {
@@ -785,55 +906,64 @@ void *update_client_get_update(int sequence_index)
   return NULL;
 }
 
-/* 0xb9880 — update_queues_reset_and_fill_with_lies */
+/* update_queues_reset_and_fill_with_lies (0xb9880) — after-load callback in
+ * the game_state_revert table at 0x32eaa8.
+ *
+ * Re-seats both update queues on the restored game time:
+ *   - server: next_update_number_to_build = 0, updates[] zeroed;
+ *   - client: updates[] filled with 0xff, saved_action_collection zeroed,
+ *     latest_update_number_received = -1, next_update_number_to_dequeue = 0;
+ *     then ring entries are faked for the last (up to) 0x80 ticks before the
+ *     current game time (update_number, action_count 1, zeroed actions).
+ *     Entries are written from updates[0] upward, not at (tick & 0x7f).
+ *     Finally next-to-dequeue = time, server next-to-build = time, latest
+ *     received = time - 1, stored in that order;
+ *   - server again: update_server_start, then the queue datum at absolute
+ *     index 0 of the server pool gets next_update_number = next-to-build;
+ *     otherwise, if the client is initialized, update_client_start (the
+ *     original tail-jumps to 0xb8e40 from a block placed after the RET).
+ *
+ * The window start is max(time - 0x80, 0): LEA/TEST/SETL/DEC/AND, signed.
+ * The loop compare (CMP EDI,EBX; JGE / JL) is signed too. */
 void update_queues_reset_and_fill_with_lies(void)
 {
-  int current_time;
-  int start_time;
-  int t;
-  char *slot;
-  char *datum;
+  int game_time;
+  int update_number;
+  update_t *update;
+  update_server_queue_datum_t *queue;
 
-  if (*(uint8_t *)0x4570c0 != 0) {
-    *(int *)0x4570c4 = 0;
-    csmemset((void *)0x4570cc, 0, 0x4100);
+  if (update_server_globals.initialized) {
+    update_server_globals.next_update_number_to_build = 0;
+    csmemset(update_server_globals.updates, 0,
+             sizeof(update_server_globals.updates));
   }
-
-  if (*(uint8_t *)0x45b1d0 != 0) {
-    csmemset((void *)0x45b264, 0xff, 0x10400);
-    csmemset((void *)0x45b1dc, 0, 0x80);
-    *(int *)0x45b1d8 = -1;
-    *(int *)0x45b1d4 = 0;
-
-    current_time = game_time_get();
-    start_time = current_time - 0x80;
-    if (start_time < 0) {
-      start_time = 0;
+  if (update_client_globals.initialized) {
+    csmemset(update_client_globals.updates, 0xff,
+             sizeof(update_client_globals.updates));
+    csmemset(update_client_globals.saved_action_collection, 0,
+             sizeof(update_client_globals.saved_action_collection));
+    update_client_globals.latest_update_number_received = -1;
+    update_client_globals.next_update_number_to_dequeue = 0;
+    game_time = game_time_get();
+    update_number = game_time - 0x80 < 0 ? 0 : game_time - 0x80;
+    update = update_client_globals.updates;
+    for (; update_number < game_time; update_number++) {
+      update->update_number = update_number;
+      update->update.action_count = 1;
+      csmemset(update->update.actions, 0, sizeof(update->update.actions));
+      update++;
     }
-
-    if (start_time < current_time) {
-      slot = (char *)0x45b268;
-      for (t = start_time; t < current_time; t++) {
-        *(int *)(slot - 4) = t;
-        *(int16_t *)slot = 1;
-        csmemset(slot + 4, 0, 0x200);
-        slot += 0x208;
-      }
-    }
-
-    *(int *)0x45b1d4 = current_time;
-    *(int *)0x4570c4 = current_time;
-    *(int *)0x45b1d8 = current_time - 1;
+    update_client_globals.next_update_number_to_dequeue = game_time;
+    update_server_globals.next_update_number_to_build = game_time;
+    update_client_globals.latest_update_number_received = game_time - 1;
   }
-
-  if (*(uint8_t *)0x4570c0 != 0) {
+  if (update_server_globals.initialized) {
     update_server_start();
-    datum = (char *)datum_get(*(data_t **)0x4570c8, 0);
-    *(int *)(datum + 4) = *(int *)0x4570c4;
-    return;
-  }
-
-  if (*(uint8_t *)0x45b1d0 != 0) {
+    queue = (update_server_queue_datum_t *)datum_get(
+        update_server_globals.queues, 0);
+    queue->next_update_number =
+        update_server_globals.next_update_number_to_build;
+  } else if (update_client_globals.initialized) {
     update_client_start();
   }
 }

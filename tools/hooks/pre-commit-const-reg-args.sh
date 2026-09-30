@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: \.c$
 # Pre-commit gate: literal constants passed where the original pushes a
 # register parameter.
 #
@@ -20,7 +21,8 @@
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-mapfile -t STAGED_C < <(git diff --cached --name-only --diff-filter=ACMR | grep '\.c$')
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+mapfile -t STAGED_C < <(staged_list acmr | grep '\.c$')
 [ ${#STAGED_C[@]} -eq 0 ] && exit 0
 
 python3 "$REPO_ROOT/tools/audit/check_const_reg_args.py" \

@@ -1,4 +1,166 @@
 /*
+ * extract_mipmaps_to_bitmap (0x74fb0) -- bitmap_extract: build every mipmap
+ * level of destination_bitmap from source_bitmap.
+ *
+ * Per level: shrink the source by 1<<level with a floor()-rounded alpha
+ * bias, sharpen it, then apply the optional fade, alpha bleed, bump and
+ * bit-depth passes selected by the bitmap group at *0x33414c before copying
+ * the pixels into the destination mipmap.
+ *
+ * FUN_00074a30 is not ported and its kb decl is void(void); the call site
+ * pushes four cdecl args (dest, 0, 1, 1), and the caller hands the EAX result
+ * to bitmap_delete (ADD ESP,0x14 cleans all five dwords).
+ *
+ * Source TU: bitmap_extract.c (assert strings confirm)
+ */
+extern double floor(double);
+
+void extract_mipmaps_to_bitmap(void *pixel_data, void *bitmap_data)
+{
+  char *source;
+  char *destination;
+  void *temp_bitmap;
+  short *bits_per_channel;
+  short mipmap_index;
+  short mipmap_count;
+  char alpha_bleed;
+  int alpha_bias;
+  float mipmap_index_real;
+  float ratio;
+  float bias_scale;
+  float fade_amount;
+
+  source = (char *)pixel_data;
+  destination = (char *)bitmap_data;
+
+  if (!bitmap_verify(pixel_data, 1)) {
+    display_assert("bitmap_verify(source_bitmap, TRUE)",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x5f9, 1);
+    system_exit(-1);
+  }
+  if (bitmap_data == 0) {
+    display_assert("destination_bitmap",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x5fa, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(destination + 0x2c) == 0) {
+    display_assert("destination_bitmap->base_address",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x5fb, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(destination + 0xa) != *(short *)(source + 0xa)) {
+    display_assert("destination_bitmap->type==source_bitmap->type",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x5fc, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(destination + 0x4) != *(short *)(source + 0x4)) {
+    display_assert("destination_bitmap->width==source_bitmap->width",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x5fd, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(destination + 0x6) != *(short *)(source + 0x6)) {
+    display_assert("destination_bitmap->height==source_bitmap->height",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x5fe, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(destination + 0x8) != *(short *)(source + 0x8)) {
+    display_assert("destination_bitmap->depth==source_bitmap->depth",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x5ff, 1);
+    system_exit(-1);
+  }
+
+  mipmap_count = *(short *)(destination + 0x14);
+  mipmap_index = 0;
+  if (mipmap_count >= 0) {
+    do {
+      if (*(short *)(*(char **)0x33414c + 0x4) == 0 &&
+          *(short *)(destination + 0xc) != 1 &&
+          *(short *)(destination + 0xc) != 6 &&
+          *(short *)(destination + 0xc) != 10) {
+        alpha_bleed = 1;
+      } else {
+        alpha_bleed = 0;
+      }
+
+      mipmap_index_real = (float)mipmap_index;
+      ratio = mipmap_index_real / (float)mipmap_count;
+      bias_scale = *(float *)(*(char **)0x33414c + 0x48);
+      if (bias_scale < *(float *)0x255e94) {
+        bias_scale = *(float *)0x255e94;
+      } else if (bias_scale > *(float *)0x2533c8) {
+        bias_scale = *(float *)0x2533c8;
+      }
+      alpha_bias = (int)floor(bias_scale * ratio * *(float *)0x2602c8 +
+                              *(float *)0x253398);
+      if ((short)alpha_bias < -0xff || (short)alpha_bias > 0xff) {
+        display_assert("alpha_bias>=-255 && alpha_bias<=255",
+                       "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x616, 1);
+        system_exit(-1);
+      }
+
+      temp_bitmap = bitmap_shrink(pixel_data, (short)(1 << mipmap_index),
+                                  alpha_bias, alpha_bleed);
+      if (temp_bitmap != 0 && *(int *)((char *)temp_bitmap + 0x2c) != 0) {
+        bitmap_sharpen(temp_bitmap, *(float *)(*(char **)0x33414c + 0xc));
+        if (*(short *)(*(char **)0x33414c + 0x4) == 3) {
+          fade_amount =
+            mipmap_index_real /
+            ((*(float *)0x2533c8 - *(float *)(*(char **)0x33414c + 0x8)) *
+               (float)*(short *)(destination + 0x14) +
+             *(float *)(*(char **)0x33414c + 0x8));
+          if (fade_amount < REAL_ZERO_POOL) {
+            fade_amount = 0.0f;
+          } else if (fade_amount > *(float *)0x2533c8) {
+            fade_amount = 1.0f;
+          }
+          bitmap_fade(temp_bitmap, 0xff7f7f7f, fade_amount);
+        }
+        if (alpha_bleed) {
+          bitmap_alpha_bleed(temp_bitmap, 1);
+        }
+        if (*(short *)(*(char **)0x33414c + 0x4) == 2) {
+          FUN_0007c5f0(temp_bitmap, *(float *)(*(char **)0x33414c + 0x10));
+        }
+        if (*(short *)(*(char **)0x33414c + 0x4) == 5) {
+          FUN_0007c6c0(temp_bitmap);
+        }
+        if ((*(unsigned char *)(*(char **)0x33414c + 0x6) & 1) &&
+            *(short *)(*(char **)0x33414c + 0x4) != 2 &&
+            *(short *)(*(char **)0x33414c + 0x4) != 4 &&
+            *(short *)(*(char **)0x33414c + 0x4) != 5) {
+          switch (*(short *)(destination + 0xc)) {
+          case 6:
+            bits_per_channel = (short *)0x2ee4fc;
+            break;
+          case 8:
+            bits_per_channel = (short *)0x2ee504;
+            break;
+          case 9:
+            bits_per_channel = (short *)0x2ee50c;
+            break;
+          default:
+            bits_per_channel = 0;
+            break;
+          }
+          FUN_0007f150(temp_bitmap, bits_per_channel);
+        }
+        extract_pixels_to_mipmap(mipmap_index, temp_bitmap, bitmap_data);
+        bitmap_delete(temp_bitmap);
+      } else {
+        error(2, "### ERROR extract: failed to allocate temporary bitmap");
+      }
+      mipmap_count = *(short *)(destination + 0x14);
+      mipmap_index++;
+    } while (mipmap_index <= mipmap_count);
+  }
+
+  if (*(int *)0x334154 != 0) {
+    bitmap_delete(
+      ((void *(*)(void *, int, int, int))FUN_00074a30)(bitmap_data, 0, 1, 1));
+  }
+}
+
+/*
  * FUN_00075380 -- bitmap_extract: create a new bitmap entry in the group.
  *
  * Validates the source bitmap, determines format and mipmap count,
@@ -2126,7 +2288,7 @@ void FUN_00077ff0(void *bitmap, short filter_radius, short *filter_coefficients)
   }
   crt_fprintf(
     (void *)0x331050,
-    "### WARNING tried to smooth a bitmap with a filter which is too large\n");
+    "### WARNING tried to smooth a bitmap with a filter which is too large");
   crt_fflush((void *)0x331050);
 }
 
@@ -2372,7 +2534,7 @@ void FUN_00078460(void *bitmap, short filter_radius, short *filter_coefficients)
   }
   crt_fprintf(
     (void *)0x331050,
-    "### WARNING tried to smooth a bitmap with a filter which is too large\n");
+    "### WARNING tried to smooth a bitmap with a filter which is too large");
   crt_fflush((void *)0x331050);
 }
 

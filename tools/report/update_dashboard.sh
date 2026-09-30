@@ -4,7 +4,7 @@ NAME="${0##*/}"
 VENV="${VENV_PYTHON:-.venv/bin/python3}"
 
 usage() {
-    echo "Usage: $NAME [--batch] [--vc71|--full-vc71] [--run-id NAME]"
+    echo "Usage: $NAME [--batch] [--vc71|--full-vc71] [--raw [--raw-workers N]] [--run-id NAME]"
     echo ""
     echo "Refresh the local progress dashboard from the latest build."
     echo ""
@@ -20,6 +20,10 @@ usage() {
     echo "               (only TUs whose inputs changed are re-verified)."
     echo "  --full-vc71   Refresh VC71 scores, re-verifying every TU (full pass)."
     echo "  --skip-vc71   Accepted for back-compat; now the default (no-op)."
+    echo "  --raw         Refresh raw-XBE aligned byte accuracy for every ported"
+    echo "               function before rendering (raw_xbe_structural populate;"
+    echo "               slow: recompiles every TU)."
+    echo "  --raw-workers N  Parallel workers for --raw (default 4)."
     echo "  --run-id NAME Tag the snapshot with a custom run label."
     echo "               Default: 'local-<timestamp>'"
     echo "  --help        This message. --batch combines with --vc71 or --full-vc71."
@@ -32,6 +36,8 @@ DO_BATCH=false
 # --vc71 (incremental) or --full-vc71 (full) opt back in to running populate.
 DO_VC71=false
 VC71_MODE="--incremental"
+DO_RAW=false
+RAW_WORKERS=4
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -39,6 +45,8 @@ while [[ $# -gt 0 ]]; do
         --vc71)      DO_VC71=true; VC71_MODE="--incremental"; shift ;;
         --full-vc71) DO_VC71=true; VC71_MODE=""; shift ;;
         --skip-vc71) DO_VC71=false; shift ;;
+        --raw)       DO_RAW=true; shift ;;
+        --raw-workers) RAW_WORKERS="$2"; shift 2 ;;
         --run-id)    RUN_ID="$2"; shift 2 ;;
         --help|-h)   usage ;;
         *)           echo "Unknown: $1"; usage ;;
@@ -62,6 +70,11 @@ if $DO_VC71; then
         echo "=== Refreshing VC71 scores (full) ==="
     fi
     $VENV tools/verify/vc71_regression.py populate $VC71_MODE
+fi
+
+if $DO_RAW; then
+    echo "=== Refreshing raw-XBE byte accuracy ==="
+    $VENV tools/verify/raw_xbe_structural.py populate --workers "$RAW_WORKERS"
 fi
 
 echo "=== Generating CI status page ==="

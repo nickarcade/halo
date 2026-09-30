@@ -147,7 +147,11 @@ _TOOLS_DIR = _SCRIPT_DIR.parent
 _REPO_ROOT = _TOOLS_DIR.parent
 sys.path.insert(0, str(_TOOLS_DIR))
 
-KB_JSON = _REPO_ROOT / "kb.json"
+# HALO_EQUIV_KB_JSON / HALO_EQUIV_PRECOMPILED_DIR let the regression gate point
+# the harness at an exact snapshot (the git index) instead of whatever happens to
+# be in the working tree / build/.  Unset, behaviour is unchanged.
+KB_JSON = Path(os.environ.get("HALO_EQUIV_KB_JSON") or (_REPO_ROOT / "kb.json"))
+_PRECOMPILED_DIR = os.environ.get("HALO_EQUIV_PRECOMPILED_DIR")
 OBJDIFF_JSON = _REPO_ROOT / "objdiff.json"
 DELINKED_DIR = _REPO_ROOT / "delinked"
 BUILD_DIR = _REPO_ROOT / "build"
@@ -188,6 +192,21 @@ try:
     MEM_TRACE_CAP = int(os.environ.get("HALO_EQUIV_MEM_TRACE_CAP", "500000"))
 except ValueError:
     MEM_TRACE_CAP = 500_000
+
+# HALO_EQUIV_TOUCHED_PAGES=<path>: record every 4 KB page of --state-snapshot
+# memory that either side reads or writes, across all seeds, and write the
+# sorted page list to <path> at exit.  trim_snapshot.py uses it to cut a
+# whole-game-state capture down to the pages a target actually depends on.
+TOUCHED_PAGES_OUT = os.environ.get("HALO_EQUIV_TOUCHED_PAGES")
+_touched_pages = set()
+if TOUCHED_PAGES_OUT:
+    import atexit
+
+    def _dump_touched_pages():
+        with open(TOUCHED_PAGES_OUT, "w", encoding="utf-8") as f:
+            json.dump(sorted(_touched_pages), f)
+
+    atexit.register(_dump_touched_pages)
 
 # Frequently used scalar globals that appear as hardcoded absolute addresses in
 # lifted C. Preload them so Unicorn sees the same canonical values as the XBE
@@ -660,6 +679,18 @@ def _per_function_ref(func_name: str) -> Optional[Path]:
     return None
 
 
+def _precompiled_obj_for_source(source_path: str) -> Optional[Path]:
+    """Object for `source_path` under HALO_EQUIV_PRECOMPILED_DIR, or None.
+
+    Naming: the source path relative to src/halo, '/' -> '__', plus '.obj'.
+    Must match regression_cache.precompiled_name."""
+    if not _PRECOMPILED_DIR or not source_path:
+        return None
+    rel = source_path[len("src/halo/"):] if source_path.startswith("src/halo/") else source_path
+    cand = Path(_PRECOMPILED_DIR) / (rel.replace("/", "__") + ".obj")
+    return cand if cand.is_file() else None
+
+
 def _compile_build_obj_for_source(source_path: str) -> tuple[Optional[Path], Optional[str]]:
     """Compile a standalone candidate .obj for a source file.
 
@@ -857,7 +888,7 @@ def _load_symbol_addrs() -> dict:
         return _SYMBOL_ADDR_CACHE
     name2addr = {}
     try:
-        kb_path = Path(__file__).resolve().parent.parent.parent / "kb.json"
+        kb_path = KB_JSON
         import json as _json
         kb = _json.loads(kb_path.read_text(encoding="utf-8"))
         for obj in kb.get("objects", []):
@@ -895,7 +926,7 @@ def _load_function_addr_to_name() -> dict:
         return _FUNC_ADDR_NAME_CACHE
     addr2name = {}
     try:
-        kb_path = Path(__file__).resolve().parent.parent.parent / "kb.json"
+        kb_path = KB_JSON
         import json as _json
         kb = _json.loads(kb_path.read_text(encoding="utf-8"))
         for obj in kb.get("objects", []):
@@ -1811,6 +1842,18 @@ def _run_function(code: bytes, abi: dict, arg_values: list,
     # region, so it is excluded for free by the membership test.
     _heap_compare = (os.environ.get("BIPED_HEAP_COMPARE") == "1"
                      and bool(_override_ranges))
+
+    if TOUCHED_PAGES_OUT and _override_ranges:
+        from unicorn import UC_HOOK_MEM_WRITE, UC_HOOK_MEM_READ
+
+        def hook_touched_page(uc, access, address, size, value, user_data):
+            for page in range(address & ~0xFFF, address + size, 0x1000):
+                for lo, hi in _override_ranges:
+                    if lo <= page + 0xFFF and page < hi:
+                        _touched_pages.add(page)
+                        break
+
+        uc.hook_add(UC_HOOK_MEM_READ | UC_HOOK_MEM_WRITE, hook_touched_page)
 
     if collect_mem_trace:
         from unicorn import UC_HOOK_MEM_WRITE, UC_HOOK_MEM_READ
@@ -2807,7 +2850,9 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
              value_corpus: Optional[Path] = None,
              oracle: str = "delinked",
              oracle_native_callees: bool = False,
-             stop_at_call: Optional[tuple] = None) -> int:
+             stop_at_call: Optional[tuple] = None,
+             trace_all_stubs: bool = False,
+             pinned_state: bool = False) -> int:
     """Run the differential test.  Returns 0 if all pass, 1 if any diverge.
 
     `oracle` selects the reference side:
@@ -2954,6 +2999,16 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     # --- Locate .obj files ---
     delinked_path, build_path = _find_obj_paths(entry)
     build_compiled_on_demand = False
+
+    # Precompiled candidate (regression gate): an object compiled from an exact
+    # source snapshot with the real CMake flags wins over any objdiff/build/ hit,
+    # which may be stale.  If the dir is set but has no object for this TU (its
+    # compile failed), fall through to the legacy lookup below unchanged.
+    _pre_obj = _precompiled_obj_for_source(entry.get("_obj_source", ""))
+    if _pre_obj is not None:
+        build_path = _pre_obj
+        build_compiled_on_demand = True
+        info(f"  build   : {build_path} (precompiled from snapshot)")
 
     # Try source path from kb.json entry
     if not build_path and entry.get("_obj_source"):
@@ -3526,7 +3581,11 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             stub_mgr = StubManager(KB_JSON, DELINKED_DIR)
             stub_mgr.stub_return_overrides = snapshot_stub_returns
             stub_mgr.stub_write_overrides = snapshot_stub_writes
-            stub_mgr.trace_all_synthetic = stop_at_call is not None
+            # --trace-all-stubs: a static trampoline returns without the
+            # tracer seeing the call, so without this a synthetic stub's
+            # args (e.g. game_engine_post_event(0x21)) are never compared.
+            stub_mgr.trace_all_synthetic = (stop_at_call is not None
+                                            or trace_all_stubs)
             # Allocate callee globals slots past the caller's own oracle+lifted
             # slots so they never overlap.
             callee_globals_base = lft_globals_base + len(lft_data_slots) * 256
@@ -3737,6 +3796,10 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
     first_diff = None
     first_divergence_summary = None
     trace_diff_count = 0
+    # Agreeing (address, size, value) writes summed over seeds: affirmative
+    # evidence that --mem-trace compared something (see the pinned-state
+    # exemption from vacuous_output below).
+    trace_matched_total = 0
     # Affirmative heap-output evidence accumulated across seeds (BIPED_HEAP_COMPARE).
     # Keyed by (addr, size) -> last observed sample, so the report can show the
     # exact output offsets witnessed and their oracle/candidate values.
@@ -3939,6 +4002,7 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
             tdiff = state_mod.compare_mem_traces(
                 oracle_state, lifted_state,
                 float_tolerance_ulp=(float_tolerance_ulp if _heap_compare_on else 0))
+            trace_matched_total += len(tdiff.matched)
             if tdiff.has_differences():
                 trace_diff_count += 1
                 # A never-returning function has no return value; its writes
@@ -4517,6 +4581,16 @@ def run_diff(func_name: str, num_seeds: int = 100, base_seed: int = 0,
         if coverage_pct < COVERAGE_FLOOR_PCT:
             vacuous_reason = (f"vacuous_coverage: {coverage_pct:.1f}% < "
                               f"{COVERAGE_FLOOR_PCT:.0f}% floor")
+        elif (not output_varied and passed >= VACUOUS_OUTPUT_MIN_SEEDS
+              and pinned_state and state_snapshot is not None
+              and (trace_matched_total or stub_arg_total_calls)):
+            # Pinned state: a snapshot fixes the input, so identical outputs
+            # across seeds are expected, not a sign nothing was compared.
+            # Exempt only when the comparators actually matched something.
+            log(f"  pinned-state: output did not vary across {passed} seeds "
+                f"(fixed snapshot); not vacuous -- {trace_matched_total} "
+                f"matched write(s), {stub_arg_total_calls} compared stub "
+                f"call(s). Evidence covers this one state's path only.")
         elif not output_varied and passed >= VACUOUS_OUTPUT_MIN_SEEDS:
             # Only meaningful with a real sample. A pinned single-input probe
             # (test_player_control_angle_endpoint drives one hand-built seed at
@@ -4904,6 +4978,18 @@ def main():
                              "oracle's is image bytes in place, so the two "
                              "agree only as far as the delink is faithful, "
                              "which is the artifact this lane is removing.")
+    parser.add_argument("--trace-all-stubs", action="store_true",
+                        help="Serve every synthetic stub through the argument "
+                             "tracer (as --stop-at-call does), so call args to "
+                             "return-0 trampolines enter the stub-arg "
+                             "differential. Off by default.")
+    parser.add_argument("--pinned-state", action="store_true",
+                        help="With --state-snapshot: the snapshot IS the test "
+                             "input (e.g. a live game-state capture), so "
+                             "identical outputs across seeds are expected. "
+                             "Report pass instead of vacuous_output when the "
+                             "write/stub-arg comparators matched something. "
+                             "Evidence covers that one state's path only.")
     parser.add_argument("--rich-stub-returns", action="store_true",
                         help="Return scratch pointers (not 0) from stubbed pointer-returning "
                              "accessors so callers get past their NULL check. Raises coverage, "
@@ -5071,6 +5157,8 @@ def main():
         oracle=args.oracle,
         oracle_native_callees=args.oracle_native_callees,
         stop_at_call=_parse_stop_at_call(args.stop_at_call),
+        trace_all_stubs=args.trace_all_stubs,
+        pinned_state=args.pinned_state,
     ))
 
 

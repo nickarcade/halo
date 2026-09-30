@@ -375,7 +375,7 @@ bool should_render_lights(void)
   char *lights_globals;
 
   lights_globals = *(char **)0x46f074;
-  if (lights_globals && *lights_globals != 0) {
+  if (*lights_globals != 0) {
     if (game_engine_allow_dynamic_lighting()) {
       return true;
     }

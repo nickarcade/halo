@@ -117,6 +117,510 @@ convex_hull3d_test_point(uint32_t unused_param_1, uint32_t unused_param_2,
   return 1;
 }
 
+/* Return (and cache) the vertex index for the point at parameter `level` of
+ * `subdivision` steps along the geosphere edge from vertex a to vertex b
+ * (0x107ec0). a is register-passed (@<eax>); sphere/b/level/vertex_index_ptr/
+ * outer_hash are stack args.
+ * sphere layout (raw offsets, matching calculate_vertex's style):
+ *   +0x0 subdivision (int16_t), +0xc vertex_count (int16_t).
+ * outer_hash is a fixed 64-entry int16_t hash table (see FUN_001087b0),
+ * keyed by vb + va*8; va/vb are always among the 6 base octahedron vertex
+ * indices (0-5), so the key never exceeds 45. */
+int16_t get_edge_vertex(int16_t a /* @<eax> */, void *sphere, int16_t b,
+                        int16_t level, int16_t *vertex_index_ptr,
+                        int16_t *outer_hash)
+{
+  int16_t subdivision;
+  int16_t vertex_count;
+  int16_t va;
+  int16_t vb;
+  int16_t swapped;
+  int16_t hash_key;
+  int16_t base;
+  int16_t i;
+  int16_t new_vertex;
+
+  if (sphere == (void *)0) {
+    display_assert("sphere", "c:\\halo\\SOURCE\\math\\geometry.c", 0x10d, 1);
+    system_exit(-1);
+  }
+
+  if (a > b) {
+    va = b;
+    vb = a;
+    swapped = 1;
+  } else {
+    va = a;
+    vb = b;
+    swapped = 0;
+  }
+
+  subdivision = *(int16_t *)sphere;
+  vertex_count = *(int16_t *)((char *)sphere + 0xc);
+
+  if (va < 0 || va >= vertex_count) {
+    display_assert("va >= 0 && va < sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x10e, 1);
+    system_exit(-1);
+  }
+  if (vb < 0 || vb >= vertex_count) {
+    display_assert("vb >= 0 && vb < sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x10f, 1);
+    system_exit(-1);
+  }
+  if (vb == va) {
+    display_assert("vb != va", "c:\\halo\\SOURCE\\math\\geometry.c", 0x110, 1);
+    system_exit(-1);
+  }
+
+  if (level == 0) {
+    return a;
+  }
+  if (level == subdivision) {
+    return b;
+  }
+
+  hash_key = (int16_t)(vb + va * 8);
+  base = outer_hash[hash_key];
+  if (base == -1) {
+    base = *vertex_index_ptr;
+    outer_hash[hash_key] = base;
+    for (i = 1; i < subdivision; i++) {
+      new_vertex = *vertex_index_ptr;
+      *vertex_index_ptr = (int16_t)(*vertex_index_ptr + 1);
+      calculate_vertex(i, subdivision, vb, va, sphere, new_vertex);
+    }
+  }
+
+  if (swapped) {
+    return (int16_t)(base + (subdivision - level) - 1);
+  }
+  return (int16_t)(base + level - 1);
+}
+
+/* Intersect convex 2D hull q with convex 2D hull p by clipping q against
+ * each edge line of p (0x108060). PAL 2342 geometry.c
+ * `convex_hull2d_intersect` (T2); the seven asserts are geometry.c lines
+ * 0x3f8-0x3fe and 0x40d with PAL's condition strings. Points are
+ * real_point2d pairs (8 bytes). Two 0x200-point ping-pong buffers sit at
+ * [EBP-0x200c]; the last edge writes straight into result. Returns the
+ * clipped point count, or -1 when a clip overflows maximum_count.
+ * Confirmed: plane2d_from_points(&plane, p+index, p+previous) at 0x1081e1;
+ * convex_polygon2d_clip_to_plane(count, source, &plane, maximum_count,
+ * output, NULL, NULL, epsilon) at 0x108203 (ADD ESP,0x20). epsilon is the
+ * raw [EBP+0x20] dword, so every caller passes a float literal. */
+short FUN_00108060(int16_t count, void *records, int a3, uint16_t *scratch,
+                   int max_count, uint16_t *out_list, float epsilon)
+{
+  float buffers[2][0x200][2];
+  float plane[3];
+  float *p;
+  float *source;
+  float *output;
+  int16_t p_count;
+  int16_t maximum_count;
+  int16_t result_count;
+  int16_t index;
+  int16_t previous_index;
+
+  p_count = count;
+  p = (float *)records;
+  result_count = (int16_t)a3;
+  source = (float *)scratch;
+  maximum_count = (int16_t)max_count;
+  if (maximum_count > 0x200) {
+    display_assert("maximum_count<=CLIP_BUFFER_SIZE",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x3f8, 1);
+    system_exit(-1);
+  }
+  if (p == (float *)0) {
+    display_assert("p", "c:\\halo\\SOURCE\\math\\geometry.c", 0x3f9, 1);
+    system_exit(-1);
+  }
+  if (p_count == 0) {
+    display_assert("p_count", "c:\\halo\\SOURCE\\math\\geometry.c", 0x3fa, 1);
+    system_exit(-1);
+  }
+  if (source == (float *)0) {
+    display_assert("q", "c:\\halo\\SOURCE\\math\\geometry.c", 0x3fb, 1);
+    system_exit(-1);
+  }
+  if (result_count == 0) {
+    display_assert("q_count", "c:\\halo\\SOURCE\\math\\geometry.c", 0x3fc, 1);
+    system_exit(-1);
+  }
+  if (out_list == (uint16_t *)0) {
+    display_assert("result", "c:\\halo\\SOURCE\\math\\geometry.c", 0x3fd, 1);
+    system_exit(-1);
+  }
+  if ((void *)p == (void *)out_list || (void *)source == (void *)out_list) {
+    display_assert("p!=result && q!=result",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x3fe, 1);
+    system_exit(-1);
+  }
+
+  for (index = 0; index < p_count && result_count > 0; index++) {
+    previous_index = index != 0 ? index - 1 : p_count - 1;
+    output =
+      index == p_count - 1 ? (float *)out_list : &buffers[index & 1][0][0];
+    if (plane2d_from_points(plane, p + index * 2, p + previous_index * 2)) {
+      result_count = convex_polygon2d_clip_to_plane(
+        result_count, source, plane, maximum_count, output, (uint32_t *)0,
+        (uint8_t *)0, epsilon);
+      if (result_count == -1) {
+        return -1;
+      }
+    } else {
+      if (result_count < 0 || result_count > maximum_count) {
+        display_assert("result_count>=0 && result_count<=maximum_count",
+                       "c:\\halo\\SOURCE\\math\\geometry.c", 0x40d, 1);
+        system_exit(-1);
+      }
+      csmemcpy(output, source, (int)result_count * 8);
+    }
+    source = output;
+  }
+
+  return result_count;
+}
+
+/* Return (and cache) the geosphere vertex at row/col of the triangular
+ * row_cache grid used while subdividing face (v1,v2,v3) (0x108270). row is
+ * @<eax>, sphere is @<ecx>; v1/v2/v3/col/vertex_index_ptr/outer_hash/
+ * row_cache are stack args. row_cache is a (subdivision+1)^2-entry int16_t
+ * table, row-major, index (subdivision+1)*row+col (allocated and -1-filled
+ * by subdivide_triangle, one per face-subdivision call). */
+int16_t get_face_vertex(int16_t row /* @<eax> */, void *sphere /* @<ecx> */,
+                        int16_t v1, int16_t v2, int16_t v3, int16_t col,
+                        int16_t *vertex_index_ptr, int16_t *outer_hash,
+                        int16_t *row_cache)
+{
+  int16_t subdivision;
+  int16_t vertex_count;
+  int cache_index;
+  int16_t new_vertex;
+  int16_t r1;
+  int16_t r2;
+
+  subdivision = *(int16_t *)sphere;
+  vertex_count = *(int16_t *)((char *)sphere + 0xc);
+  cache_index = (subdivision + 1) * row + col;
+
+  if (v1 < 0 || v1 > vertex_count) {
+    display_assert("v1 >=0 && v1 <= sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0xde, 1);
+    system_exit(-1);
+  }
+  if (v2 < 0 || v2 > vertex_count) {
+    display_assert("v2 >=0 && v2 <= sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0xdf, 1);
+    system_exit(-1);
+  }
+  if (v3 < 0 || v3 > vertex_count) {
+    display_assert("v3 >=0 && v3 <= sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0xe0, 1);
+    system_exit(-1);
+  }
+
+  if (row_cache[cache_index] == -1) {
+    if (col == 0) {
+      row_cache[cache_index] =
+        get_edge_vertex(v1, sphere, v3, row, vertex_index_ptr, outer_hash);
+    } else if (row == subdivision) {
+      row_cache[cache_index] =
+        get_edge_vertex(v3, sphere, v2, col, vertex_index_ptr, outer_hash);
+    } else if (col == row) {
+      row_cache[cache_index] =
+        get_edge_vertex(v1, sphere, v2, row, vertex_index_ptr, outer_hash);
+    } else {
+      new_vertex = *vertex_index_ptr;
+      *vertex_index_ptr = (int16_t)(*vertex_index_ptr + 1);
+      r1 = get_edge_vertex(v1, sphere, v3, row, vertex_index_ptr, outer_hash);
+      r2 = get_edge_vertex(v1, sphere, v2, row, vertex_index_ptr, outer_hash);
+      row_cache[cache_index] = new_vertex;
+      calculate_vertex(col, row, r2, r1, sphere, new_vertex);
+    }
+  }
+
+  return row_cache[cache_index];
+}
+
+/* Subdivide triangle (v1,v2,v3) into a triangle strip, writing vertex
+ * indices into sphere->index_array and advancing *vertex_index_ptr /
+ * *triangle_strip_vertex_indices_index_ptr (0x108400). sphere is @<esi>;
+ * all other params are stack args. Allocates a scratch row_cache of
+ * (subdivision+1)^2 int16_t entries (-1-filled), used only for this call and
+ * freed before return. For each row 1..subdivision, a strip-restart marker
+ * (2*row+1) is written first, then for each col 1..row the four triangle
+ * corners (top, left, right, and topright when col<row) are resolved via
+ * get_face_vertex and written into index_array; sphere->field_10 is
+ * incremented once per row (purpose unconfirmed). */
+void subdivide_triangle(void *sphere /* @<esi> */, int16_t v1, int16_t v2,
+                        int16_t v3, int16_t *vertex_index_ptr,
+                        int16_t *triangle_strip_vertex_indices_index_ptr,
+                        int16_t *outer_hash)
+{
+  int16_t subdivision;
+  int16_t vertex_count;
+  int16_t triangle_count;
+  int16_t *index_array;
+  int16_t *row_cache;
+  int row_cache_count;
+  int row;
+  int col;
+  int marker;
+  int strip_index;
+  int16_t top_vertex;
+  int16_t left_vertex;
+  int16_t right_vertex;
+  int16_t topright_vertex;
+
+  if (vertex_index_ptr == (int16_t *)0) {
+    display_assert("vertex_index", "c:\\halo\\SOURCE\\math\\geometry.c", 0x92,
+                   1);
+    system_exit(-1);
+  }
+  if (triangle_strip_vertex_indices_index_ptr == (int16_t *)0) {
+    display_assert("triangle_strip_vertex_indices_index",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x93, 1);
+    system_exit(-1);
+  }
+  if (outer_hash == (int16_t *)0) {
+    display_assert("vertex_subdivision_indices",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x94, 1);
+    system_exit(-1);
+  }
+
+  subdivision = *(int16_t *)sphere;
+  vertex_count = *(int16_t *)((char *)sphere + 0xc);
+  triangle_count = *(int16_t *)((char *)sphere + 0xe);
+  index_array = *(int16_t **)((char *)sphere + 8);
+
+  if (v1 < 0 || v1 >= vertex_count) {
+    display_assert("v1 >= 0 && v1 < sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x95, 1);
+    system_exit(-1);
+  }
+  if (v2 < 0 || v2 >= vertex_count) {
+    display_assert("v2 >= 0 && v2 < sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x96, 1);
+    system_exit(-1);
+  }
+  if (v3 < 0 || v3 >= vertex_count) {
+    display_assert("v3 >= 0 && v3 < sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x97, 1);
+    system_exit(-1);
+  }
+  if (*triangle_strip_vertex_indices_index_ptr >= triangle_count * 4) {
+    display_assert(
+      "*triangle_strip_vertex_indices_index < (NUMBER_OF_VERTICES_PER_TRIANGLE "
+      "+ 1) * sphere->triangle_count",
+      "c:\\halo\\SOURCE\\math\\geometry.c", 0x98, 1);
+    system_exit(-1);
+  }
+
+  row_cache_count = (subdivision + 1) * (subdivision + 1);
+  row_cache = (int16_t *)debug_malloc(
+    row_cache_count * 2, 0, "c:\\halo\\SOURCE\\math\\geometry.c", 0x9a);
+  if (row_cache != (int16_t *)0) {
+    for (row = 0; row < row_cache_count; row++) {
+      row_cache[row] = -1;
+    }
+
+    if (subdivision >= 1) {
+      marker = 3;
+      for (row = 1; row <= subdivision; row++) {
+        strip_index = *triangle_strip_vertex_indices_index_ptr;
+        index_array[strip_index] = (int16_t)marker;
+        *triangle_strip_vertex_indices_index_ptr = (int16_t)(strip_index + 1);
+        *(int16_t *)((char *)sphere + 0x10) =
+          (int16_t)(*(int16_t *)((char *)sphere + 0x10) + 1);
+
+        if (marker >= 3) {
+          for (col = 1; col <= row; col++) {
+            top_vertex = get_face_vertex((int16_t)(row - 1), sphere, v1, v2, v3,
+                                         (int16_t)(col - 1), vertex_index_ptr,
+                                         outer_hash, row_cache);
+            left_vertex = get_face_vertex((int16_t)row, sphere, v1, v2, v3,
+                                          (int16_t)(col - 1), vertex_index_ptr,
+                                          outer_hash, row_cache);
+            right_vertex =
+              get_face_vertex((int16_t)row, sphere, v1, v2, v3, (int16_t)col,
+                              vertex_index_ptr, outer_hash, row_cache);
+
+            if (top_vertex < 0 || top_vertex > vertex_count) {
+              display_assert(
+                "top_vertex >= 0 && top_vertex <= sphere->vertex_count",
+                "c:\\halo\\SOURCE\\math\\geometry.c", 0xb0, 1);
+              system_exit(-1);
+            }
+            if (left_vertex < 0 || left_vertex > vertex_count) {
+              display_assert(
+                "left_vertex >= 0 && left_vertex <= sphere->vertex_count",
+                "c:\\halo\\SOURCE\\math\\geometry.c", 0xb1, 1);
+              system_exit(-1);
+            }
+            if (right_vertex < 0 || right_vertex > vertex_count) {
+              display_assert(
+                "right_vertex >= 0 && right_vertex <= sphere->vertex_count",
+                "c:\\halo\\SOURCE\\math\\geometry.c", 0xb2, 1);
+              system_exit(-1);
+            }
+
+            if (col == 1) {
+              strip_index = *triangle_strip_vertex_indices_index_ptr;
+              index_array[strip_index] = left_vertex;
+              *triangle_strip_vertex_indices_index_ptr =
+                (int16_t)(strip_index + 1);
+
+              strip_index = *triangle_strip_vertex_indices_index_ptr;
+              index_array[strip_index] = top_vertex;
+              *triangle_strip_vertex_indices_index_ptr =
+                (int16_t)(strip_index + 1);
+            }
+
+            strip_index = *triangle_strip_vertex_indices_index_ptr;
+            index_array[strip_index] = right_vertex;
+            *triangle_strip_vertex_indices_index_ptr =
+              (int16_t)(strip_index + 1);
+
+            if (col < row) {
+              topright_vertex = get_face_vertex(
+                (int16_t)(row - 1), sphere, v1, v2, v3, (int16_t)col,
+                vertex_index_ptr, outer_hash, row_cache);
+              if (topright_vertex < 0 || topright_vertex > vertex_count) {
+                display_assert("topright_vertex >= 0 && topright_vertex <= "
+                               "sphere->vertex_count",
+                               "c:\\halo\\SOURCE\\math\\geometry.c", 0xc2, 1);
+                system_exit(-1);
+              }
+              strip_index = *triangle_strip_vertex_indices_index_ptr;
+              index_array[strip_index] = topright_vertex;
+              *triangle_strip_vertex_indices_index_ptr =
+                (int16_t)(strip_index + 1);
+            }
+          }
+        }
+        marker += 2;
+      }
+    }
+
+    debug_free(row_cache, "c:\\halo\\SOURCE\\math\\geometry.c", 0xc8);
+  }
+}
+
+/* Allocate and build a geosphere of the given subdivision `type` (0x1087b0).
+ * sphere layout (0x14 bytes, raw offsets):
+ *   +0x0 subdivision (int16_t), +0x4 vertex_array (float*, stride 3),
+ *   +0x8 index_array (int16_t*), +0xc vertex_count (int16_t),
+ *   +0xe triangle_count (int16_t), +0x10 field_10 (int16_t, incremented by
+ *   subdivide_triangle, purpose unconfirmed).
+ * vertex_count = ((type-2)*(type-1)*8)/2 + type*12 - 6 (equals 4*type^2 + 2).
+ * triangle_count = type*type*8 (equals 8*type^2).
+ * outer_hash is a fixed 64-entry int16_t scratch buffer, freed before
+ * return in all cases. On success (all three mallocs and both post-loop
+ * invariant checks pass) only outer_hash is freed; vertex_array/index_array
+ * are the real output. If any of vertex_array/index_array/outer_hash fails
+ * to allocate, the whole build is skipped and whichever of
+ * vertex_array/index_array/outer_hash succeeded is freed; the struct
+ * pointer is still returned with no fields nulled (dangling array
+ * pointers), matching the original exactly. The two post-loop asserts are
+ * unconditional system_exit(-1) halts (never return) — they are not part of
+ * the failure/free path. */
+void *FUN_001087b0(int type)
+{
+  void *result;
+  int16_t triangle_count;
+  int16_t vertex_count;
+  float *vertex_array;
+  int16_t *index_array;
+  int16_t *outer_hash;
+  int16_t vertex_index;
+  int16_t triangle_strip_vertex_indices_index;
+  int i;
+
+  result = debug_malloc(0x14, 0, "c:\\halo\\SOURCE\\math\\geometry.c", 0x3a);
+  if (result == (void *)0) {
+    return result;
+  }
+
+  triangle_count = (int16_t)(type * type * 8);
+  *(int16_t *)((char *)result + 0xe) = triangle_count;
+  *(int16_t *)result = (int16_t)type;
+  vertex_count =
+    (int16_t)((((type - 2) * (type - 1) * 8) / 2) + (type * 12) - 6);
+  *(int16_t *)((char *)result + 0xc) = vertex_count;
+
+  vertex_array = (float *)debug_malloc(
+    vertex_count * 12, 0, "c:\\halo\\SOURCE\\math\\geometry.c", 0x42);
+  *(float **)((char *)result + 4) = vertex_array;
+
+  index_array = (int16_t *)debug_malloc(
+    triangle_count * 8, 0, "c:\\halo\\SOURCE\\math\\geometry.c", 0x43);
+  *(int16_t **)((char *)result + 8) = index_array;
+
+  *(int16_t *)((char *)result + 0x10) = 0;
+
+  outer_hash = (int16_t *)debug_malloc(
+    0x80, 0, "c:\\halo\\SOURCE\\math\\geometry.c", 0x45);
+
+  if (vertex_array != (float *)0 && index_array != (int16_t *)0 &&
+      outer_hash != (int16_t *)0) {
+    for (i = 0; i < 64; i++) {
+      outer_hash[i] = -1;
+    }
+
+    for (i = 0; i < 6; i++) {
+      vertex_array[i * 3 + 0] = ((float *)0x28bd88)[i * 3 + 0];
+      vertex_array[i * 3 + 1] = ((float *)0x28bd88)[i * 3 + 1];
+      vertex_array[i * 3 + 2] = ((float *)0x28bd88)[i * 3 + 2];
+    }
+
+    vertex_index = 6;
+    triangle_strip_vertex_indices_index = 0;
+
+    for (i = 0; i < 8; i++) {
+      subdivide_triangle(result, ((int16_t *)0x28bdd0)[i * 3 + 0],
+                         ((int16_t *)0x28bdd0)[i * 3 + 1],
+                         ((int16_t *)0x28bdd0)[i * 3 + 2], &vertex_index,
+                         &triangle_strip_vertex_indices_index, outer_hash);
+    }
+
+    if (triangle_strip_vertex_indices_index >= triangle_count * 4) {
+      display_assert(
+        "triangle_strip_vertex_indices_index < "
+        "(NUMBER_OF_VERTICES_PER_TRIANGLE + 1) * sphere->triangle_count",
+        "c:\\halo\\SOURCE\\math\\geometry.c", 0x62, 1);
+      system_exit(-1);
+    }
+    if (vertex_index != vertex_count) {
+      display_assert("vertex_index == result->vertex_count",
+                     "c:\\halo\\SOURCE\\math\\geometry.c", 0x63, 1);
+      system_exit(-1);
+    }
+
+    /* Success: only the scratch outer_hash buffer is freed; vertex_array
+     * and index_array survive as the real output. */
+    debug_free(outer_hash, "c:\\halo\\SOURCE\\math\\geometry.c", 0x6b);
+    return result;
+  }
+
+  /* One or more allocations failed: free whichever of vertex_array/
+   * index_array succeeded, then always attempt to free outer_hash. No
+   * field is nulled afterward; the caller receives the struct pointer with
+   * dangling array pointers on this path, matching the original exactly. */
+  if (vertex_array != (float *)0) {
+    debug_free(vertex_array, "c:\\halo\\SOURCE\\math\\geometry.c", 0x67);
+  }
+  if (index_array != (int16_t *)0) {
+    debug_free(index_array, "c:\\halo\\SOURCE\\math\\geometry.c", 0x68);
+  }
+  if (outer_hash != (int16_t *)0) {
+    debug_free(outer_hash, "c:\\halo\\SOURCE\\math\\geometry.c", 0x6b);
+  }
+  return result;
+}
+
 /* Store a 2D rectangle (0x1089a0).
  * rect layout: {top, left, bottom, right} as int16_t[4].
  * Store order follows the binary: left, top, right, bottom. */
@@ -182,6 +686,95 @@ void rect2d_offset(int16_t *rect, int16_t dx, int16_t dy)
   rect[3] += dx;
   rect[0] += dy;
   rect[2] += dy;
+}
+
+/* Position rectangle1 relative to rectangle0 and write the moved copy of
+ * rectangle1 to result (0x108a90).
+ * rect layout: {top, left, bottom, right} as int16_t[4].
+ * mode 0: centered on both axes; mode 1: 1/3 down vertically, centered
+ * horizontally. Other modes: non-halting assert (integer_math.c line 0xad),
+ * result = unmodified copy of rectangle1.
+ * Extent differences are 16-bit subtractions; the offset arithmetic is done
+ * in 32 bits with top/left read zero-extended, and only the low 16 bits reach
+ * the result. Add order follows the binary: top, right, left, bottom. */
+void adjust_rectangle2d(const int16_t *rectangle0, const int16_t *rectangle1,
+                        int16_t *result, int16_t mode)
+{
+  int16_t width0;
+  int16_t height0;
+  int16_t width1;
+  int16_t height1;
+  int top0;
+  int left0;
+  int top1;
+  int left1;
+  int dx;
+  int dy;
+  int16_t adjusted[4];
+
+  left0 = (uint16_t)rectangle0[1];
+  top0 = (uint16_t)rectangle0[0];
+  width0 = rectangle0[3] - left0;
+  height0 = rectangle0[2] - top0;
+  top1 = (uint16_t)rectangle1[0];
+  left1 = (uint16_t)rectangle1[1];
+  height1 = rectangle1[2] - top1;
+  width1 = rectangle1[3] - left1;
+  ((uint32_t *)adjusted)[0] = ((const uint32_t *)rectangle1)[0] & 0xFFFFFFFFu;
+  ((uint32_t *)adjusted)[1] = ((const uint32_t *)rectangle1)[1];
+
+  switch (mode) {
+  case 0:
+    dy = height0 / 2 - height1 / 2 - top1 + top0;
+    dx = width0 / 2 - width1 / 2;
+    break;
+  case 1:
+    dy = (height0 - height1) / 3 - top1 + top0;
+    dx = (width0 - width1) / 2;
+    break;
+  default:
+    display_assert(csprintf((char *)0x5ab100,
+                            "adjust_rectangle2d() can't handle mode #%d",
+                            (int)mode),
+                   "c:\\halo\\SOURCE\\math\\integer_math.c", 0xad, 0);
+    goto store;
+  }
+  dx = dx - left1 + left0;
+  adjusted[0] += (int16_t)dy;
+  adjusted[3] += (int16_t)dx;
+  adjusted[1] += (int16_t)dx;
+  adjusted[2] += (int16_t)dy;
+
+store:
+  ((uint32_t *)result)[0] = ((uint32_t *)adjusted)[0];
+  ((uint32_t *)result)[1] = ((uint32_t *)adjusted)[1];
+}
+
+/* Intersect two 2D rectangles (0x108bc0).
+ * rect layout: {top, left, bottom, right} as int16_t[4].
+ * left/top = max, right/bottom = min; all signed 16-bit compares.
+ * Compute order follows the binary: left, right, top, bottom.
+ * A non-empty intersection (left < right && top < bottom) is copied to
+ * `intersection` as two dwords and AL=1 is returned; otherwise
+ * `intersection` is zeroed with csmemset(intersection, 0, 8) and AL=0. */
+bool intersect_rectangles2d(short *rectangle0, short *rectangle1,
+                            short *intersection)
+{
+  int16_t left;
+  int16_t result[4];
+
+  left = (rectangle0[1] > rectangle1[1]) ? rectangle0[1] : rectangle1[1];
+  result[1] = left;
+  result[3] = (rectangle0[3] > rectangle1[3]) ? rectangle1[3] : rectangle0[3];
+  result[0] = (rectangle0[0] > rectangle1[0]) ? rectangle0[0] : rectangle1[0];
+  result[2] = (rectangle0[2] > rectangle1[2]) ? rectangle1[2] : rectangle0[2];
+  if (left < result[3] && result[0] < result[2]) {
+    ((uint32_t *)intersection)[0] = ((uint32_t *)result)[0];
+    ((uint32_t *)intersection)[1] = ((uint32_t *)result)[1];
+    return 1;
+  }
+  csmemset(intersection, 0, 8);
+  return 0;
 }
 
 /* Compute the bounding-rectangle union ("hull") of two 2D rectangles

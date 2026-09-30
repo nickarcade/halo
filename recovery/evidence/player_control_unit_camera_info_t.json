@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "struct": "player_control_unit_camera_info_t",
+  "size": {
+    "value": "0x18",
+    "evidence": "0x89d6c unit dword EBP-2c; 0x89d4a seat word EBP-28; 0x89d87 camera dword EBP-24; 0x89d39/3c/44 position dwords EBP-20/-1c/-18; local spans 0x18 and player_control_get_unit_camera_info 0xb6740 writes same offsets"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 4,
+      "name": "unit_index",
+      "confidence": "typed",
+      "evidence": "0x89d6c unit dword EBP-2c; 0x89d4a seat word EBP-28; 0x89d87 camera dword EBP-24; 0x89d39/3c/44 position dwords EBP-20/-1c/-18; local spans 0x18 and player_control_get_unit_camera_info 0xb6740 writes same offsets",
+      "signed": true
+    },
+    {
+      "offset": "0x4",
+      "width": 2,
+      "name": "seat_index",
+      "confidence": "typed",
+      "evidence": "0x89d6c unit dword EBP-2c; 0x89d4a seat word EBP-28; 0x89d87 camera dword EBP-24; 0x89d39/3c/44 position dwords EBP-20/-1c/-18; local spans 0x18 and player_control_get_unit_camera_info 0xb6740 writes same offsets",
+      "signed": true
+    },
+    {
+      "offset": "0x8",
+      "width": 4,
+      "name": "camera",
+      "confidence": "typed",
+      "evidence": "0x89d6c unit dword EBP-2c; 0x89d4a seat word EBP-28; 0x89d87 camera dword EBP-24; 0x89d39/3c/44 position dwords EBP-20/-1c/-18; local spans 0x18 and player_control_get_unit_camera_info 0xb6740 writes same offsets",
+      "signed": false
+    },
+    {
+      "offset": "0xc",
+      "width": 4,
+      "name": "position",
+      "confidence": "typed",
+      "evidence": "0x89d6c unit dword EBP-2c; 0x89d4a seat word EBP-28; 0x89d87 camera dword EBP-24; 0x89d39/3c/44 position dwords EBP-20/-1c/-18; local spans 0x18 and player_control_get_unit_camera_info 0xb6740 writes same offsets",
+      "array_len": 3,
+      "kind": "float"
+    }
+  ]
+}

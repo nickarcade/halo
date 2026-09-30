@@ -736,7 +736,7 @@ void ai_scripting_detach_unit(int unit_handle)
   int actor_handle;
 
   if (*(char *)0x5aca59 != 0) {
-    error(2, "%s: ai_detach unit 0x%04X",
+    error(2, "%s: ai_detach_unit 0x%04X",
           hs_runtime_get_executing_thread_name(), unit_handle & 0xffff);
   }
 
@@ -767,7 +767,7 @@ void ai_scripting_detach_units(int parent_handle)
 
   do {
     if (*(char *)0x5aca59 != 0) {
-      error(2, "%s: ai_detach unit 0x%04X",
+      error(2, "%s: ai_detach_unit 0x%04X",
             hs_runtime_get_executing_thread_name(), child & 0xffff);
     }
     if (child != -1) {

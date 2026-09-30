@@ -1531,7 +1531,7 @@ short find_nav_point(const char *param_1)
     for (i = 0; (int)i < *(int *)(*(int *)0x46bd0c + 0x160); i++) {
       element = (int)tag_block_get_element((void *)(*(int *)0x46bd0c + 0x160),
                                            (int)i, 0x68);
-      if (csstricmp(param_1, (const char *)element) == 0) {
+      if (crt_stricmp(param_1, (const char *)element) == 0) {
         found = i;
         break;
       }

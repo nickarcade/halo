@@ -232,6 +232,8 @@ typedef struct tiff_s {
 /* Upstream's tiffDataWidth table, indexed by TIFFDataType
  * (`mov esi,[ecx*4+0x2ca024]` at 0x67774); same spelling as tif_dir.c. */
 #define tiffDataWidth ((const int *)0x2ca024)
+/* Upstream libtiff's file-scope directory data offset (0x3340b0). */
+#define dataoff (*(unsigned long *)0x3340b0)
 
 #define TIFF_DIRWRITE_FILE "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirwrite.c"
 /* Upstream's `module` for TIFFLinkDirectory diagnostics (0x2ca124). */

@@ -77,6 +77,13 @@ enum player_powerup {
 #include "nv097.h"
 
 static const int _scenario_type_main_menu = 2;
+#define REAL_NEG_5000_POOL (*(float *)0x266e98) /* -5000.0f */
+#define REAL_5000_POOL (*(float *)0x266e94) /* 5000.0f */
+#define REAL_3600_POOL (*(float *)0x266e90) /* 3600.0f */
+#define REAL_0_001_POOL (*(float *)0x255ef8) /* 0.001f */
+#define REAL_2_0_POOL (*(float *)0x253f40) /* 2.0f */
+#define REAL_ZERO_POOL (*(float *)0x2533c0) /* 0.0f */
+#define REAL_HALF_PI_POOL (*(float *)0x2568bc) /* 1.5707964f */
 
 /* Tag group four-character codes.  Each literal spells its own name in ASCII
  * (0x77656170 == 'weap'), so the code IS the evidence — nothing is inferred.
@@ -85,14 +92,17 @@ static const int _scenario_type_main_menu = 2;
  * assert_halt would shift __FILE__/__LINE__ and move .text. */
 #define TAG_GROUP_DECAL 0x64656361 /* 'deca' */
 #define TAG_GROUP_BITM  0x6269746d /* 'bitm' */
+#define TAG_GROUP_ELEC 0x656c6563 /* 'elec' */
 #define TAG_GROUP_FONT 0x666f6e74 /* 'font' */
 #define TAG_GROUP_GLW  0x676c7721 /* 'glw!' */
 #define TAG_GROUP_HUDG 0x68756467 /* 'hudg' */
 #define TAG_GROUP_ITEM 0x6974656d /* 'item' */
 #define TAG_GROUP_ITMC 0x69746d63 /* 'itmc' */
 #define TAG_GROUP_LIGH 0x6c696768 /* 'ligh' */
+#define TAG_GROUP_PHYS 0x70687973 /* 'phys' */
 #define TAG_GROUP_SHDR 0x73686472 /* 'shdr' */
 #define TAG_GROUP_SND  0x736e6421 /* 'snd!' */
+#define TAG_GROUP_VEHI 0x76656869 /* 'vehi' */
 #define TAG_GROUP_WEAP 0x77656170 /* 'weap' */
 
 /* The original source's FLAG(bit) macro, quoted verbatim by binary assert

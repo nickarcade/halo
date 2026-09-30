@@ -1,3 +1,4 @@
+#include "encounters.h"
 #include "../../common.h"
 
 /* ai_script.c — HS ("hsc") script-callable AI commands.
@@ -292,7 +293,7 @@ void ai_scripting_renew(int handle)
   if (*(char *)0x5aca59) {
     ai_index_to_string((unsigned int)handle, global_scenario_get(), local_11c,
                        0x100);
-    error(2, "%s: ai_scripting_renew %s",
+    error(2, "%s: ai_renew %s",
           hs_runtime_get_executing_thread_name(), local_11c);
   }
 
@@ -325,4 +326,180 @@ void ai_scripting_renew(int handle)
     }
     actor = ai_index_actor_iterator_next(local_1c);
   }
+}
+
+/*
+ * ai_scripting_free — free (detach) all actors from an encounter (ai_free).
+ * Logs "[thread]: ai_free [encounter]", then for each actor in the
+ * encounter asserts encounter_index != NONE, then calls
+ * actor_flush_position_indices, encounter_detach_actor(handle, 0), and
+ * encounterless_attach_actor. Finally calls encounters_update_dirty_status.
+ * Actor handle is at local_1c+0x10 (iterator offset).
+ * 0x575d0 / encounters.obj
+ */
+void ai_scripting_free(int param_1)
+{
+  char local_21c[512];
+  char local_1c[24];
+  void *uVar1;
+  int iVar2;
+
+  if (*(char *)0x5aca59) {
+    uVar1 = global_scenario_get();
+    ai_index_to_string(param_1, uVar1, local_21c, 0x200);
+    error(2, "%s: ai_free %s", hs_runtime_get_executing_thread_name(),
+          local_21c);
+  }
+  if (param_1 != -1) {
+    ai_index_actor_iterator_new(param_1, local_1c);
+    iVar2 = ai_index_actor_iterator_next(local_1c);
+    while (iVar2 != 0) {
+      if (*(int *)((char *)iVar2 + 0x34) == -1) {
+        display_assert("actor->meta.encounter_index != NONE",
+                       "c:\\halo\\SOURCE\\ai\\ai_script.c", 0xad1, 1);
+        system_exit(-1);
+      }
+      actor_flush_position_indices(*(int *)(local_1c + 0x10));
+      encounter_detach_actor(*(int *)(local_1c + 0x10), 0);
+      encounterless_attach_actor(*(int *)(local_1c + 0x10));
+      iVar2 = ai_index_actor_iterator_next(local_1c);
+    }
+    encounters_update_dirty_status();
+  }
+}
+
+/*
+ * ai_scripting_vehicle_encounter (0x57d00) — ai_vehicle_encounter script
+ * command.  Binds a unit (biped/vehicle, object type mask 3) to an
+ * encounter+squad by writing the resolved encounter index to unit+0x2e4 and the
+ * squad index to unit+0x2e6 (both int16, -1 = NONE).  Before overwriting, if
+ * the unit already carries an encounter index, every actor of that encounter
+ * whose field_0x158 points at this unit is re-bound via
+ * actor_change_encounter(actor_handle, encounter_index, squad_index).
+ *
+ * param_2 is a combined ai index: low 16 bits = signed encounter index into
+ * the scenario encounters block (scenario+0x42c, element stride 0xb0), byte 2
+ * = squad *name* index (selector 1) or direct squad index (selector 2), bits
+ * 30..31 = selector.  Selector 0 means "encounter only" (squad 0); selector 3
+ * is unreachable (display_assert at ai_script.c:0xc52 then system_exit(-1)).
+ *
+ * Confirmed: frame is a direct SUB ESP,0x220 (no _chkstk); the trace name
+ * buffer is 512 bytes at EBP-0x220.
+ * Confirmed: element sizes 0xb0 (scenario encounters block) and 0xe8
+ * (encounter_definition->squads) are literal immediates in the original.
+ * Confirmed: [EBP-0x1c] is actor_iter[1] — the actor handle produced by
+ * encounter_actor_iterator_next — NOT an independent local (buffer-alias
+ * hazard); it is re-read on every iteration.
+ * Confirmed: unit+0x2e4/+0x2e6 are 16-bit loads/stores (MOV AX,word / MOV
+ * word,CX); byte 2 of param_2 is a MOVZX byte load compared against the
+ * uint16 at squad+0x22.
+ * 0x57d00 / encounters.obj */
+void ai_scripting_vehicle_encounter(int param_1, int param_2)
+{
+  int out_squad;
+  int saved_encounter_index;
+  char *unit;
+  int out_encounter;
+  encounter_definition *encounter_def;
+  int actor_iter[3];
+  char name_buf[512];
+  char *scenario;
+  unsigned int selector;
+  short encounter_index;
+  int squad_index;
+  int i;
+  void *squad;
+  int actor;
+
+  if (*(char *)0x5aca59 != '\0') {
+    ai_index_to_string(param_2, (void *)global_scenario_get(), name_buf, 0x200);
+    error(2, "%s: ai_vehicle_encounter <some unit> %s",
+          hs_runtime_get_executing_thread_name(), name_buf);
+  }
+  if (param_1 == -1) {
+    return;
+  }
+
+  unit = (char *)object_get_and_verify_type(param_1, 3);
+  out_encounter = -1;
+  out_squad = -1;
+  if (param_2 == -1) {
+    goto store_result;
+  }
+
+  scenario = (char *)global_scenario_get();
+  encounter_index = (short)param_2;
+  if (encounter_index < 0) {
+    goto store_result;
+  }
+  saved_encounter_index = (int)encounter_index;
+  if (saved_encounter_index >= *(int *)(scenario + 0x42c)) {
+    goto store_result;
+  }
+
+  squad_index = 0;
+  encounter_def = (encounter_definition *)tag_block_get_element(
+    (char *)global_scenario_get() + 0x42c, (unsigned short)param_2, 0xb0);
+
+  selector = (unsigned int)param_2 >> 0x1e;
+  switch (selector) {
+  case 0:
+    /* Encounter only: squad 0. */
+    break;
+  case 1:
+    /* Byte 2 is a squad *name* index; scan the squads block for the element
+     * whose name index (squad+0x22) matches. */
+    if (encounter_def->squads.count > 0) {
+      i = 0;
+      do {
+        squad = tag_block_get_element(&encounter_def->squads, i, 0xe8);
+        if (*(unsigned short *)((char *)squad + 0x22) ==
+            (unsigned short)*(unsigned char *)((char *)&param_2 + 2)) {
+          break;
+        }
+        squad_index = squad_index + 1;
+        i = (int)(short)squad_index;
+      } while (i < encounter_def->squads.count);
+    }
+    if ((int)(short)squad_index >= encounter_def->squads.count) {
+      /* No match: fall through with squad 0 (matches the original). */
+      squad_index = 0;
+    }
+    break;
+  case 2:
+    /* Byte 2 is a direct squad index. */
+    squad_index = (int)*(unsigned char *)((char *)&param_2 + 2);
+    break;
+  default:
+    display_assert("!\"unreachable\"", "c:\\halo\\SOURCE\\ai\\ai_script.c",
+                   0xc52, 1);
+    system_exit(-1);
+    break;
+  }
+
+  if ((short)squad_index < 0) {
+    goto store_result;
+  }
+  if ((int)(short)squad_index < encounter_def->squads.count) {
+    out_encounter = param_2;
+    out_squad = squad_index;
+    if (encounter_index != -1 && (short)squad_index != -1 &&
+        *(short *)(unit + 0x2e4) != -1) {
+      /* Re-bind the actors of the unit's PREVIOUS encounter that reference
+       * this unit.  actor_iter[1] is the current actor handle. */
+      encounter_actor_iterator_new(actor_iter, (int)*(short *)(unit + 0x2e4));
+      actor = encounter_actor_iterator_next(actor_iter);
+      while (actor != 0) {
+        if (*(int *)(actor + 0x158) == param_1) {
+          actor_change_encounter(actor_iter[1], saved_encounter_index,
+                                 (short)squad_index);
+        }
+        actor = encounter_actor_iterator_next(actor_iter);
+      }
+    }
+  }
+
+store_result:
+  *(short *)(unit + 0x2e4) = (short)out_encounter;
+  *(short *)(unit + 0x2e6) = (short)out_squad;
 }

@@ -1006,6 +1006,11 @@
       "expected": 0,
       "observed": 32
     },
+    "0x1e64ec": {
+      "name": "FUN_001e64ec",
+      "expected": 4,
+      "observed": 12
+    },
     "0x1e6a10": {
       "name": "D3DDevice_GetCreationParameters",
       "expected": 0,

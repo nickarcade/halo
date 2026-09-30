@@ -4086,7 +4086,7 @@ void angular_accelerate_to_position(float *facing, float *target_facing,
 }
 
 /* Move point param_1 toward point param_2 by at most max_length (vector clamp).
-   Computes delta = param_2 - param_1, asks FUN_000a57b0 to clamp its length to
+   Computes delta = param_2 - param_1, asks limit3d to clamp its length to
    max_length; if it clamped (returns nonzero), advances param_1 by the clamped
    delta and returns 0 (not arrived); otherwise snaps param_1 to param_2 and
    returns 1 (arrived). */
@@ -4097,7 +4097,7 @@ char accelerate_to_velocity3d(float *param_1, float *param_2, float max_length)
   delta[0] = param_2[0] - param_1[0];
   delta[1] = param_2[1] - param_1[1];
   delta[2] = param_2[2] - param_1[2];
-  if ((char)FUN_000a57b0(delta, max_length) != 0) {
+  if (limit3d((real_vector3d *)delta, max_length)) {
     param_1[0] = delta[0] + param_1[0];
     param_1[1] = delta[1] + param_1[1];
     param_1[2] = delta[2] + param_1[2];

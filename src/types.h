@@ -83,6 +83,17 @@ cs(real_vector2d, 0x8);
 co(real_vector2d, i, 0x0);
 co(real_vector2d, j, 0x4);
 
+/// size=0x8. PAL 2342 real_point2d. x at +0x00 / y at +0x04 from
+/// draw_bitmap_in_rect (0xe3e80): positions[0].x = (real)rect->x0 FST'd to
+/// EBP-0x44 and positions[0].y = (real)rect->y0 to EBP-0x40.
+typedef struct {
+  real x;                          ///< offset=0x00
+  real y;                          ///< offset=0x04
+} real_point2d;
+cs(real_point2d, 0x8);
+co(real_point2d, x, 0x0);
+co(real_point2d, y, 0x4);
+
 typedef struct real_point3d {
   real x;                          ///< offset=0x00
   real y;                          ///< offset=0x04
@@ -92,6 +103,22 @@ cs(real_point3d, 0xc);
 co(real_point3d, x, 0x0);
 co(real_point3d, y, 0x4);
 co(real_point3d, z, 0x8);
+
+typedef struct real_euler_angles2d {
+  real yaw;
+  real pitch;
+} real_euler_angles2d;
+cs(real_euler_angles2d, 0x08);
+co(real_euler_angles2d, pitch, 0x04);
+
+typedef struct real_euler_angles3d {
+  real yaw;
+  real pitch;
+  real roll;
+} real_euler_angles3d;
+cs(real_euler_angles3d, 0x0c);
+co(real_euler_angles3d, pitch, 0x04);
+co(real_euler_angles3d, roll, 0x08);
 
 typedef struct real_vector3d {
   real i;                          ///< offset=0x00
@@ -121,17 +148,50 @@ cs(real_plane3d, 0x10);
 co(real_plane3d, normal, 0x0);
 co(real_plane3d, d, 0xc);
 
+/* Scripted-camera state at 0x2ee5a0 (camera_scripting.c), written by the
+ * scripted_camera_* setters 0x84fe0..0x85350 and read by
+ * scripted_camera_update 0x853c0. Offsets/widths from those accesses;
+ * evidence: recovery/evidence/scripted_camera_globals.json. */
+typedef struct scripted_camera_globals {
+  boolean enabled;                 ///< offset=0x00
+  boolean first_update;            ///< offset=0x01
+  int16_t mode;                    ///< offset=0x02
+  int16_t camera_point_index;      ///< offset=0x04
+  uint8_t pad_06[2];               ///< offset=0x06  never observed accessed
+  real timer;                      ///< offset=0x08
+  real_point3d point;              ///< offset=0x0c
+  real_vector3d forward;           ///< offset=0x18
+  real_vector3d up;                ///< offset=0x24
+  real field_of_view;              ///< offset=0x30
+  int32_t relative_object_index;   ///< offset=0x34
+  int32_t animation_graph_index;   ///< offset=0x38
+  int16_t animation_index;         ///< offset=0x3c
+  uint8_t pad_3e[2];               ///< offset=0x3e  never observed accessed
+} scripted_camera_globals_t;
+cs(scripted_camera_globals_t, 0x40);
+co(scripted_camera_globals_t, first_update, 0x01);
+co(scripted_camera_globals_t, mode, 0x02);
+co(scripted_camera_globals_t, camera_point_index, 0x04);
+co(scripted_camera_globals_t, timer, 0x08);
+co(scripted_camera_globals_t, point, 0x0c);
+co(scripted_camera_globals_t, forward, 0x18);
+co(scripted_camera_globals_t, up, 0x24);
+co(scripted_camera_globals_t, field_of_view, 0x30);
+co(scripted_camera_globals_t, relative_object_index, 0x34);
+co(scripted_camera_globals_t, animation_graph_index, 0x38);
+co(scripted_camera_globals_t, animation_index, 0x3c);
+
+/* Default scripted-camera field of view (70 degrees; 0x3f9c61aa). */
+#define SCRIPTED_CAMERA_DEFAULT_FIELD_OF_VIEW 1.22173047f
+
 #define __int16 short
 #define __int8 char
 
 #pragma pack(1)
 
-/// size=0x0C
-typedef struct {
-  float x; ///< offset=0x00
-  float y; ///< offset=0x04
-  float z; ///< offset=0x08
-} vector3_t;
+/// size=0x0C.  Legacy name for real_point3d (same x/y/z floats); one type so
+/// a real_matrix4x3 position copies straight into a real_point3d.
+typedef real_point3d vector3_t;
 
 /// size=0x04
 typedef union {
@@ -352,11 +412,11 @@ typedef struct {
   uint32_t tag_index;       ///< offset=0x00
   uint32_t flags;           ///< offset=0x04  .text:00095B7B                 mov     [esi+4], ecx
   uint32_t marker_generation; ///< offset=0x08  .text:0013EC41 compared against global object_marker_generation
-  vector3_t unk_12;         ///< offset=0x0C
-  vector3_t unk_24;         ///< offset=0x18
-  vector3_t unk_36;         ///< offset=0x24
-  vector3_t unk_48;         ///< offset=0x30
-  vector3_t unk_60;         ///< offset=0x3C
+  vector3_t position;       ///< offset=0x0C
+  vector3_t translational_velocity; ///< offset=0x18
+  vector3_t forward;        ///< offset=0x24
+  vector3_t up;             ///< offset=0x30
+  vector3_t angular_velocity; ///< offset=0x3C
   uint32_t unk_72;          ///< offset=0x48  .text:00140149                 mov     edx, [ecx+48h] location.???, leaf index?
 
   // .text:00031FEE                 mov     edx, [eax+4Ch]  
@@ -370,11 +430,17 @@ typedef struct {
   float unk_96;             ///< offset=0x60  .text:00141E5B                 fld     dword ptr [esi+60h]
   int16_t type;             ///< offset=0x64  .text:0013D811                 movsx   ecx, word ptr [esi+64h] type enum
   int16_t unk_102;          ///< offset=0x66
-  int16_t unk_104;          ///< offset=0x68  .text:00032344                 movsx   eax, word ptr [eax+68h] team-related index
+  union {
+    int16_t unk_104;          ///< offset=0x68  .text:00032344                 movsx   eax, word ptr [eax+68h] team-related index
+    int16_t owner_team_index; ///< offset=0x68  object.owner_team_index (PAL 2342 props.c prop_add; read @0x642a9)
+  };
   int16_t unk_106;          ///< offset=0x6A
   int16_t unk_108;          ///< offset=0x6C  .text:000A8741                 cmp     [eax+6Ch], si
   int16_t unk_110;          ///< offset=0x6E  .text:0003EC0B                 cmp     word ptr [edi+6Eh], 64h
-  uint32_t unk_112;         ///< offset=0x70  .text:00143FFA                 mov     [edi+70h], edx
+  union {
+    uint32_t unk_112;         ///< offset=0x70  .text:00143FFA                 mov     [edi+70h], edx
+    int32_t owner_player_index; ///< offset=0x70  object.owner_player_index (PAL 2342 props.c prop_add; CMP -1 @0x64343)
+  };
   uint32_t unk_116;         ///< offset=0x74  .text:000348B6                 mov     eax, [ecx+74h]
   uint32_t unk_120;         ///< offset=0x78
   uint32_t unk_124;         ///< offset=0x7C  .text:00141C2B                 mov     eax, [esi+7Ch]
@@ -396,7 +462,10 @@ typedef struct {
 
   // 32-bit flags?
   int16_t unk_180;          ///< offset=0xB4  .text:00138775                 mov     [esi+0B4h], ax
-  int8_t unk_182;           ///< offset=0xB6  .text:00018832                 or      byte ptr [eax+0B6h], 40h
+  union {
+    int8_t unk_182;           ///< offset=0xB6  .text:00018832                 or      byte ptr [eax+0B6h], 40h
+    uint8_t damage_flags;     ///< offset=0xB6  object.damage_flags; bit 2 = _object_dead_bit (PAL 2342; SHR 2/AND 1 @0x642fc)
+  };
   int8_t unk_183;           ///< offset=0xB7  .text:0003B35D                 test    byte ptr [eax+0B7h], 1  ranged weapon
 
   uint32_t unk_184;         ///< offset=0xB8
@@ -461,6 +530,69 @@ enum equipment_powerup_type {
   _equipment_powerup_grenade = 6
 };
 
+/* ai_information_data — the 8-byte payload of an information packet;
+ * ai_communication_event (0x46f10) copies it as two dwords from its seventh
+ * argument, or csmemsets it to zero when that argument is NULL. */
+typedef union {
+  struct {
+    int16_t team1_index;              ///< offset=0x00
+    int16_t team2_index;              ///< offset=0x02
+    boolean broken;                   ///< offset=0x04
+  } allegiance;
+  int32_t prop_index;                 ///< offset=0x00  target-knowledge information
+  char raw[8];
+} ai_information_data_t;
+cs(ai_information_data_t, 0x8);
+
+/* ai_information_packet — the AI side of a unit speech item (unit+0x348 is
+ * the packet of the unit's current speech item).  Field names are T2 (PAL
+ * 2342 ai.h); every offset below is confirmed against 2276 code:
+ * ai_communication_finished (0x46530) fills a packet at EBP-0x40 with
+ * +0x00 dword, +0x04/+0x06/+0x08 words = -1, +0x0a byte = 1, +0x0c/+0x0e/
+ * +0x14 words = 0 and csmemset(+0x18, 0, 8); ai_communication_started
+ * (0x44fd0) reads +0x06 and +0x0a; ai_communication_notify (0x45290) reads
+ * +0x06, +0x0c, +0x14 (==1 allegiance) and +0x18/+0x1a/+0x1c.  size=0x20 */
+typedef struct {
+  int32_t target_unit_index;          ///< offset=0x00
+  int16_t communication_type;         ///< offset=0x04
+  int16_t dialogue_type_index;        ///< offset=0x06
+  int16_t damage_category;            ///< offset=0x08
+  boolean updated_dialogue_timers;    ///< offset=0x0a
+  char pad_0b[1];                     ///< offset=0x0b
+  int16_t look_priority;              ///< offset=0x0c
+  int16_t look_type;                  ///< offset=0x0e
+  int32_t look_unit_index;            ///< offset=0x10  unit or object handle, per look_type
+  int16_t information_type;           ///< offset=0x14
+  char pad_16[2];                     ///< offset=0x16
+  ai_information_data_t information_data; ///< offset=0x18
+} ai_information_packet_t;
+cs(ai_information_packet_t, 0x20);
+co(ai_information_packet_t, dialogue_type_index,     0x06);
+co(ai_information_packet_t, updated_dialogue_timers, 0x0a);
+co(ai_information_packet_t, look_unit_index,         0x10);
+co(ai_information_packet_t, information_type,        0x14);
+co(ai_information_packet_t, information_data,        0x18);
+
+/* unit_speech_item — one queued/current unit speech (unit+0x338 holds the
+ * current item).  Names T2 (PAL 2342 units.h); offsets confirmed by the
+ * EBP-0x50 record ai_communication_finished (0x46530) passes to unit_speak
+ * (0x1a6ef0): +0x00/+0x02 words, +0x04 dword, +0x08/+0x0a/+0x0c words,
+ * packet at +0x10.  size=0x30 */
+typedef struct {
+  int16_t priority;                   ///< offset=0x00
+  int16_t vocalization_type;          ///< offset=0x02
+  int32_t sound_definition_index;     ///< offset=0x04
+  int16_t delay_time;                 ///< offset=0x08
+  int16_t ai_notification_delay;      ///< offset=0x0a
+  int16_t pause_time;                 ///< offset=0x0c
+  char pad_0e[2];                     ///< offset=0x0e
+  ai_information_packet_t ai;         ///< offset=0x10
+} unit_speech_item_t;
+cs(unit_speech_item_t, 0x30);
+co(unit_speech_item_t, sound_definition_index, 0x04);
+co(unit_speech_item_t, pause_time,             0x0c);
+co(unit_speech_item_t, ai,                     0x10);
+
 // OBJE -> UNIT
 /// size=0x424
 typedef struct {
@@ -480,14 +612,14 @@ typedef struct {
   uint16_t unk_460;                   ///< offset=0x1CC .text:0004091B                 cmp     bx, [esi+1CCh]
   uint16_t unk_462;                   ///< offset=0x1CE .text:001A9B5E                 mov     [esi+1CEh], ax
   uint32_t unk_464;                   ///< offset=0x1D0 .text:00040924                 mov     ecx, [esi+1D0h] game time related
-  vector3_t unk_468;                  ///< offset=0x1D4 .text:001AF62B                 lea     ecx, [esi+1D4h]
+  vector3_t desired_facing_vector;   ///< offset=0x1D4 .text:001AF62B                 lea     ecx, [esi+1D4h]
   vector3_t unk_480;                  ///< offset=0x1E0 .text:001AF63E                 lea     edx, [esi+1E0h]
   vector3_t unk_492;                  ///< offset=0x1EC .text:001AF678                 lea     eax, [esi+1ECh]
   vector3_t unk_504;                  ///< offset=0x1F8 .text:001AF7E5                 fld     dword ptr [esi+1F8h]
   vector3_t unk_516;                  ///< offset=0x204 .text:001AF651                 lea     eax, [esi+204h]
   vector3_t unk_528;                  ///< offset=0x210 .text:001AF68B                 add     esi, 210h
   vector3_t unk_540;                  ///< offset=0x21C .text:001AF82F                 fld     dword ptr [esi+21Ch]
-  vector3_t unk_552;                  ///< offset=0x228 .text:001B39A3                 lea     edx, [ebx+228h]
+  vector3_t throttle;                 ///< offset=0x228 .text:001B39A3                 lea     edx, [ebx+228h]
   float unk_564;                      ///< offset=0x234 .text:001B387D                 mov     dword ptr [ebx+234h], 3F800000h
   uint8_t unk_568;                    ///< offset=0x238
   uint8_t unk_569;                    ///< offset=0x239 .text:001ABDB1                 mov     cl, [esi+239h]
@@ -557,8 +689,7 @@ typedef struct {
   uint32_t unk_736;                   ///< offset=0x2E0 .text:000BC220                 mov     [ebx+2E0h], eax  game time related
   uint16_t unk_740;                   ///< offset=0x2E4 .text:00057E26                 mov     ax, [eax+2E4h]   actor related
   uint16_t unk_742;                   ///< offset=0x2E6 .text:0003DF30                 mov     ax, [edi+2E6h]   squad related
-  float unk_744;                      ///< offset=0x2E8 .text:001A8078                 fld     dword ptr [esi+2E8h]
-  float unk_748;                      ///< offset=0x2EC .text:001A8085                 fld     dword ptr [esi+2ECh]
+  real seat_power[2];                 ///< offset=0x2E8 .text:001A8078/001A8085 fld [esi+2E8h]/[esi+2ECh]; vehicle_update seat-power gates
   float unk_752;                      ///< offset=0x2F0 .text:000D7F87                 cmp     dword ptr [ecx+2F0h], 3F800000h
   float unk_756;                      ///< offset=0x2F4 .text:000D7FAD                 fld     dword ptr [ecx+2F4h]
   float unk_760;                      ///< offset=0x2F8 .text:001B1337                 mov     dword ptr [edi+2F8h], 0  zoom-related?
@@ -621,6 +752,19 @@ typedef struct {
   char unk_992[0x10 * 4];             ///< offset=0x3E0
   uint32_t unk_1056;                  ///< offset=0x420
 } unit_data_t;
+
+/* 'unit' tag definition (struct unit_definition = _object_definition +
+ * _unit_definition in PAL 2342 units/unit_definitions.h).  Only the field
+ * read by 2276 code so far is modelled; the leading bytes and the total
+ * size are not verified.
+ *   +0x284 ai_danger_radius — prop_add @0x64307 copies it (MOV EDX,[ECX+0x284])
+ *          into prop->suicide_radius, matching PAL
+ *          `prop->suicide_radius = unit_definition->unit.ai_danger_radius`. */
+typedef struct unit_definition_t {
+  char pad_000[0x284];
+  real ai_danger_radius;                  /* +0x284 */
+} unit_definition_t;
+co(unit_definition_t, ai_danger_radius, 0x284);
 
 // OBJE -> ITEM
 /// size=0x1DC
@@ -769,6 +913,49 @@ typedef struct {
 cs(slayer_globals_t, 0x80);
 co(slayer_globals_t, team_scores,   0x00);
 co(slayer_globals_t, player_scores, 0x40);
+
+#define NUMBER_OF_CTF_TEAMS 2
+
+/* CTF engine globals (0x456b74). Size 0x30 is the csmemset length in
+ * ctf_initialize_for_new_map (0xb05c0). */
+/// size=0x30
+typedef struct {
+  void *flags[NUMBER_OF_CTF_TEAMS];            ///< offset=0x00 netgame flag elements (tag_block_get_element, 0x94 stride) in 0xb05c0
+  int32_t weapon_indices[NUMBER_OF_CTF_TEAMS]; ///< offset=0x08 flag object handles ("NONE != weapon_index") in 0xb05c0
+  int32_t scores[NUMBER_OF_CTF_TEAMS];         ///< offset=0x10 team scores (score text, 0xb0e50 compare)
+  int32_t score_to_win;                        ///< offset=0x18 variant score_limit copy in 0xb05c0
+  boolean flag_warnings[NUMBER_OF_CTF_TEAMS];  ///< offset=0x1c byte flags tested in 0xb0e50
+  uint8_t pad_1e[2];                           ///< offset=0x1e
+  int32_t flag_warning_ticks[NUMBER_OF_CTF_TEAMS]; ///< offset=0x20 counters in 0xb0e50
+  int32_t flag_swap_timer;                     ///< offset=0x28 variant field_50 countdown in 0xb0c10
+  int32_t next_flag_failure_time;              ///< offset=0x2c game-time deadline in FUN_000b00c0
+} ctf_globals_t;
+cs(ctf_globals_t, 0x30);
+co(ctf_globals_t, weapon_indices,         0x08);
+co(ctf_globals_t, scores,                 0x10);
+co(ctf_globals_t, score_to_win,           0x18);
+co(ctf_globals_t, flag_warnings,          0x1c);
+co(ctf_globals_t, flag_warning_ticks,     0x20);
+co(ctf_globals_t, flag_swap_timer,        0x28);
+co(ctf_globals_t, next_flag_failure_time, 0x2c);
+
+#define MAXIMUM_ODDBALLS 16
+
+/* Oddball engine globals (0x456e08). Size 0x104 is the csmemset length in
+ * oddball_engine_initialize_for_new_map (0xb2f00). */
+/// size=0x104
+typedef struct {
+  int32_t score_to_win;                        ///< offset=0x00 variant score_limit copy in 0xb2f00
+  int32_t team_score[MAXIMUM_ODDBALLS];        ///< offset=0x04
+  int32_t individual_score[MAXIMUM_ODDBALLS];  ///< offset=0x44
+  int32_t ball_spawn_timer[MAXIMUM_ODDBALLS];  ///< offset=0x84 countdowns in 0xb2f00/0xb33a0
+  int32_t current_ball_owner[MAXIMUM_ODDBALLS]; ///< offset=0xc4 player handles, NONE-filled in 0xb2f00
+} oddball_globals_t;
+cs(oddball_globals_t, 0x104);
+co(oddball_globals_t, team_score,         0x04);
+co(oddball_globals_t, individual_score,   0x44);
+co(oddball_globals_t, ball_spawn_timer,   0x84);
+co(oddball_globals_t, current_ball_owner, 0xc4);
 
 /// size=0x40
 typedef struct {
@@ -979,6 +1166,22 @@ typedef struct {
   vector3_t position; ///< offset=0x28
 } real_matrix4x3;
 cs(real_matrix4x3, 0x34);
+
+/// size=0x24. Three basis rows; the 3x3 matrix operand of the transpose
+/// (0x1099f0), multiply (0x109c70) and to-quaternion (0x10a330) helpers.
+typedef struct {
+  real_vector3d forward; ///< offset=0x00
+  real_vector3d left;    ///< offset=0x0c
+  real_vector3d up;      ///< offset=0x18
+} real_matrix3x3;
+cs(real_matrix3x3, 0x24);
+
+/// size=0x10. Vector part then scalar; identity is (0,0,0,1) (0x28cae8).
+typedef struct {
+  real_vector3d v; ///< offset=0x00
+  real w;          ///< offset=0x0c
+} real_quaternion;
+cs(real_quaternion, 0x10);
 co(real_matrix4x3, forward, 0x04);
 co(real_matrix4x3, position, 0x28);
 
@@ -1006,6 +1209,18 @@ typedef struct {
   real blue;  ///< offset=0x0c
 } real_argb_color;
 cs(real_argb_color, 0x10);
+
+/// size=0xC. global_real_rgb_white (0x2ee708) points at {1,1,1}; lightning_submit
+/// (0x135510) multiplies red/green/blue from +0x0/+0x4/+0x8 and indexes
+/// render_animation colors with stride 0xC (LEA EAX,[EAX+EAX*2]; [ECX+EAX*4-0xC]).
+typedef struct {
+  real red;   ///< offset=0x00
+  real green; ///< offset=0x04
+  real blue;  ///< offset=0x08
+} real_rgb_color;
+cs(real_rgb_color, 0xc);
+co(real_rgb_color, green, 0x04);
+co(real_rgb_color, blue, 0x08);
 co(camera_t, field_00, 0x00);
 co(camera_t, field_0c, 0x0c);
 co(camera_t, field_18, 0x18);
@@ -1014,6 +1229,64 @@ co(camera_t, viewport_bounds, 0x2c);
 co(camera_t, z_near, 0x3c);
 co(camera_t, z_far, 0x40);
 co(camera_t, field_44, 0x44);
+
+/// size=0x14. One screen-space vertex handed to rasterizer_sprites_render
+/// (0x17cfa0). Offsets from draw_bitmap_in_rect (0xe3e80): position copied to
+/// [ECX-8]/[ECX-4], texture coordinates FSTP'd to [ECX]/[ECX+4], color to
+/// [ECX+8], stride ADD ECX,0x14. Names from PAL 2342 dynamic_screen_vertex.
+typedef struct {
+  real_point2d position;            ///< offset=0x00 screen x, y
+  real_point2d texture_coordinates; ///< offset=0x08 u, v
+  uint32_t color;                   ///< offset=0x10 pixel32 argb
+} dynamic_screen_vertex_t;
+cs(dynamic_screen_vertex_t, 0x14);
+co(dynamic_screen_vertex_t, position, 0x00);
+co(dynamic_screen_vertex_t, texture_coordinates, 0x08);
+co(dynamic_screen_vertex_t, color, 0x10);
+
+/// size=0x8c (csmemset size in draw_bitmap_in_rect 0xe3e80). Parameter block
+/// for rasterizer_sprites_render (0x17cfa0). Every named offset is a store
+/// observed in draw_bitmap_in_rect (params base EBP-0xec); names follow PAL
+/// 2342 rasterizer_dynamic_screen_geometry_parameters. pad_ bytes were not
+/// observed accessed there.
+typedef struct {
+  void *meter_parameters;              ///< offset=0x00
+  uint8_t pad_04[4];                   ///< offset=0x04
+  uint8_t map_wrapped[2];              ///< offset=0x08
+  uint8_t pad_0a[2];                   ///< offset=0x0a
+  void *map[3];                        ///< offset=0x0c bitmap_data pointers
+  uint8_t map_anchor_screen[2];        ///< offset=0x18
+  uint8_t pad_1a[2];                   ///< offset=0x1a
+  real_point2d *map_offset[2];         ///< offset=0x1c
+  uint8_t pad_24[4];                   ///< offset=0x24
+  real_vector2d map_scale[3];          ///< offset=0x28
+  real_vector2d map_texture_scale[3];  ///< offset=0x40
+  real *map_tint[2];                   ///< offset=0x58 -> real[3] rgb
+  uint8_t pad_60[4];                   ///< offset=0x60
+  real_argb_color plasma_fade;         ///< offset=0x64
+  uint8_t doing_plasma_effect;         ///< offset=0x74
+  uint8_t pad_75[3];                   ///< offset=0x75
+  real *map_fade[3];                   ///< offset=0x78
+  int16_t map0_to_1_blend_function;    ///< offset=0x84
+  int16_t map1_to_2_blend_function;    ///< offset=0x86
+  int16_t framebuffer_blend_function;  ///< offset=0x88
+  uint8_t point_sampled;               ///< offset=0x8a
+  uint8_t pad_8b[1];                   ///< offset=0x8b
+} rasterizer_dynamic_screen_geometry_parameters_t;
+cs(rasterizer_dynamic_screen_geometry_parameters_t, 0x8c);
+co(rasterizer_dynamic_screen_geometry_parameters_t, map_wrapped, 0x08);
+co(rasterizer_dynamic_screen_geometry_parameters_t, map, 0x0c);
+co(rasterizer_dynamic_screen_geometry_parameters_t, map_anchor_screen, 0x18);
+co(rasterizer_dynamic_screen_geometry_parameters_t, map_offset, 0x1c);
+co(rasterizer_dynamic_screen_geometry_parameters_t, map_scale, 0x28);
+co(rasterizer_dynamic_screen_geometry_parameters_t, map_texture_scale, 0x40);
+co(rasterizer_dynamic_screen_geometry_parameters_t, map_tint, 0x58);
+co(rasterizer_dynamic_screen_geometry_parameters_t, plasma_fade, 0x64);
+co(rasterizer_dynamic_screen_geometry_parameters_t, doing_plasma_effect, 0x74);
+co(rasterizer_dynamic_screen_geometry_parameters_t, map_fade, 0x78);
+co(rasterizer_dynamic_screen_geometry_parameters_t, map0_to_1_blend_function, 0x84);
+co(rasterizer_dynamic_screen_geometry_parameters_t, framebuffer_blend_function, 0x88);
+co(rasterizer_dynamic_screen_geometry_parameters_t, point_sampled, 0x8a);
 
 /// size=0x18c. Recovered from render_camera_build_frustum (0x187250).
 typedef struct {
@@ -1082,15 +1355,65 @@ typedef struct
   char              unk_148[24]; ///< offset=0x94
 } window_t;
 
-// FIXME: Structure size
-/// size=0xF0
+/* Tag block header; evidence comment lives at its former site below. */
+typedef struct tag_block {
+    int32_t  count;      /* +0x00: element count (evidence: "encounter_definition->squads.count" assert, encounters.c:0x5a4) */
+    void    *address;    /* +0x04: element array base (block ptr passed to tag_block_get_element) */
+    int32_t  field_08;   /* +0x08: block definition ptr; no runtime access observed */
+} tag_block;
+cs(tag_block, 0xc);
+
+/* 'antr' animation-graph tag: only the node and animation blocks at
+ * +0x68/+0x74 are proven (scripted_camera_set_animation 0x85000 tests
+ * nodes.count == 1, then walks animations with element size 0xb4). */
+typedef struct {
+  uint8_t pad_00[0x68];                    ///< offset=0x00  not accessed here
+  tag_block nodes;                         ///< offset=0x68
+  tag_block animations;                    ///< offset=0x74
+} animation_graph_t;
+#define ANIMATION_GRAPH_TAG 0x616e7472 /* 'antr' */
+co(animation_graph_t, nodes, 0x68);
+co(animation_graph_t, animations, 0x74);
+
+/* animation_graph_t::animations element; stride 0xb4 from the
+ * tag_block_get_element calls in 0x85000 / 0x853c0. */
+typedef struct {
+  char name[0x20];                         ///< offset=0x00  crt_stricmp key
+  uint8_t pad_20[2];                       ///< offset=0x20  not accessed here
+  int16_t frame_count;                     ///< offset=0x22  MOVSX in 0x85000
+  uint8_t pad_24[0x90];                    ///< offset=0x24  not accessed here
+} animation_t;
+cs(animation_t, 0xb4);
+co(animation_t, frame_count, 0x22);
+
+/* scenario_t::cutscene_camera_points element; stride 0x68 from
+ * scripted_camera_set (0x85180). */
+typedef struct {
+  uint8_t pad_00[0x28];                    ///< offset=0x00  not accessed here
+  real_point3d position;                   ///< offset=0x28
+  real orientation[3];                     ///< offset=0x34  euler angles
+  real field_of_view;                      ///< offset=0x40
+  uint8_t pad_44[0x24];                    ///< offset=0x44  not accessed here
+} scenario_cutscene_camera_point_t;
+cs(scenario_cutscene_camera_point_t, 0x68);
+co(scenario_cutscene_camera_point_t, position, 0x28);
+co(scenario_cutscene_camera_point_t, orientation, 0x34);
+co(scenario_cutscene_camera_point_t, field_of_view, 0x40);
+
+/* Scenario tag; size unproven (only offsets up to 0x5b0 accessed). */
 typedef struct
 {
   _BYTE unk_0[60];   ///< offset=0x00
   _WORD type;        ///< offset=0x3C
   _BYTE unk_62[174]; ///< offset=0x3E
   int   unk_236;     ///< offset=0xEC
+  _BYTE unk_240[0x400];                ///< offset=0xF0
+  struct tag_block cutscene_camera_points; ///< offset=0x4F0  element 0x68, scripted_camera_set
+  uint8_t pad_4fc[0xa8];                   ///< offset=0x4fc
+  struct tag_block structure_bsp_references; ///< offset=0x5a4  element 0x20 (scenario_structure_bsp_reference_t), 0x18e480
 } scenario_t;
+co(scenario_t, cutscene_camera_points, 0x4f0);
+co(scenario_t, structure_bsp_references, 0x5a4);
 
 // FIXME: Merge adjacent globals into this structure
 /// size=0x01
@@ -1394,22 +1717,178 @@ co(path_destination_t, field_08, 0x08);
 co(path_destination_t, field_0c, 0x0c);
 co(path_destination_t, dest_node, 0x10);
 co(path_destination_t, orders_ignore_target_object_index, 0x14);
-/* prop_t — an element of the "prop" data_t pool (0x138 = 312 bytes).
- * Confirmed: props_initialize at 0x64100 allocates pool with element size 0x138.
- * Offsets confirmed:
- *   unit_index at +0x18 (read by actor_move_to_prop @0x2d9da)
- *   vehicle_index at +0x110 (read by actor_move_to_prop @0x2d9dc)
+/* prop_t — struct prop_datum, an element of the "prop" data_t pool
+ * (0x138 = 312 bytes; props_initialize @0x64100 allocates 0x300 x 0x138).
+ *
+ * Field names and order: PAL 2342 source/ai/props.h `struct prop_datum`
+ * (tier T2).  Offsets are 2276-binary evidence, cross-checked against the
+ * stores in prop_add (0x64170) and prop_setup_orphan (0x647c0):
+ *   +0x04/+0x08/+0x0c/+0x18/+0x1c/+0x66/+0x6a/+0x6c/+0x70/+0x74/+0x7c/+0x8c/
+ *   +0xa0/+0xb0/+0xb4/+0xb8 initialised by prop_add; +0x24 = 4
+ *   (_prop_state_uninspected_orphan), +0x3a = 900 (30 s), +0x40 =
+ *   body_position(+0xbc) - last_perceived_body_position(+0x80), +0xd4
+ *   velocity and +0x123 quantized_speed written by prop_setup_orphan.
+ *   Asserts in props.c name owner_actor_index, orphan_prop_index and
+ *   parent_prop_index (both at +0x0c).  actor_move_to_prop reads +0x18 and
+ *   +0x110.  Fields not listed here are PAL-placed, not yet observed in 2276.
  */
+/* prop_t.state values — PAL 2342 source/ai/props.h (T2).  2276 evidence:
+ * prop_setup_orphan stores 4; prop_new_unacknowledged skips 4..5 (orphans);
+ * actor_perception_become_acknowledged tests 2..3 and stores 3. */
+enum prop_state {
+  _prop_state_unacknowledged = 0,
+  _prop_state_becoming_acknowledged = 1,
+  _prop_state_becoming_unacknowledged = 2,
+  _prop_state_acknowledged = 3,
+  _prop_state_uninspected_orphan = 4,
+  _prop_state_inspected_orphan = 5
+};
 typedef struct prop_t {
-  char pad_00[0x18];
-  int32_t unit_index;                                /* +0x018 */
-  char pad_1c[0xf4];
-  int32_t vehicle_index;                             /* +0x110 */
-  char pad_114[0x24];
+  int16_t identifier;                     /* +0x000 datum salt */
+  char pad_002[0x2];
+  int32_t owner_actor_index;              /* +0x004 */
+  int32_t next_prop_index;                /* +0x008 actor prop-chain link */
+  union {
+    int32_t orphan_prop_index;            /* +0x00c */
+    int32_t parent_prop_index;            /* +0x00c */
+  };
+  int16_t type;                           /* +0x010 */
+  int16_t team_index;                     /* +0x012 */
+  boolean swarm;                          /* +0x014 */
+  char pad_015[0x3];
+  int32_t unit_index;                     /* +0x018 */
+  int32_t actor_index;                    /* +0x01c */
+  real suicide_radius;                    /* +0x020 */
+  int16_t state;                          /* +0x024 enum prop_state */
+  int16_t timer;                          /* +0x026 */
+  int32_t swarm_unit_selected_time;       /* +0x028 */
+  real awareness;                         /* +0x02c */
+  int16_t perception;                     /* +0x030 */
+  int16_t visibility;                     /* +0x032 */
+  int16_t audibility;                     /* +0x034 */
+  int16_t ineffability;                   /* +0x036 */
+  int16_t line_of_sight;                  /* +0x038 */
+  int16_t orphan_lifespan_ticks;          /* +0x03a */
+  int16_t orphan_inspection_ticks;        /* +0x03c */
+  char pad_03e[0x2];
+  real_vector3d orphan_hint_vector;       /* +0x040 */
+  int16_t ticks_until_orphan;             /* +0x04c */
+  boolean orphan_corpse_cheated;          /* +0x04e */
+  char pad_04f[0x1];
+  real target_weight;                     /* +0x050 */
+  real look_interest;                     /* +0x054 */
+  real last_idle_look_interest;           /* +0x058 */
+  int32_t last_idle_look_time;            /* +0x05c */
+  boolean enemy;                          /* +0x060 */
+  boolean ally;                           /* +0x061 */
+  boolean ally_status_changed;            /* +0x062 */
+  boolean in_use;                         /* +0x063 */
+  boolean refresh_stimuli;                /* +0x064 */
+  char pad_065[0x1];
+  int16_t unit_effect;                    /* +0x066 */
+  int16_t unit_effect_decay_ticks;        /* +0x068 */
+  int16_t required_ticks;                 /* +0x06a */
+  int16_t ticks_since_damage;             /* +0x06c */
+  char pad_06e[0x2];
+  real damage_inflicted_on_me;            /* +0x070 */
+  boolean currently_damaging_me;          /* +0x074 */
+  char pad_075[0x1];
+  int16_t dead_ticks;                     /* +0x076 */
+  int16_t visible_ticks;                  /* +0x078 */
+  char pad_07a[0x2];
+  int32_t last_perceived_time;            /* +0x07c */
+  real_point3d last_perceived_body_position; /* +0x080 */
+  int32_t last_visible_time;              /* +0x08c */
+  real_point3d last_visible_head_position; /* +0x090 */
+  int16_t unreachable_ticks;              /* +0x09c */
+  char pad_09e[0x2];
+  int32_t last_unreachable_time;          /* +0x0a0 */
+  boolean unopposable_enemy;              /* +0x0a4 */
+  char pad_0a5[0x1];
+  int16_t unopposable_casualties_inflicted; /* +0x0a6 */
+  int16_t unopposable_casualty_decay_timer; /* +0x0a8 */
+  int16_t unopposable_trigger_hysteresis; /* +0x0aa */
+  int16_t unopposable_trigger_timer;      /* +0x0ac */
+  int16_t unopposable_trigger_threshold;  /* +0x0ae */
+  int16_t ticks_since_definitely_located; /* +0x0b0 */
+  char pad_0b2[0x2];
+  int32_t definite_knowledge_source_actor; /* +0x0b4 */
+  boolean definitely_located;             /* +0x0b8 */
+  boolean tried_to_uncover;               /* +0x0b9 */
+  boolean tried_to_search;                /* +0x0ba */
+  boolean abandoned_search;               /* +0x0bb */
+  real_point3d body_position;             /* +0x0bc */
+  real_point3d center_of_mass;            /* +0x0c8 */
+  real_vector3d velocity;                 /* +0x0d4 */
+  real_vector3d actor_to_prop;            /* +0x0e0 */
+  int32_t pathfinding_surface_index;      /* +0x0ec */
+  real_point3d pathfinding_point;         /* +0x0f0 */
+  int32_t body_location_leaf_index;       /* +0x0fc struct location */
+  int16_t body_location_cluster_index;    /* +0x100 */
+  int16_t body_location_bonus;            /* +0x102 */
+  real_point3d head_position;             /* +0x104 */
+  int32_t vehicle_index;                  /* +0x110 */
+  int32_t attached_to_unit_index;         /* +0x114 */
+  boolean underwater;                     /* +0x118 */
+  char pad_119[0x3];
+  real distance;                          /* +0x11c */
+  char lighting;                          /* +0x120 */
+  char quantized_distance;                /* +0x121 */
+  char quantized_facing;                  /* +0x122 */
+  char quantized_speed;                   /* +0x123 */
+  char quantized_closing_speed;           /* +0x124 */
+  char child_units_attached;              /* +0x125 */
+  boolean delay_requirement_decision;     /* +0x126 */
+  boolean dead;                           /* +0x127 */
+  boolean really_dead;                    /* +0x128 */
+  boolean just_killed;                    /* +0x129 */
+  boolean just_became_visible;            /* +0x12a */
+  boolean noncombat;                      /* +0x12b */
+  boolean in_combat;                      /* +0x12c */
+  boolean fighting;                       /* +0x12d */
+  boolean player;                         /* +0x12e */
+  boolean shooting;                       /* +0x12f */
+  boolean flying;                         /* +0x130 */
+  boolean active_camouflage;              /* +0x131 */
+  boolean flashlight;                     /* +0x132 */
+  boolean ignore;                         /* +0x133 */
+  boolean preferred_target;               /* +0x134 */
+  boolean vehicle_gunner;                 /* +0x135 */
+  boolean dangerous_vehicle_driver;       /* +0x136 */
+  char pad_137[0x1];
 } prop_t;
 cs(prop_t, 0x138);
+co(prop_t, owner_actor_index, 0x004);
+co(prop_t, next_prop_index, 0x008);
+co(prop_t, orphan_prop_index, 0x00c);
+co(prop_t, team_index, 0x012);
 co(prop_t, unit_index, 0x018);
+co(prop_t, actor_index, 0x01c);
+co(prop_t, state, 0x024);
+co(prop_t, orphan_lifespan_ticks, 0x03a);
+co(prop_t, orphan_hint_vector, 0x040);
+co(prop_t, orphan_corpse_cheated, 0x04e);
+co(prop_t, enemy, 0x060);
+co(prop_t, unit_effect, 0x066);
+co(prop_t, ticks_since_damage, 0x06c);
+co(prop_t, damage_inflicted_on_me, 0x070);
+co(prop_t, dead_ticks, 0x076);
+co(prop_t, last_perceived_time, 0x07c);
+co(prop_t, last_perceived_body_position, 0x080);
+co(prop_t, last_visible_time, 0x08c);
+co(prop_t, last_unreachable_time, 0x0a0);
+co(prop_t, ticks_since_definitely_located, 0x0b0);
+co(prop_t, definite_knowledge_source_actor, 0x0b4);
+co(prop_t, definitely_located, 0x0b8);
+co(prop_t, tried_to_uncover, 0x0b9);
+co(prop_t, body_position, 0x0bc);
+co(prop_t, velocity, 0x0d4);
 co(prop_t, vehicle_index, 0x110);
+co(prop_t, distance, 0x11c);
+co(prop_t, quantized_speed, 0x123);
+co(prop_t, dead, 0x127);
+co(prop_t, really_dead, 0x128);
+co(prop_t, player, 0x12e);
 
 /* ---------------------------------------------------------------------------
  * actor_t — an element of the "actor" data_t pool.
@@ -1445,7 +1924,10 @@ co(prop_t, vehicle_index, 0x110);
 typedef struct {
   int16_t salt;                                       /* +0x000  data_t pool convention: 16-bit datum salt at element +0 */
   char pad_002[0x2];
-  int16_t field_004;                                 /* +0x004  accessed 5x, meaning unproven */
+  union {
+    int16_t field_004;                                 /* +0x004  accessed 5x, meaning unproven */
+    int16_t meta_type;                                 /* +0x004  actor->meta.type (PAL 2342 actors.h actor_meta_data; read by prop_add @0x6439b) */
+  };
   char field_006;                                    /* +0x006  accessed 7x, meaning unproven */
   char field_007;                                    /* +0x007  accessed 1x, meaning unproven */
   char field_008;                                    /* +0x008  accessed 7x, meaning unproven */
@@ -1475,7 +1957,10 @@ typedef struct {
   int16_t field_038;                                 /* +0x038  accessed 1x, meaning unproven */
   int16_t field_03a;                                 /* +0x03a  accessed 1x, meaning unproven */
   int16_t field_03c;                                 /* +0x03c  accessed 1x, meaning unproven */
-  int16_t field_03e;                                 /* +0x03e  accessed 5x, meaning unproven */
+  union {
+    int16_t field_03e;                                 /* +0x03e  accessed 5x, meaning unproven */
+    int16_t meta_team_index;                           /* +0x03e  actor->meta.team_index (PAL 2342; game_team_is_* arg in prop_add @0x642b7) */
+  };
   char field_040;                                    /* +0x040  accessed 4x, meaning unproven */
   char pad_041[0x3];
   int32_t field_044;                                 /* +0x044  accessed 2x, meaning unproven */
@@ -1484,7 +1969,10 @@ typedef struct {
   char field_04c;                                    /* +0x04c  accessed 9x, meaning unproven */
   char pad_04d[0x1];
   int16_t field_04e;                                 /* +0x04e  accessed 5x, meaning unproven */
-  int32_t field_050;                                 /* +0x050  accessed 4x, meaning unproven */
+  union {
+    int32_t field_050;                                 /* +0x050  accessed 4x, meaning unproven */
+    int32_t meta_first_prop_index;                     /* +0x050  actor->meta.first_prop_index: prop chain head (PAL 2342; written by prop_add @0x643b8) */
+  };
   int32_t field_054;                                 /* +0x054  accessed 1x, meaning unproven */
   int32_t field_058;                                 /* +0x058  accessed 23x, meaning unproven */
   int32_t field_05c;                                 /* +0x05c  accessed 4x, meaning unproven */
@@ -1570,9 +2058,14 @@ typedef struct {
   int32_t field_10c;                                 /* +0x10c  accessed 1x, meaning unproven */
   char field_110;                                    /* +0x110  accessed 2x, meaning unproven */
   char pad_111[0xf];
-  float field_120;                                   /* +0x120  accessed 1x, meaning unproven */
-  float field_124;                                   /* +0x124  accessed 1x, meaning unproven */
-  float field_128;                                   /* +0x128  accessed 3x, meaning unproven */
+  union {
+    struct {
+      float field_120;                                   /* +0x120  accessed 1x, meaning unproven */
+      float field_124;                                   /* +0x124  accessed 1x, meaning unproven */
+      float field_128;                                   /* +0x128  accessed 3x, meaning unproven */
+    };
+    real_point3d head_position;                      /* +0x120  actor->input.position.head_position (PAL 2342); weapon_aim origin @0x23422 */
+  };
   union {
     struct {
       float field_12c;                               /* +0x12c  accessed 1x, meaning unproven */
@@ -1589,8 +2082,14 @@ typedef struct {
     int32_t field_158;                                 /* +0x158  accessed 10x, meaning unproven */
     int32_t vehicle_index;                             /* +0x158  actor->input.vehicle_index */
   };
-  char field_15c;                                    /* +0x15c  accessed 3x, meaning unproven */
-  char field_15d;                                    /* +0x15d  accessed 2x, meaning unproven */
+  union {
+    char field_15c;                                    /* +0x15c  accessed 3x, meaning unproven */
+    boolean input_in_midair;                           /* +0x15c  actor->input.in_midair (PAL 2342); _firing_not_in_midair test @0x234ad */
+  };
+  union {
+    char field_15d;                                    /* +0x15d  accessed 2x, meaning unproven */
+    boolean input_underwater;                          /* +0x15d  actor->input.underwater (PAL 2342); _firing_underwater test @0x2354a */
+  };
   int16_t field_15e;                                 /* +0x15e  accessed 6x, meaning unproven */
   char field_160;                                    /* +0x160  accessed 17x, meaning unproven */
   char field_161;                                    /* +0x161  accessed 2x, meaning unproven */
@@ -1625,7 +2124,8 @@ typedef struct {
   char pad_1cd[0x3];
   int32_t field_1d0;                                 /* +0x1d0  accessed 3x, meaning unproven */
   int16_t field_1d4;                                 /* +0x1d4  accessed 1x, meaning unproven */
-  char pad_1d6[0x6];
+  char pad_1d6[0x2];
+  uint32_t field_1d8;                                /* +0x1d8  prop_status_refresh @0x33562: -1 test, low word vs encounter, >>30 selector, byte +0x1da */
   int32_t field_1dc;                                 /* +0x1dc  accessed 6x, meaning unproven */
   int32_t field_1e0;                                 /* +0x1e0  accessed 2x, meaning unproven */
   int16_t field_1e4;                                 /* +0x1e4  accessed 6x, meaning unproven */
@@ -1659,7 +2159,7 @@ typedef struct {
   char pad_282[0x2];
   int16_t field_284;                                 /* +0x284  accessed 1x, meaning unproven */
   char field_286;                                    /* +0x286  accessed 1x, meaning unproven */
-  char field_287;                                    /* +0x287  accessed 2x, meaning unproven */
+  char danger_zone_noticed_danger;                    /* +0x287  assert text 0x254e08 @0x24d86 */
   char field_288;                                    /* +0x288  accessed 5x, meaning unproven */
   char pad_289[0x1];
   char field_28a;                                    /* +0x28a  accessed 1x, meaning unproven */
@@ -1838,7 +2338,8 @@ typedef struct {
   int32_t field_458;                                 /* +0x458  accessed 1x, meaning unproven */
   char field_45c;                                    /* +0x45c  accessed 1x, meaning unproven */
   char field_45d;                                    /* +0x45d  accessed 2x, meaning unproven */
-  char pad_45e[0xe];
+  char pad_45e[0x2];
+  real_point3d orders_combat_target_point;          /* +0x460  actor->orders.combat.target_point (PAL 2342); copied to +0x610 @0x22fb0 */
   union {
     struct {
       int16_t field_46c;                             /* +0x46c  accessed 2x, meaning unproven */
@@ -1870,11 +2371,15 @@ typedef struct {
   int8_t field_4c1;                                  /* +0x4c1  accessed 2x, meaning unproven */
   int8_t field_4c2;                                  /* +0x4c2  accessed 3x, meaning unproven */
   char pad_4c3[0x41];
-  char field_504;                                    /* +0x504  accessed 10x, meaning unproven */
+  union {
+    char field_504;                                    /* +0x504  accessed 10x, meaning unproven */
+    boolean control_moving;                            /* +0x504  actor->control.moving (PAL 2342); _firing_not_stationary test @0x23526 */
+  };
   char field_505;                                    /* +0x505  accessed 1x, meaning unproven */
   char field_506;                                    /* +0x506  accessed 8x, meaning unproven */
   char field_507;                                    /* +0x507  accessed 1x, meaning unproven */
-  char pad_508[0x2];
+  boolean control_crouching;                         /* +0x508  actor->control.crouching (PAL 2342); _firing_not_crouching test @0x234e3 */
+  char pad_509[0x1];
   int16_t field_50a;                                 /* +0x50a  accessed 1x, meaning unproven */
   float field_50c;                                   /* +0x50c  accessed 3x, meaning unproven */
   float field_510;                                   /* +0x510  accessed 3x, meaning unproven */
@@ -1948,53 +2453,139 @@ typedef struct {
     int16_t control_vector_avoidance_sharp_turn_timer; /* +0x5f0  actor->control.vector_avoidance_sharp_turn_timer */
   };
   int16_t control_fire_state;                         /* +0x5f2  MOVSX from word [EBX+0x5f2] @0x237d7, 5-case jump table */
-  int16_t field_5f4;                                 /* +0x5f4  accessed 1x, meaning unproven */
-  int16_t field_5f6;                                 /* +0x5f6  accessed 1x, meaning unproven */
-  int16_t field_5f8;                                 /* +0x5f8  accessed 1x, meaning unproven */
-  int16_t field_5fa;                                 /* +0x5fa  accessed 1x, meaning unproven */
-  char field_5fc;                                    /* +0x5fc  accessed 2x, meaning unproven */
-  char pad_5fd[0x3];
+  union {
+    int16_t field_5f4;                                 /* +0x5f4  accessed 1x, meaning unproven */
+    int16_t control_fire_state_timer;                  /* +0x5f4  actor->control.fire_state_timer (PAL 2342); decremented @0x22e7f */
+  };
+  union {
+    int16_t field_5f6;                                 /* +0x5f6  accessed 1x, meaning unproven */
+    int16_t control_burst_disable_timer;               /* +0x5f6  actor->control.burst_disable_timer (PAL 2342); _firing_disabled test @0x23471 */
+  };
+  union {
+    int16_t field_5f8;                                 /* +0x5f8  accessed 1x, meaning unproven */
+    int16_t control_trigger_delay_timer;               /* +0x5f8  actor->control.trigger_delay_timer (PAL 2342); set from 30/rof @0x23f63 */
+  };
+  union {
+    int16_t field_5fa;                                 /* +0x5fa  accessed 1x, meaning unproven */
+    int16_t control_blocked_communication_timer;       /* +0x5fa  actor->control.blocked_communication_timer (PAL 2342); compared to 0x2d @0x23e3b */
+  };
+  union {
+    struct {
+      char field_5fc;                                    /* +0x5fc  accessed 2x, meaning unproven */
+      char pad_5fd[0x3];
+    };
+    struct {
+      int16_t control_special_fire_delay;           /* +0x5fc  actor->control.special_fire_delay (PAL 2342); word store @0x23199 */
+      int16_t control_special_fire_deny_attempts;   /* +0x5fe  actor->control.special_fire_deny_attempts (PAL 2342); word store @0x231dc */
+    };
+  };
   char field_600;                                    /* +0x600  accessed 2x, meaning unproven */
   char field_601;                                    /* +0x601  accessed 2x, meaning unproven */
-  char field_602;                                    /* +0x602  accessed 1x, meaning unproven */
-  char field_603;                                    /* +0x603  accessed 2x, meaning unproven */
-  char field_604;                                    /* +0x604  accessed 4x, meaning unproven */
+  union {
+    char field_602;                                    /* +0x602  accessed 1x, meaning unproven */
+    boolean control_overcharging_weapon;               /* +0x602  actor->control.overcharging_weapon (PAL 2342); set @0x23231 */
+  };
+  union {
+    char field_603;                                    /* +0x603  accessed 2x, meaning unproven */
+    boolean control_fire_burst_secondary;              /* +0x603  actor->control.fire_burst_secondary (PAL 2342); weapon_aim trigger arg @0x23d2a */
+  };
+  union {
+    char field_604;                                    /* +0x604  accessed 4x, meaning unproven */
+    boolean control_next_burst_secondary;              /* +0x604  actor->control.next_burst_secondary (PAL 2342); set @0x231f0 */
+  };
   char pad_605[0x3];
-  float field_608;                                   /* +0x608  accessed 3x, meaning unproven */
+  union {
+    float field_608;                                   /* +0x608  accessed 3x, meaning unproven */
+    real control_weapon_maximum_range;                 /* +0x608  actor->control.weapon_maximum_range (PAL 2342); stored @0x22ff4 */
+  };
   int16_t control_current_fire_target_type;           /* +0x60c  CMP word [ESI+0x60c],1 @0x22032; ESI from datum_get on ACTOR_TABLE_PTR @0x22013 */
   char pad_60e[0x2];
-  int32_t control_current_fire_target_prop_index;     /* +0x610  MOV [EBX+0x610],EAX after CMP EAX,-1 @0x22f52-0x22f55 */
-  float field_614;                                   /* +0x614  accessed 1x, meaning unproven */
-  float field_618;                                   /* +0x618  accessed 1x, meaning unproven */
-  int32_t field_61c;                                 /* +0x61c  accessed 1x, meaning unproven */
-  char pad_620[0x8];
-  char field_628;                                    /* +0x628  accessed 1x, meaning unproven */
+  union {
+    struct {
+      int32_t control_current_fire_target_prop_index;     /* +0x610  MOV [EBX+0x610],EAX after CMP EAX,-1 @0x22f52-0x22f55 */
+      float field_614;                                   /* +0x614  accessed 1x, meaning unproven */
+      float field_618;                                   /* +0x618  accessed 1x, meaning unproven */
+    };
+    real_point3d control_current_fire_target_manual_point; /* +0x610  actor->control.current_fire_target_manual_point (PAL 2342); 3-dword copy @0x22fb0 */
+  };
+  union {
+    int32_t field_61c;                                 /* +0x61c  accessed 1x, meaning unproven */
+    int32_t control_current_fire_target_timer;         /* +0x61c  actor->control.current_fire_target_timer (PAL 2342); INC @0x22ed5, % 10 @0x23353 */
+  };
+  boolean control_current_fire_target_visible;       /* +0x620  actor->control.current_fire_target_visible (PAL 2342); store @0x235ee */
+  boolean control_current_fire_target_underwater;    /* +0x621  PAL 2342 name; store @0x232a5 */
+  boolean control_current_fire_target_superballistic; /* +0x622  PAL 2342 name; weapon_aim arg 5 @0x2341a */
+  boolean control_current_fire_target_bombardment;   /* +0x623  PAL 2342 name; store @0x2340a */
+  boolean control_current_fire_target_outside_active_area; /* +0x624  PAL 2342 name; pvs bit test @0x232e3 */
+  char pad_625[0x1];
+  int16_t control_current_fire_target_line_of_sight; /* +0x626  PAL 2342 name; word store @0x23291, ai_test_line_of_sight result @0x23391 */
+  union {
+    char field_628;                                    /* +0x628  accessed 1x, meaning unproven */
+    boolean control_aiming_at_fire_target;             /* +0x628  actor->control.aiming_at_fire_target (PAL 2342); store @0x22fcd/0x23633 */
+  };
   char pad_629[0x3];
-  int32_t field_62c;                                 /* +0x62c  accessed 1x, meaning unproven */
-  float field_630;                                   /* +0x630  accessed 1x, meaning unproven */
-  float field_634;                                   /* +0x634  accessed 1x, meaning unproven */
-  float field_638;                                   /* +0x638  accessed 1x, meaning unproven */
-  int32_t field_63c;                                 /* +0x63c  accessed 1x, meaning unproven */
-  uint16_t field_640;                                /* +0x640  accessed 1x, meaning unproven */
-  char pad_642[0x2];
-  int32_t field_644;                                 /* +0x644  accessed 1x, meaning unproven */
-  float field_648;                                   /* +0x648  accessed 1x, meaning unproven */
-  float field_64c;                                   /* +0x64c  accessed 2x, meaning unproven */
-  float field_650;                                   /* +0x650  accessed 2x, meaning unproven */
-  float field_654;                                   /* +0x654  accessed 2x, meaning unproven */
-  char pad_658[0xc];
-  float field_664;                                   /* +0x664  accessed 2x, meaning unproven */
-  int16_t field_668;                                 /* +0x668  accessed 2x, meaning unproven */
-  int16_t field_66a;                                 /* +0x66a  accessed 2x, meaning unproven */
-  int16_t field_66c;                                 /* +0x66c  accessed 2x, meaning unproven */
-  char pad_66e[0x2];
-  float field_670;                                   /* +0x670  accessed 1x, meaning unproven */
-  float field_674;                                   /* +0x674  accessed 1x, meaning unproven */
-  float field_678;                                   /* +0x678  accessed 1x, meaning unproven */
-  float field_67c;                                   /* +0x67c  accessed 1x, meaning unproven */
-  float field_680;                                   /* +0x680  accessed 1x, meaning unproven */
-  float field_684;                                   /* +0x684  accessed 1x, meaning unproven */
-  char pad_688[0x4];
+  union {
+    struct {
+      int32_t field_62c;                                 /* +0x62c  accessed 1x, meaning unproven */
+      float field_630;                                   /* +0x630  accessed 1x, meaning unproven */
+      float field_634;                                   /* +0x634  accessed 1x, meaning unproven */
+    };
+    real_point3d control_current_fire_target_position; /* +0x62c  PAL 2342 name; weapon_aim target @0x2341b */
+  };
+  union {
+    float field_638;                                   /* +0x638  accessed 1x, meaning unproven */
+    real control_current_fire_target_range;            /* +0x638  PAL 2342 name; prop->distance copy @0x2326d */
+  };
+  union {
+    struct {
+      int32_t field_63c;                                 /* +0x63c  accessed 1x, meaning unproven */
+      uint16_t field_640;                                /* +0x640  accessed 1x, meaning unproven */
+      char pad_642[0x2];
+      int32_t field_644;                                 /* +0x644  accessed 1x, meaning unproven */
+    };
+    real_vector3d control_current_fire_target_aim_vector; /* +0x63c  PAL 2342 name; weapon_aim out @0x23416 */
+  };
+  union {
+    float field_648;                                   /* +0x648  accessed 1x, meaning unproven */
+    real control_current_fire_target_distance;         /* +0x648  PAL 2342 name; weapon_aim out @0x23401 */
+  };
+  union {
+    struct {
+      float field_64c;                                   /* +0x64c  accessed 2x, meaning unproven */
+      float field_650;                                   /* +0x650  accessed 2x, meaning unproven */
+      float field_654;                                   /* +0x654  accessed 2x, meaning unproven */
+    };
+    real_point3d control_burst_initial_position;      /* +0x64c  PAL 2342 name; copied to +0x658 @0x23973 */
+  };
+  real_point3d control_burst_origin;                /* +0x658  PAL 2342 name; LEA EDI,[EBX+0x658] @0x2397d */
+  union {
+    struct {
+      float field_664;                                   /* +0x664  accessed 2x, meaning unproven */
+      int16_t field_668;                                 /* +0x668  accessed 2x, meaning unproven */
+      int16_t field_66a;                                 /* +0x66a  accessed 2x, meaning unproven */
+      int16_t field_66c;                                 /* +0x66c  accessed 2x, meaning unproven */
+      char pad_66e[0x2];
+    };
+    real_vector3d control_burst_relative_position;    /* +0x664  PAL 2342 name; FSTP dword x3 @0x23b9c-0x23bc0 */
+  };
+  union {
+    struct {
+      float field_670;                                   /* +0x670  accessed 1x, meaning unproven */
+      float field_674;                                   /* +0x674  accessed 1x, meaning unproven */
+      float field_678;                                   /* +0x678  accessed 1x, meaning unproven */
+    };
+    real_vector3d control_burst_adjustment;           /* +0x670  PAL 2342 name; FLD x3 @0x23b8a-0x23bb4 */
+  };
+  union {
+    struct {
+      float field_67c;                                   /* +0x67c  accessed 1x, meaning unproven */
+      float field_680;                                   /* +0x680  accessed 1x, meaning unproven */
+      float field_684;                                   /* +0x684  accessed 1x, meaning unproven */
+    };
+    real_point3d control_burst_target;                /* +0x67c  PAL 2342 name; LEA ESI,[EBX+0x67c] @0x23b90 */
+  };
+  boolean control_burst_aim_by_vector;              /* +0x688  actor->control.burst_aim_by_vector (PAL 2342); store @0x2392b/0x23dc9 */
+  char pad_689[0x3];
   float control_burst_aim_vector[3];                  /* +0x68c  LEA EDI,[EBX+0x68c] @0x23d1a */
   float field_698;                                   /* +0x698  accessed 2x, meaning unproven */
   float field_69c;                                   /* +0x69c  FLD [EDX+0x69c] @0x3f92c/0x3f93f, meaning unproven */
@@ -2045,6 +2636,7 @@ co(actor_t, target_target_type,                            0x268);
 co(actor_t, target_target_prop_index,                      0x270);
 co(actor_t, danger_zone_danger_type,                       0x280);
 co(actor_t, danger_zone_object_index,                      0x28c);
+co(actor_t, danger_zone_noticed_danger,                    0x287);
 co(actor_t, stimuli_panic_type,                            0x308);
 co(actor_t, stimuli_panic_prop_index,                      0x30c);
 co(actor_t, firing_positions_current_position_index,       0x3b8);
@@ -2075,6 +2667,38 @@ co(actor_t, control_burst_aim_vector,                      0x68c);
 co(actor_t, output_facing_vector,                          0x6fc);
 co(actor_t, output_aiming_vector,                          0x708);
 co(actor_t, meta_unit_index,                               0x018);
+co(actor_t, meta_type,                                     0x004);
+co(actor_t, meta_team_index,                               0x03e);
+co(actor_t, meta_first_prop_index,                         0x050);
+co(actor_t, head_position,                                  0x120);
+co(actor_t, input_in_midair,                                0x15c);
+co(actor_t, input_underwater,                               0x15d);
+co(actor_t, orders_combat_target_point,                     0x460);
+co(actor_t, control_moving,                                 0x504);
+co(actor_t, control_crouching,                              0x508);
+co(actor_t, control_fire_state_timer,                       0x5f4);
+co(actor_t, control_blocked_communication_timer,            0x5fa);
+co(actor_t, control_special_fire_delay,                     0x5fc);
+co(actor_t, control_special_fire_deny_attempts,             0x5fe);
+co(actor_t, control_overcharging_weapon,                    0x602);
+co(actor_t, control_next_burst_secondary,                   0x604);
+co(actor_t, control_weapon_maximum_range,                   0x608);
+co(actor_t, control_current_fire_target_manual_point,       0x610);
+co(actor_t, control_current_fire_target_timer,              0x61c);
+co(actor_t, control_current_fire_target_visible,            0x620);
+co(actor_t, control_current_fire_target_outside_active_area, 0x624);
+co(actor_t, control_current_fire_target_line_of_sight,      0x626);
+co(actor_t, control_aiming_at_fire_target,                  0x628);
+co(actor_t, control_current_fire_target_position,           0x62c);
+co(actor_t, control_current_fire_target_range,              0x638);
+co(actor_t, control_current_fire_target_aim_vector,         0x63c);
+co(actor_t, control_current_fire_target_distance,           0x648);
+co(actor_t, control_burst_initial_position,                 0x64c);
+co(actor_t, control_burst_origin,                           0x658);
+co(actor_t, control_burst_relative_position,                0x664);
+co(actor_t, control_burst_adjustment,                       0x670);
+co(actor_t, control_burst_target,                           0x67c);
+co(actor_t, control_burst_aim_by_vector,                    0x688);
 co(actor_t, vehicle_index,                                 0x158);
 co(actor_t, control_vector_avoidance_clear_times,          0x5c8);
 co(actor_t, control_vector_avoidance_current_direction,    0x5d8);
@@ -2134,7 +2758,23 @@ co(vector_avoidance_ray_t, offset, 0x04);
 co(vector_avoidance_ray_t, divergence, 0x10);
 
 typedef struct actor_debug_info_t {
-  char pad_0000[0x19c];                                                         ///< offset=0x0000
+  int32_t last_render_id;                    ///< offset=0x0000  PAL 2342 actor_debug_info
+  int32_t last_path_refresh;                 ///< offset=0x0004
+  int16_t firing_decision;                   ///< offset=0x0008  word store @0x23fcd (actor_combat_update)
+  char pad_000a[0x2];                        ///< offset=0x000a
+  real shooting_rof;                         ///< offset=0x000c  FST @0x23f3f
+  real_point3d burst_last_known_position;    ///< offset=0x0010
+  real_point3d burst_tracked_position;       ///< offset=0x001c
+  real_vector3d burst_lead_vector;           ///< offset=0x0028
+  int32_t burst_alignment_time;              ///< offset=0x0034  game_time_get() @0x23642
+  boolean burst_alignment_aligned;           ///< offset=0x0038
+  boolean burst_alignment_aligned_immediately; ///< offset=0x0039
+  char pad_003a[0x2];                        ///< offset=0x003a
+  real_vector3d burst_alignment_weapon_vector; ///< offset=0x003c
+  real_vector3d burst_alignment_aim_vector;  ///< offset=0x0048
+  real burst_alignment_threshold;            ///< offset=0x0054
+  real burst_alignment_alignment;            ///< offset=0x0058
+  char pad_005c[0x140];                      ///< offset=0x005c
   uint32_t timestamp;                                                           ///< offset=0x019c
   vector_avoidance_data_t avoidance_data;                                       ///< offset=0x01a0
   int16_t avoidance_type[9];                                                    ///< offset=0x61e8
@@ -2175,6 +2815,9 @@ typedef struct actor_debug_info_t {
   char pad_656c[0x10];                                                          ///< offset=0x656c
 } actor_debug_info_t;
 cs(actor_debug_info_t, 0x657c);
+co(actor_debug_info_t, firing_decision, 0x08);
+co(actor_debug_info_t, burst_alignment_time, 0x34);
+co(actor_debug_info_t, burst_alignment_alignment, 0x58);
 co(actor_debug_info_t, timestamp, 0x19c);
 co(actor_debug_info_t, avoidance_data, 0x1a0);
 co(actor_debug_info_t, avoidance_type, 0x61e8);
@@ -2237,12 +2880,7 @@ co(object_datum_t, angular_velocity, 0x3c);
  * platoons@0x8c, firing_positions@0x98 are exactly 0xc apart, so sizeof must
  * be 0xc for those co() offsets to hold.
  * ------------------------------------------------------------------------- */
-typedef struct tag_block {
-    int32_t  count;      /* +0x00: element count (evidence: "encounter_definition->squads.count" assert, encounters.c:0x5a4) */
-    void    *address;    /* +0x04: element array base (block ptr passed to tag_block_get_element) */
-    int32_t  field_08;   /* +0x08: block definition ptr; no runtime access observed */
-} tag_block;
-cs(tag_block, 0xc);
+/* tag_block is defined above scenario_t (it embeds one). */
 
 /// Contrail instance datum (contrail_data).  Offsets from render_contrail
 /// (0x188010) and render_contrails (0x1887b0); names from PAL 2342
@@ -2324,16 +2962,28 @@ co(tag_block, address, 0x04);
  *   +0x54 vertices (0x10). Surface[+0]=plane, [+4]=first_edge, [+8]=flags.
  *   Edge six dwords: start/end vertex, forward/reverse edge, left/right surface.
  */
+/*
+ * The four blocks below +0x3c are proven by the pill sweep
+ * (collision_bsp_test_pill 0x149680 / bsp2d_test_pill_recursive 0x149570):
+ * +0x00 bsp3d nodes (stride 0xc), +0x18 leaves (8), +0x24 bsp2d references (8),
+ * +0x30 bsp2d nodes (0x14). Names follow the CEA test_pill_data sweep (T2).
+ */
 typedef struct collision_bsp_t {
-  char      pad_00[0x0c];
+  tag_block bsp3d_nodes;            ///< offset=0x00
   tag_block planes;                 ///< offset=0x0c
-  char      pad_18[0x24];
+  tag_block leaves;                 ///< offset=0x18
+  tag_block bsp2d_references;       ///< offset=0x24
+  tag_block bsp2d_nodes;            ///< offset=0x30
   tag_block surfaces;               ///< offset=0x3c
   tag_block edges;                  ///< offset=0x48
   tag_block vertices;               ///< offset=0x54
 } collision_bsp_t;
 cs(collision_bsp_t, 0x60);
+co(collision_bsp_t, bsp3d_nodes, 0x00);
 co(collision_bsp_t, planes, 0x0c);
+co(collision_bsp_t, leaves, 0x18);
+co(collision_bsp_t, bsp2d_references, 0x24);
+co(collision_bsp_t, bsp2d_nodes, 0x30);
 co(collision_bsp_t, surfaces, 0x3c);
 co(collision_bsp_t, edges, 0x48);
 co(collision_bsp_t, vertices, 0x54);
@@ -2364,12 +3014,14 @@ typedef struct collision_surface_t {
   int32_t plane;                    ///< offset=0x00
   int32_t first_edge;               ///< offset=0x04
   uint8_t flags;                    ///< offset=0x08
-  uint8_t pad_09[3];
+  uint8_t pad_09[1];
+  int16_t material_index;           ///< offset=0x0a (word copy into the pill result +0x1a; CEA name, T2)
 } collision_surface_t;
 cs(collision_surface_t, 0x0c);
 co(collision_surface_t, plane, 0x00);
 co(collision_surface_t, first_edge, 0x04);
 co(collision_surface_t, flags, 0x08);
+co(collision_surface_t, material_index, 0x0a);
 
 typedef struct collision_edge_t {
   int32_t start_vertex;             ///< offset=0x00
@@ -2394,6 +3046,46 @@ typedef struct collision_vertex_t {
 cs(collision_vertex_t, 0x10);
 co(collision_vertex_t, point, 0x00);
 co(collision_vertex_t, field_0c, 0x0c);
+
+/* bsp3d node (stride 0xc): plane index, then back/front child. A negative
+ * child is a leaf (bit 31 flag; -1 = none). collision_bsp_test_pill 0x149680. */
+typedef struct bsp3d_node_t {
+  int32_t plane;                    ///< offset=0x00
+  int32_t children[2];              ///< offset=0x04 (0 = back, 1 = front)
+} bsp3d_node_t;
+cs(bsp3d_node_t, 0x0c);
+co(bsp3d_node_t, plane, 0x00);
+co(bsp3d_node_t, children, 0x04);
+
+/* Collision leaf (stride 8): MOVSX word +0x02 count, dword +0x04 first. */
+typedef struct collision_leaf_t {
+  uint8_t pad_00[2];
+  int16_t bsp2d_reference_count;    ///< offset=0x02
+  int32_t first_bsp2d_reference;    ///< offset=0x04
+} collision_leaf_t;
+cs(collision_leaf_t, 0x08);
+co(collision_leaf_t, bsp2d_reference_count, 0x02);
+co(collision_leaf_t, first_bsp2d_reference, 0x04);
+
+/* bsp2d reference (stride 8): signed plane index (bit 31 = flipped plane) and
+ * the root of the leaf's 2D BSP. */
+typedef struct bsp2d_reference_t {
+  int32_t plane;                    ///< offset=0x00
+  int32_t bsp2d_root;               ///< offset=0x04
+} bsp2d_reference_t;
+cs(bsp2d_reference_t, 0x08);
+co(bsp2d_reference_t, plane, 0x00);
+co(bsp2d_reference_t, bsp2d_root, 0x04);
+
+/* bsp2d node (stride 0x14): 2D line (i, j, d), then back/front child. A
+ * negative child is a surface index (bit 31 flag). */
+typedef struct bsp2d_node_t {
+  real    plane[3];                 ///< offset=0x00
+  int32_t children[2];              ///< offset=0x0c (0 = back, 1 = front)
+} bsp2d_node_t;
+cs(bsp2d_node_t, 0x14);
+co(bsp2d_node_t, plane, 0x00);
+co(bsp2d_node_t, children, 0x0c);
 
 /// size=0x68
 /* Structure-BSP cluster element. Only the runtime-decal range is proven. */
@@ -2595,7 +3287,156 @@ typedef struct {
                          *        compared against tag indices (:1255, :9175) */
 } tag_reference;
 cs(tag_reference, 0x10);
+
+// OBJE -> UNIT -> VEHI
+/* Vehicle object datum. Size 0x47c is the datum size (short at +0x8) of the
+ * vehicle object_type_definition at 0x323de8. Every field below has an
+ * observed access (cited); names follow the field's use in vehicles.obj. */
+#define OBJECT_MASK_VEHICLE 0x2 /* 1 << vehicle object type */
+typedef struct vehicle_data_t {
+  unit_data_t unit;               ///< offset=0x000
+  uint16_t flags;                 ///< offset=0x424 .text:001B578E mov [esi+424h], bx
+  int16_t stop_time;              ///< offset=0x426 .text:001B9819 cmp word ptr [ebx+426h], 0
+  uint8_t airborne_ticks;         ///< offset=0x428 .text:001A2020 cmp byte ptr [ebx+428h], 1Eh
+  uint8_t upending_type;          ///< offset=0x429 .text:001B57A2 mov [esi+429h], bl
+  uint8_t upending_ticks;         ///< offset=0x42a .text:001B57A8 mov [esi+42Ah], bl
+  uint8_t on_ground_ticks;        ///< offset=0x42b .text:001B572C mov al, [esi+42Bh]
+  real speed;                     ///< offset=0x42c .text:001B6025 fld [esi+42Ch]
+  real slide;                     ///< offset=0x430 .text:001B7B31 fld [esi+430h]
+  real turn;                      ///< offset=0x434 .text:001B602B fsub [esi+434h]
+  real wheel;                     ///< offset=0x438 .text:001B5BA9 fld [esi+438h]
+  real left_tread;                ///< offset=0x43c .text:001B604C fadd [esi+43Ch]
+  real right_tread;               ///< offset=0x440 .text:001B608F fadd [esi+440h]
+  real hover;                     ///< offset=0x444 .text:0002EAA8 fld [edi+444h]
+  real thrust;                    ///< offset=0x448 .text:001B6860 fcomp [edi+448h]
+  uint8_t suspension[8];          ///< offset=0x44c .text:001B5C28 mov cl, [edi+esi+44Ch]
+  real_point3d hover_position;    ///< offset=0x454 .text:001B5631 lea eax, [esi+454h]
+  real field_460[6];              ///< offset=0x460 .text:0015225F..001522AA fadd [edi+460h..474h]
+  uint32_t stuck_mass_point_flags; ///< offset=0x478 .text:001B80DA test [ebx+478h], edx
+} vehicle_data_t;
+cs(vehicle_data_t, 0x47c);
+co(vehicle_data_t, flags, 0x424);
+co(vehicle_data_t, speed, 0x42c);
+co(vehicle_data_t, turn, 0x434);
+co(vehicle_data_t, left_tread, 0x43c);
+co(vehicle_data_t, right_tread, 0x440);
+co(vehicle_data_t, hover_position, 0x454);
+co(vehicle_data_t, stuck_mass_point_flags, 0x478);
+
+/* 'vehi' tag definition. The total size is not verified. +0x80 is the
+ * object definition's physics reference (its tag_index at +0x8c is passed to
+ * tag_get('phys') by every vehicles.obj physics routine); +0x2f4 is the
+ * vehicle type switched on by vehicle_update's jump table at 0x1b9870;
+ * +0x310 is the tread/wheel wrap divisor used by fmod in 0x1b5ff0/0x1b6140. */
+typedef struct vehicle_definition_t {
+  char pad_000[0x80];                 ///< offset=0x000
+  tag_reference physics;              ///< offset=0x080
+  char pad_090[0x2f0 - 0x90];         ///< offset=0x090
+  uint32_t flags;                     ///< offset=0x2f0
+  int16_t vehicle_type;               ///< offset=0x2f4
+  char pad_2f6[2];                    ///< offset=0x2f6
+  real field_2f8[4];                  ///< offset=0x2f8 speed-seek block (vehicle_update)
+  real field_308;                     ///< offset=0x308 turn-seek block (vehicle_update)
+  real field_30c;                     ///< offset=0x30c
+  real wheel_circumference;           ///< offset=0x310
+  real field_314;                     ///< offset=0x314 angular-rate scale (0x1b67c2, 0x1b6857)
+  char pad_318[0x364 - 0x318];        ///< offset=0x318
+  real field_364;                     ///< offset=0x364 pitch angle, FSIN/FCOS at 0x1b66e4
+  char pad_368[0x3e0 - 0x368];        ///< offset=0x368
+  tag_reference effect;               ///< offset=0x3e0 thruster-wash effect (index read at +0x3ec by 0x1b6e20/0x1b7020)
+} vehicle_definition_t;
+co(vehicle_definition_t, physics, 0x80);
+co(vehicle_definition_t, flags, 0x2f0);
+co(vehicle_definition_t, vehicle_type, 0x2f4);
+co(vehicle_definition_t, wheel_circumference, 0x310);
+co(vehicle_definition_t, field_314, 0x314);
+co(vehicle_definition_t, field_364, 0x364);
+co(vehicle_definition_t, effect, 0x3e0);
 co(tag_reference, tag_index, 0x0c);
+
+/* scenario_t::structure_bsp_references element; stride 0x20 from
+ * global_structure_bsp_tag_index_get (0x18e480), which reads +0x1c. */
+typedef struct {
+  uint8_t pad_00[0x10];                    ///< offset=0x00  not accessed here
+  tag_reference structure_bsp;             ///< offset=0x10
+} scenario_structure_bsp_reference_t;
+cs(scenario_structure_bsp_reference_t, 0x20);
+co(scenario_structure_bsp_reference_t, structure_bsp, 0x10);
+
+/* ---------------------------------------------------------------------------
+ * Virtual keyboard ('vcky' tag + runtime globals). Field names from
+ * interface/virtual_keyboard.c (T2); layout checked against the 2276 binary:
+ *  - virtual_keyboard_get_character (0xf5800) reads the seven character words
+ *    at +0x02..+0x0e of a 0x50-stride key (MOVZX key; LEA *5; SHL 4).
+ *  - virtual_keyboard_render_internal (0xf5900) reads definition +0x0c/+0x1c/
+ *    +0x2c (tag_reference.tag_index of the three references), +0x34 (keys
+ *    block address) and key +0x1c/+0x2c/+0x3c/+0x4c (background tag indices).
+ * ------------------------------------------------------------------------- */
+/// size=0x50
+typedef struct {
+  char pad_00[2];                          /* +0x00 keycode; not read in 2276 lifts */
+  wchar_t character;                       /* +0x02 */
+  wchar_t shift_character;                 /* +0x04 */
+  wchar_t caps_character;                  /* +0x06 */
+  wchar_t symbols_character;               /* +0x08 */
+  wchar_t shift_caps_character;            /* +0x0a */
+  wchar_t shift_symbols_character;         /* +0x0c */
+  wchar_t caps_symbols_character;          /* +0x0e */
+  tag_reference unselected_background_bitmap_tag; /* +0x10 */
+  tag_reference selected_background_bitmap_tag;   /* +0x20 */
+  tag_reference active_background_bitmap_tag;     /* +0x30 */
+  tag_reference sticky_background_bitmap_tag;     /* +0x40 */
+} virtual_keyboard_key_t;
+cs(virtual_keyboard_key_t, 0x50);
+co(virtual_keyboard_key_t, character, 0x02);
+co(virtual_keyboard_key_t, caps_symbols_character, 0x0e);
+co(virtual_keyboard_key_t, unselected_background_bitmap_tag, 0x10);
+co(virtual_keyboard_key_t, sticky_background_bitmap_tag, 0x40);
+
+/// size=0x3c
+typedef struct {
+  tag_reference font_tag;                           /* +0x00 */
+  tag_reference background_bitmap_tag;              /* +0x10 */
+  tag_reference special_key_labels_string_list_tag; /* +0x20 */
+  tag_block keys;                                   /* +0x30 virtual_keyboard_key_t[] */
+} virtual_keyboard_definition_t;
+cs(virtual_keyboard_definition_t, 0x3c);
+co(virtual_keyboard_definition_t, background_bitmap_tag, 0x10);
+co(virtual_keyboard_definition_t, special_key_labels_string_list_tag, 0x20);
+co(virtual_keyboard_definition_t, keys, 0x30);
+
+/* Runtime state at 0x46cef0 (virtual_keyboard_globals, 0x68 bytes). Every field is read or written by a lifted virtual_keyboard_* body in
+ * src/halo/items/items.c. */
+/// size=0x68
+typedef struct {
+  boolean active;                           /* +0x00 */
+  boolean shift_active;                     /* +0x01 */
+  boolean caps_active;                      /* +0x02 */
+  boolean symbols_active;                   /* +0x03 */
+  virtual_keyboard_definition_t *keyboard;  /* +0x04 */
+  int16_t row;                              /* +0x08 */
+  int16_t column;                           /* +0x0a */
+  uint16_t buffer_size;                     /* +0x0c bytes (MOVZX loads) */
+  int16_t last_event;                       /* +0x0e */
+  int16_t last_key;                         /* +0x10 */
+  int16_t number_of_event_repeats;          /* +0x12 */
+  uint16_t caption_index;                   /* +0x14 zero-extended at 0xf5a43 */
+  boolean last_exit_saved_text;             /* +0x16 */
+  boolean first_key_replaces_buffer;        /* +0x17 */
+  wchar_t *text_buffer;                     /* +0x18 */
+  wchar_t *cursor;                          /* +0x1c */
+  uint32_t time_of_last_event;              /* +0x20 */
+  int32_t caret_bitmap_index;               /* +0x24 */
+  wchar_t saved_text[32];                   /* +0x28 */
+} virtual_keyboard_globals_t;
+cs(virtual_keyboard_globals_t, 0x68);
+co(virtual_keyboard_globals_t, keyboard, 0x04);
+co(virtual_keyboard_globals_t, last_event, 0x0e);
+co(virtual_keyboard_globals_t, caption_index, 0x14);
+co(virtual_keyboard_globals_t, first_key_replaces_buffer, 0x17);
+co(virtual_keyboard_globals_t, caret_bitmap_index, 0x24);
+co(virtual_keyboard_globals_t, saved_text, 0x28);
+
 
 /// size=0x3C0
 /* Scenario overlay for the structure-BSP tag block used by runtime decals. */
@@ -2647,7 +3488,10 @@ co(netgame_flag, team_index, 0x12);
  * caller in this TU declares the buffer as [0x88].
  * ------------------------------------------------------------------------- */
 typedef struct {
-  char  pad_00[0x18];   /* +0x00  never observed accessed */
+  char  pad_00[0x4];    /* +0x00  never observed accessed */
+  uint32_t field_04;    /* +0x04  trigger_create_projectiles ORs bit 2
+                         *        (OR EAX,2 at .text:000FDBF2) */
+  char  pad_08[0x10];   /* +0x08  never observed accessed */
   float position_x;     /* +0x18  object_new copies this to object_data+0x0C
                          *        (MOV ECX,[ESI+0x18] in the object_new
                          *        disassembly), i.e. the spawn position. Some
@@ -2656,13 +3500,17 @@ typedef struct {
                          *        taken from object_new, not from the casts. */
   float position_y;     /* +0x1c */
   float position_z;     /* +0x20 */
-  char  pad_24[0x10];   /* +0x24  never observed accessed */
+  char  pad_24[0x4];    /* +0x24  never observed accessed */
+  float field_28[3];    /* +0x28  trigger_create_projectiles stores
+                         *        forward * speed (.text:000FDBB5-000FDBD3) */
   vector3_t forward;    /* +0x34  object_placement_data_new default {1,0,0} */
   vector3_t up;         /* +0x40  object_placement_data_new default {0,0,1} */
   char  pad_4c[0x3c];   /* +0x4c */
 } object_placement_data;
 cs(object_placement_data, 0x88);
+co(object_placement_data, field_04,   0x04);
 co(object_placement_data, position_x, 0x18);
+co(object_placement_data, field_28,   0x28);
 co(object_placement_data, position_y, 0x1c);
 co(object_placement_data, position_z, 0x20);
 co(object_placement_data, forward,    0x34);
@@ -3044,19 +3892,18 @@ co(triangle_buffer, hardware_format, 0x0c);
 /// evidence: get_particle_world_position @0x1339a0
 /// evidence: glow_render @0x133520
 /// evidence: PAL reference source/objects/objects.h struct object_marker {short node_index; real_matrix4x3 node_matrix; real_matrix4x3 matrix;} (names only)
+/// The evidence-table schema cannot express the nested matrix, so this layout
+/// is maintained here by hand; the artifact keeps the per-field evidence.
+/// matrix: lightning_submit (0x135510) passes marker+0x38 as the real_matrix4x3
+/// to matrix4x3_transform_vector (via lightning_offset_marker_position) and
+/// copies matrix.position from +0x60; glow reads forward (+0x3c) and up (+0x54).
 typedef struct object_marker {
-    uint8_t pad_00[60];       ///< offset=0x00  declared padding
-    float matrix_forward[3];  ///< offset=0x3C  FMUL [EAX+0x44..0x4c] rel. glow_datum = marker+0x3c (cross product @0x133b7a-0x133bf0); name: PAL-2342 (T2) (real_matrix4x3.forward)
-    uint8_t pad_48[12];       ///< offset=0x48  declared padding
-    float matrix_up[3];       ///< offset=0x54  dword copy from EAX+0x5c = marker+0x54 @0x133b91 and cross product operands; name: PAL-2342 (T2) (real_matrix4x3.up)
-    float matrix_position[3]; ///< offset=0x60  dword copy from EAX+0x68 = marker+0x60 @0x133b72; glow_trailing_particle_new copies widget+0x68; name: PAL-2342 (T2) (real_matrix4x3.position)
+    uint8_t pad_00[0x38];  ///< offset=0x00  node_index / node_matrix: not accessed by recovered code
+    real_matrix4x3 matrix; ///< offset=0x38  name: T2
 } object_marker;
 cs(object_marker, 0x6C);
 co(object_marker, pad_00, 0x00);
-co(object_marker, matrix_forward, 0x3C);
-co(object_marker, pad_48, 0x48);
-co(object_marker, matrix_up, 0x54);
-co(object_marker, matrix_position, 0x60);
+co(object_marker, matrix, 0x38);
 
 /// size=0x64  (data_new("glow particles", 0x200, 0x64) @0x13377f in glow_initialize (0x133750))
 /// Recovered layout - evidence artifact: recovery/evidence/glow_particle.json
@@ -3211,6 +4058,92 @@ enum {
   _glow_particle_moving_backwards_bit = 0, /* glow_normal_particle_update_position steps t down */
   _glow_particle_trailing_bit = 1          /* set by glow_trailing_particle_new; glow_update tests it (0x134893) */
 };
+
+/* render (0x506540).  Prefix only: the fields below are the ones a 2276 access
+ * proves; everything past camera.forward is not yet recovered, so there is no
+ * size assert.  Names: T2. */
+typedef struct {
+  int32_t frame_index;        ///< offset=0x00  INC dword [0x506540] in render.c
+  uint8_t pad_04[4];          ///< offset=0x04
+  int16_t local_player_index; ///< offset=0x08  CMP [0x506548] in hud.c; assert "render.local_player_index" (event_manager.c)
+  uint8_t pad_0a[6];          ///< offset=0x0a
+  struct {
+    real_point3d position;    ///< offset=0x10
+    real_vector3d forward;    ///< offset=0x1c  FMUL [0x50655c/60/64] cross product in lightning_submit (0x135847)
+  } camera;
+} render_globals_t;
+co(render_globals_t, frame_index, 0x00);
+co(render_globals_t, local_player_index, 0x08);
+co(render_globals_t, camera, 0x10);
+
+/* rasterizer_globals (0x325650).  Prefix only; later fields not yet recovered.
+ * Names: T2. */
+typedef struct {
+  boolean initialized;            ///< offset=0x00  MOV byte [0x325650],1 @0x15790e
+  uint8_t pad_01[1];              ///< offset=0x01
+  int16_t current_lock_operation; ///< offset=0x02  MOV word [0x325652],0xc / 0 around lightning geometry (0x135ac6, 0x135ede)
+} rasterizer_globals_t;
+co(rasterizer_globals_t, current_lock_operation, 0x02);
+
+/* rasterizer_globals.current_lock_operation values (T2). */
+enum {
+  _rasterizer_lock_none = 0,
+  _rasterizer_lock_lightning = 12 /* lightning_submit (0x135ac6) */
+};
+
+/// size=0xB4. Element size of the lightning 'elec' shaders block
+/// (tag_block_get_element(..., 0xb4) @0x135e8a); global_shader_effect_additive
+/// (0x326a78) is its fallback.  No field is accessed by the recovered code.
+typedef struct {
+  uint8_t pad_00[0xb4]; ///< offset=0x00
+} shader_effect_definition;
+cs(shader_effect_definition, 0xb4);
+
+/* Per-object function values handed to widget submit functions.  Prefix only.
+ * Both arrays are indexed by an object function source 1..4 (value - 1). */
+typedef struct {
+  real_rgb_color *colors; ///< offset=0x00  [ECX+EAX*0xc-0xc] in lightning_submit (0x135bab)
+  real *values;           ///< offset=0x04  FLD [ECX+EDX*4-4] in lightning_submit (0x135615)
+} render_animation;
+co(render_animation, colors, 0x00);
+co(render_animation, values, 0x04);
+
+/* Object function source references (T2): 0 is none, 1..4 are functions a..d. */
+enum {
+  _object_function_reference_a = 1,
+  _object_function_reference_d = 4
+};
+
+/* 'bitm' tag definition.  Prefix only (no size assert): lightning_submit takes
+ * tag_get('bitm', ...) + 0x60 as the bitmap_data block and reads element 0 with
+ * element size 0x30 (ADD EAX,0x60; tag_block_get_element(...,0,0x30) @0x1355b0).
+ * Names: T2. */
+typedef struct {
+  uint8_t pad_00[0x60];  ///< offset=0x00
+  tag_block bitmap_data; ///< offset=0x60
+} bitmap_group;
+co(bitmap_group, bitmap_data, 0x60);
+
+#define SIZEOF_BITMAP_DATA 0x30 /* bitmap_data element size (tag_block_get_element @0x1355b7) */
+
+/* Lightning widgets (objects/widgets/lightning.c).  Names: T2. */
+/// size=0x4. lightning_globals (0x46f024); the data array pointer is stored by
+/// lightnings_initialize (MOV [0x46f024],EAX @0x135334).
+typedef struct {
+  data_t *lightning_data; ///< offset=0x00
+} lightning_globals_t;
+cs(lightning_globals_t, 0x4);
+
+/// size=0x8. Element size passed to game_state_data_new @0x135320.
+typedef struct {
+  int16_t datum_salt;      ///< offset=0x00  standard data_t element prefix
+  uint8_t pad_02[2];       ///< offset=0x02
+  int32_t definition_index; ///< offset=0x04  MOV [EAX+0x4],EDX in lightning_new (0x1353e2); tag_get('elec', [EAX+0x4]) in lightning_submit (0x135544)
+} lightning_datum_t;
+cs(lightning_datum_t, 0x8);
+co(lightning_datum_t, definition_index, 0x04);
+
+#define MAXIMUM_LIGHTNINGS 256 /* game_state_data_new count @0x135322 */
 
 /* ---- RAD Bink (Xbox, 2001) --------------------------------------------------
  * Layouts and names: PAL-2342 libs/binkxbox/{bink.h,binkio.h,radcb.h} (T2),
@@ -3578,7 +4511,10 @@ struct physics_definition {
   real water_density;              ///< offset=0x40
   byte pad_44[0x4];                ///< offset=0x44
   real air_friction;               ///< offset=0x48
-  byte pad_4c[0x10];               ///< offset=0x4c
+  byte pad_4c[0x4];                ///< offset=0x4c
+  real xx_moment;                  ///< offset=0x50 (FMUL [EAX+0x50] @1b8b28)
+  real yy_moment;                  ///< offset=0x54 (FMUL [EAX+0x54] @1b8afc)
+  real zz_moment;                  ///< offset=0x58 (FMUL [EAX+0x58] @1b8854)
   tag_block field_5c;              ///< offset=0x5c (0x24-byte 3x3 elements)
   tag_block powered_mass_points;   ///< offset=0x68
   tag_block mass_points;           ///< offset=0x74
@@ -3840,5 +4776,336 @@ struct physics_instance {
 cs(struct physics_instance, 0x3c);
 co(struct physics_instance, physics, 0x04);
 co(struct physics_instance, world_matrix, 0x08);
+
+/* Per-tick camera input passed to the camera update procs: +0 local player
+ * index (read as a word), +4 tick length read by scripted_camera_update. */
+typedef struct {
+  int16_t local_player_index;              ///< offset=0x00
+  uint8_t pad_02[2];                       ///< offset=0x02  never observed accessed
+  real seconds_elapsed;                    ///< offset=0x04
+} camera_control_t;
+cs(camera_control_t, 0x8);
+co(camera_control_t, seconds_elapsed, 0x04);
+
+/* Bored (attract-mode) camera state, walked by bored_camera_update (0x84ae0):
+ * +0 last update time, +4 countdown, +8 shot counter (all 32-bit). */
+typedef struct {
+  uint32_t last_update_milliseconds;       ///< offset=0x00
+  int32_t timer_milliseconds;              ///< offset=0x04
+  int32_t boredom_count;                   ///< offset=0x08
+} bored_camera_t;
+co(bored_camera_t, timer_milliseconds, 0x04);
+co(bored_camera_t, boredom_count, 0x08);
+
+/* Unit camera tag block; only the camera-track block at +0x4c is proven
+ * (bored_camera_update reads its count, then fetches element 0 of 0x1c). */
+typedef struct {
+  uint8_t pad_00[0x4c];                    ///< offset=0x00  not accessed here
+  tag_block unit_camera_tracks;            ///< offset=0x4c
+} unit_camera_t;
+co(unit_camera_t, unit_camera_tracks, 0x4c);
+
+/* player_control_get_unit_camera_info (0xb6740) output, 0x18 bytes on the
+ * caller's stack in bored_camera_update; +8 is the unit camera tag whose
+ * track block sits at +0x4c. */
+typedef struct {
+  int32_t unit_index;                      ///< offset=0x00  0x89d6c dword read
+  int16_t seat_index;                      ///< offset=0x04  0x89d4a word read
+  uint8_t pad_06[2];                       ///< offset=0x06
+  unit_camera_t *camera;                   ///< offset=0x08
+  real_point3d position;                   ///< offset=0x0c
+} player_control_unit_camera_info_t;
+cs(player_control_unit_camera_info_t, 0x18);
+co(player_control_unit_camera_info_t, camera, 0x08);
+co(player_control_unit_camera_info_t, position, 0x0c);
+
+/* Camera command: the result block filled by the per-mode camera functions
+ * (bored_camera, first_person_camera, ...) and copied whole by
+ * observer_update_command (26 dwords = 0x68 bytes) into the observer at +0x8.
+ * The validator's "Invalid camera command." format string labels the members:
+ * F=forward U=up P=position O=offset D=depth V=velocity FOV=field_of_view
+ * T=timer FL=flags. The five bytes at +0x4c and floats at +0x54 are walked in
+ * lockstep by observer_update_command (5 iterations); their meaning is
+ * unproven. */
+typedef struct {
+  uint32_t flags;                          ///< offset=0x00
+  real_point3d position;                   ///< offset=0x04
+  real_vector3d offset;                    ///< offset=0x10
+  real depth;                              ///< offset=0x1c
+  real field_of_view;                      ///< offset=0x20
+  real_vector3d forward;                   ///< offset=0x24
+  real_vector3d up;                        ///< offset=0x30
+  real_vector3d velocity;                  ///< offset=0x3c
+  real timer;                              ///< offset=0x48
+  uint8_t field_4c[5];                     ///< offset=0x4c
+  char pad_51[3];                          ///< offset=0x51
+  real field_54[5];                        ///< offset=0x54
+} camera_command_t;
+cs(camera_command_t, 0x68);
+co(camera_command_t, flags, 0x00);
+co(camera_command_t, position, 0x04);
+co(camera_command_t, offset, 0x10);
+co(camera_command_t, depth, 0x1c);
+co(camera_command_t, field_of_view, 0x20);
+co(camera_command_t, forward, 0x24);
+co(camera_command_t, up, 0x30);
+co(camera_command_t, velocity, 0x3c);
+co(camera_command_t, timer, 0x48);
+/* Camera state and input layouts re-proven from the 2276 update routines.
+ * Field names are T2 from PAL 2342; recovery/evidence/camera_*.json records
+ * the target-build accesses. */
+typedef struct {
+  int16_t local_player_index;
+  uint8_t active;
+  uint8_t pad_03;
+  real seconds_elapsed;
+  real_euler_angles3d facing_delta;
+  real_vector3d translation;
+  real wheel_delta;
+} camera_action_t;
+cs(camera_action_t, 0x24);
+co(camera_action_t, active, 0x02);
+co(camera_action_t, seconds_elapsed, 0x04);
+co(camera_action_t, facing_delta, 0x08);
+co(camera_action_t, translation, 0x14);
+co(camera_action_t, wheel_delta, 0x20);
+
+typedef struct {
+  uint8_t initialized;
+  uint8_t confined;
+  uint8_t crouched;
+  uint8_t zoomed;
+  int16_t zoom_level;
+  uint8_t pad_06[2];
+  int32_t unit_index;
+  int16_t seat_index;
+  uint8_t pad_0e[2];
+  real_euler_angles2d facing_offset;
+  real distance_scale;
+} following_camera_t;
+cs(following_camera_t, 0x1c);
+co(following_camera_t, crouched, 0x02);
+co(following_camera_t, unit_index, 0x08);
+co(following_camera_t, seat_index, 0x0c);
+co(following_camera_t, facing_offset, 0x10);
+co(following_camera_t, distance_scale, 0x18);
+
+typedef struct {
+  real_point3d position;
+  real_euler_angles2d facing;
+  real distance;
+  real field_of_view;
+  real timer;
+  int32_t player_index;
+  int32_t current_player_index;
+  int32_t unit_index;
+  real switch_timer;
+} dead_camera_t;
+cs(dead_camera_t, 0x30);
+co(dead_camera_t, facing, 0x0c);
+co(dead_camera_t, distance, 0x14);
+co(dead_camera_t, field_of_view, 0x18);
+co(dead_camera_t, timer, 0x1c);
+co(dead_camera_t, player_index, 0x20);
+co(dead_camera_t, current_player_index, 0x24);
+co(dead_camera_t, unit_index, 0x28);
+co(dead_camera_t, switch_timer, 0x2c);
+
+typedef struct {
+  real_point3d position;
+  real_euler_angles2d facing;
+  real roll;
+  real field_of_view;
+} flying_camera_t;
+cs(flying_camera_t, 0x1c);
+co(flying_camera_t, facing, 0x0c);
+co(flying_camera_t, roll, 0x14);
+co(flying_camera_t, field_of_view, 0x18);
+
+typedef struct {
+  real_euler_angles2d facing;
+  real distance;
+} orbiting_camera_t;
+cs(orbiting_camera_t, 0x0c);
+co(orbiting_camera_t, distance, 0x08);
+
+co(camera_command_t, field_4c, 0x4c);
+co(camera_command_t, field_54, 0x54);
+/* ---------------------------------------------------------------------------
+ * UI widget runtime instance (interface/ui_widget.c). size=0x58 (PAL 2342
+ * verify_widget_instance_size). Offsets are re-proven from the 2276 list
+ * navigation functions (0xe6ab0/0xe6cb0), the tab functions (0xe53e0/0xe5440)
+ * and event_handler_dispatch (0xe6ed0); names are PAL 2342 (T2). pad_ bytes
+ * were not observed accessed by those functions. The list_* fields are the
+ * PAL `parameters.list` union arm (text boxes overlay 0x3c..0x43).
+ * ------------------------------------------------------------------------- */
+typedef struct widget_instance_t {
+  int32_t definition_tag_index;         ///< offset=0x00 tag_get('DeLa', [ESI])
+  uint8_t pad_04[4];                    ///< offset=0x04
+  int16_t local_player_index;           ///< offset=0x08 MOV DX,[ESI+8] zero-extended
+  int16_t horizontal_offset;            ///< offset=0x0a ADD [ESI+0xa],CX @0xe7112
+  int16_t vertical_offset;              ///< offset=0x0c ADD [ESI+0xc],CX @0xe711a
+  int16_t type;                         ///< offset=0x0e 2 spinner list, 3 column list
+  uint8_t visible;                      ///< offset=0x10 TEST AL @0xe6484
+  uint8_t pad_11[0x13];                 ///< offset=0x11
+  real alpha_modifier;                  ///< offset=0x24 parent-chain product @0xe645f
+  struct widget_instance_t *previous;   ///< offset=0x28
+  struct widget_instance_t *next;       ///< offset=0x2c
+  struct widget_instance_t *parent;     ///< offset=0x30
+  struct widget_instance_t *child;      ///< offset=0x34 first child
+  struct widget_instance_t *focused_child; ///< offset=0x38
+  int16_t list_selected_index;          ///< offset=0x3c
+  int16_t list_last_tab_direction;      ///< offset=0x3e set to +15 / -15
+  void *list_items;                     ///< offset=0x40
+  uint16_t list_number_of_items;        ///< offset=0x44 MOVZX / JBE (unsigned)
+  uint8_t pad_46[0x6];                  ///< offset=0x46
+  wchar_t *list_item_text;              ///< offset=0x4c read @0xe66dd (PAL item_text)
+  int16_t field_50;                     ///< offset=0x50 read/write @0xe73c0 callers
+  uint8_t pad_52[0x6];                  ///< offset=0x52
+} widget_instance_t;
+cs(widget_instance_t, 0x58);
+co(widget_instance_t, local_player_index, 0x08);
+co(widget_instance_t, type, 0x0e);
+co(widget_instance_t, visible, 0x10);
+co(widget_instance_t, alpha_modifier, 0x24);
+co(widget_instance_t, list_item_text, 0x4c);
+co(widget_instance_t, previous, 0x28);
+co(widget_instance_t, next, 0x2c);
+co(widget_instance_t, parent, 0x30);
+co(widget_instance_t, child, 0x34);
+co(widget_instance_t, focused_child, 0x38);
+co(widget_instance_t, list_selected_index, 0x3c);
+co(widget_instance_t, list_last_tab_direction, 0x3e);
+co(widget_instance_t, list_items, 0x40);
+co(widget_instance_t, list_number_of_items, 0x44);
+co(widget_instance_t, field_50, 0x50);
+
+#define UI_WIDGET_TYPE_SPINNER_LIST 2
+#define UI_WIDGET_TYPE_COLUMN_LIST 3
+
+/* ui_widget_definition ('DeLa' tag data). size=0x3ec per PAL 2342; only the
+ * fields read by the 2276 functions named above are broken out. */
+typedef struct {
+  int16_t type;                         ///< offset=0x00 CMP word [EDI],2 @0xeaa47
+  uint8_t pad_02[0x22];                 ///< offset=0x02
+  viewport_bounds_t bounds;             ///< offset=0x24 dword pair @0xe6731/0xe6737
+  int32_t flags;                        ///< offset=0x2c TEST byte [EAX+0x2c],1 @0xe5414
+  uint8_t pad_30[0x14];                 ///< offset=0x30
+  int32_t field_44;                     ///< offset=0x44 read @0xe73c0
+  int32_t field_48;                     ///< offset=0x48 read @0xe73c0
+  void *field_4c;                        ///< offset=0x4c read @0xe73c0
+  uint8_t pad_50[0x4];                  ///< offset=0x50
+  tag_block event_handlers;             ///< offset=0x54 count read @0xe540a
+  tag_block search_and_replace_functions; ///< offset=0x60 count/address @0xe6663/0xe6680
+  uint8_t pad_6c[0x80];                 ///< offset=0x6c
+  tag_reference text_label_string_list; ///< offset=0xec index read @0xe65f6
+  tag_reference text_font;              ///< offset=0xfc index read @0xe66ee
+  real_argb_color text_color;           ///< offset=0x10c copied @0xe6796
+  int16_t justification;                ///< offset=0x11c range 0..2 @0xe6701
+  uint16_t text_box_flags;              ///< offset=0x11e TEST byte,4 @0xe67e6
+  uint8_t pad_120[0x30];                ///< offset=0x120
+  int32_t list_flags;                   ///< offset=0x150 TEST byte [EBX+0x150],2 @0xe6c17
+  tag_reference list_header_bitmap;     ///< offset=0x154 index read @0xe64bb
+  tag_reference list_footer_bitmap;     ///< offset=0x164 index read @0xe655a
+  viewport_bounds_t list_header_bounds; ///< offset=0x174 @0xe64fd
+  viewport_bounds_t list_footer_bounds; ///< offset=0x17c @0xe6598
+  uint8_t pad_184[0x150];               ///< offset=0x184
+  tag_block conditional_widgets;        ///< offset=0x2d4 count/address @0xe72df/0xe72f0
+  uint8_t pad_2e0[0x100];               ///< offset=0x2e0
+  tag_block child_widgets;              ///< offset=0x3e0 count read @0xe6b82
+} ui_widget_definition_t;
+cs(ui_widget_definition_t, 0x3ec);
+co(ui_widget_definition_t, type, 0x00);
+co(ui_widget_definition_t, bounds, 0x24);
+co(ui_widget_definition_t, flags, 0x2c);
+co(ui_widget_definition_t, field_44, 0x44);
+co(ui_widget_definition_t, field_48, 0x48);
+co(ui_widget_definition_t, field_4c, 0x4c);
+co(ui_widget_definition_t, search_and_replace_functions, 0x60);
+co(ui_widget_definition_t, text_label_string_list, 0xec);
+co(ui_widget_definition_t, text_font, 0xfc);
+co(ui_widget_definition_t, text_color, 0x10c);
+co(ui_widget_definition_t, justification, 0x11c);
+co(ui_widget_definition_t, text_box_flags, 0x11e);
+co(ui_widget_definition_t, list_header_bitmap, 0x154);
+co(ui_widget_definition_t, list_footer_bitmap, 0x164);
+co(ui_widget_definition_t, list_header_bounds, 0x174);
+co(ui_widget_definition_t, list_footer_bounds, 0x17c);
+co(ui_widget_definition_t, event_handlers, 0x54);
+co(ui_widget_definition_t, list_flags, 0x150);
+co(ui_widget_definition_t, conditional_widgets, 0x2d4);
+co(ui_widget_definition_t, child_widgets, 0x3e0);
+
+#define UI_WIDGET_PASS_UNHANDLED_EVENTS_TO_CHILDREN_FLAG 0x1
+#define UI_TEXT_BOX_FLASHING_TEXT_FLAG 0x4
+
+/* ui_widget_search_and_replace_reference, size=0x22 (ADD EDX,0x22 @0xe66ca;
+ * replace_function word read at +0x20 @0xe6692). Names PAL 2342 (T2). */
+typedef struct {
+  char search_string[32];               ///< offset=0x00
+  uint16_t replace_function;            ///< offset=0x20
+} ui_widget_search_and_replace_reference_t;
+cs(ui_widget_search_and_replace_reference_t, 0x22);
+co(ui_widget_search_and_replace_reference_t, replace_function, 0x20);
+#define UI_LIST_ITEMS_GENERATED_FROM_STRING_LIST_TAG_FLAG 0x2
+
+/* ui_widget_event_handler_reference, size=0x48 (stride at 0xe7ea3). */
+typedef struct {
+  int32_t flags;                        ///< offset=0x00
+  int16_t event_type;                   ///< offset=0x04
+  uint16_t function;                    ///< offset=0x06 zero-extended @0xe6f3d
+  tag_reference widget_tag;             ///< offset=0x08 index read at +0x14
+  tag_reference sound_effect;           ///< offset=0x18 index read at +0x24
+  char script[32];                      ///< offset=0x28
+} ui_widget_event_handler_reference_t;
+cs(ui_widget_event_handler_reference_t, 0x48);
+co(ui_widget_event_handler_reference_t, function, 0x06);
+co(ui_widget_event_handler_reference_t, widget_tag, 0x08);
+co(ui_widget_event_handler_reference_t, sound_effect, 0x18);
+co(ui_widget_event_handler_reference_t, script, 0x28);
+
+#define UI_EVENT_HANDLER_CLOSE_CURRENT_WIDGET_FLAG 0x001
+#define UI_EVENT_HANDLER_CLOSE_OTHER_WIDGET_FLAG 0x002
+#define UI_EVENT_HANDLER_CLOSE_ALL_WIDGETS_FLAG 0x004
+#define UI_EVENT_HANDLER_OPEN_WIDGET_FLAG 0x008
+#define UI_EVENT_HANDLER_RELOAD_WIDGET_FLAG 0x020
+#define UI_EVENT_HANDLER_GIVE_FOCUS_TO_WIDGET_FLAG 0x040
+#define UI_EVENT_HANDLER_RUN_FUNCTION_FLAG 0x080
+#define UI_EVENT_HANDLER_REPLACE_WITH_OTHER_WIDGET_FLAG 0x100
+#define UI_EVENT_HANDLER_GO_BACK_TO_PREVIOUS_WIDGET_FLAG 0x200
+#define UI_EVENT_HANDLER_RUN_SCENARIO_SCRIPT_FLAG 0x400
+#define UI_EVENT_HANDLER_LOOK_FOR_CONDITIONAL_WIDGET_ON_FAILURE_FLAG 0x800
+
+/* ui_widget_conditional_reference, size=0x50 (ADD ESI,0x50 @0xe7349). */
+typedef struct {
+  tag_reference widget_tag;             ///< offset=0x00 index read at +0x0c
+  char name[32];                        ///< offset=0x10
+  int32_t flags;                        ///< offset=0x30 TEST byte [EAX+0x30],1
+  uint8_t pad_34[0x1c];                 ///< offset=0x34
+} ui_widget_conditional_reference_t;
+cs(ui_widget_conditional_reference_t, 0x50);
+co(ui_widget_conditional_reference_t, flags, 0x30);
+
+#define UI_CONDITIONAL_WIDGET_LOAD_IF_FUNCTION_FAILS_FLAG 0x1
+
+/* widget_stack_data / widget_stack_node (push_widget 0xe46f0 allocates 0x10,
+ * copies 3 dwords, links next at +0xc; go_back_to_previous reads the fields
+ * at EBP-0x10/-0xc/-0x8/-0x6). Names PAL 2342 (T2). */
+typedef struct {
+  int32_t previous_widget_tag;              ///< offset=0x00
+  int32_t focused_child_parent_widget_tag;  ///< offset=0x04
+  int16_t focused_child_index;              ///< offset=0x08
+  int16_t local_player_index;               ///< offset=0x0a
+} widget_stack_data_t;
+cs(widget_stack_data_t, 0xc);
+co(widget_stack_data_t, focused_child_index, 0x08);
+co(widget_stack_data_t, local_player_index, 0x0a);
+
+typedef struct widget_stack_node_t {
+  widget_stack_data_t data;                 ///< offset=0x00
+  struct widget_stack_node_t *next;         ///< offset=0x0c
+} widget_stack_node_t;
+cs(widget_stack_node_t, 0x10);
+co(widget_stack_node_t, next, 0x0c);
 
 #endif /* TYPES_H */

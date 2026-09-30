@@ -2912,6 +2912,29 @@ void ai_debug_highlight_unit(int object_handle, void *color, char draw_flag)
   }
 }
 
+/* ai_debug_lineofsight (0x4b770): record one line-of-sight test ray for the
+ * AI debug overlay.  Called from ai_test_line_of_sight when the debug flag at
+ * 0x5aca6a is set.
+ *
+ * Confirmed (XBE 0x4b770): the TARGET point is interned first
+ *   (EDI=[EBP+0x10], EBX=[EBP+0x14]), then the ORIGIN point (EDI=[EBP+8],
+ *   EBX=[EBP+0xc]).  The first result is zero-extended into ESI and handed to
+ *   ai_debug_lineofsight_storeray in EDI; the second result is still live in
+ *   EAX at that CALL, and storeray reads it (MOV SI,AX at 0x498d1).
+ * Confirmed: ai_debug_lineofsight_findpoint compares its EBX argument as a
+ *   word against the per-point location table at 0x5e4cb0, and reads three
+ *   floats from EDI.
+ * Uncertain: the meaning of the location word (bsp / cluster index). */
+void ai_debug_lineofsight(int param_1, int param_2, int param_3, int param_4)
+{
+  unsigned short target_point;
+  unsigned short origin_point;
+
+  target_point = ai_debug_lineofsight_findpoint(param_3, param_4);
+  origin_point = ai_debug_lineofsight_findpoint(param_1, param_2);
+  ai_debug_lineofsight_storeray((int16_t)origin_point, (int)target_point);
+}
+
 /* ai_debug_select_this_actor: service the pending "select actor" debug-key
  * request.  Asks ai_debug_get_this_actor for a candidate actor handle; when one
  * exists, describes it into the shared error/description buffer at 0x5ab100,
@@ -3644,6 +3667,20 @@ int16_t ai_meter_encounter(void)
   return (*(data_t **)0x5ab270)->unk_48;
 }
 
+/* ai_profile_sample_actors (0x538e0)
+ *
+ * Confirmed (XBE 0x538e0, 10 bytes, leaf): MOV EAX,[0x6325a4]; MOV AX,word
+ *   ptr [EAX+0x30]; RET -- same shape as ai_meter_encounter (0x538d0), on
+ *   actor_data (kb global 0x6325a4) instead of encounter_data.
+ * Confirmed: referenced only from the ai_profile meter table (0x2c8eac).
+ * Name: PAL 2342 ai/ai_profile.c ai_profile_sample_actors returns
+ *   actor_data->actual_count (T2 via the pool global).  data_t+0x30 stays
+ *   named unk_48 here because types.h has not recovered that field. */
+int16_t ai_profile_sample_actors(void)
+{
+  return (*(data_t **)0x6325a4)->unk_48;
+}
+
 /* AI actor/swarm population count (0x538f0): walk every active actor via the
  * standard encounter iterator and return the total number of AI entities.
  * Swarm actors (record+6 != 0) contribute their component count from the
@@ -3687,6 +3724,30 @@ int16_t ai_meter_unit(void)
   return (int16_t)total;
 }
 
+/* ai_profile_sample_props (0x53940)
+ *
+ * Confirmed (XBE 0x53940, 10 bytes, leaf): MOV EAX,[0x5ab23c]; MOV AX,word
+ *   ptr [EAX+0x30]; RET, on prop_data (kb global 0x5ab23c).
+ * Confirmed: referenced only from the ai_profile meter table (0x2c8edc).
+ * Name: PAL 2342 ai/ai_profile.c ai_profile_sample_props returns
+ *   prop_data->actual_count (T2 via the pool global). */
+int16_t ai_profile_sample_props(void)
+{
+  return (*(data_t **)0x5ab23c)->unk_48;
+}
+
+/* ai_profile_sample_swarms (0x53950)
+ *
+ * Confirmed (XBE 0x53950, 10 bytes, leaf): MOV EAX,[0x6325a0]; MOV AX,word
+ *   ptr [EAX+0x30]; RET, on swarm_data (kb global 0x6325a0).
+ * Confirmed: referenced only from the ai_profile meter table (0x2c8f34).
+ * Name: PAL 2342 ai/ai_profile.c ai_profile_sample_swarms returns
+ *   swarm_data->actual_count (T2 via the pool global). */
+int16_t ai_profile_sample_swarms(void)
+{
+  return (*(data_t **)0x6325a0)->unk_48;
+}
+
 /* AI per-actor byte-field population sum (0x53960): walk every active actor
  * via the standard encounter iterator and accumulate the unsigned byte at
  * record+6, returning the 16-bit total.
@@ -3728,6 +3789,19 @@ int16_t ai_meter_swarm_actor(void)
     record = (unsigned char *)actor_iterator_next(iter);
   }
   return total;
+}
+
+/* ai_profile_sample_swarm_components (0x539b0)
+ *
+ * Confirmed (XBE 0x539b0, 10 bytes, leaf): MOV EAX,[0x63259c]; MOV AX,word
+ *   ptr [EAX+0x30]; RET, on swarm_component_data (kb global 0x63259c).
+ * Confirmed: referenced from the ai_profile meter table (0x2c8f3c) and from
+ *   code at 0xc596c.
+ * Name: PAL 2342 ai/ai_profile.c ai_profile_sample_swarm_components returns
+ *   swarm_component_data->actual_count (T2 via the pool global). */
+int16_t ai_profile_sample_swarm_components(void)
+{
+  return (*(data_t **)0x63259c)->unk_48;
 }
 
 /* 0x000539c0 - debug overlay row: encounter and t-prop pool usage

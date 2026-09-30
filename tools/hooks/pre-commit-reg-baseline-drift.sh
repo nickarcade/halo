@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: kb\.json|kb_reg_baseline\.json
 # Pre-commit hook: detect drift between kb.json @<reg> annotations and
 # tools/kb_reg_baseline.json. Runs only when the staged diff touches kb.json
 # or the baseline itself, so unrelated commits never get blocked by upstream
 # drift introduced elsewhere.
 
-STAGED=$(git diff --cached --name-only)
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+STAGED=$(staged_list all)
 case "$STAGED" in
     *kb.json*|*kb_reg_baseline.json*) ;;
     *) exit 0 ;;

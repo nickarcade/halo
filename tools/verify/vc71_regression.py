@@ -723,20 +723,31 @@ def _measure_key(src: Path) -> str | None:
 
 
 def _load_measure_memo() -> dict:
+    """Load the measurement memo exactly once, thread-safely.
+
+    The old version published an empty dict into _MEASURE_MEMO BEFORE reading the
+    file, so a second worker thread saw the (empty, non-None) dict and missed
+    every key: a warm 6-TU check took 35 s instead of 1 s.  Build the dict
+    locally and publish it only when complete, under a lock."""
     global _MEASURE_MEMO
     if _MEASURE_MEMO is not None:
         return _MEASURE_MEMO
-    _MEASURE_MEMO = {}
-    if MEASURE_CACHE_PATH.exists():
-        try:
-            data = json.loads(MEASURE_CACHE_PATH.read_text())
-            # A memo written under an older rule set is discarded wholesale, not
-            # migrated: its entries encode decisions this version would not make.
-            if data.get("version") == MEASURE_MEMO_VERSION:
-                _MEASURE_MEMO = data.get("entries", {})
-        except (json.JSONDecodeError, OSError):
-            pass
-    return _MEASURE_MEMO
+    with _MEASURE_MEMO_LOCK:
+        if _MEASURE_MEMO is not None:
+            return _MEASURE_MEMO
+        loaded: dict = {}
+        if MEASURE_CACHE_PATH.exists():
+            try:
+                data = json.loads(MEASURE_CACHE_PATH.read_text())
+                # A memo written under an older rule set is discarded wholesale,
+                # not migrated: its entries encode decisions this version would
+                # not make.
+                if data.get("version") == MEASURE_MEMO_VERSION:
+                    loaded = data.get("entries", {})
+            except (json.JSONDecodeError, OSError):
+                pass
+        _MEASURE_MEMO = loaded
+        return _MEASURE_MEMO
 
 
 def flush_measure_memo() -> None:
@@ -1538,6 +1549,7 @@ def cmd_check(args) -> int:
     if to_measure:
         # Pre-warm lazy module caches so worker threads never race on first init.
         _kb_maps(); _kb_source_funcs(); _decl_index()
+        _load_measure_memo(); _tool_epoch()  # single-threaded warm: see _load_measure_memo
         # Pin decl.h here, ONCE, so the workers below do not each rewrite it
         # while their siblings compile against it (see _pin_decl_header).
         _decl_pinned = _pin_decl_header()
@@ -2226,6 +2238,7 @@ def cmd_populate(args) -> int:
     if to_verify:
         # Pre-warm lazy module caches so worker threads never race on first init.
         _kb_maps(); _kb_source_funcs(); _decl_index()
+        _load_measure_memo(); _tool_epoch()  # single-threaded warm: see _load_measure_memo
         # Pin decl.h here, ONCE (see _pin_decl_header) -- the same torn-header
         # race that poisons `check` would poison the floors this command writes.
         _pin_decl_header()

@@ -1,4 +1,140 @@
 /*
+ * FUN_00155130 @ 0x155130 — dead D3D8 inline instantiation of
+ * D3DDevice_SetRenderState: state arrives in ESI, value in EDI. Same dispatch
+ * as FUN_00155630 without the device argument or S_OK return (EAX is never
+ * written; plain RET). States < 0x52 map through the D3D "simple"
+ * render-state register table at 0x282b90 and mirror the value into the
+ * host-side shadow at 0x1fb698; states < 0x74 tail-jump to the deferred
+ * setter; 0x74-0x8f dispatch to the per-state XDK setters in the exact
+ * original compare order (0x7f is tested before 0x7e). Unknown states no-op.
+ * No direct call sites; frameless in the original.
+ */
+/* 0x155130 */
+void FUN_00155130(int state, int value)
+{
+  if (state < 0x52) {
+    D3DDevice_SetRenderState_Simple(*(uint32_t *)(0x282b90 + state * 4), value);
+    *(uint32_t *)(0x1fb698 + state * 4) = value;
+    return;
+  }
+  if (state < 0x74) {
+    D3DDevice_SetRenderState_Deferred(state, value);
+    return;
+  }
+  if (state == 0x74) {
+    D3DDevice_SetRenderState_PSTextureModes(value);
+    return;
+  }
+  if (state == 0x75) {
+    D3DDevice_SetRenderState_VertexBlend(value);
+    return;
+  }
+  if (state == 0x76) {
+    D3DDevice_SetRenderState_FogColor(value);
+    return;
+  }
+  if (state == 0x77) {
+    D3DDevice_SetRenderState_FillMode(value);
+    return;
+  }
+  if (state == 0x78) {
+    D3DDevice_SetRenderState_BackFillMode(value);
+    return;
+  }
+  if (state == 0x79) {
+    D3DDevice_SetRenderState_TwoSidedLighting(value);
+    return;
+  }
+  if (state == 0x7a) {
+    D3DDevice_SetRenderState_NormalizeNormals(value);
+    return;
+  }
+  if (state == 0x7b) {
+    D3DDevice_SetRenderState_ZEnable(value);
+    return;
+  }
+  if (state == 0x7c) {
+    D3DDevice_SetRenderState_StencilEnable(value);
+    return;
+  }
+  if (state == 0x7d) {
+    D3DDevice_SetRenderState_StencilFail(value);
+    return;
+  }
+  if (state == 0x7f) {
+    D3DDevice_SetRenderState_CullMode(value);
+    return;
+  }
+  if (state == 0x7e) {
+    D3DDevice_SetRenderState_FrontFace(value);
+    return;
+  }
+  if (state == 0x80) {
+    D3DDevice_SetRenderState_TextureFactor(value);
+    return;
+  }
+  if (state == 0x81) {
+    D3DDevice_SetRenderState_ZBias(value);
+    return;
+  }
+  if (state == 0x82) {
+    D3DDevice_SetRenderState_LogicOp(value);
+    return;
+  }
+  if (state == 0x83) {
+    D3DDevice_SetRenderState_EdgeAntiAlias(value);
+    return;
+  }
+  if (state == 0x84) {
+    D3DDevice_SetRenderState_MultiSampleAntiAlias(value);
+    return;
+  }
+  if (state == 0x85) {
+    D3DDevice_SetRenderState_MultiSampleMask(value);
+    return;
+  }
+  if (state == 0x86) {
+    D3DDevice_SetRenderState_MultiSampleType(value);
+    return;
+  }
+  if (state == 0x87) {
+    D3DDevice_SetRenderState_ShadowFunc(value);
+    return;
+  }
+  if (state == 0x88) {
+    D3DDevice_SetRenderState_LineWidth(value);
+    return;
+  }
+  if (state == 0x89) {
+    D3DDevice_SetRenderState_Dxt1NoiseEnable(value);
+    return;
+  }
+  if (state == 0x8a) {
+    D3DDevice_SetRenderState_YuvEnable(value);
+    return;
+  }
+  if (state == 0x8b) {
+    D3DDevice_SetRenderState_OcclusionCullEnable(value);
+    return;
+  }
+  if (state == 0x8c) {
+    D3DDevice_SetRenderState_StencilCullEnable(value);
+    return;
+  }
+  if (state == 0x8d) {
+    D3DDevice_SetRenderState_RopZCmpAlwaysRead(value);
+    return;
+  }
+  if (state == 0x8e) {
+    D3DDevice_SetRenderState_RopZRead(value);
+    return;
+  }
+  if (state == 0x8f) {
+    D3DDevice_SetRenderState_DoNotCullUncompressed(value);
+  }
+}
+
+/*
  * FUN_00155350 @ 0x155350 — dead D3D8 inline-wrapper instantiation of
  * IDirect3DDevice8::Present: pDummy2/pDummy1/pDestPointsArray arrive in
  * EAX/ECX/EDX, the device argument (s1) is ignored and pSourceRectsArray
@@ -149,9 +285,9 @@ char rasterizer_preinitialize(void)
     } else {
       success = 0;
       rasterizer_error(hr, "IDirect3D8_CreateDevice(d3d, D3DADAPTER_DEFAULT, "
-                       "D3DDEVTYPE_HAL, NULL, "
-                       "RASTERIZER_DEVICE_CREATION_FLAGS, "
-                       "&d3d_present_parameters, &global_d3d_device)");
+                           "D3DDEVTYPE_HAL, NULL, "
+                           "RASTERIZER_DEVICE_CREATION_FLAGS, "
+                           "&d3d_present_parameters, &global_d3d_device)");
     }
 
     /* 0x15549b-0x1554c0 is two tests (CMP [device],0 / JNE, then TEST BL,BL /
@@ -638,7 +774,8 @@ void _rasterizer_frame_end(void)
     D3DDevice_SetStreamSource((uint32_t)index, (void *)0, 0);
     success = success && hr >= 0;
     if (!success) {
-      rasterizer_error(hr, "IDirect3DDevice8_SetStreamSource(global_d3d_device, "
+      rasterizer_error(hr,
+                       "IDirect3DDevice8_SetStreamSource(global_d3d_device, "
                        "index, NULL, 0)");
     }
     index++;
@@ -648,7 +785,8 @@ void _rasterizer_frame_end(void)
   D3DDevice_SetIndices((void *)0, 0);
   success = success && hr >= 0;
   if (!success) {
-    rasterizer_error(hr, "IDirect3DDevice8_SetIndices(global_d3d_device, NULL, 0)");
+    rasterizer_error(hr,
+                     "IDirect3DDevice8_SetIndices(global_d3d_device, NULL, 0)");
     error(2, "### ERROR rasterizer_frame_end failed");
   }
 }
@@ -1564,7 +1702,8 @@ void rasterizer_set_model_skinning(void *skinning)
                                     *(short *)((char *)skinning + 4) * 3);
 
   if (*(short *)0x3256ba != 0) {
-    *(int *)0x5a5550 = *(short *)((char *)skinning + 4) * 0x30 + *(int *)0x5a5550;
+    *(int *)0x5a5550 =
+      *(short *)((char *)skinning + 4) * 0x30 + *(int *)0x5a5550;
   }
 }
 
@@ -1616,12 +1755,12 @@ void rasterizer_set_model_lighting_point_light(int light_index,
    * it stays pad_; the +0x28 vector's meaning is unproven, so it keeps its
    * offset name. */
   struct point_light_t {
-    const char *owner;  /* +0x00 */
-    float position[3];  /* +0x04 -> record +0x00 */
-    float color[3];     /* +0x10 -> record +0x10 */
-    char pad_1c[0xc];   /* +0x1c never observed accessed */
-    float field_28[3];  /* +0x28 -> record +0x20 */
-    float radius;       /* +0x34 */
+    const char *owner; /* +0x00 */
+    float position[3]; /* +0x04 -> record +0x00 */
+    float color[3]; /* +0x10 -> record +0x10 */
+    char pad_1c[0xc]; /* +0x1c never observed accessed */
+    float field_28[3]; /* +0x28 -> record +0x20 */
+    float radius; /* +0x34 */
   };
   const struct point_light_t *light;
   const char *owner;
@@ -1662,10 +1801,12 @@ void rasterizer_set_model_lighting_point_light(int light_index,
     dst = (char *)lighting_constants + light_slot * 0x30;
 
     {
-      struct vec3 { float x, y, z; };
+      struct vec3 {
+        float x, y, z;
+      };
       *(struct vec3 *)dst = *(const struct vec3 *)light->position;
-      *(float *)(dst + 0x0c) = *(const float *)0x2533c8 /
-        (light->radius * light->radius);
+      *(float *)(dst + 0x0c) =
+        *(const float *)0x2533c8 / (light->radius * light->radius);
       *(struct vec3 *)(dst + 0x10) = *(const struct vec3 *)light->color;
       *(struct vec3 *)(dst + 0x20) = *(const struct vec3 *)light->field_28;
     }
@@ -2093,9 +2234,9 @@ void rasterizer_filthy_bitmap_default_initialize(void)
   } else {
     success = 0;
     rasterizer_error(hr,
-                 "IDirect3DDevice8_CreateTexture(global_d3d_device, 4, 4,"
-                 " 1, 0, D3DFMT_A4R4G4B4, D3DPOOL_MANAGED, "
-                 "&(IDirect3DTexture8*)default_2d_hardware_format)");
+                     "IDirect3DDevice8_CreateTexture(global_d3d_device, 4, 4,"
+                     " 1, 0, D3DFMT_A4R4G4B4, D3DPOOL_MANAGED, "
+                     "&(IDirect3DTexture8*)default_2d_hardware_format)");
   }
 
   hr = D3DDevice_CreateVolumeTexture(4, 4, 4, 1, 0, 4, 1, &default_3d);
@@ -2104,9 +2245,9 @@ void rasterizer_filthy_bitmap_default_initialize(void)
   } else {
     success = 0;
     rasterizer_error(hr,
-                 "IDirect3DDevice8_CreateVolumeTexture(global_d3d_device,"
-                 " 4, 4, 4, 1, 0, D3DFMT_A4R4G4B4, D3DPOOL_MANAGED, "
-                 "&(IDirect3DVolumeTexture8*)default_3d_hardware_format)");
+                     "IDirect3DDevice8_CreateVolumeTexture(global_d3d_device,"
+                     " 4, 4, 4, 1, 0, D3DFMT_A4R4G4B4, D3DPOOL_MANAGED, "
+                     "&(IDirect3DVolumeTexture8*)default_3d_hardware_format)");
   }
 
   hr = D3DDevice_CreateCubeTexture(4, 1, 0, 4, 1, &default_cm);
@@ -2114,10 +2255,10 @@ void rasterizer_filthy_bitmap_default_initialize(void)
    * (JGE over / PUSH msg / PUSH hr / CALL / JMP LAB_00156fc5); the success
    * body is the jumped-to block. */
   if (success == 0 || hr < 0) {
-    rasterizer_error(hr,
-                 "IDirect3DDevice8_CreateCubeTexture(global_d3d_device, 4, 1, "
-                 "0, D3DFMT_A4R4G4B4, D3DPOOL_MANAGED, "
-                 "&(IDirect3DCubeTexture8*)default_cm_hardware_format)");
+    rasterizer_error(
+      hr, "IDirect3DDevice8_CreateCubeTexture(global_d3d_device, 4, 1, "
+          "0, D3DFMT_A4R4G4B4, D3DPOOL_MANAGED, "
+          "&(IDirect3DCubeTexture8*)default_cm_hardware_format)");
     goto failed;
   }
   {
@@ -2325,14 +2466,14 @@ char FUN_00157010(void)
     }
 
     hr = Direct3D_CreateDevice(0, 1, 0, 0x40, &d3dpp, (void **)0x476ab0);
-    success =
-      (hr >= 0) ?
-        1 :
-        (rasterizer_error(hr, "IDirect3D8_CreateDevice(d3d, D3DADAPTER_DEFAULT, "
-                          "D3DDEVTYPE_HAL, NULL, "
-                          "RASTERIZER_DEVICE_CREATION_FLAGS, "
-                          "&d3d_present_parameters, &global_d3d_device)"),
-         0);
+    success = (hr >= 0) ?
+                1 :
+                (rasterizer_error(
+                   hr, "IDirect3D8_CreateDevice(d3d, D3DADAPTER_DEFAULT, "
+                       "D3DDEVTYPE_HAL, NULL, "
+                       "RASTERIZER_DEVICE_CREATION_FLAGS, "
+                       "&d3d_present_parameters, &global_d3d_device)"),
+                 0);
 
     if (*(void **)0x476ab0 == 0) {
       success = 0;
@@ -2349,59 +2490,61 @@ char FUN_00157010(void)
       success = (hr >= 0) ?
                   1 :
                   (rasterizer_error(hr, "IDirect3DDevice8_CreatePalette("
-                                    "global_d3d_device, D3DPALETTE_256, "
-                                    "&d3d_palette)"),
+                                        "global_d3d_device, D3DPALETTE_256, "
+                                        "&d3d_palette)"),
                    0);
 
       D3DPalette_Lock(*(void **)0x476ab4, &palette_data, 0);
       success = (success != 0) ?
                   1 :
                   (rasterizer_error(0, "IDirect3DPalette8_Lock(d3d_palette, "
-                                   "&palette_data, 0)"),
+                                       "&palette_data, 0)"),
                    0);
 
       csmemcpy(palette_data, (void *)0x2ee0a0, 0x400);
       /* IDirect3DPalette8_Unlock is a no-op inline on Xbox — only the
        * success test survives. */
-      success = (success != 0) ?
-                  1 :
-                  (rasterizer_error(0, "IDirect3DPalette8_Unlock(d3d_palette)"), 0);
+      success =
+        (success != 0) ?
+          1 :
+          (rasterizer_error(0, "IDirect3DPalette8_Unlock(d3d_palette)"), 0);
 
       D3DDevice_SetPalette(0, *(void **)0x476ab4);
       success = (success != 0) ?
                   1 :
                   (rasterizer_error(0, "IDirect3DDevice8_SetPalette("
-                                   "global_d3d_device, 0, d3d_palette)"),
+                                       "global_d3d_device, 0, d3d_palette)"),
                    0);
 
       D3DDevice_SetPalette(1, *(void **)0x476ab4);
       success = (success != 0) ?
                   1 :
                   (rasterizer_error(0, "IDirect3DDevice8_SetPalette("
-                                   "global_d3d_device, 1, d3d_palette)"),
+                                       "global_d3d_device, 1, d3d_palette)"),
                    0);
 
       D3DDevice_SetPalette(2, *(void **)0x476ab4);
       success = (success != 0) ?
                   1 :
                   (rasterizer_error(0, "IDirect3DDevice8_SetPalette("
-                                   "global_d3d_device, 2, d3d_palette)"),
+                                       "global_d3d_device, 2, d3d_palette)"),
                    0);
 
       D3DDevice_SetPalette(3, *(void **)0x476ab4);
       if (success == 0) {
         rasterizer_error(0, "IDirect3DDevice8_SetPalette(global_d3d_device, 3, "
-                        "d3d_palette)");
+                            "d3d_palette)");
       } else {
         D3DDevice_GetBackBuffer(0, 0, (void **)0x476a5c);
 
         hr = D3DDevice_GetDepthStencilSurface((void **)0x476a60);
-        success = (hr >= 0) ?
-                    1 :
-                    (rasterizer_error(hr, "IDirect3DDevice8_GetDepthStencilSurface("
-                                      "global_d3d_device, "
-                                      "&global_d3d_surface_render_primary_z)"),
-                     0);
+        success =
+          (hr >= 0) ?
+            1 :
+            (rasterizer_error(hr, "IDirect3DDevice8_GetDepthStencilSurface("
+                                  "global_d3d_device, "
+                                  "&global_d3d_surface_render_primary_z)"),
+             0);
 
         *(void **)0x476a54 = debug_malloc(
           0x14, false, "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
@@ -2466,12 +2609,13 @@ char FUN_00157010(void)
 
         hr =
           D3DTexture_GetSurfaceLevel(*(void **)0x476a64, 0, (void **)0x476a6c);
-        success = (success != 0 && hr >= 0) ?
-                    1 :
-                    (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
-                                      "global_d3d_texture_render_secondary, 0, "
-                                      "&global_d3d_surface_render_secondary)"),
-                     0);
+        success =
+          (success != 0 && hr >= 0) ?
+            1 :
+            (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
+                                  "global_d3d_texture_render_secondary, 0, "
+                                  "&global_d3d_surface_render_secondary)"),
+             0);
         if (*(void **)0x476a64 == 0 || *(void **)0x476a6c == 0) {
           success = 0;
         }
@@ -2501,8 +2645,8 @@ char FUN_00157010(void)
             (success != 0 && hr >= 0) ?
               1 :
               (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
-                                "global_d3d_texture_water, mipmap_index, "
-                                "&global_d3d_surface_water[mipmap_index])"),
+                                    "global_d3d_texture_water, mipmap_index, "
+                                    "&global_d3d_surface_water[mipmap_index])"),
                0);
           if (((void **)0x476a98)[i] == 0) {
             success = 0;
@@ -2523,12 +2667,13 @@ char FUN_00157010(void)
 
         hr =
           D3DTexture_GetSurfaceLevel(*(void **)0x476a74, 0, (void **)0x476a78);
-        success = (success != 0 && hr >= 0) ?
-                    1 :
-                    (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
-                                      "global_d3d_texture_shadow_primary, 0, "
-                                      "&global_d3d_surface_shadow_primary)"),
-                     0);
+        success =
+          (success != 0 && hr >= 0) ?
+            1 :
+            (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
+                                  "global_d3d_texture_shadow_primary, 0, "
+                                  "&global_d3d_surface_shadow_primary)"),
+             0);
         if (*(void **)0x476a74 == 0 || *(void **)0x476a78 == 0) {
           success = 0;
         }
@@ -2547,12 +2692,13 @@ char FUN_00157010(void)
 
         hr =
           D3DTexture_GetSurfaceLevel(*(void **)0x476a7c, 0, (void **)0x476a80);
-        success = (success != 0 && hr >= 0) ?
-                    1 :
-                    (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
-                                      "global_d3d_texture_shadow_secondary, 0, "
-                                      "&global_d3d_surface_shadow_secondary)"),
-                     0);
+        success =
+          (success != 0 && hr >= 0) ?
+            1 :
+            (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
+                                  "global_d3d_texture_shadow_secondary, 0, "
+                                  "&global_d3d_surface_shadow_secondary)"),
+             0);
         if (*(void **)0x476a7c == 0 || *(void **)0x476a80 == 0) {
           success = 0;
         }
@@ -2571,12 +2717,13 @@ char FUN_00157010(void)
 
         hr =
           D3DTexture_GetSurfaceLevel(*(void **)0x476a84, 0, (void **)0x476a88);
-        success = (success != 0 && hr >= 0) ?
-                    1 :
-                    (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
-                                      "global_d3d_texture_sun_glow_primary, 0, "
-                                      "&global_d3d_surface_sun_glow_primary)"),
-                     0);
+        success =
+          (success != 0 && hr >= 0) ?
+            1 :
+            (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
+                                  "global_d3d_texture_sun_glow_primary, 0, "
+                                  "&global_d3d_surface_sun_glow_primary)"),
+             0);
         if (*(void **)0x476a84 == 0 || *(void **)0x476a88 == 0) {
           success = 0;
         }
@@ -2599,8 +2746,8 @@ char FUN_00157010(void)
           (success != 0 && hr >= 0) ?
             1 :
             (rasterizer_error(hr, "IDirect3DTexture8_GetSurfaceLevel("
-                              "global_d3d_texture_sun_glow_secondary, 0, "
-                              "&global_d3d_surface_sun_glow_secondary)"),
+                                  "global_d3d_texture_sun_glow_secondary, 0, "
+                                  "&global_d3d_surface_sun_glow_secondary)"),
              0);
 
         if (*(void **)0x476a8c == 0 || *(void **)0x476a90 == 0) {
@@ -2655,7 +2802,8 @@ char FUN_00157010(void)
 
   success =
     (success != 0 && (char)rasterizer_memory_pool_new() != 0 &&
-     rasterizer_dynamic_geometry_initialize() != 0 && (char)rasterizer_transparent_geometry_new() != 0 &&
+     rasterizer_dynamic_geometry_initialize() != 0 &&
+     (char)rasterizer_transparent_geometry_new() != 0 &&
      rasterizer_vertex_shaders_initialize() != 0 && FUN_0017df80() != 0 &&
      FUN_0017eb50() != 0 && (char)rasterizer_text_cache_initialize() != 0 &&
      FUN_0015c2d0() != 0 && FUN_0016f6c0() != 0 && FUN_001659a0() != 0) ?
@@ -2696,4 +2844,173 @@ void FUN_00157940(float *elapsed)
     FUN_0015b220();
     decals_update();
   }
+}
+
+/*
+ * _rasterizer_window_set_fog @ 0x1579d0 — installs a new window fog
+ * parameter block and rebuilds the four vertex-shader fog constant rows
+ * consumed by the fog combiner. Asserts fog != NULL (line 0x5ac). Reached
+ * only via the tail-call thunk rasterizer_environment_fog_screen_end
+ * (0x17c8f0 -> here), whose only caller (FUN_00158df0, 0x158eba) passes
+ * &(EBX+0x1e8), a field inside that function's struct argument.
+ *
+ * Field layout of the 0x50-byte fog parameter block at 0x5a5da8 (matches
+ * PAL 2342's `struct render_fog`, source/render/render_cameras.h, and this
+ * function's read-side counterpart _rasterizer_window_get_fog @ 0x155a00):
+ *   +0x00 word  fog_definition_flags   (bit 2 = screen-effect-only)
+ *   +0x02 word  runtime_flags          (unused here)
+ *   +0x04 real  atmospheric_color[3]
+ *   +0x10 real  atmospheric_maximum_density
+ *   +0x14 real  atmospheric_minimum_distance
+ *   +0x18 real  atmospheric_maximum_distance
+ *   +0x1c word  planar_mode            (0=disabled/reset, 1=explicit plane
+ *                                       from `fog`, 2=camera-forward-derived)
+ *   +0x20 real  plane[4]               (normal.xyz, d)
+ *   +0x30 real  planar_color[3]
+ *   +0x3c real  planar_maximum_density
+ *   +0x40 real  planar_maximum_distance
+ *   +0x44 real  planar_maximum_depth
+ *   +0x48 ...   screen / screen_external_intensity (not touched here)
+ *
+ * 0x3256df / 0x3256e0 are single-byte debug toggles (PAL:
+ * rasterizer_debug_options.fog_atmosphere / .fog_plane) gating the
+ * atmospheric- and planar-fog auto-reset paths below; not yet named
+ * elsewhere in this codebase. 0x2ee708 is a global pointer to a 3-dword
+ * default planar-color constant (observed {1.0f,1.0f,1.0f}); dereferenced
+ * once per reset, never indexed.
+ *
+ * The four fog_constants rows are uploaded as one contiguous 0x40-byte
+ * block (`D3DDevice_SetVertexShaderConstant(-0x58, fog_constants, 4)`,
+ * confirmed via disassembly: EBP-0x44..EBP-0x04 is a single run of 16
+ * back-to-back FSTPs with no gaps), so they must stay one array rather
+ * than 16 independent locals.
+ */
+/* 0x1579d0 */
+void _rasterizer_window_set_fog(void *fog)
+{
+  short planar_mode;
+  float plane_distance;
+  float inv_atmospheric_range;
+  float view_distance;
+  float inv_planar_distance;
+  float inv_planar_depth;
+  float fog_constants[4][4];
+  uint32_t *default_planar_color;
+  unsigned int fog_color;
+
+  assert_halt_at("c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c", 0x5ac,
+                 fog);
+
+  /* Copy the caller's 0x14-dword fog block into the live window fog state
+   * (`rep movsl`, ECX=0x14; _rasterizer_window_get_fog copies the same
+   * range in the opposite direction). */
+  memcpy((void *)0x5a5da8, fog, 0x50);
+
+  if (*(float *)0x5a5db8 <= 0.0f) {
+    *(float *)0x5a5db8 = 1.0f; /* atmospheric_maximum_density */
+  }
+
+  if (*(float *)0x5a5dc0 == 0.0f || *(uint8_t *)0x3256df == 0) {
+    /* Reset atmospheric fog to a default range keyed off the camera's far
+     * clip distance (0x5a5c08). */
+    *(float *)0x5a5db8 = 0.0f; /* atmospheric_maximum_density */
+    *(float *)0x5a5dbc = *(float *)0x5a5c08; /* atmospheric_minimum_distance */
+    *(float *)0x5a5dc0 =
+      *(float *)0x5a5c08 * 2.0f; /* atmospheric_maximum_distance */
+  }
+
+  if (*(float *)0x5a5de4 <= 0.0f) {
+    *(float *)0x5a5de4 = 1.0f; /* planar_maximum_density */
+  }
+
+  planar_mode = *(short *)0x5a5dc4;
+  if (planar_mode != 0 && (*(uint8_t *)fog & 4) == 0 &&
+      *(uint8_t *)0x3256e0 != 0) {
+    if (planar_mode == 2) {
+      assert_halt_msg_at(
+        "global_window_parameters.fog.planar_maximum_distance!=0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c", 0x5da,
+        *(float *)0x5a5de8 != 0.0f);
+      /* plane = plane through the camera position facing the camera's
+       * forward vector, offset by one far-clip distance along the
+       * normal. */
+      *(float *)0x5a5dec = 1.0f; /* planar_maximum_depth */
+      plane3d_from_point_and_normal((float *)0x5a5dc8, (float *)0x5a5bc8,
+                                    (float *)0x5a5bd4);
+      *(float *)0x5a5dd4 += *(float *)0x5a5c08;
+    }
+    /* planar_mode == 1: keep the plane/planar fields copied from `fog`
+     * unchanged. */
+  } else {
+    /* planar_mode == 0, screen-effect-only, or the fog_plane debug option
+     * is disabled: reset the plane to the camera's own view plane and the
+     * planar fog fields to defaults. */
+    default_planar_color = *(uint32_t **)0x2ee708;
+    *(short *)0x5a5dc4 = 0; /* planar_mode */
+    *(float *)0x5a5de4 = 0.0f; /* planar_maximum_density */
+    *(float *)0x5a5de8 = 1.0f; /* planar_maximum_distance */
+    *(float *)0x5a5dec = 1.0f; /* planar_maximum_depth */
+    *(uint32_t *)0x5a5dd8 = default_planar_color[0];
+    *(uint32_t *)0x5a5ddc = default_planar_color[1];
+    *(uint32_t *)0x5a5de0 = default_planar_color[2];
+    *(uint32_t *)0x5a5dc8 =
+      *(uint32_t *)0x5a5bd4; /* plane.normal = camera.forward */
+    *(uint32_t *)0x5a5dcc = *(uint32_t *)0x5a5bd8;
+    *(uint32_t *)0x5a5dd0 = *(uint32_t *)0x5a5bdc;
+    *(float *)0x5a5dd4 = *(float *)0x5a5bd0 * *(float *)0x5a5bdc +
+                         *(float *)0x5a5bcc * *(float *)0x5a5bd8 +
+                         *(float *)0x5a5bc8 * *(float *)0x5a5bd4;
+  }
+
+  assert_halt_msg_at(
+    "global_window_parameters.fog.atmospheric_maximum_distance>=global_"
+    "window_parameters.fog.atmospheric_minimum_distance",
+    "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c", 0x5e7,
+    *(float *)0x5a5dc0 >= *(float *)0x5a5dbc);
+  assert_halt_msg_at(
+    "global_window_parameters.fog.planar_maximum_distance>0.0f",
+    "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c", 0x5e8,
+    *(float *)0x5a5de8 > 0.0f);
+  assert_halt_msg_at("global_window_parameters.fog.planar_maximum_depth>0.0f",
+                     "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
+                     0x5e9, *(float *)0x5a5dec > 0.0f);
+
+  /* plane_distance = plane3d_distance_to_point(plane, camera.position) */
+  plane_distance = *(float *)0x5a5bd0 * *(float *)0x5a5dd0 +
+                   *(float *)0x5a5bcc * *(float *)0x5a5dcc +
+                   *(float *)0x5a5bc8 * *(float *)0x5a5dc8 - *(float *)0x5a5dd4;
+
+  view_distance = *(float *)0x5a5bd0 * *(float *)0x5a5bdc +
+                  *(float *)0x5a5bcc * *(float *)0x5a5bd8 +
+                  *(float *)0x5a5bc8 * *(float *)0x5a5bd4;
+
+  inv_atmospheric_range = 1.0f / (*(float *)0x5a5dc0 - *(float *)0x5a5dbc);
+  inv_planar_distance = 1.0f / *(float *)0x5a5de8;
+  inv_planar_depth = 1.0f / *(float *)0x5a5dec;
+
+  fog_constants[0][0] = *(float *)0x5a5bd4 * inv_atmospheric_range;
+  fog_constants[0][1] = *(float *)0x5a5bd8 * inv_atmospheric_range;
+  fog_constants[0][2] = *(float *)0x5a5bdc * inv_atmospheric_range;
+  fog_constants[0][3] =
+    -((*(float *)0x5a5dbc + view_distance) * inv_atmospheric_range);
+
+  fog_constants[1][0] = -(*(float *)0x5a5dc8 * inv_planar_depth);
+  fog_constants[1][1] = -(*(float *)0x5a5dcc * inv_planar_depth);
+  fog_constants[1][2] = -(*(float *)0x5a5dd0 * inv_planar_depth);
+  fog_constants[1][3] = *(float *)0x5a5dd4 * inv_planar_depth;
+
+  fog_constants[2][0] = *(float *)0x5a5bd4 * inv_planar_distance;
+  fog_constants[2][1] = *(float *)0x5a5bd8 * inv_planar_distance;
+  fog_constants[2][2] = *(float *)0x5a5bdc * inv_planar_distance;
+  fog_constants[2][3] = -(inv_planar_distance * view_distance);
+
+  fog_constants[3][0] = CLAMP(*(float *)0x5a5db8, 0.0f, 1.0f);
+  fog_constants[3][1] = CLAMP(-(inv_planar_depth * plane_distance), 0.0f, 1.0f);
+  fog_constants[3][2] = CLAMP(*(float *)0x5a5de4, 0.0f, 1.0f);
+  fog_constants[3][3] = 0.0f;
+
+  D3DDevice_SetVertexShaderConstant(-0x58, fog_constants, 4);
+
+  fog_color = real_rgb_color_to_pixel32((float *)0x5a5dac);
+  D3DDevice_SetRenderState_FogColor(fog_color);
 }

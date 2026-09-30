@@ -194,6 +194,62 @@ void FUN_0016dee0(void)
   }
 }
 
+/* rasterizer_xbox_motion_sensor: draw one motion-sensor blip.
+ * 0x16e160, TU c:\halo\SOURCE\rasterizer\xbox\rasterizer_xbox_motion_sensor.c
+ * (assert __FILE__ at 0x2a399c, line 0x6d).  Reached only through the
+ * trampoline rasterizer_hud_motion_sensor_blip_draw (0x17d060).
+ *
+ * Argument evidence (disassembly at 0016e160):
+ *  - 0016e1bc MOV AL,[EBP+0x18] / TEST AL,AL selects the large-blip bitmap
+ *    (interface tag 0xd) over the normal one (tag 0xc).
+ *  - 0016e1ec FLD [EBP+0x10] / FMUL [0x255d90] (0.0625f) => radius from size.
+ *  - 0016e1fe FLD [EAX] / FMUL [0x2a39dc] (-0.03125f) scales position[0/1].
+ *  - 0016e1f9 PUSH 7 / CALL D3DDevice_Begin: quad list.
+ *  - 0016e21d FLD [EBP+0xc] / FMUL [EAX+0..8] => color * intensity. */
+void _rasterizer_hud_motion_sensor_blip_draw(float *position, float intensity,
+                                             float size, float *color,
+                                             bool large_blip)
+{
+  void *blip_bitmap;
+  void *large_blip_bitmap;
+  float scaled_position[2];
+  float radius;
+
+  blip_bitmap = FUN_00076ff0(interface_get_tag_index(0xc), 0);
+  large_blip_bitmap = FUN_00076ff0(interface_get_tag_index(0xd), 0);
+  if (*(int *)0x476ab0 == 0) {
+    display_assert("global_d3d_device",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_motion_sensor.c",
+                   0x6d, 1);
+    system_exit(-1);
+  }
+
+  rasterizer_set_texture_bitmap_data(0,
+                                     large_blip ? large_blip_bitmap : blip_bitmap);
+  if (*(uint8_t *)0x3256db != 0 && *(uint8_t *)0x47e007 != 0) {
+    radius = size * 0.0625f;
+    scaled_position[0] = position[0] * -0.03125f;
+    scaled_position[1] = position[1] * -0.03125f;
+
+    D3DDevice_Begin(7);
+    D3DDevice_SetVertexData4f(9, color[0] * intensity,
+                             color[1] * intensity, color[2] * intensity, 1.0f);
+    D3DDevice_SetVertexData2s(4, 0, 0);
+    D3DDevice_SetVertexData2f(0, scaled_position[0] - radius,
+                             scaled_position[1] + radius);
+    D3DDevice_SetVertexData2s(4, 1, 0);
+    D3DDevice_SetVertexData2f(0, scaled_position[0] + radius,
+                             scaled_position[1] + radius);
+    D3DDevice_SetVertexData2s(4, 1, 1);
+    D3DDevice_SetVertexData2f(0, scaled_position[0] + radius,
+                             scaled_position[1] - radius);
+    D3DDevice_SetVertexData2s(4, 0, 1);
+    D3DDevice_SetVertexData2f(0, scaled_position[0] - radius,
+                             scaled_position[1] - radius);
+    D3DDevice_End();
+  }
+}
+
 /* rasterizer_xbox_motion_sensor: draw the motion-sensor blip pass.
  * 0x16e2e0, TU c:\halo\SOURCE\rasterizer\xbox\rasterizer_xbox_motion_sensor.c
  * (assert __FILE__ at 0x2a399c, line 0x9c).
@@ -1428,46 +1484,6 @@ int FUN_00172650(void *device, uint32_t reg, float a, float b)
   return 0;
 }
 
-/* 0x1726a0
- *
- * FUN_001726a0
- *
- * Handles the "empty shadow" case: called when a shadow was cast but no
- * geometry was submitted for it.
- *
- * Asserts the D3D device exists. When rendering is enabled
- * (*(short *)0x5a5bc0 == 0) and the shadow feature flag is set
- * (*(char *)0x3256ca != 0):
- *   1. If no shadow parameters are active (*(char *)0x47e4b5 == 0), emits the
- *      "empty shadow has been cast" warning.
- *   2. Once per run (latched via *(char *)0x3251fc), performs the fallback
- *      target setup through FUN_00158140 and sets the latch.
- *
- * Note: the guard tests the 16-bit word at 0x5a5bc0 for zero, yet that same
- * zero-extended word is what gets passed as FUN_00158140's first argument.
- * This is what the original code does; preserved verbatim.
- */
-void FUN_001726a0(void)
-{
-  if (*(void **)0x476ab0 == 0) {
-    display_assert(
-      "global_d3d_device",
-      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x233,
-      1);
-    system_exit(-1);
-  }
-  if (*(short *)0x5a5bc0 == 0 && *(char *)0x3256ca != 0) {
-    if (*(char *)0x47e4b5 == 0) {
-      error(2, "### WARNING empty shadow has been cast");
-    }
-    if (*(char *)0x3251fc == 0) {
-      /* Zero-extended 16-bit read (XOR EAX,EAX; MOV AX,[0x5a5bc0]). */
-      FUN_00158140((int)*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
-      *(char *)0x3251fc = 1;
-    }
-  }
-}
-
 /* 0x172720
  *
  * rasterizer_window_get_fog
@@ -1487,190 +1503,6 @@ void FUN_001726a0(void)
 void rasterizer_window_get_fog(void)
 {
   FUN_0016fa40(4);
-}
-
-/* 0x172a30
- *
- * FUN_00172a30
- *
- * Shadow-pass begin / shadow-generate setup. Programs the D3D render
- * states, pixel shader, and vertex-shader constants for the shadow
- * generation pass, then stashes the shadow projection matrix, RGB color,
- * and object bounding radius into the module-global shadow parameter block
- * (0x47e46c..).
- *
- * Asserts the D3D device exists. When rendering is enabled
- * (*(short *)0x5a5bc0 == 0) and the shadow feature flag is set
- * (*(char *)0x3256ca != 0):
- *   1. Validates the matrix/color pointers, each RGB component (in [0,1]),
- *      and the object bounding radius (> 0).
- *   2. Sets cull mode, four "simple" render states (each mirrored into a
- *      module global at 0x1fb7a4/784/788/78c), disables Z test and Z bias.
- *   3. Clears and programs the 0xf0-byte pixel-shader state block at
- *      0x5a5ac0, then binds it.
- *   4. Builds five vertex-shader constant registers - a shadow-projection
- *      transform scaled by 1/radius - and uploads them at register -0x44.
- *   5. Stashes the 13-dword matrix, RGB color, and radius into the shadow
- *      parameter block, and clears the associated state bytes.
- *   6. Optionally writes the radius back through out_radius.
- *   7. If the render-mode word (*(short *)0x3256ba) == 2, bumps the
- *      per-frame counter at 0x5a5430.
- *
- * param_1:                unused (present for the cdecl caller ABI).
- * shadow_matrix:          shadow projection matrix (13 dwords / 4x3-ish).
- * shadow_color:           RGB shadow color (3 floats, each in [0,1]).
- * object_bounding_radius: bounding radius (> 0); its reciprocal scales the
- *                         projection transform.
- * out_radius:             optional; receives object_bounding_radius.
- *
- * Returns 1 (AL).
- */
-char FUN_00172a30(int param_1, const float *shadow_matrix,
-                  const float *shadow_color, float object_bounding_radius,
-                  float *out_radius)
-{
-  float vs_const[20];
-  float inv_r;
-  const unsigned long *src;
-  unsigned long *dst;
-  int i;
-
-  (void)param_1;
-
-  if (*(void **)0x476ab0 == 0) {
-    display_assert(
-      "global_d3d_device",
-      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x93, 1);
-    system_exit(-1);
-  }
-  if (*(short *)0x5a5bc0 == 0 && *(char *)0x3256ca != 0) {
-    if (shadow_matrix == 0) {
-      display_assert(
-        "shadow_matrix",
-        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x99,
-        1);
-      system_exit(-1);
-    }
-    if (shadow_color == 0) {
-      display_assert(
-        "shadow_color",
-        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9a,
-        1);
-      system_exit(-1);
-    }
-    if (!(shadow_color[0] >= 0.0f) || !(shadow_color[0] <= 1.0f)) {
-      display_assert(
-        "shadow_color->red >=0.0f && shadow_color->red <=1.0f",
-        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9b,
-        1);
-      system_exit(-1);
-    }
-    if (!(shadow_color[1] >= 0.0f) || !(shadow_color[1] <= 1.0f)) {
-      display_assert(
-        "shadow_color->green>=0.0f && shadow_color->green<=1.0f",
-        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9c,
-        1);
-      system_exit(-1);
-    }
-    if (!(shadow_color[2] >= 0.0f) || !(shadow_color[2] <= 1.0f)) {
-      display_assert(
-        "shadow_color->blue >=0.0f && shadow_color->blue <=1.0f",
-        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9d,
-        1);
-      system_exit(-1);
-    }
-    if (!(object_bounding_radius > 0.0f)) {
-      display_assert(
-        "object_bounding_radius>0.0f",
-        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9e,
-        1);
-      system_exit(-1);
-    }
-
-    /* Render state: cull, four "simple" states (mirrored to module globals),
-     * Z test/bias off. Each mirror store is paired with its state by value;
-     * MSVC schedules the store into the following call's setup window. */
-    D3DDevice_SetRenderState_CullMode(0x901);
-    D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD,
-                                    NV097_COLOR_MASK_RGB);
-    *(unsigned long *)0x1fb7a4 = 0x10101;
-    D3DDevice_SetRenderState_Simple(0x40304, 0);
-    *(unsigned long *)0x1fb784 = 0;
-    D3DDevice_SetRenderState_Simple(0x40300, 1);
-    *(unsigned long *)0x1fb788 = 1;
-    D3DDevice_SetRenderState_Simple(0x40340, 0x7f);
-    *(unsigned long *)0x1fb78c = 0x7f;
-    D3DDevice_SetRenderState_ZEnable(0);
-    D3DDevice_SetRenderState_ZBias(0);
-
-    /* Program and bind the shadow-generation pixel-shader state block. */
-    csmemset((void *)0x5a5ac0, 0, 0xf0);
-    *(int *)0x5a5b98 = 1;
-    *(int *)0x5a5b94 = 1;
-    *(int *)0x5a5ae0 = 0x20;
-    *(int *)0x5a5ae4 = 0x1800;
-    rasterizer_set_pixel_shader((void *)0x5a5ac0);
-
-    /* Vertex-shader constants: rows 0/1 are the shadow projection scaled by
-     * 1/radius; the trailing constants are fixed. All 20 floats form one
-     * contiguous buffer that SetVertexShaderConstant uploads (5 registers). */
-    inv_r = 1.0f / object_bounding_radius;
-    vs_const[8] = 0.0f;
-    vs_const[9] = 0.0f;
-    vs_const[10] = 0.0f;
-    vs_const[11] = 0.5f;
-    vs_const[12] = 0.0f;
-    vs_const[0] = inv_r * shadow_matrix[1];
-    vs_const[1] = inv_r * shadow_matrix[2];
-    vs_const[2] = inv_r * shadow_matrix[3];
-    vs_const[3] = -((shadow_matrix[10] * shadow_matrix[1] +
-                     shadow_matrix[11] * shadow_matrix[2] +
-                     shadow_matrix[12] * shadow_matrix[3]) *
-                    inv_r);
-    vs_const[4] = inv_r * shadow_matrix[4];
-    vs_const[5] = inv_r * shadow_matrix[5];
-    vs_const[6] = inv_r * shadow_matrix[6];
-    vs_const[7] = -((shadow_matrix[10] * shadow_matrix[4] +
-                     shadow_matrix[11] * shadow_matrix[5] +
-                     shadow_matrix[12] * shadow_matrix[6]) *
-                    inv_r);
-    vs_const[13] = 0.0f;
-    vs_const[14] = 0.0f;
-    vs_const[15] = 1.0f;
-    vs_const[16] = 0.0f;
-    vs_const[17] = 0.0f;
-    vs_const[18] = 0.0f;
-    vs_const[19] = 0.0f;
-    D3DDevice_SetVertexShaderConstant(-0x44, vs_const, 5);
-
-    FUN_00158140(2, 0, (*(unsigned char *)0x3256f7 != 0) ? 0x88888888u : 0u, 1,
-                 0);
-    FUN_00158ae0(0);
-
-    /* Stash the 13-dword matrix, then the RGB color, then the radius. */
-    src = (const unsigned long *)shadow_matrix;
-    dst = (unsigned long *)0x47e47c;
-    for (i = 0xd; i != 0; i--) {
-      *dst = *src;
-      src++;
-      dst++;
-    }
-    *(float *)0x47e46c = shadow_color[0];
-    *(float *)0x47e470 = shadow_color[1];
-    *(float *)0x47e474 = shadow_color[2];
-    *(float *)0x47e478 = object_bounding_radius;
-    if (out_radius != 0) {
-      *out_radius = object_bounding_radius;
-    }
-    *(int *)0x47e4b0 = 0;
-    *(char *)0x47e4b4 = 0;
-    *(char *)0x47e4b5 = 0;
-    *(char *)0x3251fc = 0;
-    if (*(short *)0x3256ba == 2) {
-      *(int *)0x5a5430 = *(int *)0x5a5430 + 1;
-    }
-  }
-  return 1;
 }
 
 void FUN_00173ae0(void)
@@ -2403,6 +2235,151 @@ void FUN_001749b0(void)
   if (ok == 0) {
     error(2, "### ERROR rasterizer_transparent_geometry_groups_begin failed");
   }
+}
+
+/* 0x174690 — per-TU instantiation of the D3D8 SetRenderState dispatcher
+ * (same chain as SetRenderStateSmart 0xe2220 in progress_bar.c).
+ *
+ * ABI evidence from the pristine disassembly:
+ *  - ESI (state) and EDI (value) are read before any write: implicit
+ *    register inputs @<esi>/@<edi>. Compares are JGE, i.e. signed state.
+ *  - RET 0x4 => __stdcall with one stack arg that is never read; it stays in
+ *    the signature so the callee-cleans immediate is preserved.
+ *  - Every exit is XOR EAX,EAX: returns 0 in EAX.
+ *
+ * state < 0x52: register token from the table at 0x282b90 goes to
+ * D3DDevice_SetRenderState_Simple(@<ecx>, value@<edx>), then value is stored
+ * at [state*4+0x1fb698]. [0x52,0x74) goes to
+ * D3DDevice_SetRenderState_Deferred(state@<ecx>, value@<edx>). The rest is a
+ * CMP/JNZ chain pushing value as the single __stdcall arg; the 0x7f-before-
+ * 0x7e order is verbatim from the binary. 0x8f falls through to the shared
+ * epilogue.
+ */
+/* 0x174690 */
+int FUN_00174690(void *a0, int state, uint32_t value)
+{
+  (void)a0;
+  if (state < 0x52) {
+    D3DDevice_SetRenderState_Simple(((const uint32_t *)0x282b90)[state], value);
+    ((uint32_t *)0x1fb698)[state] = value;
+    return 0;
+  }
+  if (state < 0x74) {
+    D3DDevice_SetRenderState_Deferred(state, value);
+    return 0;
+  }
+  if (state == 0x74) {
+    D3DDevice_SetRenderState_PSTextureModes(value);
+    return 0;
+  }
+  if (state == 0x75) {
+    D3DDevice_SetRenderState_VertexBlend(value);
+    return 0;
+  }
+  if (state == 0x76) {
+    D3DDevice_SetRenderState_FogColor(value);
+    return 0;
+  }
+  if (state == 0x77) {
+    D3DDevice_SetRenderState_FillMode(value);
+    return 0;
+  }
+  if (state == 0x78) {
+    D3DDevice_SetRenderState_BackFillMode(value);
+    return 0;
+  }
+  if (state == 0x79) {
+    D3DDevice_SetRenderState_TwoSidedLighting(value);
+    return 0;
+  }
+  if (state == 0x7a) {
+    D3DDevice_SetRenderState_NormalizeNormals(value);
+    return 0;
+  }
+  if (state == 0x7b) {
+    D3DDevice_SetRenderState_ZEnable(value);
+    return 0;
+  }
+  if (state == 0x7c) {
+    D3DDevice_SetRenderState_StencilEnable(value);
+    return 0;
+  }
+  if (state == 0x7d) {
+    D3DDevice_SetRenderState_StencilFail(value);
+    return 0;
+  }
+  if (state == 0x7f) {
+    D3DDevice_SetRenderState_CullMode(value);
+    return 0;
+  }
+  if (state == 0x7e) {
+    D3DDevice_SetRenderState_FrontFace(value);
+    return 0;
+  }
+  if (state == 0x80) {
+    D3DDevice_SetRenderState_TextureFactor(value);
+    return 0;
+  }
+  if (state == 0x81) {
+    D3DDevice_SetRenderState_ZBias(value);
+    return 0;
+  }
+  if (state == 0x82) {
+    D3DDevice_SetRenderState_LogicOp(value);
+    return 0;
+  }
+  if (state == 0x83) {
+    D3DDevice_SetRenderState_EdgeAntiAlias(value);
+    return 0;
+  }
+  if (state == 0x84) {
+    D3DDevice_SetRenderState_MultiSampleAntiAlias(value);
+    return 0;
+  }
+  if (state == 0x85) {
+    D3DDevice_SetRenderState_MultiSampleMask(value);
+    return 0;
+  }
+  if (state == 0x86) {
+    D3DDevice_SetRenderState_MultiSampleType(value);
+    return 0;
+  }
+  if (state == 0x87) {
+    D3DDevice_SetRenderState_ShadowFunc(value);
+    return 0;
+  }
+  if (state == 0x88) {
+    D3DDevice_SetRenderState_LineWidth(value);
+    return 0;
+  }
+  if (state == 0x89) {
+    D3DDevice_SetRenderState_Dxt1NoiseEnable(value);
+    return 0;
+  }
+  if (state == 0x8a) {
+    D3DDevice_SetRenderState_YuvEnable(value);
+    return 0;
+  }
+  if (state == 0x8b) {
+    D3DDevice_SetRenderState_OcclusionCullEnable(value);
+    return 0;
+  }
+  if (state == 0x8c) {
+    D3DDevice_SetRenderState_StencilCullEnable(value);
+    return 0;
+  }
+  if (state == 0x8d) {
+    D3DDevice_SetRenderState_RopZCmpAlwaysRead(value);
+    return 0;
+  }
+  if (state == 0x8e) {
+    D3DDevice_SetRenderState_RopZRead(value);
+    return 0;
+  }
+  if (state == 0x8f) {
+    D3DDevice_SetRenderState_DoNotCullUncompressed(value);
+  }
+  return 0;
 }
 
 /* FUN_00174b60: componentwise 4-float subtract, out = a - b (0x174b60).
@@ -6604,7 +6581,7 @@ void rasterizer_environment_fog_screen_draw(void *fog)
 
 void rasterizer_environment_fog_screen_end(void *screen_fog)
 {
-  FUN_001579d0(screen_fog);
+  _rasterizer_window_set_fog(screen_fog);
 }
 
 void rasterizer_window_end(void)
@@ -6704,9 +6681,11 @@ void rasterizer_hud_motion_sensor_blip_begin(float *p0, float *p1,
   FUN_0015a7f0(p0, p1, color0, color1);
 }
 
-void rasterizer_hud_motion_sensor_blip_draw(float *p0, float *p1, float *p2,
-                                            float *color0, float *color1,
-                                            float *color2)
+/* 0x17ca20: PUSH EBP / MOV EBP,ESP / POP EBP / JMP 0x15a8f0 -- a frame-less
+ * trampoline to the debug triangle draw (six pointer slots).  No callers and
+ * no data references in the XBE. */
+void FUN_0017ca20(float *p0, float *p1, float *p2, float *color0,
+                  float *color1, float *color2)
 {
   FUN_0015a8f0(p0, p1, p2, color0, color1, color2);
 }

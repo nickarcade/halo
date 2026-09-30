@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: \.c$
 # Pre-commit gate: XCALL raw-cast type mismatches vs kb.json decls.
 #
 # An XCALL function-pointer cast with the wrong return/param type silently
@@ -16,7 +17,8 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # NOTE: this reads the worktree copy of each staged file, not the staged
 # blob. A partially-staged file is therefore judged by its worktree text.
-mapfile -t STAGED_C < <(git diff --cached --name-only --diff-filter=ACMR | grep '\.c$')
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+mapfile -t STAGED_C < <(staged_list acmr | grep '\.c$')
 [ ${#STAGED_C[@]} -eq 0 ] && exit 0
 
 python3 "$REPO_ROOT/tools/audit/check_xcall_types.py" "${STAGED_C[@]}" >/tmp/xcall-types-check.txt 2>&1

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: kb\.json|arg_count_baseline\.json
 # Pre-commit gate: kb.json declared stack-arg counts vs the ADD ESP,N cleanup
 # observed at each callee's original call sites in the pristine XBE.
 #
@@ -13,7 +14,8 @@
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-STAGED=$(git diff --cached --name-only)
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+STAGED=$(staged_list all)
 case "$STAGED" in
     *kb.json*|*arg_count_baseline.json*) ;;
     *) exit 0 ;;

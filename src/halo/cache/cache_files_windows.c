@@ -1,3 +1,311 @@
+/* LARGE_INTEGER as the original source spelled it — the assert text at
+ * 0x1bc2a4 is literally "freq.u.HighPart==0", so the source used the
+ * .u.LowPart/.u.HighPart member form. */
+typedef union {
+  struct {
+    unsigned long LowPart;
+    long HighPart;
+  } u;
+  __int64 QuadPart;
+} CACHE_DECOMPRESS_LARGE_INTEGER;
+
+/* FUN_001bafa0 — ReadFileEx/WriteFileEx completion routine (an APC run by
+ * the kernel on I/O completion). FUN_001bb190 and FUN_001bb2d0 below both
+ * pass this address literally as their `completion_routine` argument
+ * ((void *)0x1bafa0), so this function's signature is dictated by the
+ * Win32 LPOVERLAPPED_COMPLETION_ROUTINE ABI, confirmed here by RET 0xc
+ * (3 args, __stdcall).
+ *
+ * A signed divide-by-0x14 (IMUL 0x66666667; SAR 3; sign-fix — MSVC's
+ * constant-divisor idiom, not reproduced verbatim, just `/ 0x14`) recovers
+ * the overlapped-slot index from ((int)overlapped - (int)self - 0x99c),
+ * the exact inverse of the slot address self+0x99c+index*0x14 used by
+ * FUN_001bb190/FUN_001bb2d0 to build the OVERLAPPED pointer passed to
+ * ReadFileEx/WriteFileEx.
+ *
+ * Branch structure (from the raw CMP/Jcc chain, not the decompiler's
+ * grouping — Ghidra also drops the 3rd argument to the inner csprintf
+ * call below; the ADD ESP,0xc after CALL 0x8d9d0 proves 3 pushed args):
+ *   error_code != 0   -> display_assert + system_exit (never returns)
+ *   index <  0         -> no-op return (falls through every check below)
+ *   index >= 11        -> no-op return (same fallthrough, no flag update)
+ *   0 <= index < 11    -> clear self->overlapped_in_use_flags[index] and
+ *                         set self->overlapped_completed_flags[index]
+ *                         (both proven bit-vector names, see
+ *                         FUN_001bb190/FUN_001bb8a0 above), then re-read
+ *                         global_self
+ *   0 <= index < 8     -> read-completion accounting: decrement
+ *                         self->0xa90 by bytes_transferred, ResetEvent
+ *                         the self->0x958 event (proven "manual-reset
+ *                         event" field, see FUN_001bc280), recompute the
+ *                         self->0xaa0 progress fraction as
+ *                         (self->header.size - self->0xa90) /
+ *                         self->header.size (self->0x10c is proven
+ *                         "header.size" by the assert
+ *                         "self->current_write_offset<=self->header.size"
+ *                         elsewhere in this file), SetEvent the same
+ *                         handle, then return
+ *   index == 9         -> write-completion accounting: decrement
+ *                         self->0xa98 (async_write_bytes_left, already
+ *                         assert-proven elsewhere in this file) by
+ *                         bytes_transferred
+ *   index == 10        -> only the shared flag update above runs (a
+ *                         header-write slot with no byte accounting)
+ *
+ * self->0xa90 is a newly assert-proven name from THIS function's own
+ * __FILE__ text: "global_self->async_read_bytes_left>0". It is distinct
+ * from the already-documented self->0xa94 (still unnamed, "field_a94")
+ * and self->0xa98 (async_write_bytes_left).
+ *
+ * self->0xaa0 is left as a raw offset here (not renamed in this lift) —
+ * a separate progress-reporting function in tags.c independently reads
+ * and clamps it to [0,1] as a progress fraction, corroborating but not
+ * proving a name via this function's own assert text.
+ *
+ * The QueryPerformanceCounter(&unused_counter) call in the 0<=index<11
+ * block reads a fresh timestamp into an 8-byte stack scratch buffer whose
+ * value is never used again afterward (no later read of EAX or of the
+ * buffer) — reproduced as-is; its purpose could not be determined from
+ * this function alone.
+ *
+ * global_self (self) is read from *(char **)0x32ea98, never passed as a
+ * parameter — the same "global_self" idiom documented in
+ * simple_cache_copy_thread/FUN_001bc280 above, including that idiom's
+ * established convention of re-reading the raw global after each call
+ * that might have changed it (self is re-read once after the flag update
+ * and again after ResetEvent, matching the disassembly's two additional
+ * `MOV reg,[0x32ea98]` reloads).
+ *
+ * Source: c:\halo\SOURCE\cache\cache_files_decompress_windows.c, asserts
+ * at lines 0x50b, 0x514, 0x51a.
+ */
+void __stdcall FUN_001bafa0(int error_code, unsigned int bytes_transferred,
+                            void *overlapped)
+{
+  char *self;
+  int overlapped_index;
+  unsigned int mask;
+  unsigned int *in_use_flags;
+  unsigned int *completed_flags;
+  CACHE_DECOMPRESS_LARGE_INTEGER unused_counter;
+
+  self = *(char **)0x32ea98;
+  completed_flags = (unsigned int *)(self + 0x998);
+  overlapped_index = ((int)overlapped - (int)self - 0x99c) / 0x14;
+  in_use_flags = (unsigned int *)(self + 0x994);
+
+  if (error_code != 0) {
+    display_assert(
+      csprintf((char *)0x4e5510, "async i/o finished with error code %d",
+               error_code),
+      "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x51a, 1);
+    system_exit(-1);
+  }
+
+  if (overlapped_index >= 0) {
+    if (overlapped_index < 11) {
+      QueryPerformanceCounter(&unused_counter);
+
+      mask = 1u << (overlapped_index & 0x1f);
+      in_use_flags[overlapped_index >> 5] &= ~mask;
+      completed_flags[overlapped_index >> 5] |= mask;
+
+      self = *(char **)0x32ea98;
+    }
+
+    if (overlapped_index <= 7) {
+      if (*(int *)(self + 0xa90) <= 0) {
+        display_assert(
+          "global_self->async_read_bytes_left>0",
+          "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x50b,
+          1);
+        system_exit(-1);
+      }
+      *(int *)(self + 0xa90) = *(int *)(self + 0xa90) - bytes_transferred;
+
+      ResetEvent(*(void **)(self + 0x958));
+
+      self = *(char **)0x32ea98;
+      *(float *)(self + 0xaa0) =
+        (float)(*(int *)(self + 0x10c) - *(int *)(self + 0xa90)) /
+        *(int *)(self + 0x10c);
+      SetEvent(*(void **)(self + 0x958));
+      return;
+    }
+  }
+
+  if (overlapped_index == 9) {
+    if (*(int *)(self + 0xa98) <= 0) {
+      display_assert(
+        "global_self->async_write_bytes_left>0",
+        "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x514, 1);
+      system_exit(-1);
+    }
+    *(int *)(self + 0xa98) = *(int *)(self + 0xa98) - bytes_transferred;
+  }
+}
+
+/* FUN_001bb190 — issue an async ReadFileEx into a caller-supplied buffer
+ * from an overlapped-slot pool entry at self+0x99c+read_buffer_index*0x14
+ * (the read pool's own 0-8 range, disjoint from FUN_001bb2d0's write slots
+ * at param_4+9). Structurally the mirror image of FUN_001bb2d0 below —
+ * same retry loop on transient errors (8, 0x5aa, 0x6f8) via alertable
+ * SleepEx(0,1)/SetLastError(0), same assert+system_exit shape on a
+ * non-transient error or on re-issuing an already-in-use slot. On success,
+ * adds the elapsed low-32-bit QueryPerformanceCounter delta (since function
+ * entry, global start-timestamp at DAT_004e5640 — the read path's own
+ * global, distinct from the write path's DAT_004e5648) to the running
+ * total at DAT_004e5614 (distinct from the write path's DAT_004e5618).
+ *
+ * self fields used: +0x990 read file HANDLE, +0x994 overlapped_in_use_flags
+ * bit vector (shared field with FUN_001bb2d0 — confirmed by disassembly:
+ * both compute their flag address as self+0x994+(index>>5)*4), +0x99c
+ * overlapped-slot pool base, +0xac8 + slot*8 per-slot
+ * QueryPerformanceCounter start-timestamp array.
+ *
+ * read_buffer_index is MOVSX-loaded as a 16-bit value in the disassembly
+ * (`MOVSX ESI,word ptr [EBP+0x14]`) but then used as a full 32-bit value for
+ * every subsequent computation (unlike FUN_001baa50, whose bounds check
+ * stays 16-bit) — matches FUN_001bb2d0's own `(int)param_4` widening. The
+ * disassembly also reuses the [EBP+0x14] stack slot to hold the computed
+ * overlapped-entry pointer after the parameter's value has been consumed;
+ * that is pure register/stack-allocation noise and is not reproduced here —
+ * this lift uses separate named locals for the same values instead.
+ *
+ * Source: c:\halo\SOURCE\cache\cache_files_decompress_windows.c, asserts at
+ * lines 0x536, 0x559.
+ */
+void FUN_001bb190(char *self, void *buffer, unsigned int size,
+                  int current_read_offset, short read_buffer_index)
+{
+  int overlapped_index;
+  unsigned int mask;
+  unsigned int *flags;
+  char *overlapped_entry;
+  int read_handle;
+  int result;
+  int error;
+  CACHE_DECOMPRESS_LARGE_INTEGER end_time;
+
+  QueryPerformanceCounter((void *)0x4e5640);
+
+  overlapped_index = (int)read_buffer_index;
+  read_handle = *(int *)(self + 0x990);
+  overlapped_entry = self + 0x99c + overlapped_index * 0x14;
+
+  mask = 1u << (overlapped_index & 0x1f);
+  flags = (unsigned int *)(self + 0x994) + (overlapped_index >> 5);
+  if ((*flags & mask) != 0) {
+    display_assert(
+      "!BIT_VECTOR_TEST_FLAG(self->overlapped_in_use_flags, overlapped_index)",
+      "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x536, 1);
+    system_exit(-1);
+  }
+  *flags = *flags | mask;
+
+  *(int *)(overlapped_entry + 0x10) = overlapped_index;
+  *(int *)(overlapped_entry + 8) = current_read_offset;
+  *(int *)(overlapped_entry + 0xc) = 0;
+
+  QueryPerformanceCounter(self + 0xac8 + overlapped_index * 8);
+
+  do {
+    SleepEx(0, 1);
+    SetLastError(0);
+    result =
+      ReadFileEx(read_handle, buffer, size, overlapped_entry, (void *)0x1bafa0);
+    error = xapi_GetLastError();
+    if (result != 0) {
+      QueryPerformanceCounter(&end_time);
+      *(int *)0x4e5614 =
+        *(int *)0x4e5614 + ((int)end_time.u.LowPart - *(int *)0x4e5640);
+      return;
+    }
+  } while (error == 0x6f8 || error == 8 || error == 0x5aa);
+
+  display_assert("couldn't issue an asynchronous read",
+                 "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c",
+                 0x559, 1);
+  system_exit(-1);
+}
+
+/* FUN_001bb2d0 — issue an async WriteFileEx from a caller-supplied buffer
+ * into an overlapped-slot pool entry at self+0x99c+(param_4+9)*0x14 (an
+ * OVERLAPPED-shaped 0x14-byte entry; write slots begin at index param_4+9,
+ * disjoint from the read pool's 0-8 range used by FUN_001bb8a0/FUN_001bb430).
+ * Retries on transient errors (8, 0x5aa, 0x6f8) via alertable
+ * SleepEx(0,1)/SetLastError(0) until WriteFileEx succeeds or a
+ * non-transient error triggers an assert+system_exit. On success, adds the
+ * elapsed low-32-bit QueryPerformanceCounter delta (since function entry,
+ * global start-timestamp at DAT_004e5648) to the running total at
+ * DAT_004e5618.
+ *
+ * self fields used: +0x98c write file HANDLE, +0x994 overlapped_in_use_flags
+ * bit vector (shared with the read pool; same idiom as FUN_001bb8a0 above),
+ * +0x99c overlapped-slot pool base, +0xac8 + slot*8 per-slot
+ * QueryPerformanceCounter start-timestamp array.
+ *
+ * param_4 is MOVSX-loaded as a 16-bit value in the disassembly
+ * (`MOVSX ESI,word ptr [EBP+0x14]`), proving a short parameter, not the int
+ * the decompiler's stale signature showed.
+ *
+ * Source: c:\halo\SOURCE\cache\cache_files_decompress_windows.c, asserts at
+ * lines 0x583, 0x5a1.
+ */
+void FUN_001bb2d0(char *self /* @<edi> */, void *buffer, unsigned int size,
+                  int param_3, short param_4)
+{
+  int overlapped_index;
+  unsigned int mask;
+  unsigned int *flags;
+  char *overlapped_entry;
+  int write_handle;
+  int result;
+  int error;
+  CACHE_DECOMPRESS_LARGE_INTEGER end_time;
+
+  QueryPerformanceCounter((void *)0x4e5648);
+
+  overlapped_index = (int)param_4 + 9;
+  write_handle = *(int *)(self + 0x98c);
+  overlapped_entry = self + 0x99c + overlapped_index * 0x14;
+
+  mask = 1u << (overlapped_index & 0x1f);
+  flags = (unsigned int *)(self + 0x994) + (overlapped_index >> 5);
+  if ((*flags & mask) != 0) {
+    display_assert(
+      "!BIT_VECTOR_TEST_FLAG(self->overlapped_in_use_flags, overlapped_index)",
+      "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x583, 1);
+    system_exit(-1);
+  }
+  *flags = *flags | mask;
+
+  *(int *)(overlapped_entry + 0x10) = overlapped_index;
+  *(int *)(overlapped_entry + 8) = param_3;
+  *(int *)(overlapped_entry + 0xc) = 0;
+
+  QueryPerformanceCounter(self + 0xac8 + overlapped_index * 8);
+
+  do {
+    SleepEx(0, 1);
+    SetLastError(0);
+    result = WriteFileEx(write_handle, buffer, size, overlapped_entry,
+                         (void *)0x1bafa0);
+    error = xapi_GetLastError();
+    if (result != 0) {
+      QueryPerformanceCounter(&end_time);
+      *(int *)0x4e5618 =
+        *(int *)0x4e5618 + ((int)end_time.u.LowPart - *(int *)0x4e5648);
+      return;
+    }
+  } while (error == 0x6f8 || error == 8 || error == 0x5aa);
+
+  display_assert("couldn't issue an asynchronous write",
+                 "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c",
+                 0x5a1, 1);
+  system_exit(-1);
+}
+
 /* FUN_001bb430 — begin an async read of the next chunk into a decompression
  * read buffer.
  *
@@ -49,7 +357,7 @@ void FUN_001bb430(char *self, short *request, short read_buffer_index)
   void *buffer;
   unsigned int size;
 
-  buffer = FUN_001baa50(request);
+  buffer = FUN_001baa50(request, self);
 
   size = *(unsigned int *)(self + 0xa94);
   if ((int)size >= 0x20000) {
@@ -483,17 +791,6 @@ void cache_copy_update_write_buffers(char *self /* @<esi> */)
   }
 }
 
-/* LARGE_INTEGER as the original source spelled it — the assert text at
- * 0x1bc2a4 is literally "freq.u.HighPart==0", so the source used the
- * .u.LowPart/.u.HighPart member form. */
-typedef union {
-  struct {
-    unsigned long LowPart;
-    long HighPart;
-  } u;
-  __int64 QuadPart;
-} CACHE_DECOMPRESS_LARGE_INTEGER;
-
 /* cache_copy_run_decompression (0x1bbb60) — copy-thread decompression pump.
  * self arrives in EAX (MOV ESI,EAX before any write to EAX). The zlib
  * stream lives at self+0x908 (EBX); assert text names +0x4 avail_in, and
@@ -872,6 +1169,81 @@ void cache_files_dispose(void)
   }
   debug_free(*(void **)0x4e9250,
              "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0xcb);
+}
+
+/* FUN_001bc3b0 — issue an async ReadFileEx/WriteFileEx (async_request_function
+ * is one of those two, passed by the caller) on an OVERLAPPED-shaped
+ * caller-supplied buffer, retrying on transient errors (8, 0x5aa, 0x6f8) via
+ * an alertable SleepEx(0,1)/SetLastError(0) pair until the call succeeds or a
+ * non-transient error triggers an assert+system_exit. The overlapped buffer's
+ * +0x8 dword is the offset, +0xc (OffsetHigh) is zeroed, and +0x10 stores the
+ * completion_flag pointer that async_request_function's completion routine
+ * will eventually signal.
+ */
+void FUN_001bc3b0(void *async_request_function /* @<edi> */,
+                  void *overlapped /* @<esi> */, unsigned int handle,
+                  int buffer, unsigned int size, int offset,
+                  char *completion_flag, void *completion_routine /* @<ebx> */)
+{
+  int result;
+  int error;
+
+  if (async_request_function == 0) {
+    display_assert("async_request_function",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x180, 1);
+    system_exit(-1);
+  }
+  if ((int)handle == -1) {
+    display_assert("file!=INVALID_HANDLE_VALUE",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x181, 1);
+    system_exit(-1);
+  }
+  if (overlapped == 0) {
+    display_assert("overlapped",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x182, 1);
+    system_exit(-1);
+  }
+  if (buffer == 0) {
+    display_assert("buffer", "c:\\halo\\SOURCE\\cache\\cache_files_windows.c",
+                   0x183, 1);
+    system_exit(-1);
+  }
+  if (completion_flag == 0) {
+    display_assert("completion_flag",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x184, 1);
+    system_exit(-1);
+  }
+  if (completion_routine == 0) {
+    display_assert("completion_routine",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x185, 1);
+    system_exit(-1);
+  }
+
+  csmemset(overlapped, 0, 0x14);
+  *(int *)((char *)overlapped + 8) = offset;
+  *(int *)((char *)overlapped + 0xc) = 0;
+  *(char **)((char *)overlapped + 0x10) = completion_flag;
+
+  SleepEx(0, 1);
+  SetLastError(0);
+  result = ((int(__stdcall *)(unsigned int, int, unsigned int, void *,
+                              void *))async_request_function)(
+    handle, buffer, size, overlapped, completion_routine);
+  while (result == 0) {
+    error = xapi_GetLastError();
+    if (error != 8 && error != 0x5aa && error != 0x6f8) {
+      display_assert(
+        csprintf((char *)0x5ab100, "Read/WriteFileEx() returned #%d",
+                 xapi_GetLastError()),
+        "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x1a0, 1);
+      system_exit(-1);
+    }
+    SleepEx(0, 1);
+    SetLastError(0);
+    result = ((int(__stdcall *)(unsigned int, int, unsigned int, void *,
+                                void *))async_request_function)(
+      handle, buffer, size, overlapped, completion_routine);
+  }
 }
 
 /* FUN_001bc5c0 — find the first free (inactive) cache IO request slot.
@@ -1525,6 +1897,68 @@ void FUN_001bcfb0(short map_file_index)
   SetFileTime(*(int *)entry, entry + 4, 0, 0);
 }
 
+/* cache_file_read_header_into_slot — reads the 0x800-byte cache file header
+ * for slot map_file_index into the cache file entry's header buffer via an
+ * async ReadFileEx (FUN_001bc3b0 @0x1d19e7), waiting (alertable) for
+ * completion. Cache file entry at DAT_004e61d8 + index*0x80c: +0x0 file
+ * handle, +0x4 FILETIME creation_time (8 bytes), +0xc header_buffer[0x800].
+ * On repeated I/O failure the function asserts and exits; if the header
+ * fails cache_file_header_verify, the header buffer and creation time are
+ * zeroed instead of asserting.
+ */
+void cache_file_read_header_into_slot(short map_file_index)
+{
+  char *entry;
+  char *header_buffer;
+  char *creation_time;
+  int handle;
+  char path[256];
+  char overlapped[0x14];
+  char completion_flag;
+  int wait_result;
+
+  if ((int)map_file_index < 0 || (int)map_file_index >= 6) {
+    display_assert(
+      "map_file_index>=0 && map_file_index<NUMBER_OF_CACHED_MAP_FILES",
+      "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x485, 1);
+    system_exit(-1);
+  }
+  entry = (char *)0x4e61d8 + (int)map_file_index * 0x80c;
+  crt_sprintf(path, "z:\\cache%03d.map", (int)map_file_index);
+  creation_time = entry + 4;
+  header_buffer = entry + 0xc;
+  handle = *(int *)entry;
+  GetFileTime(handle, creation_time, 0, 0);
+  completion_flag = 0;
+  FUN_001bc3b0((void *)0x1d19e7, overlapped, handle, (int)header_buffer, 0x800,
+               0, &completion_flag, (void *)FUN_001bc8f0);
+  while (completion_flag == 0) {
+    wait_result = SleepEx(5000, 1);
+    if (wait_result != 0xc0) {
+      break;
+    }
+  }
+  if (completion_flag != 0) {
+    if (!cache_file_header_verify(header_buffer, path, 0)) {
+      csmemset(header_buffer, 0, 0x800);
+      csmemset(creation_time, 0, 8);
+    }
+  } else {
+    display_assert(csprintf((char *)0x5ab100,
+                            "couldn't read header from cache file (#%d)",
+                            xapi_GetLastError()),
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x42e, 1);
+    system_exit(-1);
+    if ((int)map_file_index < 0 || (int)map_file_index >= 6) {
+      display_assert(
+        "map_file_index>=0 && map_file_index<NUMBER_OF_CACHED_MAP_FILES",
+        "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x485, 1);
+      system_exit(-1);
+    }
+    *(int *)entry = -1;
+  }
+}
+
 /* FUN_001bd1b0 — find the cache slot index whose stored map name matches
  * map_name (passed in EDI by the caller). Compares against the name field
  * at DAT_004e6204 + index*0x80c (DAT_004e61d8 + 0x2c, the name field within
@@ -1549,6 +1983,87 @@ int16_t FUN_001bd1b0(const char *map_name)
     map_file_index = map_file_index + 1;
   } while (map_file_index < 6);
   return -1;
+}
+
+/* FUN_001bd210 — choose the cache slot that receives a DVD->Z: map copy.
+ * map_type (header+0x60, in AX) selects the slot range: 0 -> slots 0..1,
+ * 1 -> slots 3..5, 2 -> slot 2; anything else halts (line 0x461). A slot is
+ * a candidate when it is not the open map (DAT_004e9244) and header_size
+ * (header+0x08, the map file size) is below the slot's capacity. Among the
+ * candidates it keeps the one with the smallest capacity (FUN_001bc7e0), and
+ * on a tie-or-larger capacity the one whose FILETIME (slot entry + 4) is
+ * older: CompareFileTime(best, candidate) > 0 replaces the best. Asserts the
+ * result is not the open map (line 0x47d). */
+int16_t FUN_001bd210(int16_t map_type, int header_size)
+{
+  int16_t best_map_file_index;
+  int16_t map_file_index;
+  int16_t last_map_file_index;
+  char *best_entry;
+  char *entry;
+  int map_file_size;
+
+  best_map_file_index = -1;
+  switch (map_type) {
+  case 0:
+    map_file_index = 0;
+    last_map_file_index = 1;
+    break;
+  case 1:
+    map_file_index = 3;
+    last_map_file_index = 5;
+    break;
+  default:
+    display_assert(0, "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x461,
+                   1);
+    system_exit(-1);
+    /* fall through */
+  case 2:
+    map_file_index = 2;
+    last_map_file_index = 2;
+    break;
+  }
+
+  for (; map_file_index <= last_map_file_index; map_file_index++) {
+    if (*(int16_t *)0x4e9244 == map_file_index)
+      continue;
+    if (map_file_index < 0 || map_file_index >= 6) {
+      display_assert(
+        "map_file_index>=0 && map_file_index<NUMBER_OF_CACHED_MAP_FILES",
+        "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x485, 1);
+      system_exit(-1);
+    }
+    entry = (char *)0x4e61d8 + (int)map_file_index * 0x80c;
+    if (map_file_index < 0 || map_file_index >= 6) {
+      display_assert(
+        "map_file_index>=0 && map_file_index<NUMBER_OF_CACHED_MAP_FILES",
+        "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x49d, 1);
+      system_exit(-1);
+    }
+    if (map_file_index <= 1) {
+      map_file_size = 0x11600000;
+    } else {
+      map_file_size = (int)(map_file_index > 2) - 1;
+      map_file_size &= (int)0xff400000;
+      map_file_size += 0x2f00000;
+    }
+    if (header_size < map_file_size) {
+      if (best_map_file_index == -1 ||
+          FUN_001bc7e0(map_file_index) < FUN_001bc7e0(best_map_file_index) ||
+          CompareFileTime(best_entry + 4, entry + 4) > 0) {
+        best_map_file_index = map_file_index;
+        best_entry = entry;
+      }
+    }
+  }
+
+  if (*(int16_t *)0x4e9244 == best_map_file_index) {
+    display_assert(
+      "cache_file_globals.open_map_file_index!=best_map_file_index",
+      "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x47d, 1);
+    system_exit(-1);
+  }
+  return best_map_file_index;
 }
 
 /* FUN_001bd3a0 — cache file I/O service thread proc. Waits on the cache

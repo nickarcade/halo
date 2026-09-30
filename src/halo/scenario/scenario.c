@@ -1350,7 +1350,7 @@ void FUN_0018c5b0(void)
  * node pose from the 'mode' tag (FUN_00123aa0), advances each overlay
  * animation (sky+0xb8 block, 0x24/elem): phase accumulators live in the
  * static array 0x4d86d8, stepped by frame-seconds (0x50654c) / period
- * (elem+0x4) mod 1.0 (double 0x2573d8), applied via FUN_00122690 when the
+ * (elem+0x4) mod 1.0 (double 0x2573d8), applied via overlay_animation_apply_continuous when the
  * 'antr' sequence's node count matches the model. Builds world node
  * matrices (FUN_00123c70 from the camera basis ptrs 0x31fc1c/3c/44), then
  * for each sky light (sky+0xc4 block, 0x74/elem): direction from the named
@@ -1428,7 +1428,7 @@ void render_sky(void)
 #endif
                 ((float *)0x4d86d8)[i] = phase;
                 frame = (float)(int)*(int16_t *)(seq + 0x22) * phase;
-                FUN_00122690(seq, frame, node_buf);
+                overlay_animation_apply_continuous(seq, frame, node_buf);
               }
             }
             counter++;
@@ -2515,6 +2515,26 @@ char scenario_debug_to_file(int param_1, char *param_2, unsigned int param_3)
   return 1;
 }
 
+/* FUN_0018e240 (0x18e240) — call every entry of the 10-entry structure-bsp
+ * disconnect proc table (0x326a44) in order. */
+void FUN_0018e240(void)
+{
+  int16_t proc_index;
+
+  for (proc_index = 0; proc_index < 10; proc_index++)
+    scenario_structure_bsp_disconnect_proc_table[proc_index]();
+}
+
+/* FUN_0018e260 (0x18e260) — call every entry of the 13-entry structure-bsp
+ * reconnect proc table (0x326a10) in order. */
+void FUN_0018e260(void)
+{
+  int16_t proc_index;
+
+  for (proc_index = 0; proc_index < 13; proc_index++)
+    scenario_structure_bsp_reconnect_proc_table[proc_index]();
+}
+
 void scenario_initialize(void)
 {
   *(void **)0x5064d0 = game_state_malloc("scenario globals", 0, 0x100);
@@ -2598,6 +2618,21 @@ void *game_globals_get(void)
     system_exit(-1);
   }
   return *(void **)0x5064d4;
+}
+
+/* global_structure_bsp_tag_index_get (0x18e480) — tag index of the current
+ * structure bsp: element global_structure_bsp_index of the global scenario's
+ * structure_bsp_references block (asserts global_scenario, scenario.c:0xb7). */
+int global_structure_bsp_tag_index_get(void)
+{
+  scenario_structure_bsp_reference_t *reference;
+
+  assert_halt_at("c:\\halo\\SOURCE\\scenario\\scenario.c", 0xb7,
+                 global_scenario);
+  reference = (scenario_structure_bsp_reference_t *)tag_block_get_element(
+    &global_scenario->structure_bsp_references, global_structure_bsp_index,
+    sizeof(*reference));
+  return reference->structure_bsp.tag_index;
 }
 
 /* Reset a scenario location by setting its cluster_index (offset +6) to
@@ -2707,8 +2742,10 @@ char FUN_0018e5c0(int location)
   return result;
 }
 
-/* 0x18e690 — returns a constant float (0.0f at 0x2533c0). */
-float FUN_0018e690(void)
+/* 0x18e690 — returns a constant float (0.0f at 0x2533c0). Both callers,
+ * actor_visibility_at_point (0x31634) and ai_test_line_of_sight (0x41806),
+ * push three pointers (ADD ESP,0xc); none is read here. */
+float FUN_0018e690(float *location, float *origin, float *position)
 {
   return 0.0f;
 }
@@ -3318,6 +3355,8 @@ bool scenario_load(const char *map_name)
   char *nl;
   bool result = 0;
 
+  /* 0x2b224c = "scenario_load" (kept as the absolute address: the literal
+   * becomes an unresolved reloc and costs 4 aligned raw bytes). */
   memory_check((uint32_t *)0x326a6c, (const char *)0x2b224c);
   tag_index = FUN_001b9e70(map_name);
   *(int *)0x326a08 = tag_index;
@@ -3334,12 +3373,13 @@ bool scenario_load(const char *map_name)
       if (scenario_switch_structure_bsp(0))
         result = 1;
     } else {
-      error(1, "scenario has no structure bsps");
+      error(1, "scenario doesn't have a structure bsp");
     }
   } else {
-    /* map not found — print error with map path line by line */
+    /* map not found — print the required-tags list (the string at 0x25386f,
+     * empty in this build) line by line. */
     path = (char *)0x25386f;
-    error(1, "couldn't open map file");
+    error(1, "need to get the following tags:");
     do {
       nl = crt_strchr(path, '\n');
       if (nl)
@@ -4133,4 +4173,24 @@ void FUN_0018fbc0(int16_t window_index, int structure_bsp_index,
 __declspec(noinline) void FUN_0018fef0(void)
 {
   *(char *)0x5057c0 = 0;
+}
+
+/* FUN_0018e420 (0x18e420)
+ *
+ * Returns the global BSP3D pointer (DAT_005064d8). Asserts with a halt if
+ * the pointer has not been initialized (i.e. is NULL). Called by BSP
+ * traversal and portal-intersection code to obtain the current structure
+ * BSP3D tag data.
+ *
+ * Confirmed: no parameters (plain MOV EAX,[global]; TEST; RET).
+ * Confirmed: assert string "global_bsp3d", file scenario.c, line 0xd5.
+ */
+void *FUN_0018e420(void)
+{
+  if (*(void **)0x5064d8 == NULL) {
+    display_assert("global_bsp3d", "c:\\halo\\SOURCE\\scenario\\scenario.c",
+                   0xd5, true);
+    system_exit(-1);
+  }
+  return *(void **)0x5064d8;
 }

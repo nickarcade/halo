@@ -169,6 +169,17 @@ void particles_stop_on_first_person_weapon(int16_t local_player_index)
   }
 }
 
+/* particles_disconnect_from_structure_bsp (0xa1580)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is slot 5 of the structure-BSP disconnect table
+ *   at 0x326a44 (walked by 0x18e240 and 0x18eb40); the matching slot of the
+ *   PAL 2342 scenario.c scenario_structure_bsp_disconnect_proc_table is
+ *   particles_disconnect_from_structure_bsp (T2). */
+void particles_disconnect_from_structure_bsp(void)
+{
+}
+
 /* Walk all live particles and reattach each one's location to its owner
  * (0xa1590). For each particle:
  *   - If owner handle (particle+0x8) is -1 (free / unparented): use the
@@ -849,7 +860,7 @@ void particle_new(void *spawn_params)
   *(int *)(datum + 0x08) = *(int *)(sp + 0x04);
   *(int16_t *)(datum + 0x0c) = (int16_t) * (uint16_t *)(sp + 0x08);
   *(uint8_t *)(datum + 0x0e) = 0;
-  *(int *)(datum + 0x10) = render;
+  *(int *)(datum + 0x10) = render.frame_index;
 
   /* lifetime: random range from tag fields [0x38..0x3c] */
   {
@@ -997,7 +1008,7 @@ void particles_update(float delta_time)
     datum = (char *)datum_get(particle_data, datum_handle);
     tag = (char *)tag_get(0x70617274, *(int *)(datum + 4));
     just_created = *(float *)(datum + 0x14) == *(float *)0x2533c0;
-    if (render - *(int *)(datum + 0x10) < 0x10) {
+    if (render.frame_index - *(int *)(datum + 0x10) < 0x10) {
       new_lifetime = delta_time + *(float *)(datum + 0x14);
       *(float *)(datum + 0x14) = new_lifetime;
       if (!(new_lifetime >= *(float *)(datum + 0x18)) || just_created ||

@@ -91,7 +91,8 @@ int rasterizer_geometry_get_vertex_size(short param_1)
 void FUN_001800b0(short param_1, int param_2, int param_3, int param_4,
                   int param_5, int param_6)
 {
-  /* Three 12-byte (3-float) scratch buffers for uncompress_int32_to_real_vector3d output */
+  /* Three 12-byte (3-float) scratch buffers for
+   * uncompress_int32_to_real_vector3d output */
   float buf_c[3]; /* at EBP-0xc */
   float buf_18[3]; /* at EBP-0x18 */
   float buf_24[3]; /* at EBP-0x24 */
@@ -195,7 +196,8 @@ void FUN_001800b0(short param_1, int param_2, int param_3, int param_4,
       in16 = (signed short *)(param_5 + 6);
       for (i = 0; i < count; i++) {
         /* unpack normal from in[0] into buf_24 */
-        result = uncompress_int32_to_real_vector3d(buf_24, *(unsigned int *)(in16 - 3));
+        result = uncompress_int32_to_real_vector3d(buf_24,
+                                                   *(unsigned int *)(in16 - 3));
         out32[-4] = ((unsigned int *)result)[0];
         out32[-3] = ((unsigned int *)result)[1];
         out32[-2] = ((unsigned int *)result)[2];
@@ -333,7 +335,8 @@ void FUN_00180570(int param_1, float *param_2)
                    1);
     system_exit(-1);
   }
-  result = uncompress_int32_to_real_vector3d(local_out, *(unsigned int *)(param_1 + 0x0c));
+  result = uncompress_int32_to_real_vector3d(local_out,
+                                             *(unsigned int *)(param_1 + 0x0c));
   param_2[0] = result[0];
   param_2[1] = result[1];
   {
@@ -456,7 +459,8 @@ unsigned char FUN_001807d0(float param_1)
   } else {
     clamped = param_1;
   }
-  return (unsigned char)(int)(clamped * *(float *)0x2602c8);
+  param_1 = clamped * *(float *)0x2602c8;
+  return (unsigned char)x87_round_to_int(param_1);
 }
 
 /*
@@ -533,20 +537,18 @@ short FUN_00180890(float f)
 
 /* rasterizer_geometry_pack_normal_11_11_10_validated: pack float[3] normal
  * into 11-11-10 uint, asserting components in [-1.0, 1.0]. Encodes via
- * floor(component * scale) + FISTP. Verifies round-trip via uncompress_int32_to_real_vector3d.
- * Structural cap: FUCOMPP-based range asserts cannot be matched exactly.
- * layout: bits[10:0]=i, bits[21:11]=j, bits[31:22]=k (10-bit). (0x1808f0) */
+ * floor(component * scale) + FISTP. Verifies round-trip via
+ * uncompress_int32_to_real_vector3d. Structural cap: FUCOMPP-based range
+ * asserts cannot be matched exactly. layout: bits[10:0]=i, bits[21:11]=j,
+ * bits[31:22]=k (10-bit). (0x1808f0) */
 unsigned int FUN_001808f0(float *param_1)
 {
-  float decoded_i;
-  float decoded_j;
-  float decoded_k;
-  float *decoded;
+  real_vector3d v2;
   unsigned int i_11;
   unsigned int j_11;
   unsigned int packed;
+  float rounded;
   int tmp;
-  float local_buf[3];
 
   if (param_1 == 0) {
     display_assert("parameters",
@@ -554,38 +556,42 @@ unsigned int FUN_001808f0(float *param_1)
                    1);
     system_exit(-1);
   }
-  if (*param_1 < -1.0f || *param_1 > 1.0f || param_1[1] < -1.0f ||
-      param_1[1] > 1.0f || param_1[2] < -1.0f || param_1[2] > 1.0f) {
-    display_assert("invalid vector",
-                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0x4e,
-                   1);
+  if (!(*param_1 >= -1.0f && *param_1 <= 1.0f && param_1[1] >= -1.0f &&
+        param_1[1] <= 1.0f && param_1[2] >= -1.0f && param_1[2] <= 1.0f)) {
+    display_assert(
+      csprintf((char *)0x5ab100, "invalid vector= [%f %f %f] 0x%x%x%x",
+               (double)param_1[0], (double)param_1[1], (double)param_1[2],
+               ((unsigned int *)param_1)[0], ((unsigned int *)param_1)[1],
+               ((unsigned int *)param_1)[2]),
+      "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0x4e, 1);
     system_exit(-1);
   }
-  tmp = (int)floor((double)(*param_1 * *(float *)0x2b0118));
+  rounded = (float)floor((double)(*param_1 * *(float *)0x2b0118));
+  tmp = x87_round_to_int(rounded);
   i_11 = (unsigned int)tmp & 0x7ff;
-  tmp = (int)floor((double)(param_1[1] * *(float *)0x2b0118));
+  rounded = (float)floor((double)(param_1[1] * *(float *)0x2b0118));
+  tmp = x87_round_to_int(rounded);
   j_11 = (unsigned int)tmp & 0x7ff;
-  tmp = (int)floor((double)(param_1[2] * *(float *)0x2b0114));
+  rounded = (float)floor((double)(param_1[2] * *(float *)0x2b0114));
+  tmp = x87_round_to_int(rounded);
   packed = (((unsigned int)tmp & 0x3ff) << 11 | j_11) << 11 | i_11;
 
-  decoded = uncompress_int32_to_real_vector3d(local_buf, packed);
-  decoded_i = decoded[0];
-  decoded_j = decoded[1];
-  decoded_k = decoded[2];
+  v2 =
+    *(real_vector3d *)uncompress_int32_to_real_vector3d((float *)&v2, packed);
 
-  if ((float)*(double *)0x28b800 <= fabsf(decoded_i - *param_1)) {
+  if (!(fabs(v2.i - *param_1) < *(double *)0x28b800)) {
     display_assert("fabs(v2.i - v->i)<0.01f",
                    "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0x5c,
                    1);
     system_exit(-1);
   }
-  if ((float)*(double *)0x28b800 <= fabsf(decoded_j - param_1[1])) {
+  if (!(fabs(v2.j - param_1[1]) < *(double *)0x28b800)) {
     display_assert("fabs(v2.j - v->j)<0.01f",
                    "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0x5d,
                    1);
     system_exit(-1);
   }
-  if ((float)*(double *)0x28b800 <= fabsf(decoded_k - param_1[2])) {
+  if (!(fabs(v2.k - param_1[2]) < *(double *)0x28b800)) {
     display_assert("fabs(v2.k - v->k)<0.01f",
                    "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0x5e,
                    1);
@@ -596,8 +602,9 @@ unsigned int FUN_001808f0(float *param_1)
 
 /* rasterizer_geometry_pack_normal_11_11_10_clamped: clamp float[3] normal to
  * [-1.0, 1.0] then pack to 11-11-10 uint. Same encoding as FUN_001808f0 but
- * silently clamps out-of-range values. Verifies round-trip via uncompress_int32_to_real_vector3d.
- * layout: bits[10:0]=i, bits[21:11]=j, bits[31:22]=k (10-bit). (0x180b10) */
+ * silently clamps out-of-range values. Verifies round-trip via
+ * uncompress_int32_to_real_vector3d. layout: bits[10:0]=i, bits[21:11]=j,
+ * bits[31:22]=k (10-bit). (0x180b10) */
 unsigned int compress_real_vector3d_to_int32_clamp(float *param_1)
 {
   float ci;
@@ -614,9 +621,8 @@ unsigned int compress_real_vector3d_to_int32_clamp(float *param_1)
   float local_buf[3];
 
   if (param_1 == 0) {
-    display_assert("v",
-                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0x68,
-                   1);
+    display_assert("v", "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c",
+                   0x68, 1);
     system_exit(-1);
   }
   if (*param_1 < -1.0f) {
@@ -675,6 +681,135 @@ unsigned int compress_real_vector3d_to_int32_clamp(float *param_1)
   return packed;
 }
 
+/* Compress an uncompressed vertex buffer into the compressed layout
+ * (0x180d10). Inverse of FUN_001800b0. Type 0 = environment vertex
+ * (56 -> 32 bytes), 2 = environment lightmap vertex (20 -> 8 bytes),
+ * 4 = model vertex (68 -> 32 bytes). */
+void FUN_00180d10(short type, int count, int compressed_out,
+                  int compressed_size, void *uncompressed,
+                  int uncompressed_size)
+{
+  unsigned char *src;
+  unsigned char *dst;
+
+  if (uncompressed == 0) {
+    display_assert("uncompressed",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xc2,
+                   1);
+    system_exit(-1);
+  }
+  if (compressed_out == 0) {
+    display_assert("compressed",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xc3,
+                   1);
+    system_exit(-1);
+  }
+
+  switch (type) {
+  case 0:
+    if (count * 0x38 != uncompressed_size) {
+      display_assert("count*sizeof(struct "
+                     "environment_vertex_uncompressed)==uncompressed_size",
+                     "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c",
+                     0xc9, 1);
+      system_exit(-1);
+    }
+    if ((count << 5) != compressed_size) {
+      display_assert(
+        "count*sizeof(struct environment_vertex_compressed)==compressed_size",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xca, 1);
+      system_exit(-1);
+    }
+    if (count > 0) {
+      dst = (unsigned char *)compressed_out;
+      src = (unsigned char *)uncompressed;
+      do {
+        /* position: 12-byte copy src+0x00 -> dst+0x00 */
+        *(real_point3d *)dst = *(real_point3d *)src;
+        *(unsigned int *)(dst + 0xc) =
+          compress_real_vector3d_to_int32_clamp((float *)(src + 0xc));
+        *(unsigned int *)(dst + 0x10) =
+          compress_real_vector3d_to_int32_clamp((float *)(src + 0x18));
+        *(unsigned int *)(dst + 0x14) =
+          compress_real_vector3d_to_int32_clamp((float *)(src + 0x24));
+        /* texcoords: raw dword copies src+0x30/0x34 -> dst+0x18/0x1c */
+        *(unsigned int *)(dst + 0x18) = *(unsigned int *)(src + 0x30);
+        *(unsigned int *)(dst + 0x1c) = *(unsigned int *)(src + 0x34);
+        src += 0x38;
+        dst += 0x20;
+      } while (--count != 0);
+    }
+    return;
+  case 2:
+    if (count * 0x14 != uncompressed_size) {
+      display_assert(
+        "count*sizeof(struct "
+        "environment_lightmap_vertex_uncompressed)==uncompressed_size",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xdd, 1);
+      system_exit(-1);
+    }
+    if (count * 8 != compressed_size) {
+      display_assert("count*sizeof(struct "
+                     "environment_lightmap_vertex_compressed)==compressed_size",
+                     "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c",
+                     0xde, 1);
+      system_exit(-1);
+    }
+    if (count > 0) {
+      dst = (unsigned char *)compressed_out;
+      src = (unsigned char *)uncompressed;
+      do {
+        *(unsigned int *)dst =
+          compress_real_vector3d_to_int32_clamp((float *)src);
+        *(short *)(dst + 4) = FUN_00180890(*(float *)(src + 0xc));
+        *(short *)(dst + 6) = FUN_00180890(*(float *)(src + 0x10));
+        src += 0x14;
+        dst += 8;
+      } while (--count != 0);
+    }
+    return;
+  case 4:
+    if (count * 0x44 != uncompressed_size) {
+      display_assert(
+        "count*sizeof(struct model_vertex_uncompressed)==uncompressed_size",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xef, 1);
+      system_exit(-1);
+    }
+    if ((count << 5) != compressed_size) {
+      display_assert(
+        "count*sizeof(struct model_vertex_compressed)==compressed_size",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xf0, 1);
+      system_exit(-1);
+    }
+    if (count > 0) {
+      dst = (unsigned char *)compressed_out;
+      src = (unsigned char *)uncompressed;
+      do {
+        /* position: 12-byte copy src+0x00 -> dst+0x00 */
+        *(real_point3d *)dst = *(real_point3d *)src;
+        *(unsigned int *)(dst + 0xc) =
+          compress_real_vector3d_to_int32_clamp((float *)(src + 0xc));
+        *(unsigned int *)(dst + 0x10) =
+          compress_real_vector3d_to_int32_clamp((float *)(src + 0x18));
+        *(unsigned int *)(dst + 0x14) =
+          compress_real_vector3d_to_int32_clamp((float *)(src + 0x24));
+        *(short *)(dst + 0x18) = FUN_00180890(*(float *)(src + 0x30));
+        *(short *)(dst + 0x1a) = FUN_00180890(*(float *)(src + 0x34));
+        /* 8-bit IMUL by 3 of the low bytes at src+0x38 / src+0x3a */
+        *(char *)(dst + 0x1c) = (char)(*(char *)(src + 0x38) * 3);
+        *(char *)(dst + 0x1d) = (char)(*(char *)(src + 0x3a) * 3);
+        *(short *)(dst + 0x1e) = FUN_00180890(*(float *)(src + 0x3c));
+        src += 0x44;
+        dst += 0x20;
+      } while (--count != 0);
+    }
+    return;
+  default:
+    error(2, "### ERROR can't compress this type of vertex buffer");
+    return;
+  }
+}
+
 /* rasterizer_lights.c */
 
 /* Address of a slot in this frame's lens flare queue (0x181020).
@@ -706,6 +841,61 @@ int *FUN_00181020(short lens_flare_index)
     system_exit(-1);
   }
   return (int *)((char *)0x4c6480 + lens_flare_index * 0x28);
+}
+
+/* 0x181060: address of a lens flare's per-window alpha byte.
+ *
+ * TU is rasterizer_lights.c (__FILE__ string 0x2b01b4). Word +0x1e with bit 15
+ * set marks a structure lens flare: its low 15 bits and the word at +0x20 form
+ * the 32-bit index (the OR uses +0x20 sign-extended, as MOVSX/OR do) into the
+ * 4-byte-per-flare table at 0x47ed60. Otherwise +0x1e is the light index into
+ * the 0x22-byte-per-light table at 0x4bed82, with +0x20 selecting a 4-byte
+ * row. The low 7 bits of byte +0x22 are the window index in both cases.
+ * Dormant: unverified, no VC71 score yet. */
+unsigned char *FUN_00181060(void *lens_flare_params)
+{
+  unsigned char *params = (unsigned char *)lens_flare_params;
+  int window_index;
+  int structure_lens_flare_index;
+
+  if (params == NULL) {
+    display_assert("lens_flare_parameters",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x4c,
+                   1);
+    system_exit(-1);
+  }
+  if ((*(unsigned short *)(params + 0x1e) & 0x8000) != 0) {
+    window_index = params[0x22] & ~0x80;
+    structure_lens_flare_index =
+      (int)((*(unsigned short *)(params + 0x1e) & 0x7fff) << 16) |
+      (int)*(short *)(params + 0x20);
+    if (window_index < 0 || window_index >= 4) {
+      display_assert("window_index>=0 && window_index<MAXIMUM_WINDOWS",
+                     "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x57,
+                     1);
+      system_exit(-1);
+    }
+    if (structure_lens_flare_index < 0 ||
+        structure_lens_flare_index >= 0x10008) {
+      display_assert(
+        "structure_lens_flare_index>=0 && "
+        "structure_lens_flare_index<(MAXIMUM_LENS_FLARE_MARKERS_PER_"
+        "STRUCTURE+MAXIMUM_QUEUED_LENS_FLARES)",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x58, 1);
+      system_exit(-1);
+    }
+    return (unsigned char *)0x47ed60 + structure_lens_flare_index * 4 +
+           window_index;
+  }
+  if (*(short *)(params + 0x1e) < 0 || *(short *)(params + 0x1e) >= 0x380) {
+    display_assert("lens_flare_parameters->light_index>=0 && "
+                   "lens_flare_parameters->light_index<MAXIMUM_LIGHTS_PER_MAP",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x5e,
+                   1);
+    system_exit(-1);
+  }
+  return (unsigned char *)0x4bed82 + (params[0x22] & ~0x80) +
+         *(short *)(params + 0x20) * 4 + *(short *)(params + 0x1e) * 0x22;
 }
 
 /* rasterizer_lights_initialize: clear lights buffers and counter (0x181150) */
@@ -889,6 +1079,88 @@ void FUN_00181410(void)
 {
 }
 
+/* Evaluate a lens-flare corona's rotation (0x181420). PAL 2342 names this
+ * lens_flare_evaluate_corona_rotation_function. param_1 is a queued 0x28-byte
+ * lens-flare entry: position at +4 and compressed direction at +0x10.
+ * rotation_fn is passed in DI. */
+float FUN_00181420(void *param_1 /* @<esi> */, short rotation_fn /* @<di> */)
+{
+  extern double atan2(double, double);
+  real_vector3d plane;
+  real_vector3d direction;
+  real_vector3d offset;
+  float cosine;
+  float sine;
+  float rotation;
+
+  cosine = 1.0f;
+  sine = 0.0f;
+  rotation = 0.0f;
+  if (param_1 == (void *)0) {
+    display_assert("lens_flare_parameters",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x76,
+                   1);
+    system_exit(-1);
+  }
+
+  direction = *(real_vector3d *)uncompress_int32_to_real_vector3d(
+    (float *)&plane, *(unsigned int *)((char *)param_1 + 0x10));
+
+  switch (rotation_fn) {
+  case 0:
+    break;
+  case 1:
+    cross_product3d((float *)&direction, (float *)0x5a5c64, (float *)&plane);
+    cross_product3d((float *)&plane, (float *)&direction, (float *)&plane);
+    offset.i = *(float *)0x5a5bd4;
+    offset.j = *(float *)0x5a5bd8;
+    offset.k = *(float *)0x5a5bdc;
+    sine = plane.i * offset.i + plane.j * offset.j + plane.k * offset.k;
+    cosine = -(direction.i * offset.i + direction.j * offset.j +
+               direction.k * offset.k);
+    break;
+  case 2:
+    offset.i = -direction.i;
+    offset.j = -direction.j;
+    offset.k = -direction.k;
+    sine = *(float *)0x5a5c64 * offset.i + *(float *)0x5a5c68 * offset.j +
+           *(float *)0x5a5c6c * offset.k;
+    cosine = -(*(float *)0x5a5c7c * offset.i + *(float *)0x5a5c80 * offset.j +
+               *(float *)0x5a5c84 * offset.k);
+    break;
+  case 3:
+    cross_product3d((float *)&direction, (float *)0x5a5c64, (float *)&plane);
+    cross_product3d((float *)&plane, (float *)&direction, (float *)&plane);
+    offset.i = *(float *)((char *)param_1 + 4) - *(float *)0x5a5bc8;
+    offset.j = *(float *)((char *)param_1 + 8) - *(float *)0x5a5bcc;
+    offset.k = *(float *)((char *)param_1 + 0xc) - *(float *)0x5a5bd0;
+    sine = plane.i * offset.i + plane.j * offset.j + plane.k * offset.k;
+    cosine = -(direction.i * offset.i + direction.j * offset.j +
+               direction.k * offset.k);
+    break;
+  case 4:
+    offset.i = *(float *)((char *)param_1 + 4) - *(float *)0x5a5bc8;
+    offset.j = *(float *)((char *)param_1 + 8) - *(float *)0x5a5bcc;
+    offset.k = *(float *)((char *)param_1 + 0xc) - *(float *)0x5a5bd0;
+    sine = *(float *)0x5a5c64 * offset.i + *(float *)0x5a5c68 * offset.j +
+           *(float *)0x5a5c6c * offset.k;
+    cosine = -(*(float *)0x5a5c7c * offset.i + *(float *)0x5a5c80 * offset.j +
+               *(float *)0x5a5c84 * offset.k);
+    break;
+  default:
+    display_assert("### ERROR unsupported lens flare corona rotation function",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x97,
+                   1);
+    system_exit(-1);
+    break;
+  }
+
+  if (rotation_fn != 0 && sine != 0.0f) {
+    rotation = (float)atan2((double)sine, (double)cosine) * *(float *)0x29c120;
+  }
+  return rotation;
+}
+
 /* lens_flare_scenery_queue: queue lens flares from scenario scenery lights for
  * rendering. Iterates light-marker block entries for param_1 scenery_light
  * index. Builds a 0x28-byte params struct and calls FUN_00181670 (the lens
@@ -911,9 +1183,9 @@ void rasterizer_lens_flare_submit_for_cluster(short param_1)
    *   +0x04: entry->xyz[0] (float, from puVar2[0..2])
    *   +0x08: entry->xyz[1]
    *   +0x0c: entry->xyz[2]
-   *   +0x10: compress_real_vector3d_to_int32_clamp(&dir_vec) = compressed normal of direction
-   *   +0x14: compress_real_vector3d_to_int32_clamp(&perp_vec) = compressed normal of perpendicular
-   *   +0x18: 0xffffffff (color/alpha = -1)
+   *   +0x10: compress_real_vector3d_to_int32_clamp(&dir_vec) = compressed
+   * normal of direction +0x14: compress_real_vector3d_to_int32_clamp(&perp_vec)
+   * = compressed normal of perpendicular +0x18: 0xffffffff (color/alpha = -1)
    *   +0x1c: 0xffff word (light_index = -1 -> scenery path)
    *   +0x1e: entry_index >> 16 (hi word of scenery marker index)
    *   +0x20: entry_index & 0xffff (lo word)
@@ -975,8 +1247,10 @@ void rasterizer_lens_flare_submit_for_cluster(short param_1)
     *(int *)((char *)params + 0x04) = *(int *)(entry + 0x00);
     *(int *)((char *)params + 0x08) = *(int *)(entry + 0x04);
     *(int *)((char *)params + 0x0c) = *(int *)(entry + 0x08);
-    *(unsigned int *)((char *)params + 0x10) = (unsigned int)compress_real_vector3d_to_int32_clamp(dir);
-    *(unsigned int *)((char *)params + 0x14) = (unsigned int)compress_real_vector3d_to_int32_clamp(perp);
+    *(unsigned int *)((char *)params + 0x10) =
+      (unsigned int)compress_real_vector3d_to_int32_clamp(dir);
+    *(unsigned int *)((char *)params + 0x14) =
+      (unsigned int)compress_real_vector3d_to_int32_clamp(perp);
     *(int *)((char *)params + 0x18) = -1;
     *(short *)((char *)params + 0x1c) = -1;
     *(short *)((char *)params + 0x1e) = (short)(entry_idx >> 16);
@@ -996,107 +1270,60 @@ void rasterizer_lens_flare_submit_for_cluster(short param_1)
 void FUN_00181a90(void)
 {
   int *entry; /* pointer to queued lens flare slot (from FUN_00181020) */
-  volatile unsigned int loop_index_shadow; /* store-once/reload copy of i; matches VC71 frame shape */
   int definition; /* *entry = definition tag ptr */
-  float *dir_result; /* return of uncompress_int32_to_real_vector3d (3-float direction vec) */
-  int occlusion_dir; /* *(short *)(definition + 0x14) */
-  int vis_param; /* *(int *)(definition + 0x10) as int (passes to thunk) */
-  int lf_count; /* DAT_004d0480 */
-  int i; /* loop index */
-  float perp[3]; /* perpendicular output (12 bytes, EBP-0x2c) */
-  float dir[3]; /* direction vec copied from uncompress_int32_to_real_vector3d result */
-  float pos[3]; /* output position vec for occlusion test (EBP-0x14) */
+  float radius; /* *(float *)(definition + 0x10), passed to FUN_0017d030 */
+  short i; /* loop index */
+  real_vector3d perp; /* scratch output of uncompress_int32_to_real_vector3d */
+  real_vector3d dir; /* decoded direction */
+  real_vector3d pos; /* occlusion test position */
 
   FUN_0016f910(0x17);
 
-  if (*(char *)0x3256d7 == 0) {
-    FUN_0016fa40(0x17);
-    return;
-  }
-  if (*(short *)0x46e008 > 1) {
-    FUN_0016fa40(0x17);
-    return;
-  }
-  if (*(short *)0x46e008 == 1 && *(short *)0x31fa98 > 1) {
-    FUN_0016fa40(0x17);
-    return;
-  }
+  if (*(char *)0x3256d7 != 0 && *(short *)0x46e008 <= 1 &&
+      (*(short *)0x46e008 != 1 || *(short *)0x31fa98 <= 1) &&
+      *(short *)0x5a5bc0 == 0 && *(int *)0x4d0480 > 0) {
+    FUN_0017cfc0(6, 1);
 
-  if (*(short *)0x5a5bc0 != 0) {
-    FUN_0016fa40(0x17);
-    return;
-  }
+    if (*(int *)0x4d0480 > 0) {
+      for (i = 0; i < *(int *)0x4d0480; i++) {
+        entry = FUN_00181020(i);
+        definition = *entry;
+        dir = *(real_vector3d *)uncompress_int32_to_real_vector3d(
+          (float *)&perp, (unsigned int)entry[4]);
 
-  lf_count = *(int *)0x4d0480;
-  if (lf_count <= 0) {
-    FUN_0016fa40(0x17);
-    return;
-  }
+        if ((short)(*(unsigned char *)((char *)entry + 0x22) & ~0x80) ==
+            *(short *)0x5a5bc2) {
+          radius = *(float *)(definition + 0x10);
 
-  FUN_0017cfc0(6, 1);
+          switch (*(short *)(definition + 0x14)) {
+          case 0:
+            vector3d_scale_add((float *)(entry + 1), (float *)0x5a5bd4,
+                               -*(float *)(definition + 0x10), (float *)&pos);
+            break;
+          case 1:
+            vector3d_scale_add((float *)(entry + 1), (float *)&dir,
+                               *(float *)(definition + 0x10) *
+                                 *(float *)0x254e68,
+                               (float *)&pos);
+            break;
+          case 2:
+            pos = *(real_vector3d *)(entry + 1);
+            break;
+          default:
+            display_assert(
+              "### ERROR unsupported lens flare occlusion offset direction",
+              "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x1e2, 1);
+            system_exit(-1);
+            break;
+          }
 
-  lf_count = *(int *)0x4d0480;
-  if (lf_count > 0) {
-    i = 0;
-    do {
-      /* FUN_00181020 takes index via SI register; build system provides
-       * a thunk that loads the arg into SI before the call. */
-      entry = FUN_00181020((short)i);
-      definition = *entry;
-
-      /* uncompress_int32_to_real_vector3d(&perp, entry[4]) fills perp[] and returns a
-       * pointer to a 3-float direction vec; copy it into dir[]. */
-      dir_result = uncompress_int32_to_real_vector3d(perp, (unsigned int)entry[4]);
-      dir[0] = dir_result[0];
-      dir[1] = dir_result[1];
-      loop_index_shadow = i;
-      dir[2] = dir_result[2];
-
-      /* MOVZX byte [entry+0x22]; AND 0xffffff7f (clear bit 7) → compare
-       * with window index */
-      if ((*(unsigned char *)((char *)entry + 0x22) & 0x7f) ==
-          *(unsigned short *)0x5a5bc2) {
-        occlusion_dir = *(short *)(definition + 0x14);
-        vis_param = *(int *)(definition + 0x10);
-
-        switch (occlusion_dir) {
-        case 0:
-          /* Negate scale; use global forward direction (0x5a5bd4) */
-          vector3d_scale_add((float *)(entry + 1), (float *)0x5a5bd4,
-                             -*(float *)(definition + 0x10), pos);
-          break;
-        case 1:
-          /* Scale along dir[] by definition field * constant */
-          vector3d_scale_add((float *)(entry + 1), dir,
-                             *(float *)(definition + 0x10) * *(float *)0x254e68,
-                             pos);
-          break;
-        case 2:
-          /* Use object/light position directly */
-          pos[0] = *(float *)(entry + 1);
-          pos[1] = *(float *)(entry + 2);
-          pos[2] = *(float *)(entry + 3);
-          break;
-        default:
-          display_assert(
-            "### ERROR unsupported lens flare occlusion offset direction",
-            "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x1e2, 1);
-          system_exit(-1);
-          break;
+          entry[9] = FUN_0017d030((float *)&pos, radius, i);
         }
-
-        entry[9] = FUN_0017d030(pos, vis_param, loop_index_shadow);
       }
+    }
 
-      i++;
-    } while (i < *(int *)0x4d0480);
+    FUN_0017d020();
   }
-
-  /* FUN_0017d020 (thunk → FUN_0017ad90) is called after the loop whenever
-   * the first lf_count check passed (i.e. when lf_count > 0), matching
-   * the original control-flow shape (0x181bfd falls through to 0x181c02
-   * regardless of the inner lf_count re-check). */
-  FUN_0017d020();
 
   FUN_0016fa40(0x17);
 }
@@ -1118,7 +1345,8 @@ void FUN_00181c20(void)
   int outer_ctr; /* [EBP-0x78] inner loop index within outer */
   int *entry; /* lens flare queue entry: &DAT_004c6480 + i*0x28 (EBX) */
   unsigned char *light_data; /* return of FUN_00181060 (ESI after call) */
-  float *dir_ptr; /* uncompress_int32_to_real_vector3d return (3-float decoded direction) */
+  float *dir_ptr; /* uncompress_int32_to_real_vector3d return (3-float decoded
+                     direction) */
   int definition; /* entry[0] = tag definition ptr (EDI) */
 
   /* Relative position of flare to camera */
@@ -1131,8 +1359,10 @@ void FUN_00181c20(void)
   float refl_off_y; /* [EBP-0x44] */
   float refl_off_z; /* [EBP-0x40] */
 
-  /* Decoded perpendicular direction of the flare (from uncompress_int32_to_real_vector3d) */
-  float dir_local[3]; /* [EBP-0xb4] buffer passed to uncompress_int32_to_real_vector3d (12 bytes) */
+  /* Decoded perpendicular direction of the flare (from
+   * uncompress_int32_to_real_vector3d) */
+  float dir_local[3]; /* [EBP-0xb4] buffer passed to
+                         uncompress_int32_to_real_vector3d (12 bytes) */
   float dir_x; /* [EBP-0x68] copy of dir_ptr[0] = local_6c */
   float dir_y; /* [EBP-0x64] copy of dir_ptr[1] = local_68 */
   float dir_z; /* [EBP-0x60] copy of dir_ptr[2] = local_64 */
@@ -1221,8 +1451,10 @@ void FUN_00181c20(void)
        * Returns pointer to light color/alpha byte in the light table. */
       light_data = FUN_00181060((void *)entry);
 
-      /* uncompress_int32_to_real_vector3d decodes packed normal entry[4] into dir_local[3] */
-      dir_ptr = uncompress_int32_to_real_vector3d(dir_local, (unsigned int)entry[4]);
+      /* uncompress_int32_to_real_vector3d decodes packed normal entry[4] into
+       * dir_local[3] */
+      dir_ptr =
+        uncompress_int32_to_real_vector3d(dir_local, (unsigned int)entry[4]);
       dir_x = dir_ptr[0];
       dir_y = dir_ptr[1];
       dir_z = dir_ptr[2];
@@ -1244,9 +1476,9 @@ void FUN_00181c20(void)
         delta[2] = entry_z - *(float *)0x5a5bd0;
 
         /* view_dot = dot(camera_fwd, delta) */
-        view_dot = *(float *)0x5a5bd4 * delta[0] +
+        view_dot = *(float *)0x5a5bdc * delta[2] +
                    *(float *)0x5a5bd8 * delta[1] +
-                   *(float *)0x5a5bdc * delta[2];
+                   delta[0] * *(float *)0x5a5bd4;
 
         /* Reflection offset: 2*(view_fwd * dot - delta) */
         camera_forward_x = (float *)0x5a5bd4;
@@ -1315,8 +1547,8 @@ void FUN_00181c20(void)
         {
           float v;
           v = depth_bias -
-              (dir_x * *camera_forward_x + *(float *)0x5a5bd8 * dir_y +
-               *(float *)0x5a5bdc * dir_z) *
+              (*(float *)0x5a5bdc * dir_z + *(float *)0x5a5bd8 * dir_y +
+               dir_x * *camera_forward_x) *
                 depth_scale;
           if (v < *(float *)0x2533c0) {
             vis[1] = 0.0f;
@@ -1330,7 +1562,7 @@ void FUN_00181c20(void)
         {
           float v;
           v = depth_bias -
-              (dir_x * delta[0] + dir_y * delta[1] + dir_z * delta[2]) *
+              (dir_z * delta[2] + dir_y * delta[1] + dir_x * delta[0]) *
                 depth_scale;
           if (v < *(float *)0x2533c0) {
             vis[2] = 0.0f;
@@ -1381,9 +1613,9 @@ void FUN_00181c20(void)
                              vis[4] +
                            *(float *)((char *)refl + 0x34);
                 /* refl[0x3c] = vis-factor index (short, sign-extended) */
-                anim_color[0] =
-                  anim_val * vis[(int)(*(short *)((char *)refl + 0x3c))] *
-                  brightness;
+                anim_color[0] = anim_val *
+                                vis[(int)(*(short *)((char *)refl + 0x3c))] *
+                                brightness;
               }
 
               if ((short)refl_idx == 0) {
@@ -1575,7 +1807,7 @@ void FUN_00181c20(void)
   }
 
   FUN_00158ae0(0);
-  FUN_0017ad90();
+  FUN_0017d020(); /* CALL 0x17d020 (thunk to 0x17ad90) at 0x182428 */
 
   /* Second pass: render sun glow overlays (DAT_003256fe guard) */
   if (*(char *)0x3256fe != '\0') {
@@ -1789,18 +2021,18 @@ void rasterizer_swizzle_compute_masks(short param_1, short param_2,
                      1);
       system_exit(-1);
     }
-    uVar6 = (unsigned int)*(
-              unsigned short *)((int)0x2b07e0 +
-                                ((signed_param_3 >> 6) & upper) * 2)
-              << 0xc |
-            (unsigned int)*(unsigned short *)((int)0x2b07e0 +
-                                              (signed_param_3 & 0x3f) * 2);
-    uVar4 = (unsigned int)*(
-              unsigned short *)((int)0x2b07e0 +
-                                ((signed_param_4 >> 6) & upper) * 2)
-              << 0xc |
-            (unsigned int)*(unsigned short *)((int)0x2b07e0 +
-                                              (signed_param_4 & 0x3f) * 2);
+    uVar6 =
+      (unsigned int)*(unsigned short *)((int)0x2b07e0 +
+                                        ((signed_param_3 >> 6) & upper) * 2)
+        << 0xc |
+      (unsigned int)*(unsigned short *)((int)0x2b07e0 +
+                                        (signed_param_3 & 0x3f) * 2);
+    uVar4 =
+      (unsigned int)*(unsigned short *)((int)0x2b07e0 +
+                                        ((signed_param_4 >> 6) & upper) * 2)
+        << 0xc |
+      (unsigned int)*(unsigned short *)((int)0x2b07e0 +
+                                        (signed_param_4 & 0x3f) * 2);
   }
   uVar4 = uVar4 << 1;
   if (sVar1 > param_1_min) {
@@ -2486,94 +2718,92 @@ void FUN_00182e00(int param_1)
         height = bitmap_mipmap_get_height((void *)param_1, (short)mip_index);
         depth = bitmap_mipmap_get_depth((void *)param_1, (short)mip_index);
         if (temp != (void *)0) {
-          bytes_per_pixel = (short)(bitmap_format_bits_per_pixel(
-                                      *(short *)(param_1 + 0xc)) /
-                                    8);
+          bytes_per_pixel =
+            (short)(bitmap_format_bits_per_pixel(*(short *)(param_1 + 0xc)) /
+                    8);
           FUN_00182610(width, height, depth);
           switch (*(short *)(param_1 + 10)) {
-            case 0: /* 2D */
-              switch (bytes_per_pixel) {
-                case 1:
-                  rasterizer_xbox_bitmap_swizzle2d_byte(temp, mip_addr, width,
-                                                        height);
-                  break;
-                case 2:
-                  rasterizer_xbox_bitmap_swizzle2d_word(temp, mip_addr, width,
-                                                        height);
-                  break;
-                case 4:
-                  rasterizer_xbox_bitmap_swizzle2d_long(temp, mip_addr, width,
-                                                        height);
-                  break;
-                default:
-                  display_assert(
-                    "### ERROR unsupported bitmap format (bytes per pixel)",
-                    "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x17b,
-                    1);
-                  system_exit(-1);
-                  break;
-              }
+          case 0: /* 2D */
+            switch (bytes_per_pixel) {
+            case 1:
+              rasterizer_xbox_bitmap_swizzle2d_byte(temp, mip_addr, width,
+                                                    height);
               break;
-            case 1: /* 3D (volume) */
-              switch (bytes_per_pixel) {
-                case 1:
-                  rasterizer_xbox_bitmap_swizzle3d_byte(temp, mip_addr, width,
-                                                        height, depth);
-                  break;
-                case 2:
-                  rasterizer_xbox_bitmap_swizzle3d_word(temp, mip_addr, width,
-                                                        height, depth);
-                  break;
-                case 4:
-                  rasterizer_xbox_bitmap_swizzle3d_long(temp, mip_addr, width,
-                                                        height, depth);
-                  break;
-                default:
-                  display_assert(
-                    "### ERROR unsupported bitmap format (bytes per pixel)",
-                    "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x18f,
-                    1);
-                  system_exit(-1);
-                  break;
-              }
+            case 2:
+              rasterizer_xbox_bitmap_swizzle2d_word(temp, mip_addr, width,
+                                                    height);
               break;
-            case 2: /* cubemap: six faces packed back to back in the level */
-              face_stride = mip_size / 6;
-              dst_delta = (int)((char *)temp - (char *)mip_addr);
-              src_face = (char *)mip_addr;
-              face = 6;
-              do {
-                switch (bytes_per_pixel) {
-                  case 1:
-                    rasterizer_xbox_bitmap_swizzle2d_byte(
-                      (void *)(src_face + dst_delta), src_face, width, height);
-                    break;
-                  case 2:
-                    rasterizer_xbox_bitmap_swizzle2d_word(
-                      (void *)(src_face + dst_delta), src_face, width, height);
-                    break;
-                  case 4:
-                    rasterizer_xbox_bitmap_swizzle2d_long(
-                      (void *)(src_face + dst_delta), src_face, width, height);
-                    break;
-                  default:
-                    display_assert(
-                      "### ERROR unsupported bitmap format (bytes per pixel)",
-                      "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c",
-                      0x1a9, 1);
-                    system_exit(-1);
-                    break;
-                }
-                src_face += face_stride;
-                face--;
-              } while (face != 0);
+            case 4:
+              rasterizer_xbox_bitmap_swizzle2d_long(temp, mip_addr, width,
+                                                    height);
               break;
             default:
               display_assert(
-                "### ERROR unsupported bitmap type",
-                "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x1b4, 1);
+                "### ERROR unsupported bitmap format (bytes per pixel)",
+                "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x17b, 1);
               system_exit(-1);
               break;
+            }
+            break;
+          case 1: /* 3D (volume) */
+            switch (bytes_per_pixel) {
+            case 1:
+              rasterizer_xbox_bitmap_swizzle3d_byte(temp, mip_addr, width,
+                                                    height, depth);
+              break;
+            case 2:
+              rasterizer_xbox_bitmap_swizzle3d_word(temp, mip_addr, width,
+                                                    height, depth);
+              break;
+            case 4:
+              rasterizer_xbox_bitmap_swizzle3d_long(temp, mip_addr, width,
+                                                    height, depth);
+              break;
+            default:
+              display_assert(
+                "### ERROR unsupported bitmap format (bytes per pixel)",
+                "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x18f, 1);
+              system_exit(-1);
+              break;
+            }
+            break;
+          case 2: /* cubemap: six faces packed back to back in the level */
+            face_stride = mip_size / 6;
+            dst_delta = (int)((char *)temp - (char *)mip_addr);
+            src_face = (char *)mip_addr;
+            face = 6;
+            do {
+              switch (bytes_per_pixel) {
+              case 1:
+                rasterizer_xbox_bitmap_swizzle2d_byte(
+                  (void *)(src_face + dst_delta), src_face, width, height);
+                break;
+              case 2:
+                rasterizer_xbox_bitmap_swizzle2d_word(
+                  (void *)(src_face + dst_delta), src_face, width, height);
+                break;
+              case 4:
+                rasterizer_xbox_bitmap_swizzle2d_long(
+                  (void *)(src_face + dst_delta), src_face, width, height);
+                break;
+              default:
+                display_assert(
+                  "### ERROR unsupported bitmap format (bytes per pixel)",
+                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x1a9,
+                  1);
+                system_exit(-1);
+                break;
+              }
+              src_face += face_stride;
+              face--;
+            } while (face != 0);
+            break;
+          default:
+            display_assert("### ERROR unsupported bitmap type",
+                           "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c",
+                           0x1b4, 1);
+            system_exit(-1);
+            break;
           }
           csmemcpy(mip_addr, temp, (unsigned int)mip_size);
           debug_free(temp, "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c",
@@ -2784,7 +3014,8 @@ int rasterizer_xbox_bitmap_rebuild_hardware_format(int param_1)
             if (*(short *)(param_1 + 10) == 2) {
               mip_size = mip_size / 6;
             }
-            adjusted_face_index = *(short *)((int)0x2b0860 + (int)face_index * 2);
+            adjusted_face_index =
+              *(short *)((int)0x2b0860 + (int)face_index * 2);
             if ((*(unsigned char *)(param_1 + 0xe) & 0x10) == 0) {
               /* non-swizzled: copy face mipmap data */
               csmemcpy((void *)(swizzle_buf + iVar8),
@@ -2796,19 +3027,22 @@ int rasterizer_xbox_bitmap_rebuild_hardware_format(int param_1)
               if ((face_index != 0) || (adjusted_face_index != 0)) {
                 display_assert(
                   "face_index==0 && adjusted_face_index==0",
-                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24c, 1);
+                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24c,
+                  1);
                 system_exit(-1);
               }
               if ((short)local_c != 0) {
                 display_assert(
                   "mipmap_index==0",
-                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24d, 1);
+                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24d,
+                  1);
                 system_exit(-1);
               }
               if ((*(unsigned char *)(param_1 + 0xe) & 2) != 0) {
                 display_assert(
                   "!TEST_FLAG(bitmap->flags, _bitmap_compressed_bit)",
-                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24e, 1);
+                  "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x24e,
+                  1);
                 system_exit(-1);
               }
               row_pitch = bitmap_mipmap_get_row_pitch((void *)param_1, local_c);
@@ -2829,15 +3063,16 @@ int rasterizer_xbox_bitmap_rebuild_hardware_format(int param_1)
           } while ((short)local_c <= sVar2);
         }
         /* align offset to 128 bytes at end of each face */
-        csmemset((void *)(swizzle_buf + iVar8), 0, (unsigned int)(-iVar8 & 0x7f));
+        csmemset((void *)(swizzle_buf + iVar8), 0,
+                 (unsigned int)(-iVar8 & 0x7f));
         iVar8 = iVar8 + (-iVar8 & 0x7f);
         face_index = face_index + 1;
       } while (face_index < local_1c);
     }
     if (iVar8 != total_size) {
       display_assert("offset==size",
-                     "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c", 0x271,
-                     1);
+                     "c:\\halo\\SOURCE\\rasterizer\\rasterizer_swizzle.c",
+                     0x271, 1);
       system_exit(-1);
     }
     csmemcpy(*(void **)(param_1 + 0x2c), (void *)swizzle_buf,
@@ -2939,8 +3174,8 @@ void rasterizer_text_cache_dispose(void)
 /* rasterizer_text_get_character_position: get hardware character screen
  * position. Original ABI: AX=index, EBX=*out_y, stack=*out_x
  */
-__declspec(noinline) void rasterizer_text_get_character_position(short index, short *out_y,
-                                            short *out_x)
+__declspec(noinline) void
+rasterizer_text_get_character_position(short index, short *out_y, short *out_x)
 {
   if (*(char *)0x4d04a0 == 0) {
     display_assert("hardware_character_cache.initialized",
@@ -3029,143 +3264,141 @@ void rasterizer_text_cache_character(void *font_character, void *font)
     return;
   }
 
-    if (*(short *)(character + 4) > 128) {
-      display_assert(
-        "font_character->bitmap_width<=HARDWARE_CHARACTER_CACHE_BITMAP_WIDTH",
-        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_text.c", 0x285, 1);
+  if (*(short *)(character + 4) > 128) {
+    display_assert(
+      "font_character->bitmap_width<=HARDWARE_CHARACTER_CACHE_BITMAP_WIDTH",
+      "c:\\halo\\SOURCE\\rasterizer\\rasterizer_text.c", 0x285, 1);
+    system_exit(-1);
+  }
+  if (*(short *)(character + 6) > 128) {
+    display_assert(
+      "font_character->bitmap_height<=HARDWARE_CHARACTER_CACHE_BITMAP_HEIGHT",
+      "c:\\halo\\SOURCE\\rasterizer\\rasterizer_text.c", 0x286, 1);
+    system_exit(-1);
+  }
+
+  *(short *)(character + 0xe) = *(short *)0x325748;
+
+  /* Advance to next row if needed. Original writes _DAT_004d04a8 =
+     (uint)cursor_y as a single 32-bit store, which zero-extends cursor_y
+     into the high half — i.e. max_char_height (0x4d04aa) is reset to 0. */
+  if (128 < (int)*(short *)0x4d04a6 + (int)*(short *)(character + 4)) {
+    *(short *)0x4d04a8 += *(short *)0x4d04aa;
+    *(short *)0x4d04a6 = 0;
+    *(uint32_t *)0x4d04a8 = (uint32_t)(unsigned short)*(short *)0x4d04a8;
+  }
+
+  /* Wrap back to top if needed, evicting characters. Original writes
+     _DAT_004d04a8 = 0 as a single 32-bit store, clearing both cursor_y
+     (0x4d04a8) and max_char_height (0x4d04aa). */
+  if (128 < (int)*(short *)0x4d04a8 + (int)*(short *)(character + 6)) {
+    *(short *)0x4d04a6 = 0;
+    *(short *)0x4d04a8 = 0;
+    *(uint32_t *)0x4d04a8 = 0;
+
+    read_index = *(unsigned short *)0x4d04a2;
+    write_index = *(unsigned short *)0x4d04a4;
+
+    if (read_index != write_index) {
+      i = read_index & 0xFF;
+      while (i != (write_index & 0xFF)) {
+        if (*(short *)(0x4d04b6 + i * 8) <= 0) {
+          break;
+        }
+        rasterizer_text_evict_character((int **)(0x4d04b0 + i * 8));
+        i = (i + 1) & 0xFF;
+      }
+      *(unsigned short *)0x4d04a2 = (unsigned short)i;
+    }
+  }
+
+  /* Evict characters that overlap */
+  if (*(short *)0x4d04aa < *(short *)(character + 6)) {
+    cache_top = *(short *)0x4d04a8 + *(short *)0x4d04aa;
+    cache_bottom = *(short *)(character + 6) + (int)*(short *)0x4d04a8;
+
+    read_index = *(unsigned short *)0x4d04a2;
+    write_index = *(unsigned short *)0x4d04a4;
+
+    if (read_index != write_index) {
+      i = read_index & 0xFF;
+      /* Original is a FIFO drain: break at the first slot whose y is
+         outside [cache_top, cache_bottom); only the contiguous front
+         entries are evicted and read_index advances past them. cache_bottom
+         is exclusive. The prior lift instead scanned the whole queue and
+         then set read_index = write_index, draining the entire character
+         cache whenever a taller glyph arrived, which dropped already-cached
+         menu text. */
+      do {
+        if (*(short *)(0x4d04b6 + i * 8) < (short)cache_top ||
+            (short)cache_bottom <= *(short *)(0x4d04b6 + i * 8)) {
+          break;
+        }
+        rasterizer_text_evict_character((int **)(0x4d04b0 + i * 8));
+        i = (i + 1) & 0xFF;
+      } while (i != (write_index & 0xFF));
+      *(unsigned short *)0x4d04a2 = (unsigned short)i;
+    }
+    /* Original writes _DAT_004d04a8 = CONCAT22(char_height, cursor_y):
+       a 32-bit store that sets max_char_height (0x4d04aa, high half) to
+       char_height while leaving cursor_y (0x4d04a8, low half) UNCHANGED.
+       The prior lift mistranslated this as `cursor_y += char_height`,
+       which advanced the pen down a full row each character until a
+       glyph was placed at cursor_y=128, overflowing the 128-tall cache
+       texture (bitmaps.c:421 "y>=0 && y<bitmap->height"). */
+    *(short *)0x4d04aa = *(short *)(character + 6);
+  }
+
+  /* Handle full cache: evict oldest character. Original compares
+     (byte)(write_index + 1) against read_index, so the +1 wraps at 256;
+     truncate to unsigned char before comparing or the 255->0 wrap is
+     missed and the cache-full case is never detected. */
+  if ((unsigned char)(*(unsigned char *)0x4d04a4 + 1) ==
+      *(unsigned char *)0x4d04a2) {
+    character_slot = (int **)(0x4d04b0 + *(short *)0x4d04a2 * 8);
+    if (character_slot == (int **)0) {
+      display_assert("hardware_character",
+                     "c:\\halo\\SOURCE\\rasterizer\\rasterizer_text.c", 0x262,
+                     1);
       system_exit(-1);
     }
-    if (*(short *)(character + 6) > 128) {
-      display_assert(
-        "font_character->bitmap_height<=HARDWARE_CHARACTER_CACHE_BITMAP_HEIGHT",
-        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_text.c", 0x286, 1);
-      system_exit(-1);
-    }
-
-    *(short *)(character + 0xe) = *(short *)0x325748;
-
-    /* Advance to next row if needed. Original writes _DAT_004d04a8 =
-       (uint)cursor_y as a single 32-bit store, which zero-extends cursor_y
-       into the high half — i.e. max_char_height (0x4d04aa) is reset to 0. */
-    if (128 < (int)*(short *)0x4d04a6 + (int)*(short *)(character + 4)) {
-      *(short *)0x4d04a8 += *(short *)0x4d04aa;
-      *(short *)0x4d04a6 = 0;
-      *(uint32_t *)0x4d04a8 =
-        (uint32_t)(unsigned short)*(short *)0x4d04a8;
-    }
-
-    /* Wrap back to top if needed, evicting characters. Original writes
-       _DAT_004d04a8 = 0 as a single 32-bit store, clearing both cursor_y
-       (0x4d04a8) and max_char_height (0x4d04aa). */
-    if (128 < (int)*(short *)0x4d04a8 + (int)*(short *)(character + 6)) {
-      *(short *)0x4d04a6 = 0;
-      *(short *)0x4d04a8 = 0;
-      *(uint32_t *)0x4d04a8 = 0;
-
-      read_index = *(unsigned short *)0x4d04a2;
-      write_index = *(unsigned short *)0x4d04a4;
-
-      if (read_index != write_index) {
-        i = read_index & 0xFF;
-        while (i != (write_index & 0xFF)) {
-          if (*(short *)(0x4d04b6 + i * 8) <= 0) {
-            break;
-          }
-          rasterizer_text_evict_character((int **)(0x4d04b0 + i * 8));
-          i = (i + 1) & 0xFF;
-        }
-        *(unsigned short *)0x4d04a2 = (unsigned short)i;
+    if (*character_slot != (int *)0) {
+      *(short *)((char *)*character_slot + 0xc) = -1;
+      if (*(short *)((char *)*character_slot + 0xe) == *(short *)0x325748) {
+        error(3, "font cache overwrote character in use");
       }
+      *character_slot = (int *)0;
     }
+    *(unsigned short *)0x4d04a2 =
+      (unsigned short)(unsigned char)(*(unsigned char *)0x4d04a2 + 1);
+  }
 
-    /* Evict characters that overlap */
-    if (*(short *)0x4d04aa < *(short *)(character + 6)) {
-      cache_top = *(short *)0x4d04a8 + *(short *)0x4d04aa;
-      cache_bottom = *(short *)(character + 6) + (int)*(short *)0x4d04a8;
+  /* Allocate slot and copy bitmap to texture */
+  i = *(short *)0x4d04a4;
+  *(short *)(character + 0xc) = (short)i;
+  *(int *)(0x4d04b0 + i * 8) = character;
+  *(short *)(0x4d04b4 + i * 8) = *(short *)0x4d04a6;
+  *(short *)(0x4d04b6 + i * 8) = *(short *)0x4d04a8;
 
-      read_index = *(unsigned short *)0x4d04a2;
-      write_index = *(unsigned short *)0x4d04a4;
+  pixel_data =
+    (unsigned char *)(*(int *)((int)font + 0x94) + *(int *)(character + 0x10));
 
-      if (read_index != write_index) {
-        i = read_index & 0xFF;
-        /* Original is a FIFO drain: break at the first slot whose y is
-           outside [cache_top, cache_bottom); only the contiguous front
-           entries are evicted and read_index advances past them. cache_bottom
-           is exclusive. The prior lift instead scanned the whole queue and
-           then set read_index = write_index, draining the entire character
-           cache whenever a taller glyph arrived, which dropped already-cached
-           menu text. */
-        do {
-          if (*(short *)(0x4d04b6 + i * 8) < (short)cache_top ||
-              (short)cache_bottom <= *(short *)(0x4d04b6 + i * 8)) {
-            break;
-          }
-          rasterizer_text_evict_character((int **)(0x4d04b0 + i * 8));
-          i = (i + 1) & 0xFF;
-        } while (i != (write_index & 0xFF));
-        *(unsigned short *)0x4d04a2 = (unsigned short)i;
-      }
-      /* Original writes _DAT_004d04a8 = CONCAT22(char_height, cursor_y):
-         a 32-bit store that sets max_char_height (0x4d04aa, high half) to
-         char_height while leaving cursor_y (0x4d04a8, low half) UNCHANGED.
-         The prior lift mistranslated this as `cursor_y += char_height`,
-         which advanced the pen down a full row each character until a
-         glyph was placed at cursor_y=128, overflowing the 128-tall cache
-         texture (bitmaps.c:421 "y>=0 && y<bitmap->height"). */
-      *(short *)0x4d04aa = *(short *)(character + 6);
+  for (y = 0; y < *(short *)(character + 6); y++) {
+    pixel_out = (short *)bitmap_2d_address(*(void **)0x4d04ac,
+                                           *(short *)(0x4d04b4 + i * 8),
+                                           *(short *)(0x4d04b6 + i * 8) + y, 0);
+    for (x = 0; x < *(short *)(character + 4); x++) {
+      *pixel_out = (short)((*pixel_data << 8) | 0xfff);
+      pixel_data++;
+      pixel_out++;
     }
+  }
 
-    /* Handle full cache: evict oldest character. Original compares
-       (byte)(write_index + 1) against read_index, so the +1 wraps at 256;
-       truncate to unsigned char before comparing or the 255->0 wrap is
-       missed and the cache-full case is never detected. */
-    if ((unsigned char)(*(unsigned char *)0x4d04a4 + 1) ==
-        *(unsigned char *)0x4d04a2) {
-      character_slot = (int **)(0x4d04b0 + *(short *)0x4d04a2 * 8);
-      if (character_slot == (int **)0) {
-        display_assert("hardware_character",
-                       "c:\\halo\\SOURCE\\rasterizer\\rasterizer_text.c",
-                       0x262, 1);
-        system_exit(-1);
-      }
-      if (*character_slot != (int *)0) {
-        *(short *)((char *)*character_slot + 0xc) = -1;
-        if (*(short *)((char *)*character_slot + 0xe) ==
-            *(short *)0x325748) {
-          error(3, "font cache overwrote character in use");
-        }
-        *character_slot = (int *)0;
-      }
-      *(unsigned short *)0x4d04a2 =
-        (unsigned short)(unsigned char)(*(unsigned char *)0x4d04a2 + 1);
-    }
+  FUN_00168b10(*(void **)0x4d04ac);
 
-    /* Allocate slot and copy bitmap to texture */
-    i = *(short *)0x4d04a4;
-    *(short *)(character + 0xc) = (short)i;
-    *(int *)(0x4d04b0 + i * 8) = character;
-    *(short *)(0x4d04b4 + i * 8) = *(short *)0x4d04a6;
-    *(short *)(0x4d04b6 + i * 8) = *(short *)0x4d04a8;
-
-    pixel_data = (unsigned char *)(*(int *)((int)font + 0x94) +
-                                   *(int *)(character + 0x10));
-
-    for (y = 0; y < *(short *)(character + 6); y++) {
-      pixel_out = (short *)bitmap_2d_address(
-        *(void **)0x4d04ac, *(short *)(0x4d04b4 + i * 8),
-        *(short *)(0x4d04b6 + i * 8) + y, 0);
-      for (x = 0; x < *(short *)(character + 4); x++) {
-        *pixel_out = (short)((*pixel_data << 8) | 0xfff);
-        pixel_data++;
-        pixel_out++;
-      }
-    }
-
-    FUN_00168b10(*(void **)0x4d04ac);
-
-    *(short *)0x4d04a6 += *(short *)(character + 4);
-    *(unsigned short *)0x4d04a4 =
-      (unsigned short)(unsigned char)(*(unsigned char *)0x4d04a4 + 1);
+  *(short *)0x4d04a6 += *(short *)(character + 4);
+  *(unsigned short *)0x4d04a4 =
+    (unsigned short)(unsigned char)(*(unsigned char *)0x4d04a4 + 1);
 }
 
 /* rasterizer_text_draw_cached_char: draw a single cached character quad.
@@ -3377,7 +3610,7 @@ void rasterizer_text_draw(void *screen_pos, short *bounds, const void *color,
 
     FUN_00173b40(widget_params);
     draw_string(rasterizer_text_draw_cached_chars, draw_bounds, color,
-                 clip_bounds, flags, (char *)text);
+                clip_bounds, flags, (char *)text);
     FUN_00173ae0();
   }
 }
@@ -3619,8 +3852,8 @@ short rasterizer_transparent_geometry_group_to_presorted_index(
 
   index = -1;
   if (group >= *(unsigned int *)0x4d0cec &&
-      group < *(unsigned int *)0x4d0cec +
-                (unsigned int)(*(int *)0x4d0cf4 * 0xa0)) {
+      group <
+        *(unsigned int *)0x4d0cec + (unsigned int)(*(int *)0x4d0cf4 * 0xa0)) {
     index = (short)((int)(group - *(unsigned int *)0x4d0cec) / 0xa0);
     if (index < 0 || *(int *)0x4d0cf4 <= index) {
       display_assert(

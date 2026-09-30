@@ -45,6 +45,20 @@ void structure_detail_objects_dispose(void)
 {
 }
 
+/* structure_detail_objects_flush (0x1939e0) — after-load callback in the
+ * game_state_revert table at 0x32eaa8.
+ *
+ * Clears the byte at detail-object runtime data + 0x520e, the flag
+ * FUN_00193c00 tests before reusing its cached cell data and sets to 1 once
+ * the cache is rebuilt. structure_detail_objects_initialize_for_new_map
+ * clears the same byte. The base pointer (0x4d8ea0) is read with no NULL
+ * check, exactly as in the original (MOV EAX,[0x4d8ea0]; MOV BYTE
+ * [EAX+0x520e],0; RET). */
+void structure_detail_objects_flush(void)
+{
+  *(uint8_t *)(*(int *)0x4d8ea0 + 0x520e) = 0;
+}
+
 void FUN_001939f0(float param_1)
 {
   *(float *)0x4d8eac = param_1;

@@ -244,6 +244,38 @@ real reciprocal_square_root(real value)
   return 1.0f / sqrtf(value);
 }
 
+/* limit3d (0xa57b0)
+ *
+ * Clamps a vector's length to `length`; returns TRUE when it was clamped.
+ * Confirmed from disassembly at 0xa57b0:
+ *   FLD [ECX+8]; FLD [ECX+4]; FLD [ECX] then i*i + j*j + k*k (in that
+ *   association) -> dot.
+ *   FLD [EBP+0xc]; FMUL [EBP+0xc]; FLD dot; FCOMPP; TEST AH,0x41; JNZ ->
+ *   skip unless dot > length*length.
+ *   FSQRT; MOV AL,1; FDIVR [EBP+0xc] -> scale = length / sqrt(dot);
+ *   each component multiplied by scale in i, j, k order.
+ *   Else arm: XOR AL,AL. Only AL is written, so the return is a byte.
+ * Callers: update_alien_scout_physics (0x1b8570) and
+ * accelerate_to_velocity3d (real_math.c); both test AL.
+ */
+boolean limit3d(real_vector3d *vector, real length)
+{
+  real dot;
+  real scale;
+
+  dot = vector->i * vector->i + vector->j * vector->j +
+        vector->k * vector->k;
+  if (dot > length * length) {
+    scale = length / sqrtf(dot);
+    vector->i = scale * vector->i;
+    vector->j = scale * vector->j;
+    vector->k = scale * vector->k;
+    return 1;
+  }
+
+  return 0;
+}
+
 /* set_real_euler_angles2d (0xa5810)
  *
  * Two-store setter, straight from the disassembly:

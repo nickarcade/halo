@@ -6153,9 +6153,12 @@
     "oracle": "xbe"
   },
   "0x148910": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 8,
-    "call_count": 2
+    "call_count": 2,
+    "confidence": "high",
+    "coverage_pct": 80.5,
+    "oracle": "xbe"
   },
   "0x148b20": {
     "class": "stubbable",
@@ -6167,14 +6170,20 @@
     "call_count": 13
   },
   "0x148eb0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 5,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "weak",
+    "coverage_pct": 24.9,
+    "oracle": "xbe"
   },
   "0x1491d0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "moderate",
+    "coverage_pct": 47.1,
+    "oracle": "xbe"
   },
   "0x1493b0": {
     "class": "stubbable",
@@ -6187,14 +6196,20 @@
     "call_count": 4
   },
   "0x149570": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 2,
-    "call_count": 2
+    "call_count": 2,
+    "confidence": "high",
+    "coverage_pct": 78.7,
+    "oracle": "xbe"
   },
   "0x149680": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 12,
-    "call_count": 16
+    "call_count": 16,
+    "confidence": "weak",
+    "coverage_pct": 26.6,
+    "oracle": "xbe"
   },
   "0x149c60": {
     "class": "stubbable",
@@ -8994,8 +9009,11 @@
     "call_count": 2
   },
   "0x1807d0": {
-    "class": "data_only",
-    "dir32_count": 5
+    "class": "non_leaf",
+    "dir32_count": 5,
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x180820": {
     "class": "stubbable",
@@ -9008,9 +9026,12 @@
     "call_count": 1
   },
   "0x1808f0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 23,
-    "call_count": 15
+    "call_count": 15,
+    "confidence": "high",
+    "coverage_pct": 92.4,
+    "oracle": "xbe"
   },
   "0x180b10": {
     "class": "stubbable",
@@ -9028,9 +9049,12 @@
     "call_count": 2
   },
   "0x181060": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 8,
-    "call_count": 8
+    "call_count": 8,
+    "confidence": "high",
+    "coverage_pct": 79.6,
+    "oracle": "xbe"
   },
   "0x181150": {
     "class": "stubbable",
@@ -9055,9 +9079,12 @@
     "class": "leaf"
   },
   "0x181420": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 24,
-    "call_count": 9
+    "call_count": 9,
+    "confidence": "high",
+    "coverage_pct": 69.9,
+    "oracle": "xbe"
   },
   "0x181670": {
     "class": "stubbable",
@@ -9070,14 +9097,20 @@
     "call_count": 11
   },
   "0x181a90": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 12,
-    "call_count": 10
+    "call_count": 10,
+    "confidence": "moderate",
+    "coverage_pct": 73.2,
+    "oracle": "xbe"
   },
   "0x181c20": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 79,
-    "call_count": 36
+    "call_count": 36,
+    "confidence": "weak",
+    "coverage_pct": 14.9,
+    "oracle": "xbe"
   },
   "0x1824e0": {
     "class": "stubbable",
@@ -9224,9 +9257,12 @@
     "call_count": 10
   },
   "0x184260": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 11,
-    "call_count": 5
+    "call_count": 5,
+    "confidence": "moderate",
+    "coverage_pct": 87.9,
+    "oracle": "xbe"
   },
   "0x184300": {
     "class": "stubbable",
@@ -11718,9 +11754,12 @@
     "call_count": 7
   },
   "0x1a0b30": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 7
+    "call_count": 7,
+    "confidence": "weak",
+    "coverage_pct": 28.5,
+    "oracle": "xbe"
   },
   "0x1a0be0": {
     "class": "stubbable",
@@ -11811,9 +11850,12 @@
     "call_count": 12
   },
   "0x1a2160": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 3,
-    "call_count": 6
+    "call_count": 6,
+    "confidence": "high",
+    "coverage_pct": 100.0,
+    "oracle": "xbe"
   },
   "0x1a2290": {
     "class": "stubbable",
@@ -11891,7 +11933,7 @@
     "call_count": 10
   },
   "0x1a4c50": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 32,
     "call_count": 18
   },
@@ -13330,9 +13372,12 @@
     "call_count": 4
   },
   "0x1bafa0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 14,
-    "call_count": 10
+    "call_count": 10,
+    "confidence": "moderate",
+    "coverage_pct": 33.4,
+    "oracle": "xbe"
   },
   "0x1bb190": {
     "class": "stubbable",
@@ -13551,9 +13596,12 @@
     "call_count": 5
   },
   "0x1bd020": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 10,
-    "call_count": 15
+    "call_count": 15,
+    "confidence": "high",
+    "coverage_pct": 64.7,
+    "oracle": "xbe"
   },
   "0x1bd1b0": {
     "class": "stubbable",
@@ -15341,9 +15389,12 @@
     "call_count": 14
   },
   "0x1ccbe0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "high",
+    "coverage_pct": 75.5,
+    "oracle": "xbe"
   },
   "0x1ccc0": {
     "class": "stubbable",
@@ -15351,9 +15402,12 @@
     "call_count": 4
   },
   "0x1ccca0": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 4,
-    "call_count": 4
+    "call_count": 4,
+    "confidence": "high",
+    "coverage_pct": 75.0,
+    "oracle": "xbe"
   },
   "0x1ccd70": {
     "class": "stubbable",
@@ -36629,9 +36683,12 @@
     "call_count": 1
   },
   "0xe9a90": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 6,
-    "call_count": 12
+    "call_count": 12,
+    "confidence": "high",
+    "coverage_pct": 93.2,
+    "oracle": "xbe"
   },
   "0xe9bd0": {
     "class": "stubbable",
@@ -36708,9 +36765,12 @@
     "call_count": 11
   },
   "0xeaa10": {
-    "class": "stubbable",
+    "class": "non_leaf",
     "dir32_count": 7,
-    "call_count": 9
+    "call_count": 9,
+    "confidence": "weak",
+    "coverage_pct": 26.0,
+    "oracle": "xbe"
   },
   "0xeab70": {
     "class": "stubbable",

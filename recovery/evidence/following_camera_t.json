@@ -1,0 +1,90 @@
+{
+  "schema": 1,
+  "struct": "following_camera_t",
+  "size": {
+    "value": "0x1c",
+    "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 1,
+      "name": "initialized",
+      "confidence": "typed",
+      "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c",
+      "signed": false
+    },
+    {
+      "offset": "0x1",
+      "width": 1,
+      "name": "confined",
+      "confidence": "typed",
+      "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c",
+      "signed": false
+    },
+    {
+      "offset": "0x2",
+      "width": 1,
+      "name": "crouched",
+      "confidence": "typed",
+      "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c",
+      "signed": false
+    },
+    {
+      "offset": "0x3",
+      "width": 1,
+      "name": "zoomed",
+      "confidence": "typed",
+      "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c",
+      "signed": false
+    },
+    {
+      "offset": "0x4",
+      "width": 2,
+      "name": "zoom_level",
+      "confidence": "typed",
+      "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c",
+      "signed": true
+    },
+    {
+      "offset": "0x8",
+      "width": 4,
+      "name": "unit_index",
+      "confidence": "typed",
+      "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c",
+      "signed": true
+    },
+    {
+      "offset": "0xc",
+      "width": 2,
+      "name": "seat_index",
+      "confidence": "typed",
+      "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c",
+      "signed": true
+    },
+    {
+      "offset": "0x10",
+      "width": 4,
+      "name": "facing_offset",
+      "confidence": "typed",
+      "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c",
+      "array_len": 2,
+      "kind": "float"
+    },
+    {
+      "offset": "0x18",
+      "width": 4,
+      "name": "distance_scale",
+      "confidence": "typed",
+      "evidence": "following_camera_new 0x89850 initializes bytes +0/1/2/3, word +4, dword +8, word +c, floats +10/14/18; update 0x89d65 byte +0, 0x89db1 byte +2, 0x89d71 dword +8, 0x89d76 word +c, 0x89de5/ee float +10/14, 0x89f60 float +18; PAL sizeof 0x1c",
+      "kind": "float"
+    }
+  ]
+}

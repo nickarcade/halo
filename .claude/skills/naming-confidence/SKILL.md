@@ -25,7 +25,14 @@ looks like health"). If you can't cite the evidence in one line, the name is T3 
 **No invented placeholders.** Never coin spellings like `code_<addr>` /
 `bss_<addr>` / `sub_<addr>`. The canonical repo placeholders are `FUN_<addr>`
 (functions), `field_<hex>` / `pad_<hex>[n]` (accessed / never-accessed struct
-offsets), and the legacy `unk_<addr>` / `unk_N[]` for data.
+offsets), `_<enum>_unknown<value>` / `_<thing>_unknown<bit>_bit` (enum members
+and bits whose value is proven but whose meaning is not), and the legacy
+`unk_<addr>` / `unk_N[]` for data.
+
+**Shape follows Bungie style.** Any tier's name uses the shapes in
+`lift-implementation.md` → *Bungie Code Style*: `lower_snake`, `k_` constants,
+`_enum_member`, `MAXIMUM_`/`NUMBER_OF_`, and `*_index` handles. The tier limits
+the *meaning* a name may claim. It does not relax the shape.
 
 ## Per-symbol-kind rules
 

@@ -767,6 +767,76 @@ char shader_type_is_valid_for_modifier(int16_t shader_type)
   return valid;
 }
 
+/* 0x190a90 - shader_environment_texture_animation_evaluate
+ *
+ * Evaluates the environment shader's diffuse texture u/v scroll animation at
+ * `time` and writes the two offsets.
+ *
+ * `diffuse` is the shader_environment data returned by the checked downcast
+ * FUN_001906b0(shader, 3), rebased once by ADD ESI,0x6c (0x190b1b); all
+ * fields are read off that base:
+ *   +0xe4 int16 u animation function   +0xe8 float u_animation_period
+ *   +0xec float u scale                +0xf0 int16 v animation function
+ *   +0xf4 float v_animation_period     +0xf8 float v scale
+ * Only the two period names are proven (assert strings, shaders.c:0x160 and
+ * 0x161); the other four are role names. The function selectors are loaded
+ * XOR/MOV word (zero-extended).
+ * Each offset is FUN_0010a5e0(function, time / period) * scale; the float
+ * argument is the PUSH ECX / FSTP [ESP] slot.
+ *
+ * Type note: [EBP+0xc] is a float (FLD at 0x190b81/0x190bb1), but the kb decl
+ * and every C caller pass it as `void *a2` (the dword at 0x5a5e18). The bits
+ * are reinterpreted through a union here, never converted numerically.
+ * Dormant: kb ported=false.
+ */
+void shader_environment_texture_animation_evaluate(void *shader, void *a2,
+                                                   void *out_a, void *out_b)
+{
+  union {
+    void *bits;
+    float value;
+  } time;
+  char *diffuse;
+
+  time.bits = a2;
+  if (shader == 0) {
+    display_assert("shader", "c:\\halo\\SOURCE\\shaders\\shaders.c", 0x159,
+                   1);
+    system_exit(-1);
+  }
+  if (out_a == 0) {
+    display_assert("u_offset", "c:\\halo\\SOURCE\\shaders\\shaders.c",
+                   0x15a, 1);
+    system_exit(-1);
+  }
+  if (out_b == 0) {
+    display_assert("v_offset", "c:\\halo\\SOURCE\\shaders\\shaders.c",
+                   0x15b, 1);
+    system_exit(-1);
+  }
+
+  diffuse = (char *)FUN_001906b0(shader, 3) + 0x6c;
+  if (*(float *)(diffuse + 0xe8) == 0.0f) {
+    display_assert("diffuse->u_animation_period!=0.0f",
+                   "c:\\halo\\SOURCE\\shaders\\shaders.c", 0x160, 1);
+    system_exit(-1);
+  }
+  if (*(float *)(diffuse + 0xf4) == 0.0f) {
+    display_assert("diffuse->v_animation_period!=0.0f",
+                   "c:\\halo\\SOURCE\\shaders\\shaders.c", 0x161, 1);
+    system_exit(-1);
+  }
+
+  *(float *)out_a =
+    FUN_0010a5e0(*(uint16_t *)(diffuse + 0xe4),
+                 time.value / *(float *)(diffuse + 0xe8)) *
+    *(float *)(diffuse + 0xec);
+  *(float *)out_b =
+    FUN_0010a5e0(*(uint16_t *)(diffuse + 0xf0),
+                 time.value / *(float *)(diffuse + 0xf4)) *
+    *(float *)(diffuse + 0xf8);
+}
+
 /* numeric_countdown_timer_set @ 0x00190be0
  *
  * Seeds the numeric countdown timer globals shared with
@@ -909,4 +979,152 @@ void numeric_countdown_timer_update(void)
     }
     *(int *)0x4d8a80 = current_time;
   }
+}
+
+/* FUN_00190e10 @ 0x190e10 -- evaluate a shader's U/V/rotation texture
+ * animation into the two D3D texture-transform rows used to scroll/rotate a
+ * shader's UVs.
+ *
+ * texture_animation, u_transform_reference and v_transform_reference are the
+ * original parameter names, recovered from the assert strings at
+ * shaders.c:0x113 ("texture_animation"), :0x117 ("u_transform_reference") and
+ * :0x118 ("v_transform_reference"). external_animation is Inferred (no assert
+ * names it); it is only dereferenced when non-NULL, at +0x4, as a float*
+ * array indexed 1-based by each channel's "source" field (source==0 means
+ * "use the periodic function instead of an external source").
+ *
+ * texture_animation layout (raw offsets -- no struct recovered beyond the
+ * asserted fields):
+ *   +0x00 int16 u_source     (range-asserted 0..4, shaders.c:0x114)
+ *   +0x02 int16 u_function   (periodic-function selector, arg1 of FUN_0010a5e0)
+ *   +0x04 float u_period     (0.0 means "use 1.0")
+ *   +0x08 float u_phase
+ *   +0x0c float u_amplitude
+ *   +0x10..+0x1c: same layout for v (source asserted shaders.c:0x115)
+ *   +0x20..+0x2c: same layout for rotation (source asserted shaders.c:0x116)
+ *   +0x30 float rotation_center_x
+ *   +0x34 float rotation_center_y
+ *
+ * Recovered from raw disassembly, NOT the decompiler's rendering: Ghidra
+ * reuses the dead argument stack slots of texture_animation/
+ * u_transform_reference/v_transform_reference ([EBP+8]/[EBP+0x28]/[EBP+0x2c],
+ * each already copied into ESI/EBX/EDI before being clobbered) to hold three
+ * unrelated FLOAT scratch values, then mis-renders later reads of those slots
+ * as e.g. "(float)param_9" -- a pointer-to-float numeric cast that is NOT
+ * what the binary does; the binary just reloads the float last stored there.
+ * This lift uses distinct named locals instead of replaying that artifact.
+ *   u/v/r_period_eff default to 1.0 when the tag's period field is exactly
+ *     0.0 (FCOMP/JP dance at 0x190f1a-0x190f73).
+ *   u/v/r_external_mult is 1.0 when external_animation is NULL or the
+ *     channel's source is 0, else external_array[source-1]
+ *     (FLD [ECX+EDX*4-4] at 0x190f91/0x190fad/0x190fc0).
+ *   u/v/r_eval = FUN_0010a5e0(function, (time+phase)/period_eff).
+ *   u/v_rel = (u/v_offset - rotation_center) + eval*amplitude*external_mult.
+ *   angle (degrees) = r_eval*r_amplitude*r_external_mult + rotation; if the
+ *     total angle is exactly 0.0 the trig is skipped (cos=1, sin=0), else the
+ *     angle is converted to radians (* DAT_00253d4c, confirmed == pi/180)
+ *     before FCOS/FSIN (0x191061-0x19108b).
+ *   u_transform_reference = { cos*u_scale, -(v_scale*sin), 0,
+ *                             cos*u_rel - sin*v_rel + rotation_center_x }
+ *   v_transform_reference = { u_scale*sin, cos*v_scale, 0,
+ *                             sin*u_rel + cos*v_rel + rotation_center_y }
+ */
+void FUN_00190e10(void *texture_animation, void *external_animation,
+                   float u_scale, float v_scale, float u_offset,
+                   float v_offset, float rotation, float time,
+                   float *u_transform_reference, float *v_transform_reference)
+{
+  char *anim = (char *)texture_animation;
+  int16_t u_source, v_source, r_source;
+  int16_t u_function, v_function, r_function;
+  float u_period, v_period, r_period;
+  float u_period_eff, v_period_eff, r_period_eff;
+  float *external_array;
+  float u_external_mult, v_external_mult, r_external_mult;
+  float u_eval, v_eval, r_eval;
+  float u_contribution, v_contribution, r_contribution;
+  float u_rel, v_rel;
+  float rotation_center_x, rotation_center_y;
+  float angle, cos_r, sin_r;
+
+  assert_halt_at(SHADERS_FILE, 0x113, texture_animation);
+  /* The source bound is CMP AX,0x5 (0x190e48/0x190e77/0x190ea6): 0 = none,
+   * 1..4 = external functions A..D, read as external_array[source-1]. */
+  u_source = *(int16_t *)(anim + 0x00);
+  assert_halt_msg_at(
+      "texture_animation->u_source>=0 && "
+      "texture_animation->u_source<NUMBER_OF_OBJECT_FUNCTION_REFERENCES",
+      SHADERS_FILE, 0x114, u_source >= 0 && u_source < 5);
+  v_source = *(int16_t *)(anim + 0x10);
+  assert_halt_msg_at(
+      "texture_animation->v_source>=0 && "
+      "texture_animation->v_source<NUMBER_OF_OBJECT_FUNCTION_REFERENCES",
+      SHADERS_FILE, 0x115, v_source >= 0 && v_source < 5);
+  r_source = *(int16_t *)(anim + 0x20);
+  assert_halt_msg_at(
+      "texture_animation->r_source>=0 && "
+      "texture_animation->r_source<NUMBER_OF_OBJECT_FUNCTION_REFERENCES",
+      SHADERS_FILE, 0x116, r_source >= 0 && r_source < 5);
+  assert_halt_at(SHADERS_FILE, 0x117, u_transform_reference);
+  assert_halt_at(SHADERS_FILE, 0x118, v_transform_reference);
+
+  u_function = *(int16_t *)(anim + 0x02);
+  v_function = *(int16_t *)(anim + 0x12);
+  r_function = *(int16_t *)(anim + 0x22);
+
+  u_period = *(float *)(anim + 0x04);
+  u_period_eff = (u_period == 0.0f) ? 1.0f : u_period;
+  v_period = *(float *)(anim + 0x14);
+  v_period_eff = (v_period == 0.0f) ? 1.0f : v_period;
+  r_period = *(float *)(anim + 0x24);
+  r_period_eff = (r_period == 0.0f) ? 1.0f : r_period;
+
+  if (external_animation != NULL) {
+    external_array = *(float **)((char *)external_animation + 0x4);
+    u_external_mult = (u_source == 0) ? 1.0f : external_array[u_source - 1];
+    v_external_mult = (v_source == 0) ? 1.0f : external_array[v_source - 1];
+    r_external_mult = (r_source == 0) ? 1.0f : external_array[r_source - 1];
+  } else {
+    u_external_mult = 1.0f;
+    v_external_mult = 1.0f;
+    r_external_mult = 1.0f;
+  }
+
+  u_eval = FUN_0010a5e0(u_function,
+                        (time + *(float *)(anim + 0x08)) / u_period_eff);
+  u_contribution = u_eval * (*(float *)(anim + 0x0c)) * u_external_mult;
+
+  v_eval = FUN_0010a5e0(v_function,
+                        (time + *(float *)(anim + 0x18)) / v_period_eff);
+  v_contribution = v_eval * (*(float *)(anim + 0x1c)) * v_external_mult;
+
+  r_eval = FUN_0010a5e0(r_function,
+                        (time + *(float *)(anim + 0x28)) / r_period_eff);
+  r_contribution = r_eval * (*(float *)(anim + 0x2c)) * r_external_mult;
+
+  rotation_center_x = *(float *)(anim + 0x30);
+  rotation_center_y = *(float *)(anim + 0x34);
+
+  u_rel = (u_offset - rotation_center_x) + u_contribution;
+  v_rel = (v_offset - rotation_center_y) + v_contribution;
+
+  angle = r_contribution + rotation;
+  if (angle == 0.0f) {
+    cos_r = 1.0f;
+    sin_r = 0.0f;
+  } else {
+    angle = angle * 0.0174532924f; /* DAT_00253d4c, confirmed == pi/180 */
+    cos_r = (float)cos((double)angle);
+    sin_r = (float)sin((double)angle);
+  }
+
+  u_transform_reference[0] = cos_r * u_scale;
+  u_transform_reference[1] = -(v_scale * sin_r);
+  u_transform_reference[2] = 0.0f;
+  u_transform_reference[3] = cos_r * u_rel - sin_r * v_rel + rotation_center_x;
+
+  v_transform_reference[0] = u_scale * sin_r;
+  v_transform_reference[1] = cos_r * v_scale;
+  v_transform_reference[2] = 0.0f;
+  v_transform_reference[3] = sin_r * u_rel + cos_r * v_rel + rotation_center_y;
 }

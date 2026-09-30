@@ -1303,6 +1303,294 @@ void FUN_00162790(void)
   }
 }
 
+/* 0x162920 — draw one environment geometry batch for the environment texture
+ * pass: bind four shader bitmaps to stages 0-3, upload the per-stage texture
+ * scale rows, program the 0x5a5ac0 pixel-shader block from three shader enums
+ * and the drawing mode, then draw.
+ *
+ * Signature: cdecl, bare RET, six dword stack slots; the only caller is the
+ * tail-call wrapper FUN_0017cd30 (PUSH EBP / MOV EBP,ESP / POP EBP /
+ * JMP 0x162920), so the arguments are forwarded unchanged. The slot roles
+ * mirror the sibling FUN_00162560: [EBP+8] shader (asserted "shader",
+ * handed to FUN_001906b0 and shader_get_vertex_shader_permutation),
+ * [EBP+0xc] frame_index (every rasterizer_set_texture call),
+ * [EBP+0x10]/[EBP+0x14]/[EBP+0x18] forwarded to
+ * rasterizer_draw_dynamic_triangles_static_vertices and
+ * rasterizer_frame_statistics_count_static_vertices; [EBP+0x18] is also the
+ * triangle accumulator added to 0x5a5464; [EBP+0x1c] vertex_buffer
+ * (asserted, uint16 vertex type at +0). The kb decl keeps them as `int`,
+ * which is ABI-identical; they are cast here.
+ *
+ * Globals (roles unproven beyond the assert strings):
+ *   0x476ab0  global_d3d_device (assert line 0x3c8)
+ *   0x3256bc  uint16 drawing mode; accepted 0,1,3,4,7,5,8 (binary compare
+ *             order); the final switch uses the byte map at 0x162f78:
+ *             0,5,8 -> 0xc; 1 -> 0xc110000 plus FUN_00159070(0.33f) into
+ *             0x5a5b6c; 3,4,7 -> 0x1c; 2,6,>8 -> assert line 0x4b6.
+ *   0x3256cc  uint8 enable flag
+ *   0x3256ba  uint16 statistics mode (counters only when 2)
+ *   0x5a5468 / 0x5a5464 / 0x5a5460  batch / triangle / static-vertex
+ *             counters
+ *
+ * Shader-data offsets (FUN_001906b0(shader, 3)):
+ *   +0x2a short  shader type (0/1/2, else assert 0x479)
+ *   +0x6c bit 0  scale stages 1-3 by stage-0 bitmap size ratios
+ *   +0x94 / +0xc4 / +0xd8 / +0x108  bitmap tag indices, stages 0..3
+ *   +0xb0 / +0xf4 short  detail functions (0/1/2, else assert 0x48b / 0x4a0)
+ *   +0xb4 / +0xc8 / +0xf8 float  per-stage scales
+ * rasterizer_set_texture returns the bitmap data; its first dword is read
+ * as two int16 halves (MOVSX word [x], MOVSX word [x+2]) and every stage-N
+ * ratio is stage0 / stageN per half (FILD / FDIVR sequence at 0x162bbb).
+ * The x87 keeps the last ratio (stage-3 high half) in ST0; the else arm
+ * loads 1.0 there.
+ *
+ * Constant block: 12 contiguous floats at EBP-0x54 uploaded as 3 rows to
+ * register -0x54. &constants[7] (EBP-0x38) and &constants[11] (EBP-0x28)
+ * go to shader_environment_texture_animation_evaluate as out-params.
+ */
+void FUN_00162920(int shader_arg, int frame_index_arg,
+                  int vertices_per_primitive, int a4, int triangle_count,
+                  int vertex_buffer_arg)
+{
+  void *shader;
+  void *vbuf;
+  void *shader_data;
+  void *texture_globals;
+  float constants[12];
+  uint32_t size0; /* EBP-0x04 */
+  uint32_t size1; /* EBP-0x08 */
+  uint32_t size2; /* EBP-0x10 */
+  uint32_t size3; /* EBP-0x1c */
+  float stage1_u; /* EBP-0x24 */
+  float stage1_v; /* EBP-0x20 */
+  float stage2_u; /* EBP-0x0c */
+  float stage2_v; /* EBP-0x08 */
+  float stage3_u; /* EBP-0x18 */
+  float stage3_v; /* ST0 */
+  float size0_u;
+  float size0_v; /* EBP-0x04 */
+  int permutation;
+  int static_vertices;
+
+  shader = (void *)shader_arg;
+  vbuf = (void *)vertex_buffer_arg;
+
+  if (*(void **)0x476ab0 == 0) {
+    display_assert(
+      "global_d3d_device",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+      0x3c8, true);
+    system_exit(-1);
+  }
+
+  if (!(*(uint16_t *)0x3256bc == 0 || *(uint16_t *)0x3256bc == 1 ||
+        *(uint16_t *)0x3256bc == 3 || *(uint16_t *)0x3256bc == 4 ||
+        *(uint16_t *)0x3256bc == 7 || *(uint16_t *)0x3256bc == 5 ||
+        *(uint16_t *)0x3256bc == 8)) {
+    return;
+  }
+  if (*(uint8_t *)0x3256cc == 0) {
+    return;
+  }
+
+  if (shader == 0) {
+    display_assert(
+      "shader",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+      0x3d5, true);
+    system_exit(-1);
+  }
+  shader_data = FUN_001906b0(shader, 3);
+  if (vbuf == 0) {
+    display_assert(
+      "vertex_buffer",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+      0x3e3, true);
+    system_exit(-1);
+  }
+
+  permutation = shader_get_vertex_shader_permutation(shader);
+  FUN_00178b40(0x28, *(uint16_t *)vbuf, permutation);
+
+  size0 = *(uint32_t *)rasterizer_set_texture(
+    0, 0, 1, *(int *)((char *)shader_data + 0x94), frame_index_arg);
+  D3DDevice_SetTextureStageState(0, 10, 1);
+  D3DDevice_SetTextureStageState(0, 0xb, 1);
+  D3DDevice_SetTextureStageState(0, 0xd, 2);
+  D3DDevice_SetTextureStageState(0, 0xe, 2);
+  D3DDevice_SetTextureStageState(0, 0xf, 2);
+
+  size1 = *(uint32_t *)rasterizer_set_texture(
+    1, 0, 2, *(int *)((char *)shader_data + 0xc4), frame_index_arg);
+  D3DDevice_SetTextureStageState(1, 10, 1);
+  D3DDevice_SetTextureStageState(1, 0xb, 1);
+  D3DDevice_SetTextureStageState(1, 0xd, 2);
+  D3DDevice_SetTextureStageState(1, 0xe, 2);
+  D3DDevice_SetTextureStageState(1, 0xf, 2);
+
+  size2 = *(uint32_t *)rasterizer_set_texture(
+    2, 0, 2, *(int *)((char *)shader_data + 0xd8), frame_index_arg);
+  D3DDevice_SetTextureStageState(2, 10, 1);
+  D3DDevice_SetTextureStageState(2, 0xb, 1);
+  D3DDevice_SetTextureStageState(2, 0xd, 2);
+  D3DDevice_SetTextureStageState(2, 0xe, 2);
+  D3DDevice_SetTextureStageState(2, 0xf, 2);
+
+  size3 = *(uint32_t *)rasterizer_set_texture(
+    3, 0, 2, *(int *)((char *)shader_data + 0x108), frame_index_arg);
+  D3DDevice_SetTextureStageState(3, 10, 1);
+  D3DDevice_SetTextureStageState(3, 0xb, 1);
+  D3DDevice_SetTextureStageState(3, 0xd, 2);
+  D3DDevice_SetTextureStageState(3, 0xe, 2);
+  D3DDevice_SetTextureStageState(3, 0xf, 2);
+
+  if (*(uint8_t *)((char *)shader_data + 0x6c) & 1) {
+    size0_u = (float)(int16_t)(size0 & 0xffff);
+    size0_v = (float)(int16_t)(size0 >> 16);
+    stage1_u = size0_u / (float)(int16_t)(size1 & 0xffff);
+    stage1_v = size0_v / (float)(int16_t)(size1 >> 16);
+    stage2_u = size0_u / (float)(int16_t)(size2 & 0xffff);
+    stage2_v = size0_v / (float)(int16_t)(size2 >> 16);
+    stage3_u = size0_u / (float)(int16_t)(size3 & 0xffff);
+    stage3_v = size0_v / (float)(int16_t)(size3 >> 16);
+  } else {
+    stage3_v = 1.0f;
+    stage3_u = 1.0f;
+    stage2_v = 1.0f;
+    stage2_u = 1.0f;
+    stage1_v = 1.0f;
+    stage1_u = 1.0f;
+  }
+
+  texture_globals = *(void **)0x5a5e18;
+  constants[0] = stage1_u * *(float *)((char *)shader_data + 0xb4);
+  constants[1] = stage1_v * *(float *)((char *)shader_data + 0xb4);
+  constants[4] = 1.0f;
+  constants[5] = 0.0f;
+  constants[7] = 0.0f;
+  constants[8] = 0.0f;
+  constants[2] = stage2_u * *(float *)((char *)shader_data + 0xc8);
+  constants[9] = 1.0f;
+  constants[11] = 0.0f;
+  constants[3] = stage2_v * *(float *)((char *)shader_data + 0xc8);
+  constants[6] = stage3_u * *(float *)((char *)shader_data + 0xf8);
+  constants[10] = stage3_v * *(float *)((char *)shader_data + 0xf8);
+  shader_environment_texture_animation_evaluate(
+    shader, texture_globals, &constants[7], &constants[11]);
+
+  D3DDevice_SetVertexShaderConstant(-0x54, &constants[0], 3);
+
+  csmemset((void *)0x5a5ac0, 0, 0xf0);
+  *(uint32_t *)0x5a5b98 = 0x8421;
+  *(uint32_t *)0x5a5b94 = 3;
+
+  switch (*(int16_t *)((char *)shader_data + 0x2a)) {
+  case 0:
+    *(uint32_t *)0x5a5ac0 = 0x3a1a1a19;
+    *(uint32_t *)0x5a5b48 = 0x3a0a1a09;
+    *(uint32_t *)0x5a5ac4 = 0x181c0000;
+    *(uint32_t *)0x5a5b2c = 0xc0;
+    *(uint32_t *)0x5a5b28 = 0xc00;
+    break;
+  case 1:
+    *(uint32_t *)0x5a5ac0 = 0x381a1819;
+    *(uint32_t *)0x5a5b48 = 0x380a1809;
+    *(uint32_t *)0x5a5b2c = 0;
+    *(uint32_t *)0x5a5b28 = 0xc00;
+    break;
+  default:
+    display_assert(
+      "### ERROR unsupported environment shader type",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+      0x479, true);
+    system_exit(-1);
+  case 2:
+    *(uint32_t *)0x5a5ac0 = 0x18200000;
+    *(uint32_t *)0x5a5b28 = 0xc0;
+    *(uint32_t *)0x5a5b48 = 0x380a1809;
+    *(uint32_t *)0x5a5b2c = 0;
+    break;
+  }
+  *(uint32_t *)0x5a5b74 = 0xc00;
+
+  switch (*(int16_t *)((char *)shader_data + 0xb0)) {
+  case 0:
+    *(uint32_t *)0x5a5b4c = 0x80c080c;
+    break;
+  case 1:
+    *(uint32_t *)0x5a5b4c = 0x80c0000;
+    break;
+  default:
+    display_assert(
+      "### ERROR unsupported environment shader detail function",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+      0x48b, true);
+    system_exit(-1);
+  case 2:
+    *(uint32_t *)0x5a5b4c = 0x8204c20;
+    break;
+  }
+  *(uint32_t *)0x5a5b78 = 0xc00;
+  *(uint32_t *)0x5a5ac8 = 0x1c1b0000;
+  *(uint32_t *)0x5a5b30 = 0xc0;
+
+  switch (*(int16_t *)((char *)shader_data + 0xf4)) {
+  case 0:
+    *(uint32_t *)0x5a5b50 = 0xc0b0c0b;
+    break;
+  case 1:
+    *(uint32_t *)0x5a5b50 = 0xc0b0000;
+    break;
+  default:
+    display_assert(
+      "### ERROR unsupported environment shader detail function",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+      0x4a0, true);
+    system_exit(-1);
+  case 2:
+    *(uint32_t *)0x5a5b50 = 0xc204b20;
+    break;
+  }
+  *(uint32_t *)0x5a5b7c = 0xc00;
+
+  *(uint32_t *)0x5a5ae4 = 0x1c00;
+  switch (*(int16_t *)0x3256bc) {
+  case 0:
+  case 5:
+  case 8:
+    *(uint32_t *)0x5a5ae0 = 0xc;
+    break;
+  case 1:
+    *(uint32_t *)0x5a5b6c = FUN_00159070(0.33f);
+    *(uint32_t *)0x5a5ae0 = 0xc110000;
+    break;
+  case 3:
+  case 4:
+  case 7:
+    *(uint32_t *)0x5a5ae0 = 0x1c;
+    break;
+  default:
+    display_assert(
+      "### ERROR unsupported drawing mode in environment texture pass",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+      0x4b6, true);
+    system_exit(-1);
+  }
+
+  rasterizer_set_pixel_shader((void *)0x5a5ac0);
+  rasterizer_draw_dynamic_triangles_static_vertices(
+    vertices_per_primitive, a4, triangle_count,
+    vbuf);
+
+  if (*(uint16_t *)0x3256ba == 2) {
+    *(int *)0x5a5468 = *(int *)0x5a5468 + 1;
+    *(int *)0x5a5464 = *(int *)0x5a5464 + triangle_count;
+    static_vertices = rasterizer_frame_statistics_count_static_vertices(
+      vertices_per_primitive, a4, triangle_count);
+    *(int *)0x5a5460 = *(int *)0x5a5460 + static_vertices;
+  }
+}
+
 /* 0x162f90 — begin rasterizer profile section 0xb and, on the accepted mode,
  * bind the same bitmap to texture stages 2 and 3 and program their stage
  * states plus the shared render state.

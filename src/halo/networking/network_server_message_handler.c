@@ -111,9 +111,7 @@ char network_game_server_handle_message_client_settings_request(int server, int 
                            "server_handle_message_client_settings_request()");
         }
       } else {
-        network_event("network_game_server_get_client_connection() failed in "
-                         "network_game_server_handle_message_client_settings_"
-                         "request()");
+        network_event("network_game_server_adjust_machine_settings() failed in network_game_server_handle_message_client_settings_request()");
       }
     } else {
       network_event("server failed to decode a message_client_settings_"

@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "struct": "camera_director_t",
+  "size": {
+    "value": "0xf8",
+    "evidence": "0x86a89 slot stride 0xf8; 0x86a95 word mode +0; 0x865a0 timer float +4, proc dword +8, byte +c0, float +c4; 0x86ab2 state +c; 0x86aef position +5c / 0x86acf depth +74 / 0x86ad2 forward +7c identify command base +58; 0x8670a instances +c8, 4 iterations stride 0xc; PAL sizeof 0xf8"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 2,
+      "name": "camera_mode_index",
+      "confidence": "typed",
+      "evidence": "0x86a89 slot stride 0xf8; 0x86a95 word mode +0; 0x865a0 timer float +4, proc dword +8, byte +c0, float +c4; 0x86ab2 state +c; 0x86aef position +5c / 0x86acf depth +74 / 0x86ad2 forward +7c identify command base +58; 0x8670a instances +c8, 4 iterations stride 0xc; PAL sizeof 0xf8",
+      "signed": true
+    },
+    {
+      "offset": "0x4",
+      "width": 4,
+      "name": "camera_change_pause",
+      "confidence": "typed",
+      "evidence": "0x86a89 slot stride 0xf8; 0x86a95 word mode +0; 0x865a0 timer float +4, proc dword +8, byte +c0, float +c4; 0x86ab2 state +c; 0x86aef position +5c / 0x86acf depth +74 / 0x86ad2 forward +7c identify command base +58; 0x8670a instances +c8, 4 iterations stride 0xc; PAL sizeof 0xf8",
+      "kind": "float"
+    },
+    {
+      "offset": "0x8",
+      "width": 4,
+      "name": "camera_proc",
+      "confidence": "typed",
+      "evidence": "0x86a89 slot stride 0xf8; 0x86a95 word mode +0; 0x865a0 timer float +4, proc dword +8, byte +c0, float +c4; 0x86ab2 state +c; 0x86aef position +5c / 0x86acf depth +74 / 0x86ad2 forward +7c identify command base +58; 0x8670a instances +c8, 4 iterations stride 0xc; PAL sizeof 0xf8",
+      "signed": true
+    },
+    {
+      "offset": "0xc",
+      "width": 1,
+      "name": "camera_data",
+      "confidence": "typed",
+      "evidence": "0x86a89 slot stride 0xf8; 0x86a95 word mode +0; 0x865a0 timer float +4, proc dword +8, byte +c0, float +c4; 0x86ab2 state +c; 0x86aef position +5c / 0x86acf depth +74 / 0x86ad2 forward +7c identify command base +58; 0x8670a instances +c8, 4 iterations stride 0xc; PAL sizeof 0xf8",
+      "array_len": 64,
+      "signed": false
+    },
+    {
+      "offset": "0x58",
+      "width": 1,
+      "name": "command",
+      "confidence": "typed",
+      "evidence": "0x86a89 slot stride 0xf8; 0x86a95 word mode +0; 0x865a0 timer float +4, proc dword +8, byte +c0, float +c4; 0x86ab2 state +c; 0x86aef position +5c / 0x86acf depth +74 / 0x86ad2 forward +7c identify command base +58; 0x8670a instances +c8, 4 iterations stride 0xc; PAL sizeof 0xf8",
+      "array_len": 104,
+      "signed": false
+    },
+    {
+      "offset": "0xc0",
+      "width": 1,
+      "name": "debug_controls",
+      "confidence": "typed",
+      "evidence": "0x86a89 slot stride 0xf8; 0x86a95 word mode +0; 0x865a0 timer float +4, proc dword +8, byte +c0, float +c4; 0x86ab2 state +c; 0x86aef position +5c / 0x86acf depth +74 / 0x86ad2 forward +7c identify command base +58; 0x8670a instances +c8, 4 iterations stride 0xc; PAL sizeof 0xf8",
+      "signed": false
+    },
+    {
+      "offset": "0xc4",
+      "width": 4,
+      "name": "debug_input_scale",
+      "confidence": "typed",
+      "evidence": "0x86a89 slot stride 0xf8; 0x86a95 word mode +0; 0x865a0 timer float +4, proc dword +8, byte +c0, float +c4; 0x86ab2 state +c; 0x86aef position +5c / 0x86acf depth +74 / 0x86ad2 forward +7c identify command base +58; 0x8670a instances +c8, 4 iterations stride 0xc; PAL sizeof 0xf8",
+      "kind": "float"
+    },
+    {
+      "offset": "0xc8",
+      "width": 4,
+      "name": "debug_variables",
+      "confidence": "typed",
+      "evidence": "0x86a89 slot stride 0xf8; 0x86a95 word mode +0; 0x865a0 timer float +4, proc dword +8, byte +c0, float +c4; 0x86ab2 state +c; 0x86aef position +5c / 0x86acf depth +74 / 0x86ad2 forward +7c identify command base +58; 0x8670a instances +c8, 4 iterations stride 0xc; PAL sizeof 0xf8",
+      "array_len": 12,
+      "signed": false
+    }
+  ]
+}

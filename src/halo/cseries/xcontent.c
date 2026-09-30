@@ -114,6 +114,34 @@ extern void __stdcall KeQuerySystemTime(XAPI_LARGE_INTEGER *CurrentTime);
 
 #define FATX_MAGIC 0x58544146UL
 
+/* The clang build does not link __alldiv (0x1dd850), so the 64-bit divide
+ * is done by shift-subtract; both operands are non-negative here, so the
+ * unsigned quotient equals __alldiv's signed one (same as bink.c). */
+#if defined(_MSC_VER) && !defined(__clang__)
+static __inline unsigned long udiv64(uint64_t numerator, uint64_t divisor)
+{
+  return (unsigned long)(numerator / divisor);
+}
+#else
+static unsigned long udiv64(uint64_t numerator, uint64_t divisor)
+{
+  uint64_t quotient;
+  uint64_t remainder;
+  int bit;
+
+  quotient = 0;
+  remainder = 0;
+  for (bit = 63; bit >= 0; bit--) {
+    remainder = (remainder << 1) | ((numerator >> bit) & 1);
+    if (remainder >= divisor) {
+      remainder -= divisor;
+      quotient |= (uint64_t)1 << bit;
+    }
+  }
+  return (unsigned long)quotient;
+}
+#endif
+
 int __stdcall XapiFormatFATVolume(void *device_path)
 {
   XAPI_ANSI_STRING *ansi_path = (XAPI_ANSI_STRING *)device_path;
@@ -188,25 +216,24 @@ int __stdcall XapiFormatFATVolume(void *device_path)
     return 0;
   }
 
-  /* Original uses __alldiv (signed 64-bit divide) and handles partition_hi > 0.
-   * We use 32-bit division: no Xbox utility partition exceeds 4GB, so
-   * partition_hi is always 0 in practice.  Reject explicitly if it isn't. */
-  if (partition_hi != 0) {
-    NtClose(hdev);
-    status = (NTSTATUS)0xc000009aL; /* STATUS_INSUFFICIENT_RESOURCES */
-    goto fail;
-  }
-  cluster_count = (partition_lo / cluster_size) + 1U;
+  /* 0x1d8464: __alldiv(partition_length, cluster_size) -- 64-bit divide of
+   * the full PartitionLength; only the low dword of the quotient is kept. */
+  cluster_count =
+    (ULONG)udiv64(((uint64_t)partition_hi << 32) | partition_lo,
+                  (uint64_t)cluster_size) +
+    1U;
 
   fat_raw =
     (cluster_count > 0xffefU) ? (cluster_count * 4U) : (cluster_count * 2U);
   fat_size = (fat_raw - 1U + sector_size_aligned) & ~(sector_size_aligned - 1U);
 
-  /* Check full layout fits.  min_cluster_size + fat_size + cluster_size won't
-   * overflow 32 bits for any real Xbox partition; partition_hi == 0 here. */
+  /* 0x1d848b-0x1d84af: 64-bit layout check. After subtracting
+   * min_cluster_size, the remainder must hold fat_size, and after that the
+   * remainder must hold cluster_size. */
   {
-    ULONG needed = min_cluster_size + fat_size + cluster_size;
-    if (partition_lo < needed) {
+    uint64_t left;
+    left = (((uint64_t)partition_hi << 32) | partition_lo) - min_cluster_size;
+    if (left < fat_size || left - fat_size < cluster_size) {
       NtClose(hdev);
       SetLastError(0x70);
       return 0;
@@ -313,6 +340,8 @@ flush_close:
   NtClose(hdev);
   if (write_status >= 0)
     return 1;
+  /* 0x1d8674: the failing NtWriteFile status is reported. */
+  status = write_status;
 
 fail:
   XapiSetLastNTError(status);

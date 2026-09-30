@@ -23,6 +23,13 @@ source should look like: it reads like code a person wrote, with no offsets, no
 addresses, and no header comment. 2276 remains the source of truth, and the
 recovery lane does not change bytes.
 
+"A person" means Bungie. Finished source follows `lift-implementation.md` →
+*Bungie Code Style*: `lower_snake` names, `k_` constants, `_enum_member` and
+`_x_bit` enums, `MAXIMUM_` / `NUMBER_OF_` bounds, `*_index` handles, `NONE`,
+`TEST_FLAG`, cseries types, and typed datum `_get` macros over kb-named
+pools. The rules below apply that style. When they conflict, the style section
+wins on spelling, and the byte gate wins on everything.
+
 **Identifiers**
 1. **No raw addresses in function bodies.** A global becomes a named macro in
    the TU's header (`#define light_data (*(data_t **)0x5a90bc)`, exact token run,
@@ -53,8 +60,10 @@ recovery lane does not change bytes.
    `datum_get` / `tag_get`. Use it instead of casting at every call site.
    Assign the result to a typed local once, then use fields.
 6. **Flags and enums.** Where a bit's meaning is proven, use
-   `TEST_FLAG`/`SET_FLAG`-style macros and named bits. Use enum constants in
-   switch tables. Leave unproven bits as literals.
+   `TEST_FLAG`/`SET_FLAG` with `_<thing>_<name>_bit` members. Use
+   `_<enum>_<member>` constants in switch tables. Leave unproven bits as
+   literals. Write handle sentinels as `NONE`, and handle bit-twiddling as
+   `DATUM_INDEX_TO_*`.
 
 **Comments and layout**
 7. **No function header comments by default.** The address, object, and

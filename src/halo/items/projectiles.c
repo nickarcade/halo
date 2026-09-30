@@ -17,6 +17,34 @@ static bool sweep_los_trace(bool result, int16_t *collision_result)
 #define SWEEP_LOS(call) (call)
 #endif
 
+/* projectiles_initialize (0xf7c70)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the projectile object_type_definition table
+ *   at 0x324108, slot +0x10 (initialize). */
+void projectiles_initialize(void)
+{
+}
+
+/* projectiles_initialize_for_new_map (0xf7c80)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the projectile object_type_definition table
+ *   at 0x324108, slot +0x18 (initialize_for_new_map). */
+void projectiles_initialize_for_new_map(void)
+{
+}
+
+/* projectiles_dispose_from_old_map (0xf7c90)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the projectile object_type_definition table
+ *   at 0x324108, slot +0x1c (dispose_from_old_map); name from PAL 2342
+ *   objects/object_types.c projectile_data_definition (T2). */
+void projectiles_dispose_from_old_map(void)
+{
+}
+
 /* Clear bit 1 of projectile flags at offset 0x1dc. */
 void projectile_kill_tracer(int projectile_handle)
 {
@@ -36,6 +64,15 @@ void projectiles_delete_all(void)
   while (object_iterator_next(&iter) != NULL) {
     object_delete(iter.last_handle);
   }
+}
+
+/* projectile_delete (0xf7d20)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the projectile object_type_definition table
+ *   at 0x324108, slot +0x2c (datum delete), called with the object handle. */
+void projectile_delete(int projectile_handle)
+{
 }
 
 /* Set the projectile's target handle at offset 0x1e8. */

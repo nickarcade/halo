@@ -1486,6 +1486,14 @@ def _write_score_context(pack: dict) -> Path:
 # exactly 2 gain at /Od, 50 lose (many by 40-80pp). 36.1% (/O2) -> 79.5% (/Od).
 _PER_FUNCTION_OPT: dict[str, dict[str, str]] = {
     "ai/ai.c": {"ai_handle_spatial_effect": "/Od"},
+    # hs_compile_source (0xc92b0): mirrors the TU-wide _OB1_TUS entry for the
+    # raw-byte lane, which reads only this table. The original CALLs
+    # hs_compile_initialize (0xc5730, one call site); /Ob2 would inline it.
+    "hs/hs_compile.c": {"hs_compile_source": "/O2 /Ob1"},
+    # csstrcat (0x8dc30): measured 85.4% at /Ob1 (units.c is an _OB1_TUS) but
+    # 84.0% at /Ob2 once moved into cseries.c (54 vs 47 insns: a same-TU callee is
+    # inlined); the original keeps the call. Only this function needs /Ob1.
+    "cseries/cseries.c": {"csstrcat": "/O2 /Ob1"},
     # get_ui_argb_white: reference keeps a 0x10-byte frame and spills the
     # struct-copy temps to EBP slots before overwriting 3 of them with the
     # RGB constants -- classic /Od codegen. 65.1% (/O2) -> 82.4% (/Od).
@@ -2210,6 +2218,10 @@ def main():
         "objects/objects.c",
         "units/units.c",
         "game/player_queues_new.c",
+        # hs_compile_initialize (0xc5730, custom @<edi>, single caller in
+        # hs_compile_source 0xc92b0) is a real CALL in the original; /Ob2
+        # would inline it into the same-TU caller.
+        "hs/hs_compile.c",
     )
     if args.opt == "/O2" and any(str(source).replace("\\", "/").endswith(t) for t in _OB1_TUS):
         args.opt = "/O2 /Ob1"

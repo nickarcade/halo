@@ -533,7 +533,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
     if ((short)max_mipmap != 0) {
       display_assert(
         "max_mipmap==0",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0x96f, 1);
       system_exit(-1);
     }
@@ -559,7 +559,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
     if ((short)max_mipmap != 0) {
       display_assert(
         "max_mipmap==0",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0x999, 1);
       system_exit(-1);
     }
@@ -569,7 +569,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
     if ((short)max_mipmap != 0) {
       display_assert(
         "max_mipmap==0",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0x99d, 1);
       system_exit(-1);
     }
@@ -579,7 +579,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
     if ((short)max_mipmap != 0) {
       display_assert(
         "max_mipmap==0",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0x9a1, 1);
       system_exit(-1);
     }
@@ -589,7 +589,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
     if ((short)max_mipmap != 0) {
       display_assert(
         "max_mipmap==0",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0x9a5, 1);
       system_exit(-1);
     }
@@ -599,7 +599,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
     if ((short)max_mipmap != 0) {
       display_assert(
         "max_mipmap==0",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0x9a9, 1);
       system_exit(-1);
     }
@@ -610,7 +610,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
       display_assert(
         "max_mipmap>=0 && "
         "max_mipmap<=RASTERIZER_TARGET_WATER_MAX_MIPMAP_LEVELS",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0x9ad, 1);
       system_exit(-1);
     }
@@ -620,7 +620,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
     if ((short)max_mipmap != 0) {
       display_assert(
         "max_mipmap==0",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0x9bc, 1);
       system_exit(-1);
     }
@@ -629,7 +629,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
   default:
     display_assert(
       "### ERROR unsupported rasterizer target",
-      "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c", 0x9c0,
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c", 0x9c0,
       1);
     system_exit(-1);
   }
@@ -637,7 +637,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
   if (d3d_texture == 0) {
     display_assert(
       "d3d_texture",
-      "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c", 0x9c3,
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c", 0x9c3,
       1);
     system_exit(-1);
   }
@@ -648,7 +648,7 @@ void FUN_001584f0(int stage, int target, int max_mipmap)
       display_assert(
         "max_mipmap>=0 && "
         "max_mipmap<=RASTERIZER_TARGET_WATER_MAX_MIPMAP_LEVELS",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0x9cc, 1);
       system_exit(-1);
     }
@@ -857,7 +857,7 @@ void FUN_00158ae0(int param_1)
   if (*(int *)0x476ab0 == 0) {
     display_assert(
       "global_d3d_device",
-      "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c", 0xbda,
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c", 0xbda,
       1);
     system_exit(-1);
   }
@@ -944,7 +944,7 @@ void FUN_00158ae0(int param_1)
     default:
       display_assert(
         "### ERROR unsupported stencil mode",
-        "c:\\\\halo\\\\SOURCE\\\\rasterizer\\\\xbox\\\\rasterizer_xbox.c",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
         0xc1b, 1);
       system_exit(-1);
       *(short *)0x325168 = sVar1;
@@ -1179,6 +1179,146 @@ uint32_t FUN_00159070(float alpha)
 }
 
 /*
+ * FUN_001590e0  @ 0x1590e0  (rasterizer_decals.obj)
+ * -----------------------------------------------------------------------------
+ * Out-of-line instance of the D3D8 SetRenderState dispatch inline (same
+ * branch chain as SetRenderStateSmart @ 0xe2220). No prologue: the render
+ * state token arrives in ESI and the value in EDI (read before any write).
+ *
+ *   CMP ESI,0x52 ; JGE (signed) — simple states: MOV ECX,[ESI*4+0x282b90],
+ *     MOV EDX,EDI, CALL D3DDevice_SetRenderState_Simple, then the value is
+ *     cached at [ESI*4+0x1fb698].
+ *   CMP ESI,0x74 ; JGE — tail JMP to D3DDevice_SetRenderState_Deferred
+ *     (ECX=state, EDX=value).
+ *   Remaining states: exact CMP/JNE chain, each PUSH EDI; CALL (__stdcall).
+ *   Chain order is verbatim, including 0x7f tested before 0x7e. The final
+ *   0x8f compare falls through to the shared RET.
+ */
+void FUN_001590e0(int state, uint32_t value)
+{
+  if (state < 0x52) {
+    D3DDevice_SetRenderState_Simple(((const uint32_t *)0x282b90)[state], value);
+    ((uint32_t *)0x1fb698)[state] = value;
+    return;
+  }
+  if (state < 0x74) {
+    D3DDevice_SetRenderState_Deferred(state, value);
+    return;
+  }
+  if (state == 0x74) {
+    D3DDevice_SetRenderState_PSTextureModes(value);
+    return;
+  }
+  if (state == 0x75) {
+    D3DDevice_SetRenderState_VertexBlend(value);
+    return;
+  }
+  if (state == 0x76) {
+    D3DDevice_SetRenderState_FogColor(value);
+    return;
+  }
+  if (state == 0x77) {
+    D3DDevice_SetRenderState_FillMode(value);
+    return;
+  }
+  if (state == 0x78) {
+    D3DDevice_SetRenderState_BackFillMode(value);
+    return;
+  }
+  if (state == 0x79) {
+    D3DDevice_SetRenderState_TwoSidedLighting(value);
+    return;
+  }
+  if (state == 0x7a) {
+    D3DDevice_SetRenderState_NormalizeNormals(value);
+    return;
+  }
+  if (state == 0x7b) {
+    D3DDevice_SetRenderState_ZEnable(value);
+    return;
+  }
+  if (state == 0x7c) {
+    D3DDevice_SetRenderState_StencilEnable(value);
+    return;
+  }
+  if (state == 0x7d) {
+    D3DDevice_SetRenderState_StencilFail(value);
+    return;
+  }
+  if (state == 0x7f) {
+    D3DDevice_SetRenderState_CullMode(value);
+    return;
+  }
+  if (state == 0x7e) {
+    D3DDevice_SetRenderState_FrontFace(value);
+    return;
+  }
+  if (state == 0x80) {
+    D3DDevice_SetRenderState_TextureFactor(value);
+    return;
+  }
+  if (state == 0x81) {
+    D3DDevice_SetRenderState_ZBias(value);
+    return;
+  }
+  if (state == 0x82) {
+    D3DDevice_SetRenderState_LogicOp(value);
+    return;
+  }
+  if (state == 0x83) {
+    D3DDevice_SetRenderState_EdgeAntiAlias(value);
+    return;
+  }
+  if (state == 0x84) {
+    D3DDevice_SetRenderState_MultiSampleAntiAlias(value);
+    return;
+  }
+  if (state == 0x85) {
+    D3DDevice_SetRenderState_MultiSampleMask(value);
+    return;
+  }
+  if (state == 0x86) {
+    D3DDevice_SetRenderState_MultiSampleType(value);
+    return;
+  }
+  if (state == 0x87) {
+    D3DDevice_SetRenderState_ShadowFunc(value);
+    return;
+  }
+  if (state == 0x88) {
+    D3DDevice_SetRenderState_LineWidth(value);
+    return;
+  }
+  if (state == 0x89) {
+    D3DDevice_SetRenderState_Dxt1NoiseEnable(value);
+    return;
+  }
+  if (state == 0x8a) {
+    D3DDevice_SetRenderState_YuvEnable(value);
+    return;
+  }
+  if (state == 0x8b) {
+    D3DDevice_SetRenderState_OcclusionCullEnable(value);
+    return;
+  }
+  if (state == 0x8c) {
+    D3DDevice_SetRenderState_StencilCullEnable(value);
+    return;
+  }
+  if (state == 0x8d) {
+    D3DDevice_SetRenderState_RopZCmpAlwaysRead(value);
+    return;
+  }
+  if (state == 0x8e) {
+    D3DDevice_SetRenderState_RopZRead(value);
+    return;
+  }
+  if (state == 0x8f) {
+    D3DDevice_SetRenderState_DoNotCullUncompressed(value);
+  }
+}
+
+/*
  * FUN_001592e0  @ 0x1592e0  (rasterizer_decals.obj)
  * -----------------------------------------------------------------------------
  * Decal-state enable setter. Stores the incoming byte flag to the decal-state
@@ -1198,6 +1338,142 @@ void FUN_001592e0(char enable)
     *(short *)0x476ac4 = 0;
     *(char *)0x476ac1 = 0;
   }
+}
+
+/*
+ * FUN_00159300  @ 0x159300  (rasterizer_decals.obj)
+ * -----------------------------------------------------------------------------
+ * Second out-of-line instance of the D3D8 SetRenderState dispatch inline
+ * (same branch chain as FUN_001590e0). No prologue: the render state token
+ * arrives in ESI and the value in EDI (read before any write). Differs from
+ * FUN_001590e0 only in its exits: every path ends XOR EAX,EAX ; RET 0x4, so it
+ * returns 0 and pops one stack dword that the body never reads (a0, unknown).
+ * The deferred range (0x52..0x73) is a CALL here, not a tail JMP.
+ * Chain order is verbatim, including 0x7f tested before 0x7e.
+ */
+int FUN_00159300(int a0, int state, uint32_t value)
+{
+  if (state < 0x52) {
+    D3DDevice_SetRenderState_Simple(((const uint32_t *)0x282b90)[state], value);
+    ((uint32_t *)0x1fb698)[state] = value;
+    return 0;
+  }
+  if (state < 0x74) {
+    D3DDevice_SetRenderState_Deferred(state, value);
+    return 0;
+  }
+  if (state == 0x74) {
+    D3DDevice_SetRenderState_PSTextureModes(value);
+    return 0;
+  }
+  if (state == 0x75) {
+    D3DDevice_SetRenderState_VertexBlend(value);
+    return 0;
+  }
+  if (state == 0x76) {
+    D3DDevice_SetRenderState_FogColor(value);
+    return 0;
+  }
+  if (state == 0x77) {
+    D3DDevice_SetRenderState_FillMode(value);
+    return 0;
+  }
+  if (state == 0x78) {
+    D3DDevice_SetRenderState_BackFillMode(value);
+    return 0;
+  }
+  if (state == 0x79) {
+    D3DDevice_SetRenderState_TwoSidedLighting(value);
+    return 0;
+  }
+  if (state == 0x7a) {
+    D3DDevice_SetRenderState_NormalizeNormals(value);
+    return 0;
+  }
+  if (state == 0x7b) {
+    D3DDevice_SetRenderState_ZEnable(value);
+    return 0;
+  }
+  if (state == 0x7c) {
+    D3DDevice_SetRenderState_StencilEnable(value);
+    return 0;
+  }
+  if (state == 0x7d) {
+    D3DDevice_SetRenderState_StencilFail(value);
+    return 0;
+  }
+  if (state == 0x7f) {
+    D3DDevice_SetRenderState_CullMode(value);
+    return 0;
+  }
+  if (state == 0x7e) {
+    D3DDevice_SetRenderState_FrontFace(value);
+    return 0;
+  }
+  if (state == 0x80) {
+    D3DDevice_SetRenderState_TextureFactor(value);
+    return 0;
+  }
+  if (state == 0x81) {
+    D3DDevice_SetRenderState_ZBias(value);
+    return 0;
+  }
+  if (state == 0x82) {
+    D3DDevice_SetRenderState_LogicOp(value);
+    return 0;
+  }
+  if (state == 0x83) {
+    D3DDevice_SetRenderState_EdgeAntiAlias(value);
+    return 0;
+  }
+  if (state == 0x84) {
+    D3DDevice_SetRenderState_MultiSampleAntiAlias(value);
+    return 0;
+  }
+  if (state == 0x85) {
+    D3DDevice_SetRenderState_MultiSampleMask(value);
+    return 0;
+  }
+  if (state == 0x86) {
+    D3DDevice_SetRenderState_MultiSampleType(value);
+    return 0;
+  }
+  if (state == 0x87) {
+    D3DDevice_SetRenderState_ShadowFunc(value);
+    return 0;
+  }
+  if (state == 0x88) {
+    D3DDevice_SetRenderState_LineWidth(value);
+    return 0;
+  }
+  if (state == 0x89) {
+    D3DDevice_SetRenderState_Dxt1NoiseEnable(value);
+    return 0;
+  }
+  if (state == 0x8a) {
+    D3DDevice_SetRenderState_YuvEnable(value);
+    return 0;
+  }
+  if (state == 0x8b) {
+    D3DDevice_SetRenderState_OcclusionCullEnable(value);
+    return 0;
+  }
+  if (state == 0x8c) {
+    D3DDevice_SetRenderState_StencilCullEnable(value);
+    return 0;
+  }
+  if (state == 0x8d) {
+    D3DDevice_SetRenderState_RopZCmpAlwaysRead(value);
+    return 0;
+  }
+  if (state == 0x8e) {
+    D3DDevice_SetRenderState_RopZRead(value);
+    return 0;
+  }
+  if (state == 0x8f) {
+    D3DDevice_SetRenderState_DoNotCullUncompressed(value);
+  }
+  return 0;
 }
 
 static const char kActiveCamoFile[] =
@@ -1469,11 +1745,11 @@ void FUN_00159900(void *group)
 
   /* --- debug asserts (source lines 0xa4..0xa5) --- */
   if (*(char *)0x476ac1 == 0) {
-    display_assert("local_active_camouflage_debug", kActiveCamoFile, 0xa4, 1);
+    display_assert("local_active_camouflage_debug_cached_flag", kActiveCamoFile, 0xa4, 1);
     system_exit(-1);
   }
   if ((*(int *)grp & 2) != 0) {
-    display_assert("!(group->geometry_flags & _no_queue_bit)", kActiveCamoFile,
+    display_assert("!TEST_FLAG(group->geometry_flags, _rasterizer_geometry_no_queue_bit)", kActiveCamoFile,
                    0xa5, 1);
     system_exit(-1);
   }
@@ -2198,8 +2474,7 @@ void FUN_0015acc0(short *points, int16_t point_count, float *color)
         success = 1;
       } else {
         success = 0;
-        rasterizer_error(0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, "
-                        "D3DVSDE_VERTEX, point->x, point->y)");
+        rasterizer_error(0, "IDirect3DDevice8_SetVertexData2s(global_d3d_device, VSDE_VERTEX, points[point_index].x, points[point_index].y)");
       }
       p = p + 2;
       remaining = remaining - 1;
@@ -3195,6 +3470,141 @@ char FUN_0015c2d0(void)
     "*sizeof(struct detail_object_vertex), RASTERIZER_DYNAMIC_BUFFER_USAGE, 0, "
     "RASTERIZER_DYNAMIC_BUFFER_POOL, &local_d3d_vertex_buffer)");
   error(2, "### ERROR rasterizer_detail_objects_initialize failed");
+  return 0;
+}
+
+/*
+ * FUN_0015c340 @ 0x15c340 (rasterizer_decals.obj)
+ * Third out-of-line instance of the D3D8 SetRenderState dispatch inline.
+ * Disassembly is instruction-for-instruction the FUN_00159300 shape: no
+ * prologue, state token in ESI, value in EDI, every exit XOR EAX,EAX ;
+ * RET 0x4 (returns 0, pops an unread stack dword a0, unknown). Deferred
+ * range is a CALL; 0x7f is tested before 0x7e. No direct call sites in
+ * the context bundle.
+ */
+/* 0x15c340 */
+int FUN_0015c340(int a0, int state, uint32_t value)
+{
+  if (state < 0x52) {
+    D3DDevice_SetRenderState_Simple(((const uint32_t *)0x282b90)[state], value);
+    ((uint32_t *)0x1fb698)[state] = value;
+    return 0;
+  }
+  if (state < 0x74) {
+    D3DDevice_SetRenderState_Deferred(state, value);
+    return 0;
+  }
+  if (state == 0x74) {
+    D3DDevice_SetRenderState_PSTextureModes(value);
+    return 0;
+  }
+  if (state == 0x75) {
+    D3DDevice_SetRenderState_VertexBlend(value);
+    return 0;
+  }
+  if (state == 0x76) {
+    D3DDevice_SetRenderState_FogColor(value);
+    return 0;
+  }
+  if (state == 0x77) {
+    D3DDevice_SetRenderState_FillMode(value);
+    return 0;
+  }
+  if (state == 0x78) {
+    D3DDevice_SetRenderState_BackFillMode(value);
+    return 0;
+  }
+  if (state == 0x79) {
+    D3DDevice_SetRenderState_TwoSidedLighting(value);
+    return 0;
+  }
+  if (state == 0x7a) {
+    D3DDevice_SetRenderState_NormalizeNormals(value);
+    return 0;
+  }
+  if (state == 0x7b) {
+    D3DDevice_SetRenderState_ZEnable(value);
+    return 0;
+  }
+  if (state == 0x7c) {
+    D3DDevice_SetRenderState_StencilEnable(value);
+    return 0;
+  }
+  if (state == 0x7d) {
+    D3DDevice_SetRenderState_StencilFail(value);
+    return 0;
+  }
+  if (state == 0x7f) {
+    D3DDevice_SetRenderState_CullMode(value);
+    return 0;
+  }
+  if (state == 0x7e) {
+    D3DDevice_SetRenderState_FrontFace(value);
+    return 0;
+  }
+  if (state == 0x80) {
+    D3DDevice_SetRenderState_TextureFactor(value);
+    return 0;
+  }
+  if (state == 0x81) {
+    D3DDevice_SetRenderState_ZBias(value);
+    return 0;
+  }
+  if (state == 0x82) {
+    D3DDevice_SetRenderState_LogicOp(value);
+    return 0;
+  }
+  if (state == 0x83) {
+    D3DDevice_SetRenderState_EdgeAntiAlias(value);
+    return 0;
+  }
+  if (state == 0x84) {
+    D3DDevice_SetRenderState_MultiSampleAntiAlias(value);
+    return 0;
+  }
+  if (state == 0x85) {
+    D3DDevice_SetRenderState_MultiSampleMask(value);
+    return 0;
+  }
+  if (state == 0x86) {
+    D3DDevice_SetRenderState_MultiSampleType(value);
+    return 0;
+  }
+  if (state == 0x87) {
+    D3DDevice_SetRenderState_ShadowFunc(value);
+    return 0;
+  }
+  if (state == 0x88) {
+    D3DDevice_SetRenderState_LineWidth(value);
+    return 0;
+  }
+  if (state == 0x89) {
+    D3DDevice_SetRenderState_Dxt1NoiseEnable(value);
+    return 0;
+  }
+  if (state == 0x8a) {
+    D3DDevice_SetRenderState_YuvEnable(value);
+    return 0;
+  }
+  if (state == 0x8b) {
+    D3DDevice_SetRenderState_OcclusionCullEnable(value);
+    return 0;
+  }
+  if (state == 0x8c) {
+    D3DDevice_SetRenderState_StencilCullEnable(value);
+    return 0;
+  }
+  if (state == 0x8d) {
+    D3DDevice_SetRenderState_RopZCmpAlwaysRead(value);
+    return 0;
+  }
+  if (state == 0x8e) {
+    D3DDevice_SetRenderState_RopZRead(value);
+    return 0;
+  }
+  if (state == 0x8f) {
+    D3DDevice_SetRenderState_DoNotCullUncompressed(value);
+  }
   return 0;
 }
 

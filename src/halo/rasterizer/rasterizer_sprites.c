@@ -80,6 +80,13 @@ void FUN_0017cdc0(int arg1, int arg2, int arg3, int arg4, int arg5, int arg6)
   FUN_001640d0((void *)arg1, arg2, arg3, arg4, arg5, (void *)arg6);
 }
 
+/* 0x17cdd0: bare JMP 0x160990.  Passed by address as the pass-end callback of
+ * FUN_00195790 from FUN_00195c40. */
+void FUN_0017cdd0(void)
+{
+  FUN_00160990();
+}
+
 /* 0x17cde0: bare JMP 0x1609a0.  Reached by a single CALL at 0x195ca1. */
 void FUN_0017cde0(void)
 {
@@ -114,6 +121,13 @@ void FUN_0017ce00(int arg1)
 void FUN_0017ce10(int arg1, int arg2, int arg3, int arg4, int arg5, int arg6)
 {
   FUN_001609b0((void *)arg1, arg2, arg3, arg4, arg5, (void *)arg6);
+}
+
+/* 0x17ce20: bare JMP 0x160bb0.  Passed by address as the pass-end callback of
+ * FUN_00195790 from FUN_00195cb0. */
+void FUN_0017ce20(void)
+{
+  FUN_00160bb0();
 }
 
 /* 0x17ce30: bare JMP 0x160bc0.  Reached by a single tail JMP at 0x195cec. */
@@ -661,15 +675,16 @@ void FUN_0017d050(void)
  *     000db4a0: CALL 0x17d060
  *     000db4a5: ADD  ESP,0x14     ; 5 dword slots
  *
- * The callee is unlifted (FUN_0016e160); its string constants place it in
- * c:\halo\SOURCE\rasterizer\xbox\rasterizer_xbox_motion_sensor.c and it
- * issues D3DDevice_Begin, D3DDevice_SetVertexData* and D3DDevice_End, so it
- * draws motion-sensor geometry.  The meaning of the individual arguments
- * beyond their slot widths is unknown; they are forwarded unchanged. */
-void FUN_0017d060(void *param_1, int param_2, float param_3, int param_4,
-                  int param_5)
+ * arg2 is forwarded as a raw dword but the callee loads it with
+ * FLD [EBP+0xc], so it is a float; arg4 is read as three floats and arg5 as
+ * a byte.  The callee is _rasterizer_hud_motion_sensor_blip_draw (0x16e160,
+ * rasterizer.c), which draws one blip quad. */
+void rasterizer_hud_motion_sensor_blip_draw(float *position, float intensity,
+                                            float size, float *color,
+                                            bool large_blip)
 {
-  FUN_0016e160(param_1, param_2, param_3, param_4, param_5);
+  _rasterizer_hud_motion_sensor_blip_draw(position, intensity, size, color,
+                                          large_blip);
 }
 
 /* 0x17d070: PUSH EBP / MOV EBP,ESP / POP EBP / JMP 0x16e2e0 -- the frame is

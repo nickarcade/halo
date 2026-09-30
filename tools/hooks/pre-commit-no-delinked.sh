@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: ^delinked/
 # Pre-commit hook: never commit anything under delinked/.
 #
 # delinked/ is regenerated host-side (Ghidra export / batch_delink.py) and is
@@ -17,7 +18,8 @@
 #
 # Bypass: git commit --no-verify
 
-STAGED_DELINKED="$(git diff --cached --name-only --diff-filter=d -- 'delinked/*')"
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+STAGED_DELINKED="$(staged_list notd | grep '^delinked/')"
 
 if [ -z "$STAGED_DELINKED" ]; then
     exit 0

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: ^src/.*\.c$
 # Pre-commit hook: run lift hazard scanner on staged .c files.
 # Blocks on ERROR-level findings (intrinsics, undersized buffers, callee output
 # size, concat survival, void-EAX return type mismatches).
@@ -10,7 +11,8 @@
 # hud_messaging.c was ignored as pre-existing noise (2026-06-10). Scoping to
 # staged files only makes every warning directly actionable.
 
-STAGED=$(git diff --cached --name-only)
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+STAGED=$(staged_list all)
 
 HAS_C=$(echo "$STAGED" | grep -E '^src/.*\.c$')
 

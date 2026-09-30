@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: ^tools/audit/(check_lift_hazards\.py|tests/)
 # Run the hazard-lint self-tests when the lint or its tests are staged.
 #
 # check_lift_hazards.py is the gate every other gate leans on; narrowing a
@@ -10,7 +11,8 @@
 # collects TestCase classes only, so the count guard catches a suite that
 # silently collects nothing. CI runs the same step (audit.yml).
 
-STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+STAGED=$(staged_list acm)
 echo "$STAGED" | grep -qE '^tools/audit/(check_lift_hazards\.py|tests/)' || exit 0
 
 ROOT="$(git rev-parse --show-toplevel)"

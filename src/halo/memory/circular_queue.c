@@ -2958,19 +2958,19 @@ void FUN_00118620(void *data, int count, int element_size)
   unsigned long long v8;
 
   if (data == 0) {
-    display_assert("memory", "c:\\halo\\SOURCE\\memory\\byte_swapping_codes.c",
+    display_assert("memory", "c:\\halo\\SOURCE\\memory\\byte_swapping.c",
                    0x71, 1);
     system_exit(-1);
   }
   if (count < 0) {
     display_assert("count>=0",
-                   "c:\\halo\\SOURCE\\memory\\byte_swapping_codes.c", 0x72, 1);
+                   "c:\\halo\\SOURCE\\memory\\byte_swapping.c", 0x72, 1);
     system_exit(-1);
   }
   if (element_size != -2 && element_size != -4 &&
       (new_var = element_size) != -8) {
     display_assert("code==_2byte || code==_4byte || code==_8byte",
-                   "c:\\halo\\SOURCE\\memory\\byte_swapping_codes.c", 0x73, 1);
+                   "c:\\halo\\SOURCE\\memory\\byte_swapping.c", 0x73, 1);
     system_exit(-1);
   }
 

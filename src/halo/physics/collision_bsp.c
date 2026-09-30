@@ -597,6 +597,126 @@ char collision_surface_test_point2d(int bsp, int surface_index, int param3,
   return 1;
 }
 
+/* 0x147ae0 - collision_surface_find_closest_point2d
+ *
+ * Clamps a 2D point (in the surface's projection space, basis param3 / sign
+ * param4) onto one collision-BSP surface. Walks the same winged-edge ring as
+ * collision_surface_test_point2d (bsp+0x3c surfaces, +0x48 edges, +0x54
+ * vertices; `side` = edge[5] == surface_index). For each edge a->b (a =
+ * edge[side], b = edge[!side], both projected by FUN_00061df0):
+ *   cross = ey*px - ex*py   (e = b - a, p = point - a)
+ * Only when cross > 0 (point outside this edge) is the edge considered:
+ *   dot = ex*px + ey*py
+ *   dot < 0            -> before_start = 1
+ *   dot > |e|^2        -> beyond_end = 1
+ *   otherwise          -> out = a + e * (dot / |e|^2), return 0
+ * FPU operand order verified at 0x147b88-0x147cb0; the dot<0 test is
+ * TEST AH,0x5 / JP (strict <), the other two are TEST AH,0x41 / JNZ.
+ *
+ * Between consecutive edges (prev, cur) the shared vertex a of `cur` is the
+ * answer when (prev.beyond ? (cur.before || !cur.beyond)
+ *                          : (cur.before && !prev.before));
+ * the loop copies the already-projected a2d (dword MOVs = struct assign).
+ * The pair (last edge, first edge) is tested after the loop; there vertex a
+ * of the first edge is re-projected straight into out_point. If no vertex or
+ * edge claims the point it is inside: out = point, return 1.
+ *
+ * Returns bool in AL (MOV AL,1 / XOR AL,AL; EAX upper bytes are left over).
+ * Both callers (0x5f1f5, 0x1a1c76) discard it. out_point receives 2 floats.
+ * The per-iteration flags are zeroed at 0x147b69/0x147b6d before the
+ * projections; the first iteration saves them ([EBP-2]/[EBP-5]) instead of
+ * reading the uninitialized prev slots ([EBP-3]/[EBP-4]).
+ */
+char collision_surface_find_closest_point2d(int bsp, int surface_index,
+                                            int param3, int param4,
+                                            float *point, float *out_point)
+{
+  void *edges;
+  void *vertices;
+  int first_edge;
+  int edge_index;
+  int *edge;
+  unsigned char side;
+  void *va;
+  void *vb;
+  real_point2d a2d;
+  real_point2d b2d;
+  float px;
+  float py;
+  float ex;
+  float ey;
+  float dot;
+  float len2;
+  float t;
+  char before_start;
+  char beyond_end;
+  char prev_before_start;
+  char prev_beyond_end;
+  char first_before_start;
+  char first_beyond_end;
+
+  first_edge = *(int *)((char *)tag_block_get_element((void *)(bsp + 0x3c),
+                                                      surface_index, 0xc) +
+                        4);
+  edges = (void *)(bsp + 0x48);
+  vertices = (void *)(bsp + 0x54);
+  edge_index = first_edge;
+  do {
+    edge = (int *)tag_block_get_element(edges, edge_index, 0x18);
+    side = (edge[5] == surface_index);
+    va = tag_block_get_element(vertices, edge[side], 0x10);
+    vb = tag_block_get_element(vertices, edge[!side], 0x10);
+    before_start = 0;
+    beyond_end = 0;
+    FUN_00061df0(va, (short)param3, (unsigned char)param4, &a2d);
+    FUN_00061df0(vb, (short)param3, (unsigned char)param4, &b2d);
+    px = point[0] - a2d.x;
+    py = point[1] - a2d.y;
+    ex = b2d.x - a2d.x;
+    ey = b2d.y - a2d.y;
+    if (ey * px - ex * py > 0.0f) {
+      dot = ex * px + ey * py;
+      if (dot < 0.0f) {
+        before_start = 1;
+      } else {
+        len2 = ey * ey + ex * ex;
+        if (dot > len2) {
+          beyond_end = 1;
+        } else {
+          t = dot / len2;
+          out_point[0] = ex * t + a2d.x;
+          out_point[1] = ey * t + a2d.y;
+          return 0;
+        }
+      }
+    }
+    if (edge_index != first_edge) {
+      if (prev_beyond_end ? (before_start || !beyond_end)
+                          : (before_start && !prev_before_start)) {
+        *(real_point2d *)out_point = a2d;
+        return 0;
+      }
+    } else {
+      first_before_start = before_start;
+      first_beyond_end = beyond_end;
+    }
+    edge_index = edge[side + 2];
+    prev_before_start = before_start;
+    prev_beyond_end = beyond_end;
+  } while (edge_index != first_edge);
+
+  if (beyond_end ? (first_before_start || !first_beyond_end)
+                 : (first_before_start && !before_start)) {
+    edge = (int *)tag_block_get_element(edges, edge_index, 0x18);
+    side = (edge[5] == surface_index);
+    va = tag_block_get_element(vertices, edge[side], 0x10);
+    FUN_00061df0(va, (short)param3, (unsigned char)param4, out_point);
+    return 0;
+  }
+  *(real_point2d *)out_point = *(real_point2d *)point;
+  return 1;
+}
+
 /* 0x147d10 - collision_surface_test_line2d
  *
  * Clips a 2D line (point + direction) against one collision-BSP surface's
@@ -1254,6 +1374,171 @@ int FUN_00148780(void *bsp, short param_2, unsigned int *bit_vector,
   return -1;
 }
 
+/*
+ * Swept-pill result (0x420 bytes), written by collision_surface_test_pill
+ * (0x1491d0) and collision_bsp_test_pill (0x149680) and seeded by
+ * FUN_00149c60 (+0x00 t, +0x1c leaf_count = 0). The leaf overflow store at
+ * 0x149c3a writes +0x41c, i.e. leaf_indices[255], which fixes the array size.
+ * +0x18/+0x19 are not accessed by the pill sweep.
+ */
+typedef struct {
+  float t; /* 0x00 - best hit fraction along the sweep */
+  real_plane3d plane; /* 0x04 - contact plane */
+  int32_t surface_index; /* 0x14 */
+  uint8_t pad_18[2]; /* 0x18 */
+  int16_t material_index; /* 0x1a - copied from collision_surface_t +0x0a */
+  int32_t leaf_count; /* 0x1c */
+  int32_t leaf_indices[256]; /* 0x20 */
+} collision_bsp_test_pill_result_t;
+cs(collision_bsp_test_pill_result_t, 0x420);
+co(collision_bsp_test_pill_result_t, plane, 0x04);
+co(collision_bsp_test_pill_result_t, surface_index, 0x14);
+co(collision_bsp_test_pill_result_t, material_index, 0x1a);
+co(collision_bsp_test_pill_result_t, leaf_count, 0x1c);
+co(collision_bsp_test_pill_result_t, leaf_indices, 0x20);
+
+/*
+ * Swept-pill query record (0x22c bytes), built on the stack by FUN_00149c60
+ * and threaded through collision_bsp_test_pill (0x149680),
+ * bsp2d_test_pill_recursive (0x149570) and collision_surface_test_pill
+ * (0x1491d0). The first six field names predate those lifts:
+ *   +0x04 transformed_2c is the sweep origin (dotted with planes, +t*vector)
+ *   +0x08 transformed_20 is the sweep vector
+ *   +0x0c scale          is the pill radius
+ * stack_depth and projection are named by the 2276 assert strings at
+ * 0x149785 ("data->stack_depth>=0 && data->stack_depth<MAXIMUM_BSP3D_DEPTH")
+ * and 0x1499c7 ("projection>=_x && projection<=_z"). +0x21b is never touched.
+ */
+typedef struct {
+  int *block_ptr; /* 0x00 - collision_bsp_t */
+  float *transformed_2c; /* 0x04 - sweep origin */
+  float *transformed_20; /* 0x08 - sweep vector */
+  float scale; /* 0x0c - pill radius */
+  collision_bsp_test_pill_result_t *result; /* 0x10 */
+  int32_t stack_depth; /* 0x14 */
+  int32_t plane_stack[0x80]; /* 0x18 - signed plane indices */
+  int16_t projection; /* 0x218 - dominant normal axis of the current plane */
+  uint8_t projection_sign; /* 0x21a */
+  uint8_t pad_21b[1]; /* 0x21b */
+  float point2d[2]; /* 0x21c - projected sweep origin */
+  float vector2d[2]; /* 0x224 - projected sweep vector */
+} collision_bsp_pill_query_data;
+cs(collision_bsp_pill_query_data, 0x22c);
+co(collision_bsp_pill_query_data, result, 0x10);
+co(collision_bsp_pill_query_data, stack_depth, 0x14);
+co(collision_bsp_pill_query_data, plane_stack, 0x18);
+co(collision_bsp_pill_query_data, projection, 0x218);
+co(collision_bsp_pill_query_data, projection_sign, 0x21a);
+co(collision_bsp_pill_query_data, point2d, 0x21c);
+co(collision_bsp_pill_query_data, vector2d, 0x224);
+
+/* 0x148910 - pill_test_vector
+ *
+ * Ray (origin + t*direction) against a pill: a cylinder of `radius` around the
+ * segment base..base+edge, capped by spheres at both ends. On a hit writes
+ * *out_t (fraction along the ray) and *out_s (fraction along the edge: 0 at
+ * the base cap, 1 at the far cap) and returns 1.
+ *
+ * ABI (Confirmed from the body and the only call site, 0x14927c):
+ *   ECX base, EDI edge, EBX origin, EDX direction, EAX out_t (copied to ESI),
+ *   [EBP+8] radius (FLD dword), [EBP+0xc] out_s. Caller cleans (cdecl stack
+ *   part); the result is AL (caller TEST AL,AL).
+ * Both cap tests call FUN_00148370 (ray vs sphere) with the same EAX/EDX/ESI
+ * and the cap centre in ECX: `base` itself, or base+edge built at EBP-0x20.
+ *
+ * Addend orders are transcribed from the FLD/FMUL sequence. The x87 keeps the
+ * square root and 1/denom unrounded; they are doubles here.
+ * Compare senses (FNSTSW / TEST AH):
+ *   0x14899b denom == 0        -> false  (0x44 / JNP)
+ *   0x148a0f !(disc >= 0)      -> false  (0x01 / JNZ)
+ *   0x148a37 !(t_enter <= 1)   -> false  (0x41 / JP)
+ *   0x148a55 !(t_exit >= 0)    -> false  (0x01 / JNZ)
+ *   0x148a69 t_enter < 0       -> t = 0  (0x05 / JP)
+ *   0x148a8c s < 0             -> base cap
+ *   0x148abd !(s > edge_length_sq) -> body hit
+ */
+bool pill_test_vector(float *base, float *edge, float radius, float *origin,
+                      float *direction, float *out_t, float *out_s)
+{
+  float wx;
+  float wy;
+  float wz;
+  float edge_length_sq; /* EBP-0x04 */
+  float edge_dot_direction; /* EBP-0x0c */
+  float denom; /* EBP-0x14 */
+  float edge_dot_w; /* EBP-0x10 */
+  float linear; /* EBP-0x08 */
+  float disc;
+  double root;
+  double inverse;
+  float t_enter;
+  float t;
+  float s;
+  float far_cap[3]; /* EBP-0x20 */
+
+  wx = origin[0] - base[0];
+  wy = origin[1] - base[1];
+  wz = origin[2] - base[2];
+
+  edge_length_sq = edge[2] * edge[2] + edge[0] * edge[0] + edge[1] * edge[1];
+  edge_dot_direction = edge[2] * direction[2] + edge[1] * direction[1] +
+                       edge[0] * direction[0];
+  denom = (direction[0] * direction[0] + direction[1] * direction[1] +
+           direction[2] * direction[2]) *
+            edge_length_sq -
+          edge_dot_direction * edge_dot_direction;
+  if (denom == 0.0f) {
+    return 0;
+  }
+
+  edge_dot_w = wz * edge[2] + wx * edge[0] + wy * edge[1];
+  linear = edge_dot_w * edge_dot_direction -
+           (wx * direction[0] + wz * direction[2] + wy * direction[1]) *
+             edge_length_sq;
+  disc = linear * linear -
+         (((wz * wz + wx * wx + wy * wy) - radius * radius) * edge_length_sq -
+          edge_dot_w * edge_dot_w) *
+           denom;
+  if (!(disc >= 0.0f)) {
+    return 0;
+  }
+
+  root = x87_sqrtd((double)disc);
+  inverse = 1.0 / (double)denom;
+  t_enter = (float)-((root + linear) * inverse);
+  if (!(t_enter <= 1.0f)) {
+    return 0;
+  }
+  if (!(-((linear - root) * inverse) >= 0.0)) {
+    return 0;
+  }
+
+  t = (t_enter < 0.0f) ? 0.0f : t_enter;
+  s = edge_dot_direction * t + edge_dot_w;
+  if (s < 0.0f) {
+    if (FUN_00148370(base, origin, direction, out_t, radius)) {
+      *out_s = 0.0f;
+      return 1;
+    }
+    return 0;
+  }
+
+  if (!(s > edge_length_sq)) {
+    *out_t = t;
+    *out_s = s / edge_length_sq;
+    return 1;
+  }
+
+  far_cap[0] = base[0] + edge[0];
+  far_cap[1] = edge[1] + base[1];
+  far_cap[2] = edge[2] + base[2];
+  if (FUN_00148370(far_cap, origin, direction, out_t, radius)) {
+    *out_s = 1.0f;
+    return 1;
+  }
+  return 0;
+}
+
 /* 0x148b20 - collision_bsp_test_pill_new
  *
  * Packs the eight caller arguments plus three fixed defaults into a 0x2c-byte
@@ -1481,6 +1766,285 @@ void bsp3d_test_sphere_recursive(void *data, int node_index)
   }
 }
 
+typedef struct {
+  int32_t field_00; /* 0x00 - first caller argument, opaque here */
+  int32_t bsp; /* 0x04 */
+  int16_t flags; /* 0x08 - 16-bit store */
+  int16_t pad_0a; /* 0x0a - never written by the builder */
+  int32_t field_0c; /* 0x0c */
+  int32_t field_10; /* 0x10 - read by the walker as a point (plane distance) */
+  int32_t field_14; /* 0x14 - read by the walker as a direction (plane dot) */
+  float *result; /* 0x18 */
+  int32_t field_1c; /* 0x1c - seeded to -1 */
+  char field_20; /* 0x20 - BYTE store, seeded to 0 */
+  char pad_21[3]; /* 0x21 - never written */
+  int32_t field_24; /* 0x24 - seeded to -1 */
+} bsp3d_vector_test_data;
+
+/* 0x148eb0 - FUN_00148eb0
+ *
+ * Recursive bsp3d descent for the segment/vector query built by
+ * collision_bsp_test_vector (0x149480). At an interior node (node_index>=0),
+ * computes the signed plane distance at the segment's near (`param_3`) and
+ * far (`max_t`) parametric bounds using data's origin (field 0x10) and
+ * direction (field 0x14) vectors; when the segment crosses the plane both
+ * children are visited (near side first, pruned against the current best hit
+ * distance in data->result[0]), otherwise a single child is chosen by which
+ * side the whole segment lies on. At a leaf node (node_index<0), a candidate
+ * surface is chosen from data's flags/hint fields, tested via FUN_00148780,
+ * and on a valid non-culled hit a 0x14-byte hit record is written into
+ * data->result before the leaf is appended to data's visited-leaf list
+ * (capped at 256 entries; on overflow entry 255 is overwritten).
+ */
+#define VECTOR_DATA ((bsp3d_vector_test_data *)data)
+#define VECTOR_BSP ((collision_bsp_t *)VECTOR_DATA->bsp)
+#define VECTOR_RESULT \
+  ((collision_bsp_test_vector_result_t *)VECTOR_DATA->result)
+
+char FUN_00148eb0(void *data, int node_index, float param_3, float max_t)
+{
+  bsp3d_node_t *node;
+  real_plane3d *plane;
+  float *origin;
+  float *direction;
+  float distance; /* EBP-0x04: dot(origin,normal) - planeD */
+  float dot; /* EBP+0x0c (reused param slot): dot(direction,normal) */
+  float distance0;
+  float distance1;
+  unsigned char reaches_back; /* CL at 0x148f55 */
+  unsigned char reaches_front; /* AL at 0x148f78 */
+  unsigned char front; /* BL at 0x148f96: (dot>0.0f) */
+  float t;
+
+  int leaf_index;
+  unsigned char contents;
+  unsigned char test_surface;
+  int test_leaf_index;
+  int matched_surface;
+  collision_surface_t *surface;
+
+  if (!(node_index & 0x80000000)) {
+    node = (bsp3d_node_t *)tag_block_get_element(&VECTOR_BSP->bsp3d_nodes,
+                                                 node_index, 0xc);
+    plane = (real_plane3d *)tag_block_get_element(&VECTOR_BSP->planes,
+                                                  node->plane, 0x10);
+    origin = (float *)VECTOR_DATA->field_10;
+
+    /* Operand order is verbatim from 0x148ee9 FLD [ECX+4] (matches the
+     * sibling dot-product ordering at 0x148bd4). Note: no -d term for dot --
+     * field_14 is a direction vector, not a point. */
+    distance = origin[1] * plane->normal[1] + origin[2] * plane->normal[2] +
+               origin[0] * plane->normal[0] - plane->d;
+    direction = (float *)VECTOR_DATA->field_14;
+    dot = direction[1] * plane->normal[1] + direction[2] * plane->normal[2] +
+          direction[0] * plane->normal[0];
+
+    distance0 = dot * param_3 + distance;
+    distance1 = dot * max_t + distance;
+
+    reaches_back = distance0 < 0.0f || distance1 < 0.0f;
+    reaches_front = distance0 >= 0.0f || distance1 >= 0.0f;
+
+    if (reaches_back && reaches_front) {
+      front = dot > 0.0f;
+      t = -(distance / dot);
+
+      if (FUN_00148eb0(data, node->children[!front], param_3, t)) {
+        return 1;
+      }
+      if (VECTOR_RESULT->t <= t) {
+        return 0;
+      }
+      VECTOR_DATA->field_24 = node->plane;
+      if (FUN_00148eb0(data, node->children[front], t, max_t)) {
+        return 1;
+      }
+    } else if (FUN_00148eb0(data, node->children[reaches_front], param_3,
+                            max_t)) {
+      return 1;
+    }
+  } else {
+    /* node_index==-1 is a "no leaf" sentinel. */
+    leaf_index = -1;
+    contents = 3;
+    test_surface = 0;
+
+    if (node_index != -1) {
+      leaf_index = node_index & 0x7fffffff;
+      contents = (*(unsigned char *)tag_block_get_element(&VECTOR_BSP->leaves,
+                                                          leaf_index, 8) &
+                  1) ?
+                   2 :
+                   1;
+    }
+
+    if ((VECTOR_DATA->field_00 & 1) &&
+        (VECTOR_DATA->field_20 == 1 || VECTOR_DATA->field_20 == 2) &&
+        contents == 3) {
+      test_leaf_index = VECTOR_DATA->field_1c;
+    } else if ((VECTOR_DATA->field_00 & 2) && VECTOR_DATA->field_20 == 3 &&
+               (contents == 1 || contents == 2)) {
+      test_leaf_index = leaf_index;
+    } else if (!(VECTOR_DATA->field_00 & 4) && VECTOR_DATA->field_20 == 2 &&
+               contents == 2) {
+      test_leaf_index =
+        (VECTOR_DATA->field_00 & 1) ? VECTOR_DATA->field_1c : leaf_index;
+      test_surface = 1;
+    } else {
+      test_leaf_index = -1;
+    }
+
+    if (test_leaf_index != -1) {
+      matched_surface = FUN_00148780(
+        (void *)VECTOR_BSP, VECTOR_DATA->flags,
+        (unsigned int *)VECTOR_DATA->field_0c, (float *)VECTOR_DATA->field_10,
+        (float *)VECTOR_DATA->field_14, VECTOR_DATA->field_24, param_3,
+        test_surface, test_leaf_index);
+
+      if (matched_surface != -1) {
+        surface = (collision_surface_t *)tag_block_get_element(
+          &VECTOR_BSP->surfaces, matched_surface, 0xc);
+
+        if ((!(surface->flags & 2) || !(VECTOR_DATA->field_00 & 8)) &&
+            (!(surface->flags & 8) || !(VECTOR_DATA->field_00 & 0x10))) {
+          VECTOR_RESULT->t = param_3;
+          VECTOR_RESULT->plane = (const real_plane3d *)tag_block_get_element(
+            &VECTOR_BSP->planes, VECTOR_DATA->field_24, 0x10);
+          VECTOR_RESULT->surface_index = matched_surface;
+          VECTOR_RESULT->plane_designator = surface->plane;
+          VECTOR_RESULT->flags = surface->flags;
+          VECTOR_RESULT->breakable_surface_index = surface->pad_09[0];
+          VECTOR_RESULT->material_index = surface->material_index;
+          return 1;
+        }
+      }
+    }
+
+    if (leaf_index != -1) {
+      if (VECTOR_RESULT->leaf_count < 0x100) {
+        VECTOR_RESULT->leaf_indices[VECTOR_RESULT->leaf_count] = leaf_index;
+        VECTOR_RESULT->leaf_count++;
+      } else {
+        VECTOR_RESULT->leaf_indices[0xff] = leaf_index;
+      }
+    }
+    VECTOR_DATA->field_1c = leaf_index;
+    VECTOR_DATA->field_20 = contents;
+  }
+  return 0;
+}
+
+#undef VECTOR_RESULT
+#undef VECTOR_BSP
+#undef VECTOR_DATA
+
+/* 0x1491d0 - collision_surface_test_pill
+ *
+ * Tests the swept pill against every edge of one collision surface. Walks the
+ * surface's winged-edge ring; each edge is oriented so the segment runs in
+ * this surface's winding (forward = edge->right_surface == surface_index) and
+ * handed to pill_test_vector. On a nearer hit it stores the fraction, the
+ * contact normal (ray point minus closest edge point, normalized when its
+ * length is >= 0.0001), plane d = FLT_MAX, the surface index and the surface
+ * material. Returns 1 if any edge produced a nearer hit.
+ *
+ * ABI: `state` in ESI (@<esi>, never written), surface_index at [EBP+8],
+ * result in AL. The three tag_block_get_element calls per iteration and the
+ * pill_test_vector call share one ADD ESP,0x2c.
+ * Call at 0x14927c: ECX = vertex_a (EBP-0x10), EDI = &edge_vector (EBP-0x28),
+ * EBX = data+0x04, EDX = data+0x08, EAX = &t (EBP-0x08), pushes
+ * &s (EBP-0x0c) then data+0x0c.
+ * Hit test 0x149296: TEST AH,0x41 / JNZ skips when result->t <= t.
+ * The normal is stored x, y, z; its length sum is (x*x + y*y) + z*z.
+ * The loop end re-reads surface->first_edge (0x14938f).
+ */
+bool collision_surface_test_pill(void *state, int surface_index)
+{
+  collision_bsp_pill_query_data *data;
+  collision_bsp_t *bsp;
+  collision_surface_t *surface; /* EBP-0x14 */
+  collision_edge_t *edge; /* EBP-0x18 */
+  collision_bsp_test_pill_result_t *result;
+  float *vertex_a; /* EBP-0x10 */
+  float *vertex_b;
+  float edge_vector[3]; /* EBP-0x28 */
+  float t; /* EBP-0x08 */
+  float s; /* EBP-0x0c */
+  float edge_point[3];
+  float pill_point[3];
+  double length;
+  double inverse;
+  unsigned char forward; /* EBP-0x02 */
+  int edge_index;
+  bool struck; /* EBP-0x01 */
+
+  data = (collision_bsp_pill_query_data *)state;
+  struck = 0;
+  bsp = (collision_bsp_t *)data->block_ptr;
+  surface = (collision_surface_t *)tag_block_get_element(&bsp->surfaces,
+                                                         surface_index, 0xc);
+  edge_index = surface->first_edge;
+  do {
+    bsp = (collision_bsp_t *)data->block_ptr;
+    edge = (collision_edge_t *)tag_block_get_element(&bsp->edges, edge_index,
+                                                     0x18);
+    forward = edge->right_surface == surface_index;
+    bsp = (collision_bsp_t *)data->block_ptr;
+    vertex_a = (float *)tag_block_get_element(
+      &bsp->vertices, (&edge->start_vertex)[forward], 0x10);
+    bsp = (collision_bsp_t *)data->block_ptr;
+    vertex_b = (float *)tag_block_get_element(
+      &bsp->vertices, (&edge->start_vertex)[!forward], 0x10);
+    edge_vector[0] = vertex_b[0] - vertex_a[0];
+    edge_vector[1] = vertex_b[1] - vertex_a[1];
+    edge_vector[2] = vertex_b[2] - vertex_a[2];
+
+    if (pill_test_vector(vertex_a, edge_vector, data->scale,
+                         data->transformed_2c, data->transformed_20, &t,
+                         &s) &&
+        data->result->t > t) {
+      data->result->t = t;
+
+      edge_point[0] = edge_vector[0] * s + vertex_a[0];
+      edge_point[1] = edge_vector[1] * s + vertex_a[1];
+      edge_point[2] = edge_vector[2] * s + vertex_a[2];
+      pill_point[0] = t * data->transformed_20[0] + data->transformed_2c[0];
+      pill_point[1] = t * data->transformed_20[1] + data->transformed_2c[1];
+      pill_point[2] = t * data->transformed_20[2] + data->transformed_2c[2];
+
+      result = data->result;
+      result->plane.normal[0] = pill_point[0] - edge_point[0];
+      result->plane.normal[1] = pill_point[1] - edge_point[1];
+      result->plane.normal[2] = pill_point[2] - edge_point[2];
+
+      result = data->result;
+      length = x87_sqrtd((double)result->plane.normal[0] *
+                           result->plane.normal[0] +
+                         (double)result->plane.normal[1] *
+                           result->plane.normal[1] +
+                         (double)result->plane.normal[2] *
+                           result->plane.normal[2]);
+      /* 0x149332 FCOMP double [0x2533d0] = (double)0.0001f; TEST AH,5 / JNP
+       * skips only when |length| < eps. */
+      if (!(((length < 0.0) ? -length : length) < (double)0.0001f)) {
+        inverse = 1.0 / length;
+        result->plane.normal[0] = (float)(inverse * result->plane.normal[0]);
+        result->plane.normal[1] = (float)(inverse * result->plane.normal[1]);
+        result->plane.normal[2] = (float)(inverse * result->plane.normal[2]);
+      }
+
+      data->result->plane.d = 3.4028235e+38f;
+      data->result->surface_index = surface_index;
+      data->result->material_index = surface->material_index;
+      struck = 1;
+    }
+
+    edge_index = (&edge->forward_edge)[forward];
+  } while (edge_index != surface->first_edge);
+
+  return struck;
+}
+
 /* 0x1493b0 - collision_bsp_test_sphere
  *
  * Packs the six caller arguments plus a zeroed seventh field into a 0x228-byte
@@ -1594,21 +2158,6 @@ int collision_bsp_test_sphere(int bsp, short flags, int origin, int direction,
  * Return: MOV BL,AL across the trailing log call, then MOV AL,BL - the char
  * hit flag produced by the walker.
  */
-typedef struct {
-  int32_t field_00; /* 0x00 - first caller argument, opaque here */
-  int32_t bsp; /* 0x04 */
-  int16_t flags; /* 0x08 - 16-bit store */
-  int16_t pad_0a; /* 0x0a - never written by the builder */
-  int32_t field_0c; /* 0x0c */
-  int32_t field_10; /* 0x10 - read by the walker as a point (plane distance) */
-  int32_t field_14; /* 0x14 - read by the walker as a point (plane distance) */
-  float *result; /* 0x18 */
-  int32_t field_1c; /* 0x1c - seeded to -1 */
-  char field_20; /* 0x20 - BYTE store, seeded to 0 */
-  char pad_21[3]; /* 0x21 - never written */
-  int32_t field_24; /* 0x24 - seeded to -1 */
-} bsp3d_vector_test_data;
-
 char collision_bsp_test_vector(int param_1, int bsp, short flags, int origin,
                                int direction, int radius, float max_t,
                                float *result)
@@ -1650,6 +2199,329 @@ char collision_bsp_test_vector(int param_1, int bsp, short flags, int origin,
   return hit;
 }
 
+/* 0x149570 - bsp2d_test_pill_recursive
+ *
+ * Descends one leaf's 2D BSP with the projected sweep (data->point2d /
+ * data->vector2d). A negative child is a surface: bit 31 is masked off and it
+ * goes to collision_surface_test_pill (@<esi> = data). At an interior node the
+ * signed line distance at the sweep start and end are compared against
+ * radius +/- 1/8192 (0x29cb64); a side the pill can reach is visited, back
+ * (+0x0c) first, and the first hit returns 1.
+ *
+ * Sums are transcribed from 0x149595: start = (y*j + i*x) - d, end =
+ * (vy*j + vx*i) + start. The end distance is stored over the node_index
+ * parameter slot (FSTP [EBP+0xc]). Flags: CL = reaches back (0x1495d7/0x1495e5
+ * TEST AH,0x41 / JNP, i.e. <=), BL = reaches front (0x149605/0x149612 TEST
+ * AH,1 / JZ, i.e. >=).
+ */
+#define PILL_DATA ((collision_bsp_pill_query_data *)state)
+
+bool bsp2d_test_pill_recursive(void *state, int node_index)
+{
+  bsp2d_node_t *node;
+  float start_distance;
+  float end_distance;
+  float radius_plus;
+  float radius_minus; /* EBP-0x04 */
+  bool reaches_back;
+  bool reaches_front;
+  bool hit; /* BL */
+
+  hit = 0;
+  if (!(node_index & 0x80000000)) {
+    node = (bsp2d_node_t *)tag_block_get_element(
+      &((collision_bsp_t *)PILL_DATA->block_ptr)->bsp2d_nodes, node_index,
+      0x14);
+    start_distance = node->plane[0] * PILL_DATA->point2d[0] +
+                     node->plane[1] * PILL_DATA->point2d[1] - node->plane[2];
+    end_distance = node->plane[0] * PILL_DATA->vector2d[0] +
+                   node->plane[1] * PILL_DATA->vector2d[1] + start_distance;
+
+    radius_plus = PILL_DATA->scale + 0.0001220703125f;
+    reaches_back = start_distance <= radius_plus || end_distance <= radius_plus;
+    radius_minus = -PILL_DATA->scale - 0.0001220703125f;
+    reaches_front =
+      start_distance >= radius_minus || end_distance >= radius_minus;
+
+    if ((reaches_back && bsp2d_test_pill_recursive(state, node->children[0])) ||
+        (reaches_front &&
+         bsp2d_test_pill_recursive(state, node->children[1]))) {
+      hit = 1;
+    }
+  } else if (collision_surface_test_pill(state, node_index & 0x7fffffff)) {
+    hit = 1;
+  }
+  return hit;
+}
+
+#undef PILL_DATA
+
+/* 0x149680 - collision_bsp_test_pill
+ *
+ * The swept-pill walk over a collision BSP (CEA: bsp3d_test_pill_recursive).
+ * Interior node: plane distance at the sweep start and end against
+ * radius +/- 1/4096 (0x29ca28). If the pill reaches both sides, the plane is
+ * pushed on data->plane_stack (bit 31 set when the sweep runs along the
+ * normal), the near child is visited, the plane popped, then the far child;
+ * otherwise only the reachable child is visited.
+ * Leaf: for each bsp2d reference whose plane is on the stack, compute the
+ * plane-contact fraction clamped to [0,1]; if it beats result->t, project the
+ * contact point onto the plane, pick the dominant normal axis, point-test the
+ * leaf's 2D BSP (FUN_00146d40 / FUN_00148240) and record a discrete contact,
+ * then project the sweep origin and vector to 2D and run
+ * bsp2d_test_pill_recursive. The leaf index is appended to result->leaf_indices
+ * (overflow overwrites entry 255, 0x149c3a). Returns 1 on any contact.
+ *
+ * Compare senses (FNSTSW / TEST AH): reaches back 0x149704/0x149712 (0x41 JNP,
+ * <=); reaches front 0x149732/0x14973f (0x01 JZ, >=); along > 0 at 0x149765
+ * (0x41 JNZ); along != 0 at 0x149907 (0x44 JNP); fraction < 0 at 0x149930
+ * (0x05 JP); fraction > 1 at 0x149949 (0x41 JNZ); result->t > fraction at
+ * 0x149962 (0x41 JNZ); plane[axis] > 0 at 0x1499e9 (0x41 JNZ).
+ * The plane-stack search caches reference->plane (0x149885) and counts in a
+ * 16-bit index (INC DX / MOVSX).
+ * Call-site arguments: FUN_00061df0 x3 at 0x149a85 / 0x149b91 / 0x149bd9,
+ * FUN_00146d40 at 0x149a98 (bsp+0x30, point2d, reference->bsp2d_root),
+ * FUN_00148240 at 0x149abd (0, 0, surface, projection, sign, point2d,
+ * EAX = bsp); one ADD ESP,0x34 covers the first three.
+ */
+#define PILL_DATA ((collision_bsp_pill_query_data *)state)
+
+char collision_bsp_test_pill(void *state, int node_index)
+{
+  collision_bsp_t *bsp;
+  bsp3d_node_t *node;
+  real_plane3d *plane;
+  collision_leaf_t *leaf; /* EBP-0x1c */
+  bsp2d_reference_t *reference; /* EBP-0x10 */
+  collision_surface_t *surface; /* EBP-0x08 */
+  collision_bsp_test_pill_result_t *result;
+  float start_distance; /* EBP-0x18 */
+  float end_distance;
+  float along; /* EBP-0x10 / EBP-0x0c */
+  float radius_plus;
+  float radius_minus;
+  double inverse;
+  float fraction; /* EBP+0x0c */
+  float distance; /* EBP-0x08 */
+  float point[3];
+  float hit_point[3]; /* EBP-0x34 */
+  float point2d[2]; /* EBP-0x28 */
+  float start_point[3]; /* EBP-0x40 */
+  float vector_point[3]; /* EBP-0x4c */
+  float ax;
+  float ay;
+  float az;
+  int leaf_index; /* EBP-0x20 */
+  int reference_index; /* EBP-0x14 */
+  int surface_index;
+  short k;
+  short projection;
+  unsigned char positive;
+  unsigned char sign;
+  bool reaches_back;
+  bool reaches_front;
+  bool along_positive;
+  char hit; /* EBP-0x01 */
+
+  hit = 0;
+
+  if (node_index >= 0) {
+    bsp = (collision_bsp_t *)PILL_DATA->block_ptr;
+    node =
+      (bsp3d_node_t *)tag_block_get_element(&bsp->bsp3d_nodes, node_index, 0xc);
+    bsp = (collision_bsp_t *)PILL_DATA->block_ptr;
+    plane =
+      (real_plane3d *)tag_block_get_element(&bsp->planes, node->plane, 0x10);
+    start_distance = PILL_DATA->transformed_2c[2] * plane->normal[2] +
+                     PILL_DATA->transformed_2c[1] * plane->normal[1] +
+                     PILL_DATA->transformed_2c[0] * plane->normal[0] - plane->d;
+    along = PILL_DATA->transformed_20[2] * plane->normal[2] +
+            PILL_DATA->transformed_20[1] * plane->normal[1] +
+            plane->normal[0] * PILL_DATA->transformed_20[0];
+    end_distance = along + start_distance;
+
+    radius_plus = PILL_DATA->scale + 0.000244140625f;
+    reaches_back = start_distance <= radius_plus || end_distance <= radius_plus;
+    radius_minus = -PILL_DATA->scale - 0.000244140625f;
+    reaches_front =
+      start_distance >= radius_minus || end_distance >= radius_minus;
+
+    if (reaches_back && reaches_front) {
+      along_positive = along > 0.0f;
+      if (PILL_DATA->stack_depth < 0 || PILL_DATA->stack_depth >= 0x80) {
+        display_assert(
+          "data->stack_depth>=0 && data->stack_depth<MAXIMUM_BSP3D_DEPTH",
+                       "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x498, 1);
+        system_exit(-1);
+      }
+      PILL_DATA->plane_stack[PILL_DATA->stack_depth] =
+        along_positive ? (int32_t)(node->plane | 0x80000000) :
+                         (int32_t)(node->plane & 0x7fffffff);
+      PILL_DATA->stack_depth++;
+      if (collision_bsp_test_pill(state, node->children[!along_positive])) {
+        hit = 1;
+      }
+      PILL_DATA->stack_depth--;
+      if (collision_bsp_test_pill(state, node->children[along_positive])) {
+        return 1;
+      }
+      return hit;
+    }
+
+    if (collision_bsp_test_pill(state, node->children[reaches_front])) {
+      return 1;
+    }
+    return hit;
+  }
+
+  if (node_index == -1) {
+    return hit;
+  }
+
+  leaf_index = node_index & 0x7fffffff;
+  bsp = (collision_bsp_t *)PILL_DATA->block_ptr;
+  leaf = (collision_leaf_t *)tag_block_get_element(&bsp->leaves, leaf_index, 8);
+  for (reference_index = leaf->first_bsp2d_reference;
+       reference_index <
+       leaf->bsp2d_reference_count + leaf->first_bsp2d_reference;
+       reference_index++) {
+    bsp = (collision_bsp_t *)PILL_DATA->block_ptr;
+    reference = (bsp2d_reference_t *)tag_block_get_element(
+      &bsp->bsp2d_references, reference_index, 8);
+    if (PILL_DATA->stack_depth <= 0) {
+      continue;
+    }
+    k = 0;
+    while (PILL_DATA->plane_stack[k] != reference->plane) {
+      k++;
+      if (k >= PILL_DATA->stack_depth) {
+        goto next_reference;
+      }
+    }
+
+    bsp = (collision_bsp_t *)PILL_DATA->block_ptr;
+    plane = (real_plane3d *)tag_block_get_element(
+      &bsp->planes, reference->plane & 0x7fffffff, 0x10);
+    fraction = 0.0f;
+    start_distance = PILL_DATA->transformed_2c[2] * plane->normal[2] +
+                     PILL_DATA->transformed_2c[1] * plane->normal[1] +
+                     PILL_DATA->transformed_2c[0] * plane->normal[0] - plane->d;
+    along = PILL_DATA->transformed_20[2] * plane->normal[2] +
+            PILL_DATA->transformed_20[1] * plane->normal[1] +
+            PILL_DATA->transformed_20[0] * plane->normal[0];
+    if (along != 0.0f) {
+      inverse = 1.0 / (double)along;
+      fraction =
+        (float)(-(start_distance * inverse) -
+                ((inverse < 0.0) ? -inverse : inverse) * PILL_DATA->scale);
+      if (fraction < 0.0f) {
+        fraction = 0.0f;
+      } else if (fraction > 1.0f) {
+        fraction = 1.0f;
+      }
+    }
+
+    if (!(PILL_DATA->result->t > fraction)) {
+      continue;
+    }
+
+    ax = x87_fabs(plane->normal[0]);
+    ay = x87_fabs(plane->normal[1]);
+    az = x87_fabs(plane->normal[2]);
+    if (az < ay || az < ax) {
+      if (ay < ax) {
+        projection = 0;
+      } else {
+        projection = 1;
+      }
+    } else {
+      projection = 2;
+    }
+    PILL_DATA->projection = projection;
+    if (projection < 0 || projection > 2) {
+      display_assert("projection>=_x && projection<=_z",
+                     "..\\math\\real_math.h", 0x350, 1);
+      system_exit(-1);
+    }
+
+    positive = (unsigned char)(plane->normal[projection] > 0.0f);
+    sign =
+      (unsigned char)(positive !=
+                      (unsigned char)((reference->plane & 0x80000000) != 0));
+    PILL_DATA->projection_sign = sign;
+
+    /* Contact point on the sweep, pushed back onto the plane. */
+    point[0] =
+      fraction * PILL_DATA->transformed_20[0] + PILL_DATA->transformed_2c[0];
+    point[1] =
+      fraction * PILL_DATA->transformed_20[1] + PILL_DATA->transformed_2c[1];
+    point[2] =
+      fraction * PILL_DATA->transformed_20[2] + PILL_DATA->transformed_2c[2];
+    distance = -(point[2] * plane->normal[2] + point[0] * plane->normal[0] +
+                 point[1] * plane->normal[1] - plane->d);
+    hit_point[0] = distance * plane->normal[0] + point[0];
+    hit_point[1] = distance * plane->normal[1] + point[1];
+    hit_point[2] = distance * plane->normal[2] + point[2];
+
+    FUN_00061df0(hit_point, PILL_DATA->projection, sign, point2d);
+    bsp = (collision_bsp_t *)PILL_DATA->block_ptr;
+    surface_index =
+      (int)FUN_00146d40(&bsp->bsp2d_nodes, point2d, reference->bsp2d_root);
+    if (FUN_00148240(0, 0, surface_index, PILL_DATA->projection,
+                     PILL_DATA->projection_sign, point2d,
+                     PILL_DATA->block_ptr)) {
+      bsp = (collision_bsp_t *)PILL_DATA->block_ptr;
+      surface = (collision_surface_t *)tag_block_get_element(
+        &bsp->surfaces, surface_index, 0xc);
+      PILL_DATA->result->t = fraction;
+      if (reference->plane < 0) {
+        result = PILL_DATA->result;
+        result->plane.normal[0] = -plane->normal[0];
+        result->plane.normal[1] = -plane->normal[1];
+        result->plane.normal[2] = -plane->normal[2];
+        result->plane.d = -plane->d;
+      } else {
+        PILL_DATA->result->plane = *plane;
+      }
+      PILL_DATA->result->surface_index = surface_index;
+      PILL_DATA->result->material_index = surface->material_index;
+      hit = 1;
+    }
+
+    /* Sweep origin and sweep vector, each with its plane component removed,
+     * projected to 2D for the swept test. */
+    start_point[0] =
+      -start_distance * plane->normal[0] + PILL_DATA->transformed_2c[0];
+    start_point[1] =
+      -start_distance * plane->normal[1] + PILL_DATA->transformed_2c[1];
+    start_point[2] =
+      -start_distance * plane->normal[2] + PILL_DATA->transformed_2c[2];
+    FUN_00061df0(start_point, PILL_DATA->projection, PILL_DATA->projection_sign,
+                 PILL_DATA->point2d);
+    vector_point[0] = -along * plane->normal[0] + PILL_DATA->transformed_20[0];
+    vector_point[1] = -along * plane->normal[1] + PILL_DATA->transformed_20[1];
+    vector_point[2] = -along * plane->normal[2] + PILL_DATA->transformed_20[2];
+    FUN_00061df0(vector_point, PILL_DATA->projection,
+                 PILL_DATA->projection_sign, PILL_DATA->vector2d);
+
+    if (bsp2d_test_pill_recursive(state, reference->bsp2d_root)) {
+      hit = 1;
+    }
+  next_reference:;
+  }
+
+  result = PILL_DATA->result;
+  if (result->leaf_count < 0x100) {
+    result->leaf_indices[result->leaf_count] = leaf_index;
+    PILL_DATA->result->leaf_count++;
+  } else {
+    result->leaf_indices[255] = leaf_index;
+  }
+  return hit;
+}
+
+#undef PILL_DATA
+
 /* 0x149c60
  *
  * Builds a 0x22c-byte query record on the stack (SUB ESP,0x22c; the record
@@ -1666,17 +2538,9 @@ char collision_bsp_test_vector(int param_1, int bsp, short flags, int origin,
  *
  * Call at 0x149cc6 is cdecl, ADD ESP,8: pushes EDX (0) then &record, so the
  * arguments are (&record, 0). AL from the callee is returned unchanged.
+ * The record layout (collision_bsp_pill_query_data) is defined above
+ * pill_test_vector (0x148910); +0x14 is the plane-stack depth.
  */
-typedef struct {
-  int *block_ptr; /* 0x00 */
-  void *transformed_2c; /* 0x04 */
-  void *transformed_20; /* 0x08 */
-  float scale; /* 0x0c */
-  float *result; /* 0x10 */
-  int32_t field_14; /* 0x14 - seeded to 0 */
-  char pad_18[0x214]; /* 0x18 - not written by the builder */
-} collision_bsp_pill_query_data;
-
 char FUN_00149c60(int *block_ptr, void *transformed_2c, void *transformed_20,
                   float scale, float best_dist, float *result)
 {
@@ -1686,8 +2550,8 @@ char FUN_00149c60(int *block_ptr, void *transformed_2c, void *transformed_20,
   data.transformed_2c = transformed_2c;
   data.transformed_20 = transformed_20;
   data.scale = scale;
-  data.result = result;
-  data.field_14 = 0;
+  data.result = (collision_bsp_test_pill_result_t *)result;
+  data.stack_depth = 0;
 
   *result = (best_dist < 0.0f) ? 0.0f : best_dist;
   result[7] = 0.0f;

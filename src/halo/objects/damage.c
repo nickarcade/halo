@@ -120,20 +120,23 @@ char object_double_charge_shield(int object_handle)
   return 0;
 }
 
-/* FUN_00136840 (0x136840) — Recursively apply object_type_handle_parent_destroyed to all child
- * objects in the object hierarchy.
+/* FUN_00136840 (0x136840) — Recursively apply
+ * object_type_handle_parent_destroyed to all child objects in the object
+ * hierarchy.
  *
  * Starting from the given object, reads the first child handle at +0xC8,
  * then iterates siblings via the link at +0xC4. For each child, calls
- * object_type_handle_parent_destroyed; if it returns false, recurses into that child's subtree.
+ * object_type_handle_parent_destroyed; if it returns false, recurses into that
+ * child's subtree.
  *
  * Confirmed: object_get_and_verify_type(handle, -1) at 0x13684a for root.
  * Confirmed: MOV ESI,[EAX+0xc8] at 0x13684f reads first child handle.
  * Confirmed: object_get_and_verify_type(child, -1) at 0x136863 in loop.
  * Confirmed: MOV EDI,[EAX+0xc4] at 0x136868 reads next sibling handle.
  * Confirmed: CALL 0x0013c740 at 0x13686f with child handle in ESI.
- * Confirmed: recursive CALL 0x00136840 at 0x13687c if object_type_handle_parent_destroyed returns 0.
- * Confirmed: void return, cdecl, 1 param.
+ * Confirmed: recursive CALL 0x00136840 at 0x13687c if
+ * object_type_handle_parent_destroyed returns 0. Confirmed: void return, cdecl,
+ * 1 param.
  */
 void FUN_00136840(int object_handle)
 {
@@ -285,9 +288,9 @@ void object_set_melee_attack_inhibited(int object_handle, char flag)
 
 /* FUN_001369e0 (0x1369e0) — Create effect on object (damage-related wrapper).
  *
- * Wrapper around effect_new_from_object (effect creation). Passes the object_handle as
- * both object_handle and parent_handle, marker=-1, and zeros for remaining
- * args.
+ * Wrapper around effect_new_from_object (effect creation). Passes the
+ * object_handle as both object_handle and parent_handle, marker=-1, and zeros
+ * for remaining args.
  *
  * Confirmed: @EAX register arg (object_handle) from both callers:
  *   0x136e13: MOV EAX,EDI; CALL 0x1369e0
@@ -298,8 +301,8 @@ void object_set_melee_attack_inhibited(int object_handle, char flag)
  */
 void FUN_001369e0(int object_handle, int effect_tag_index)
 {
-  effect_new_from_object(effect_tag_index, object_handle, object_handle, -1, 0, 0, 0,
-               0); /* dup-args-ok: confirmed PUSH EAX,EAX */
+  effect_new_from_object(effect_tag_index, object_handle, object_handle, -1, 0,
+                         0, 0, 0); /* dup-args-ok: confirmed PUSH EAX,EAX */
 }
 
 /* FUN_00136a00 (0x136a00) — Set or clear region "cannot be destroyed" byte
@@ -433,12 +436,12 @@ float object_get_actual_shield_vitality(int object_handle, char param_2)
  * transition for the pool tracked by obj+0x94.
  *
  * Name is INFERRED, not string-proven: this is the paired sibling of the
- * confirmed object_deplete_body (0x137540). unit_scripting_set_current_vitality (units.c) contains two
- * adjacent, structurally identical blocks — one calls 0x136b40 when the
- * obj+0x94 ratio transitions to zero, the other calls object_deplete_body when
- * the obj+0x90 ratio does. The two functions differ only in which flag bit they
- * latch (0x8 here vs 0x4) and which 'coll' effect field they fire
- * (coll+0x1a4 here vs coll+0xb4).
+ * confirmed object_deplete_body (0x137540). unit_scripting_set_current_vitality
+ * (units.c) contains two adjacent, structurally identical blocks — one calls
+ * 0x136b40 when the obj+0x94 ratio transitions to zero, the other calls
+ * object_deplete_body when the obj+0x90 ratio does. The two functions differ
+ * only in which flag bit they latch (0x8 here vs 0x4) and which 'coll' effect
+ * field they fire (coll+0x1a4 here vs coll+0xb4).
  *
  * If bit 3 of the damage flags byte (obj+0xb6) is not already set:
  *   1. Looks up the object's collision model tag (obje+0x7c -> 'coll')
@@ -477,8 +480,9 @@ void object_deplete_shield(int object_handle)
     coll_index = *(int *)(obje_tag + 0x7c);
     if (coll_index != -1) {
       coll_tag = (char *)tag_get(0x636f6c6c, coll_index);
-      effect_new_from_object(*(int *)(coll_tag + 0x1a4), object_handle, object_handle, -1,
-                   0.0f, 0.0f, 0, 0); /* dup-args-ok: confirmed PUSH EDI,EDI */
+      effect_new_from_object(*(int *)(coll_tag + 0x1a4), object_handle,
+                             object_handle, -1, 0.0f, 0.0f, 0,
+                             0); /* dup-args-ok: confirmed PUSH EDI,EDI */
     }
     *(unsigned char *)(obj + 0xb6) |= 8;
     *(int *)(obj + 0x98) = 0;
@@ -545,8 +549,10 @@ void FUN_00136f40(int object_handle, void *damage_data, unsigned int flags,
   dd = (char *)damage_data;
   obj = (int *)object_get_and_verify_type(object_handle, -1);
 #ifdef HALO_RNG_TRACE
-  RNG_TRACE_EX(RNG_TRACE_KIND_BODY_AFTER, *(unsigned int *)((char *)obj + 0x90), object_handle);
-  RNG_TRACE_EX(RNG_TRACE_KIND_SHIELD_AFTER, *(unsigned int *)((char *)obj + 0x94), object_handle);
+  RNG_TRACE_EX(RNG_TRACE_KIND_BODY_AFTER, *(unsigned int *)((char *)obj + 0x90),
+               object_handle);
+  RNG_TRACE_EX(RNG_TRACE_KIND_SHIELD_AFTER,
+               *(unsigned int *)((char *)obj + 0x94), object_handle);
 #endif
 #line 544
   obje_tag = (char *)tag_get(0x6f626a65, *obj);
@@ -609,13 +615,12 @@ void FUN_00136f40(int object_handle, void *damage_data, unsigned int flags,
     }
   } else if (game_engine_can_score()) {
     player_handle = player_index_from_unit_index(object_handle);
-    game_engine_player_killed(
-      player_handle, object_handle, player_handle,
-      1); /* dup-args-ok: confirmed PUSH EAX,EBX,EAX */
+    game_engine_player_killed(player_handle, object_handle, player_handle,
+                              1); /* dup-args-ok: confirmed PUSH EAX,EBX,EAX */
   }
 
   if ((1 << (*(unsigned char *)((char *)obj + 0x64) & 0x1f)) & 3) {
-    FUN_001b4dc0(object_handle, damage_data, flags, body_vitality,
+    unit_damage_aftermath(object_handle, damage_data, flags, body_vitality,
                  shield_vitality, param_4, param_5);
   }
 }
@@ -766,7 +771,7 @@ void render_debug_object_damage(void)
  *      of type 0 (biped) that meets the activation criteria:
  *        - child+0x1c8 == -1, or the global byte at 0x5aa890 is 0
  *        - child+0x2a0 != -1 (short)
- *      calls unit_set_actively_controlled_flag to set the actively-controlled
+ *      calls unit_kill to set the actively-controlled
  *      flag on that child unit
  *   5. Calls object_deplete_shield to trigger the initial body-damage effect
  *
@@ -785,7 +790,7 @@ void render_debug_object_damage(void)
  * Confirmed: CMP [ESI+0x1c8],EBX checks child+0x1c8 == -1.
  * Confirmed: MOV AL,[0x5aa890]; TEST AL,AL checks global byte.
  * Confirmed: CMP word [ESI+0x2a0],BX checks child+0x2a0 != -1.
- * Confirmed: PUSH EDI; CALL 0x1a7f80 => unit_set_actively_controlled_flag.
+ * Confirmed: PUSH EDI; CALL 0x1a7f80 => unit_kill.
  * Confirmed: MOV EDI,[ESI+0xc4] reads next sibling.
  * Confirmed: MOV EDI,[EBP+0x8] restores param_1 before object_deplete_shield
  * call. Confirmed: PUSH EDI; CALL 0x136b40 =>
@@ -807,8 +812,9 @@ void object_deplete_body(int object_handle)
     coll_index = *(int *)(obje_tag + 0x7c);
     if (coll_index != -1) {
       coll_tag = (char *)tag_get(0x636f6c6c, coll_index);
-      effect_new_from_object(*(int *)(coll_tag + 0xb4), object_handle, object_handle, -1,
-                   0, 0, 0, 0); /* dup-args-ok: confirmed PUSH EDI,EDI */
+      effect_new_from_object(*(int *)(coll_tag + 0xb4), object_handle,
+                             object_handle, -1, 0, 0, 0,
+                             0); /* dup-args-ok: confirmed PUSH EDI,EDI */
     }
     if (*(short *)(obj + 0x64) == 1) {
       child_handle = *(int *)(obj + 0xc8);
@@ -817,7 +823,7 @@ void object_deplete_body(int object_handle)
         if (*(short *)(child_obj + 0x64) == 0 &&
             (*(int *)(child_obj + 0x1c8) == -1 || *(char *)0x5aa890 == 0) &&
             *(short *)(child_obj + 0x2a0) != -1) {
-          unit_set_actively_controlled_flag(child_handle);
+          unit_kill(child_handle);
         }
         child_handle = *(int *)(child_obj + 0xc4);
       }
@@ -865,8 +871,9 @@ void object_destroy(int object_handle)
   coll_index = *(int *)(obje_tag + 0x7c);
   if (coll_index != -1) {
     coll_tag = (char *)tag_get(0x636f6c6c, coll_index);
-    effect_new_from_object(*(int *)(coll_tag + 0xc8), object_handle, object_handle, -1, 0,
-                 0, 0, 0); /* dup-args-ok: confirmed PUSH ESI,ESI */
+    effect_new_from_object(*(int *)(coll_tag + 0xc8), object_handle,
+                           object_handle, -1, 0, 0, 0,
+                           0); /* dup-args-ok: confirmed PUSH ESI,ESI */
   }
   FUN_00136840(object_handle);
   object_delete(object_handle);
@@ -879,7 +886,8 @@ void object_destroy(int object_handle)
  * then if the region hasn't already been destroyed:
  *   1. Gets the region element from the collision model's regions tag_block
  *      at coll+0x240 (element size 0x54)
- *   2. Creates the region's destroy effect (region+0x44) via effect_new_from_object
+ *   2. Creates the region's destroy effect (region+0x44) via
+ * effect_new_from_object
  *   3. Calls object_permute_region to set the "~damaged" permutation on the
  * object's model for the destroyed region
  *   4. Propagates region flags (region+0x20) into the object's damage flags:
@@ -890,7 +898,8 @@ void object_destroy(int object_handle)
  *   5. If region has "forces body depletion" flag (bit 1 / 0x02), calls
  *      object_deplete_body to deplete the object's body
  *   6. Marks the region as destroyed in obj+0x124 (bitfield)
- *   7. Calls object_type_handle_region_destroyed to notify region-damage callbacks
+ *   7. Calls object_type_handle_region_destroyed to notify region-damage
+ * callbacks
  *
  * Confirmed: EDI = object_handle (register arg). Both callers in FUN_001377d0
  *   set EDI from [EBP+0x8] before calling:
@@ -944,9 +953,10 @@ void FUN_00137690(int object_handle, short region_index)
 
   region =
     (char *)tag_block_get_element((void *)(coll_tag + 0x240), region_idx, 0x54);
-  effect_new_from_object(*(int *)(region + 0x44), object_handle,
-               object_handle, /* dup-args-ok: confirmed PUSH EDI,EDI */
-               -1, 0, 0, 0, 0);
+  effect_new_from_object(
+    *(int *)(region + 0x44), object_handle,
+    object_handle, /* dup-args-ok: confirmed PUSH EDI,EDI */
+    -1, 0, 0, 0, 0);
   object_permute_region(object_handle, "~damaged", region_index, 1);
 
   if ((*(unsigned char *)(region + 0x20) & 0x20) != 0) {
@@ -966,7 +976,263 @@ void FUN_00137690(int object_handle, short region_index)
   }
 
   *(unsigned short *)((char *)obj + 0x124) |= (unsigned short)(1 << region_idx);
-  object_type_handle_region_destroyed(object_handle, region_index, *(unsigned int *)(region + 0x20));
+  object_type_handle_region_destroyed(object_handle, region_index,
+                                      *(unsigned int *)(region + 0x20));
+}
+
+/* object_damage_body (0x1377d0) — Apply body-vitality damage to a single
+ * region/material hit and forward material-linked effects.
+ *
+ * Computes a material-resistance-scaled damage value from `scale` and the
+ * damage_effect's per-material-type multiplier (damage_effect+0x3c +
+ * type*4), applies a vehicle-driver exemption and an out-of-game "pinned
+ * driver" full-vitality-loss shortcut, subtracts the result from body
+ * vitality (obj+0x90), accumulates the per-region damage byte
+ * (obj+0x128+region_index) and calls FUN_00137690 (region-destroyed
+ * handling) once a region's destruction threshold (region_tag+0x28) is
+ * crossed, updates the recent/total body-stun-decay floats (obj+0x9c /
+ * obj+0xa8, clamped to 1.0), applies the *(char*)0x5aa890 "cannot die while
+ * occupied" override, and finally destroys or depletes the object based on
+ * post-damage vitality vs. collision_model+0xb8 / +0x94 thresholds.
+ * Forwards a surface-decal effect (FUN_00137170, register-arg) and a
+ * "catastrophic" effect (effect_new_from_object) per damage_params+4 flag
+ * bits. Reports the raw (pre-vitality-scale) damage value via body_damage
+ * and the material's damage-effect index via param_11 (opaque 4-byte
+ * transport, not dereferenced here).
+ *
+ * Confirmed: SUB ESP,0x8 -> 2 float locals. Confirmed: material (param_6) is
+ * a pointer, not an int — FMUL float ptr [EAX+0x3c] at 0x1377ef,
+ * MOVSX EDX,word ptr [EBX+0x24] bounds-checked material type at 0x137920
+ * (asserted 0<=type<=0x20 at 0x1378f6 via the file's established
+ * display_assert/system_exit idiom), material+type*4+0x3c indexed float
+ * read at 0x137927, and *param_11=*(void**)(material+0x3c) at the very end.
+ * Confirmed: the region-damage byte store is
+ * (unsigned char)(scale*255.0f + (float)existing_byte) via FIADD + CALL
+ * 0x1d9068 (_ftol2, MSVC float-truncate intrinsic per its own kb.json note
+ * — translated as a plain C cast here, not a call). Confirmed:
+ * object_get_and_verify_type(object_handle,-1) is re-fetched at 0x1377df,
+ * 0x137846, 0x137b6b and 0x137b7c — each kept as a separate call to match
+ * side-effect/call-count order, not cached. Confirmed: FUN_00137690
+ * (object_handle@edi) is called twice, both times with EDI reloaded from
+ * [EBP+8] immediately before the CALL (EDI is reused as the region index at
+ * 0x1379e4-0x137a5f in between). Confirmed: FUN_00137170 register-arg call
+ * at 0x137cae — @eax=&damage_params[0x34], @ecx=impact_direction,
+ * @esi=object_handle, stack args (collision_model->0x7c, (short)node_index,
+ * &damage_params[0x28]). Confirmed: obj+0xc8/obj+0xc4 (first-occupant/
+ * next-sibling) match the already-ported object_deplete_body's child-walk
+ * fields in this same file. Inferred: obj+0x88 = maximum body vitality, by
+ * analogy with the object's shield-vitality sibling field elsewhere in this
+ * TU — not independently proven in this function.
+ */
+void object_damage_body(int object_handle, int region_index, int node_index,
+                        float *impact_direction, void *collision_model,
+                        void *material, void *damage_effect,
+                        void *damage_params, unsigned int *flags,
+                        float *body_damage, void **param_11, float scale)
+{
+  void *obj;
+  void *unit;
+  void *occupant;
+  void *region_tag;
+  float damage;
+  float applied;
+  float max_vitality;
+  float vitality_scale;
+  float distance_scale;
+  float recent_stun;
+  float total_stun;
+  float current_vitality;
+  float body_vitality_score;
+  short marker_index;
+  short material_type;
+  unsigned char region_damage_byte;
+  int occupant_handle;
+  int pinned_driver;
+
+  obj = object_get_and_verify_type(object_handle, -1);
+  damage = scale * *(float *)((char *)material + 0x3c);
+  pinned_driver = 0;
+
+  if (((*(unsigned char *)damage_params & 0x40) != 0) &&
+      (*(short *)((char *)obj + 0x64) == 1)) {
+    unit = object_get_and_verify_type(object_handle, 3);
+    if (*(int *)((char *)unit + 0x2d4) == -1) {
+      damage = 0.0f;
+    }
+  }
+
+  if ((!game_engine_running()) &&
+      (*(short *)((char *)damage_effect + 2) == 1) &&
+      (*(short *)((char *)obj + 0x68) == 1)) {
+    pinned_driver = 1;
+  }
+
+  obj = object_get_and_verify_type(object_handle, -1);
+  max_vitality = *(float *)((char *)obj + 0x88);
+  if (!pinned_driver) {
+    max_vitality =
+      FUN_000b55b0(1, *(unsigned short *)((char *)obj + 0x68)) * max_vitality;
+  }
+  vitality_scale = (max_vitality <= 0.0f) ? 0.0f : (1.0f / max_vitality);
+
+  applied = damage;
+  if ((*flags & 0x10) != 0) {
+    applied = (1.0f - *(float *)((char *)collision_model + 0x44)) * damage;
+    if ((*flags & 0x20) != 0) {
+      distance_scale = FUN_000b5590(0);
+      if (distance_scale > 0.0f) {
+        applied = applied / distance_scale;
+      }
+    }
+  }
+  applied = applied * vitality_scale;
+
+  material_type = *(short *)((char *)material + 0x24);
+  if (material_type < 0 || 0x20 < material_type) {
+    display_assert("damage_material->type>=0 && "
+                   "damage_material->type<NUMBER_OF_MATERIAL_TYPES",
+                   "c:\\halo\\SOURCE\\objects\\damage.c", 0x50f, 1);
+    system_exit(-1);
+  }
+  applied =
+    applied * *(float *)((char *)damage_effect + material_type * 4 + 0x3c);
+
+  if ((*(unsigned char *)((char *)obj + 0xb7) & 8) == 0) {
+    if ((damage > 0.0f) &&
+        ((*(unsigned char *)((char *)material + 0x20) & 1) != 0)) {
+      if ((*(unsigned int *)((char *)damage_effect + 4) & 2) == 0) {
+        if (((*(unsigned int *)((char *)damage_effect + 4) & 0x800) != 0) &&
+            game_engine_running()) {
+          applied = applied + applied;
+          if (*(float *)((char *)obj + 0x90) < applied) {
+            *flags |= 0x80;
+          }
+        }
+      } else {
+        if (game_engine_running() || (*(short *)((char *)obj + 0x64) != 0) ||
+            (unit = object_get_and_verify_type(object_handle, 3),
+             *(int *)((char *)unit + 0x1c8) == -1)) {
+          *(float *)((char *)obj + 0x90) = 0.0f;
+          *flags |= 0x40;
+          if (game_engine_running()) {
+            *flags |= 0x80;
+          }
+        }
+      }
+    }
+    *(float *)((char *)obj + 0x90) = *(float *)((char *)obj + 0x90) - applied;
+  }
+
+  marker_index = (short)region_index;
+  if ((marker_index != -1) &&
+      ((1 << (marker_index & 0x1f) &
+        *(unsigned short *)((char *)obj + 0x124)) == 0)) {
+    region_tag = tag_block_get_element((char *)collision_model + 0x240,
+                                       marker_index, 0x54);
+    region_damage_byte =
+      (unsigned char)(applied * 255.0f +
+                      (float)*(unsigned char *)((char *)obj + 0x128 +
+                                                marker_index));
+    *(unsigned char *)((char *)obj + 0x128 + marker_index) = region_damage_byte;
+    if ((*(float *)((char *)region_tag + 0x28) > 0.0f) &&
+        (*(float *)((char *)region_tag + 0x28) <
+         (float)region_damage_byte * (1.0f / 255.0f))) {
+      FUN_00137690(object_handle, marker_index);
+      *flags |= 2;
+    }
+  }
+
+  *(int *)((char *)obj + 0xb0) = 0;
+  recent_stun = applied + *(float *)((char *)obj + 0x9c);
+  *(float *)((char *)obj + 0x9c) = recent_stun;
+  total_stun = applied + *(float *)((char *)obj + 0xa8);
+  *(float *)((char *)obj + 0xa8) = total_stun;
+  if (recent_stun > 1.0f) {
+    *(float *)((char *)obj + 0x9c) = 1.0f;
+  }
+  if (total_stun > 1.0f) {
+    *(float *)((char *)obj + 0xa8) = 1.0f;
+  }
+
+  if ((*(char *)0x5aa890 != 0) && (*(float *)((char *)obj + 0x90) < 0.0f) &&
+      ((1 << (*(unsigned char *)((char *)obj + 0x64) & 0x1f) & 3) != 0)) {
+    unit = object_get_and_verify_type(object_handle, 3);
+    if (*(int *)((char *)unit + 0x1c8) != -1) {
+      *(float *)((char *)obj + 0x90) = 0.0f;
+    } else if (*(short *)((char *)obj + 0x64) == 1) {
+      occupant_handle = *(int *)((char *)obj + 0xc8);
+      while (occupant_handle != -1) {
+        occupant = object_get_and_verify_type(occupant_handle, -1);
+        if (((1 << (*(unsigned char *)((char *)occupant + 0x64) & 0x1f) & 3) !=
+             0) &&
+            (*(int *)((char *)occupant + 0x1c8) != -1)) {
+          *(float *)((char *)obj + 0x90) = 0.0f;
+          break;
+        }
+        occupant_handle = *(int *)((char *)occupant + 0xc4);
+      }
+    }
+  }
+
+  obj = object_get_and_verify_type(object_handle, -1);
+  current_vitality = *(float *)((char *)obj + 0x90);
+  obj = object_get_and_verify_type(object_handle, -1);
+  body_vitality_score = *(float *)((char *)obj + 0x88);
+  body_vitality_score =
+    FUN_000b55b0(1, *(unsigned short *)((char *)obj + 0x68)) *
+    body_vitality_score * current_vitality;
+
+  if ((*(float *)((char *)collision_model + 0xb8) >= 0.0f) ||
+      (*(float *)((char *)collision_model + 0xb8) <= body_vitality_score)) {
+    if (body_vitality_score >= 0.0f) {
+      if ((body_vitality_score < *(float *)((char *)collision_model + 0x94)) &&
+          ((*(unsigned char *)((char *)obj + 0xb6) & 1) == 0)) {
+        effect_new_from_object(*(int *)((char *)collision_model + 0xa4),
+                               object_handle, object_handle, -1, 0, 0, 0,
+                               0); /* dup-args-ok: confirmed PUSH EDI,EDI */
+        *(unsigned char *)((char *)obj + 0xb6) |= 1;
+      }
+    } else if ((*(unsigned char *)((char *)obj + 0xb6) & 4) == 0) {
+      short region_i;
+      int region_count;
+
+      region_i = 0;
+      region_count = *(int *)((char *)collision_model + 0x240);
+      while (region_i < region_count) {
+        void *region = tag_block_get_element((char *)collision_model + 0x240,
+                                             region_i, 0x54);
+        if ((*(unsigned char *)((char *)region + 0x20) & 4) != 0) {
+          FUN_00137690(object_handle, region_i);
+        }
+        region_i = region_i + 1;
+        region_count = *(int *)((char *)collision_model + 0x240);
+      }
+      object_deplete_body(object_handle);
+      *flags |= 1;
+    }
+  } else {
+    object_destroy(object_handle);
+    *flags |= 5;
+  }
+
+  if (((*(unsigned char *)((char *)damage_params + 4) & 2) != 0) &&
+      (*(int *)((char *)collision_model + 0x7c) != -1)) {
+    FUN_00137170((float *)((char *)damage_params + 0x34), impact_direction,
+                 object_handle, *(int *)((char *)collision_model + 0x7c),
+                 (short)node_index, (float *)((char *)damage_params + 0x28));
+  }
+
+  if (((*(unsigned char *)((char *)damage_params + 4) & 1) != 0) &&
+      (*(float *)((char *)collision_model + 0x80) < damage) &&
+      (*(int *)((char *)collision_model + 0x90) != -1) &&
+      (*(short *)((char *)damage_effect + 2) != 7)) {
+    effect_new_from_object(*(int *)((char *)collision_model + 0x90),
+                           object_handle, object_handle, -1, 0, 0, 0,
+                           0); /* dup-args-ok: confirmed PUSH EDI,EDI */
+  }
+
+  *body_damage = damage;
+  *param_11 = *(void **)((char *)material + 0x3c);
 }
 
 /* object_cause_damage (0x137d20) — Apply damage to an object and its hierarchy.
@@ -1001,17 +1267,19 @@ void FUN_00137690(int object_handle, short region_index)
  * BUG1-FIX: FUN_00136bc0 arg7 = &damage_scale (EBP-0xc) at 0x1382db-0x1382de.
  * BUG2-FIX: FUN_001377d0 arg10 = &body_damage (EBP-0x24) at 0x138354-0x138357.
  * BUG3-FIX: get_global_random_seed_address() is 0-arg; min/max from jpt tag.
- * BUG4-FIX: driver path passes *(unit+0x1c8) to player_effect_start, not player_index.
- * BUG5-FIX: FUN_00136f40 last two args: (int)effect_ptr, material_index.
+ * BUG4-FIX: driver path passes *(unit+0x1c8) to player_effect_start, not
+ * player_index. BUG5-FIX: FUN_00136f40 last two args: (int)effect_ptr,
+ * material_index.
  */
 /* impact_direction is a POINTER, not a bitmask.  Callers pass either a surface
- * plane's normal (unit_cause_continuous_melee_damage melee lunge, via FUN_0010a1c0 + plane_negate) or
- * a normalized velocity (projectiles.c area damage, col_result+0x24), and NULL
- * when there is no impact direction to report.  It is forwarded untouched to
- * FUN_001377d0 and ends up as the damage effect's forward vector, which
- * effects.c:0x461 validates with assert_valid_real_normal3d.  It was declared
- * `unsigned int flags` until 2026-08-13; the name made the masking below read
- * as "clear the flag bits" when it actually means "report no direction". */
+ * plane's normal (unit_cause_continuous_melee_damage melee lunge, via
+ * FUN_0010a1c0 + plane_negate) or a normalized velocity (projectiles.c area
+ * damage, col_result+0x24), and NULL when there is no impact direction to
+ * report.  It is forwarded untouched to FUN_001377d0 and ends up as the damage
+ * effect's forward vector, which effects.c:0x461 validates with
+ * assert_valid_real_normal3d.  It was declared `unsigned int flags` until
+ * 2026-08-13; the name made the masking below read as "clear the flag bits"
+ * when it actually means "report no direction". */
 void object_cause_damage(void *damage_params, int object_handle,
                          short node_index, short region_index,
                          short permutation_index, float *impact_direction)
@@ -1087,8 +1355,8 @@ void object_cause_damage(void *damage_params, int object_handle,
   /* BUG3-FIX: seed fn takes ZERO args; ref 0x137d93 home-stores min/max. */
   random_min = *(float *)(jpt_offset + 0x10);
   random_max = *(float *)(jpt_offset + 0x14);
-  random_value = random_real_range(get_global_random_seed_address(),
-                                   random_min, random_max);
+  random_value =
+    random_real_range(get_global_random_seed_address(), random_min, random_max);
 
   /* Compute initial damage scale:
    * scale = (random * damage_params[0x40] + (1.0 - damage_params[0x40]) *
@@ -1171,7 +1439,8 @@ after_modifier:
   /* Get the root object's definition tag */
   obj = (char *)object_get_and_verify_type(object_handle, -1);
 #ifdef HALO_RNG_TRACE
-  RNG_TRACE_EX(RNG_TRACE_KIND_BODY_BEFORE, *(unsigned int *)(obj + 0x90), object_handle);
+  RNG_TRACE_EX(RNG_TRACE_KIND_BODY_BEFORE, *(unsigned int *)(obj + 0x90),
+               object_handle);
 #endif
 #line 1165
   obj_tag = (int)tag_get(0x6f626a65, *(int *)obj);
@@ -1252,17 +1521,18 @@ after_modifier:
         driver_handle = *(int *)(unit_check + 0x1c8);
         if (driver_handle != -1) {
           /* BUG4-FIX: driver present → pass driver_handle (the value at +0x1c8)
-           * directly to player_effect_start, NOT local_player_get_player_index(0).
-           * Disasm: MOV EAX,[EAX+0x1c8]; ... JMP 0x1380bb; PUSH EAX. */
+           * directly to player_effect_start, NOT
+           * local_player_get_player_index(0). Disasm: MOV EAX,[EAX+0x1c8]; ...
+           * JMP 0x1380bb; PUSH EAX. */
           player_effect_start(driver_handle, damage_params, (char *)dp + 0x34,
-                       *(float *)((char *)dp + 0x40), damage_scale);
+                              *(float *)((char *)dp + 0x40), damage_scale);
         } else {
           /* No driver: check global flag */
           if (*(char *)0x5aa895 == 0)
             goto skip_player_effect;
           player_effect_start(local_player_get_player_index(0), damage_params,
-                       (char *)dp + 0x34, *(float *)((char *)dp + 0x40),
-                       damage_scale);
+                              (char *)dp + 0x34, *(float *)((char *)dp + 0x40),
+                              damage_scale);
         }
       }
     skip_player_effect:
@@ -1273,7 +1543,8 @@ after_modifier:
 
   /* Main damage loop: apply damage to each object while scale > 0 */
 #ifdef HALO_RNG_TRACE
-  RNG_TRACE_EX(RNG_TRACE_KIND_DAMAGE_SCALE, RNG_TRACE_BITS(damage_scale), object_handle);
+  RNG_TRACE_EX(RNG_TRACE_KIND_DAMAGE_SCALE, RNG_TRACE_BITS(damage_scale),
+               object_handle);
 #endif
 #line 1263
   if (!(damage_scale > 0.0f))
@@ -1413,10 +1684,10 @@ after_modifier:
 
         /* BUG2-FIX: arg10 = &body_damage (EBP-0x24), NOT &shield_damage.
          * Disasm at 0x138354: LEA EDX,[EBP-0x24]; PUSH EDX. */
-        FUN_001377d0(current_object_handle, body_region, body_node,
-                     body_impact_direction, coll_data, (int)material_data,
-                     jpt_offset, damage_params, &damage_flags, &body_damage,
-                     &effect_ptr, damage_scale);
+        object_damage_body(current_object_handle, body_region, body_node,
+                           body_impact_direction, coll_data, material_data,
+                           jpt_offset, damage_params, &damage_flags,
+                           &body_damage, &effect_ptr, damage_scale);
         damaged_object_count = 0;
       }
 
@@ -1851,10 +2122,258 @@ stun_body:
   }
 }
 
+/* Apply an area-of-effect 'jpt!' damage tag to one object, and, depending on
+ * `recursive`, walk the object's occupant/sibling chain (obj+0xc4) and any
+ * breakable-surface child (obj+0xc8) via self-recursion. (0x138900)
+ *
+ * Confirmed via disassembly 0x138900-0x138e10:
+ *  - Push/pop of the collision-user-depth stack (global word 0x4761d8, tag
+ *    array word 0x5a8c80+depth*2) around the LOS probes, matching the idiom
+ *    already ported in collision_usage.c (same globals).
+ *  - When the target's type bit0/bit1 are set (biped/vehicle-like) and the
+ *    jpt radius (jpt+0x1cc) exceeds the epsilon constant, 4 peripheral casts
+ *    are probed (perpendicular3d/normalize3d give one axis, a cross product
+ *    the other; +/- each axis scaled by the radius) and damage is blocked
+ *    only if ALL 4 second-stage casts (from each peripheral point back to
+ *    the object) are blocked. Otherwise a single direct cast from the
+ *    explosion origin to the object gates the damage.
+ *  - Falloff fraction: clamp(1 - (distance - jpt_min)/(jpt_max - jpt_min),
+ *    0, 1); 1.0f when jpt_max <= jpt_min.
+ *  - A probabilistic "jostle" adjustment (FUN_000b5590(8) vs
+ *    random_math_real) is evaluated when the target is a unit
+ *    (unit_tag+0x17c bit 0x80000) and not the damage owner.
+ * Uncertain: the exact game-design intent of the jpt+0x1c8 bit0 (self
+ * exemption), bit3 (allegiance gate), bit0x400 and bit0x1000 flags, and of
+ * damage_params+4 bit0x40/bit0x1 -- transcribed faithfully by their observed
+ * boolean structure only, not renamed to an assumed meaning. */
+void area_of_effect_cause_damage_to_object(void *damage_params,
+                                           int object_handle, char recursive)
+{
+  char *obj;
+  char *obje_tag;
+  char *jpt_tag;
+  char may_apply_damage;
+  char jostle_evaluated;
+  char damage_applied;
+  int16_t depth;
+  int16_t cast_result[40];
+  int root_parent;
+
+  do {
+    obj = (char *)object_get_and_verify_type(object_handle, -1);
+    obje_tag = (char *)tag_get(0x6f626a65, *(int *)obj);
+    jpt_tag = (char *)tag_get(0x6a707421, *(int *)damage_params);
+    may_apply_damage = (char)(~*(unsigned char *)(obj + 4) & 1);
+    damage_applied = 0;
+    jostle_evaluated = 0;
+
+    /* Push collision-user-depth stack (matches collision_usage.c idiom). */
+    if (*(int16_t *)0x4761d8 >= 0x20) {
+      display_assert("global_current_collision_user_depth < "
+                     "MAXIMUM_COLLISION_USER_STACK_DEPTH",
+                     "c:\\halo\\SOURCE\\objects\\damage.c", 0x259, 1);
+      system_exit(-1);
+    }
+    depth = *(int16_t *)0x4761d8;
+    *(int16_t *)(0x5a8c80 + depth * 2) = 0xa;
+    *(int16_t *)0x4761d8 = depth + 1;
+
+    if (may_apply_damage != 0 &&
+        ((1 << (*(unsigned char *)(obj + 0x64) & 0x1f)) & 3) != 0 &&
+        *(float *)(jpt_tag + 0x1cc) > *(float *)0x253f44) {
+      /* 4-direction peripheral LOS probe. */
+      float delta[3];
+      float axis_a[3];
+      float axis_b[3];
+      int i;
+      char all_second_casts_blocked;
+
+      delta[0] = *(float *)(obj + 0x50) - *(float *)((char *)damage_params + 0x28);
+      delta[1] = *(float *)(obj + 0x54) - *(float *)((char *)damage_params + 0x2c);
+      delta[2] = *(float *)(obj + 0x58) - *(float *)((char *)damage_params + 0x30);
+      all_second_casts_blocked = 1;
+
+      perpendicular3d(delta, axis_a);
+      normalize3d(axis_a);
+
+      axis_b[0] = axis_a[2] * delta[1] - axis_a[1] * delta[2];
+      axis_b[1] = delta[2] * axis_a[0] - axis_a[2] * delta[0];
+      axis_b[2] = axis_a[1] * delta[0] - delta[1] * axis_a[0];
+      normalize3d(axis_b);
+
+      for (i = 0; i < 4; i++) {
+        float scale_dir;
+        float *axis;
+        float cast_dir[3];
+        float collision[3];
+        float dir2[3];
+
+        switch (i) {
+        case 0:
+          scale_dir = *(float *)(jpt_tag + 0x1cc);
+          axis = axis_a;
+          break;
+        case 1:
+          scale_dir = -*(float *)(jpt_tag + 0x1cc);
+          axis = axis_a;
+          break;
+        case 2:
+          scale_dir = *(float *)(jpt_tag + 0x1cc);
+          axis = axis_b;
+          break;
+        default:
+          scale_dir = -*(float *)(jpt_tag + 0x1cc);
+          axis = axis_b;
+          break;
+        }
+        cast_dir[0] = axis[0] * scale_dir;
+        cast_dir[1] = axis[1] * scale_dir;
+        cast_dir[2] = axis[2] * scale_dir;
+
+        root_parent = object_get_root_parent(object_handle);
+        FUN_0014df70(0xc221, (float *)((char *)damage_params + 0x28), cast_dir,
+                     root_parent, cast_result);
+        collision[0] = *(float *)((char *)cast_result + 0x18);
+        collision[1] = *(float *)((char *)cast_result + 0x1c);
+        collision[2] = *(float *)((char *)cast_result + 0x20);
+
+        root_parent = object_get_root_parent(object_handle);
+        dir2[0] = *(float *)(obj + 0x50) - collision[0];
+        dir2[1] = *(float *)(obj + 0x54) - collision[1];
+        dir2[2] = *(float *)(obj + 0x58) - collision[2];
+        if (FUN_0014df70(0xc221, collision, dir2, root_parent,
+                         cast_result) == 0)
+          all_second_casts_blocked = 0;
+      }
+      if (all_second_casts_blocked != 0)
+        may_apply_damage = 0;
+    } else {
+      /* Single direct-cast fallback. */
+      float dir[3];
+
+      root_parent = object_get_root_parent(object_handle);
+      dir[0] = *(float *)(obj + 0x50) - *(float *)((char *)damage_params + 0x28);
+      dir[1] = *(float *)(obj + 0x54) - *(float *)((char *)damage_params + 0x2c);
+      dir[2] = *(float *)(obj + 0x58) - *(float *)((char *)damage_params + 0x30);
+      if (FUN_0014df70(0xc221, (float *)((char *)damage_params + 0x28), dir,
+                       root_parent, cast_result) != 0)
+        may_apply_damage = 0;
+    }
+
+    /* Pop collision-user-depth stack. */
+    if (*(int16_t *)0x4761d8 <= 1) {
+      display_assert("global_current_collision_user_depth > 1",
+                     "c:\\halo\\SOURCE\\objects\\damage.c", 0x294, 1);
+      system_exit(-1);
+    }
+    (*(int16_t *)0x4761d8)--;
+
+    /* Self exemption: jpt+0x1c8 bit0 set and target is the damage owner. */
+    if ((*(unsigned int *)(jpt_tag + 0x1c8) & 1) != 0 &&
+        object_handle == *(int *)((char *)damage_params + 0xc)) {
+      may_apply_damage = 0;
+    }
+    /* Allegiance gate: jpt+0x1c8 bit3 set requires the target's team be
+     * friendly to the damage owner's team, else skip the jostle block too. */
+    if ((*(unsigned int *)(jpt_tag + 0x1c8) & 8) == 0 ||
+        game_allegiance_get_team_is_friendly(
+          *(int16_t *)(obj + 0x68),
+          *(int16_t *)((char *)damage_params + 0x10))) {
+      if (may_apply_damage != 0 &&
+          (*(unsigned int *)(jpt_tag + 0x1c8) & 0x1000) != 0) {
+        may_apply_damage = 0;
+        if (((1 << (*(unsigned char *)(obj + 0x64) & 0x1f)) & 3) != 0) {
+          char *unit_tag;
+          unit_tag = (char *)tag_get(0x756e6974, *(int *)obj);
+          if ((*(unsigned int *)(unit_tag + 0x17c) & 0x80000) != 0 &&
+              object_handle != *(int *)((char *)damage_params + 0xc)) {
+            float jostle_chance;
+
+            jostle_chance = FUN_000b5590(8);
+            may_apply_damage = 1;
+            if ((jostle_chance > *(float *)0x2533c0 ||
+                 (*(unsigned int *)(jpt_tag + 0x1c8) & 0x400) != 0) &&
+                (*(unsigned int *)((char *)damage_params + 4) & 0x40) != 0) {
+              may_apply_damage = 0;
+            }
+            if (jostle_chance > *(float *)0x2533c0 &&
+                random_math_real(
+                  (unsigned int *)get_global_random_seed_address()) <
+                  jostle_chance * *(float *)0x25337c) {
+              may_apply_damage = 0;
+            }
+            jostle_evaluated = 1;
+          }
+        }
+      }
+    } else {
+      may_apply_damage = 0;
+    }
+
+    *(unsigned int *)((char *)damage_params + 4) |= 1;
+
+    if (may_apply_damage != 0) {
+      float distance, falloff_range, fraction;
+
+      *(float *)((char *)damage_params + 0x34) =
+        *(float *)(obj + 0x50) - *(float *)((char *)damage_params + 0x28);
+      *(float *)((char *)damage_params + 0x38) =
+        *(float *)(obj + 0x54) - *(float *)((char *)damage_params + 0x2c);
+      *(float *)((char *)damage_params + 0x3c) =
+        *(float *)(obj + 0x58) - *(float *)((char *)damage_params + 0x30);
+      distance = normalize3d((float *)((char *)damage_params + 0x34));
+
+      falloff_range = *(float *)(jpt_tag + 4) - *(float *)jpt_tag;
+      if (falloff_range <= *(float *)0x2533c0) {
+        fraction = *(float *)0x2533c8;
+      } else {
+        fraction =
+          *(float *)0x2533c8 - (distance - *(float *)jpt_tag) / falloff_range;
+        if (fraction < *(float *)0x2533c0)
+          fraction = *(float *)0x2533c0;
+        if (fraction > *(float *)0x2533c8)
+          fraction = *(float *)0x2533c8;
+      }
+
+      if ((*(unsigned char *)(jpt_tag + 0xc) & 1) == 0) {
+        *(float *)((char *)damage_params + 0x40) = fraction;
+      }
+      if (fraction > *(float *)0x2533c0) {
+        object_cause_damage(damage_params, object_handle, -1, -1, -1, NULL);
+        damage_applied = 1;
+      }
+
+      /* Breakable-surface child cascade (self-recursive). */
+      if (*(int *)(obje_tag + 0x7c) != -1) {
+        char *coll_tag;
+        coll_tag = (char *)tag_get(0x636f6c6c, *(int *)(obje_tag + 0x7c));
+        if ((*(unsigned char *)coll_tag & 8) != 0 &&
+            *(int *)(obj + 0xc8) != -1) {
+          area_of_effect_cause_damage_to_object(damage_params,
+                                                *(int *)(obj + 0xc8), 1);
+        }
+      }
+    }
+
+    if (jostle_evaluated != 0 &&
+        (may_apply_damage == 0 || damage_applied != 0)) {
+      *(unsigned int *)((char *)damage_params + 4) |= 0x40;
+    }
+
+    if (recursive == 0)
+      return;
+    object_handle = *(int *)(obj + 0xc4);
+    if (object_handle == -1)
+      return;
+    recursive = 1;
+  } while (1);
+}
+
 /* Apply area-of-effect damage to nearby objects (0x138e30).
  * Resolves the 'jpt!' damage effect tag, searches for objects within the
  * effect radius via object_find_in_radius, applies damage to each via
- * FUN_00138900, then processes breakable surfaces via FUN_00146be0. */
+ * area_of_effect_cause_damage_to_object, then processes breakable surfaces
+ * via FUN_00146be0. */
 void FUN_00138e30(void *damage_params, int target_index)
 {
   char *tag;
@@ -1874,9 +2393,10 @@ void FUN_00138e30(void *damage_params, int target_index)
                                 (float *)((char *)damage_params + 0x1c),
                                 *(float *)(tag + 4), results, 0x40);
   /* The reference has ONE signed guard (`test ax,ax; jle`) into a down-counting
-   * do-while; a separate `if (count > 0)` plus an unsigned index adds a `jbe`. */
+   * do-while; a separate `if (count > 0)` plus an unsigned index adds a `jbe`.
+   */
   for (i = 0; i < count; i++)
-    FUN_00138900(damage_params, results[i], 0);
+    area_of_effect_cause_damage_to_object(damage_params, results[i], 0);
   FUN_00146be0(damage_params);
 }
 
@@ -1934,6 +2454,30 @@ float FUN_00138f10(float base, float a, float b, float t1, float t2)
   return base + (a - base) * t1 + (b - base) * t2;
 }
 
+/* 0x138f70 - FUN_00138f70
+ *
+ * Barycentric point: output[i] = ((vertex_d[i] - base[i]) * u +
+ * (vertex_c[i] - base[i]) * v) + base[i] for i = 0..2, in that FSUB/FMUL/
+ * FADDP/FADD order. ABI: EAX output, ECX vertex_c, EDX vertex_d, ESI base,
+ * [EBP+8] u, [EBP+0xc] v; plain RET (caller cleans).
+ * Dormant: kb ported=false.
+ */
+void FUN_00138f70(float *output, float *vertex_c, float *vertex_d, float *base,
+                  float u, float v)
+{
+  float origin;
+
+  origin = base[0];
+  output[0] =
+    (vertex_d[0] - origin) * u + (vertex_c[0] - origin) * v + origin;
+  origin = base[1];
+  output[1] =
+    (vertex_d[1] - origin) * u + (vertex_c[1] - origin) * v + origin;
+  origin = base[2];
+  output[2] =
+    (vertex_d[2] - origin) * u + (vertex_c[2] - origin) * v + origin;
+}
+
 /* FUN_00138fd0 (0x138fd0) — Sample a material lightmap at an interpolated
  * texture coordinate and convert the pixel to float RGB.
  * Source: c:\halo\SOURCE\objects\object_lights.c:0x8f
@@ -1946,8 +2490,7 @@ void FUN_00138fd0(int material, int lightmap, unsigned short *vertex_indices,
   float vertex2[2];
   float point[2];
 
-  if (*(short *)(material + 0xc4) != 2 &&
-      *(short *)(material + 0xc4) != 3) {
+  if (*(short *)(material + 0xc4) != 2 && *(short *)(material + 0xc4) != 3) {
     display_assert(
       "material->lightmap_vertices.type==_rasterizer_vertex_type_environment_"
       "lightmap_uncompressed || material->lightmap_vertices.type==_rasterizer_"
@@ -1956,25 +2499,25 @@ void FUN_00138fd0(int material, int lightmap, unsigned short *vertex_indices,
     system_exit(-1);
   }
 
-  FUN_001806e0(*(int *)(material + 0xf8) +
-                  ((unsigned int)vertex_indices[0] +
-                   *(int *)(material + 0xb4) * 4) * 8,
-                vertex0);
-  FUN_001806e0(*(int *)(material + 0xf8) +
-                  ((unsigned int)vertex_indices[1] +
-                   *(int *)(material + 0xb4) * 4) * 8,
-                vertex1);
-  FUN_001806e0(*(int *)(material + 0xf8) +
-                  ((unsigned int)vertex_indices[2] +
-                   *(int *)(material + 0xb4) * 4) * 8,
-                vertex2);
+  FUN_001806e0(
+    *(int *)(material + 0xf8) +
+      ((unsigned int)vertex_indices[0] + *(int *)(material + 0xb4) * 4) * 8,
+    vertex0);
+  FUN_001806e0(
+    *(int *)(material + 0xf8) +
+      ((unsigned int)vertex_indices[1] + *(int *)(material + 0xb4) * 4) * 8,
+    vertex1);
+  FUN_001806e0(
+    *(int *)(material + 0xf8) +
+      ((unsigned int)vertex_indices[2] + *(int *)(material + 0xb4) * 4) * 8,
+    vertex2);
 
-  point[0] = (vertex2[0] - vertex0[0]) * v +
-             (vertex1[0] - vertex0[0]) * u + vertex0[0];
-  point[1] = (vertex2[1] - vertex0[1]) * v +
-             (vertex1[1] - vertex0[1]) * u + vertex0[1];
-  pixel32_to_real_rgb_color(
-    bitmap_2d_get_pixel((void *)lightmap, point, 1.0f), out_rgb);
+  point[0] =
+    (vertex2[0] - vertex0[0]) * v + (vertex1[0] - vertex0[0]) * u + vertex0[0];
+  point[1] =
+    (vertex2[1] - vertex0[1]) * v + (vertex1[1] - vertex0[1]) * u + vertex0[1];
+  pixel32_to_real_rgb_color(bitmap_2d_get_pixel((void *)lightmap, point, 1.0f),
+                            out_rgb);
 }
 
 /*

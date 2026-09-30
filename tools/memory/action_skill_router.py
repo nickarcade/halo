@@ -114,6 +114,10 @@ def main() -> int:
 
     for category, mode, pattern, message in ACTIONS:
         if pattern.search(command):
+            # goal-lift/auto-session commit agents run after the workflow's own
+            # hazard/VC71/review gates; the reminder only costs a retry turn.
+            if category == "commit" and "HALO_BATCH_COMMIT=1" in command:
+                return 0
             if _recently_ran(category):
                 return 0
             if mode == "block":

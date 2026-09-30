@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: ^kb\.json$
 # Pre-commit hook: if staged changes touch lift-sensitive files (src/**/*.c + kb.json),
 # run generate_lift_commit.py in dry-run mode to gate on ABI audit.
 # Skipped for non-lift commits (docs, tools-only, etc).
 
-STAGED=$(git diff --cached --name-only)
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+STAGED=$(staged_list all)
 
 HAS_C=$(echo "$STAGED" | grep -E '^src/.*\.c$')
 HAS_KB=$(echo "$STAGED" | grep -qx 'kb.json' && echo "yes")

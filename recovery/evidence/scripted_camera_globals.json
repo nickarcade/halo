@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "struct": "scripted_camera_globals_t",
+  "size": {
+    "value": "0x40",
+    "evidence": "last access animation_index word @+0x3c (0x8508f write, 0x855a0 read); 2342 camera_scripting.c asserts sizeof==0x40"
+  },
+  "sources": [
+    "scripted_camera_enable @0x84fe0", "scripted_camera_set_animation @0x85000",
+    "scripted_camera_set_first_person @0x850d0", "scripted_camera_set_dead @0x85110",
+    "scripted_camera_object_is_first_person_camera @0x85150", "scripted_camera_set @0x85180",
+    "scripted_camera_set_camera_point_relative @0x85280", "scripted_camera_time @0x853a0",
+    "scripted_camera_update @0x853c0", "initial .data bytes @0x2ee5a0 (fov 0x3f9c61aa, -1 handles)",
+    "cross-build names: halo-pal-2342 source/camera/camera_scripting.c struct scripted_camera_globals"
+  ],
+  "notes": ["Names are T2 (cross-build 2342 source); every offset/width re-proven from 2276 disassembly."],
+  "fields": [
+    {"offset": "0x00", "width": 1, "signed": false, "name": "enabled", "confidence": "typed", "evidence": "MOV [0x2ee5a0],AL @0x84fe6; CMP byte @0x85153"},
+    {"offset": "0x01", "width": 1, "signed": false, "name": "first_update", "confidence": "typed", "evidence": "MOV byte ptr [0x2ee5a1],1 in every setter; cleared by scripted_camera_update"},
+    {"offset": "0x02", "width": 2, "signed": true, "name": "mode", "confidence": "typed", "evidence": "MOV word ptr [0x2ee5a2] @0x8528f; switch in scripted_camera_update"},
+    {"offset": "0x04", "width": 2, "signed": true, "name": "camera_point_index", "confidence": "typed", "evidence": "MOV word ptr [0x2ee5a4],0xffff @0x85298"},
+    {"offset": "0x08", "width": 4, "kind": "float", "name": "timer", "confidence": "typed", "evidence": "FSTP float ptr [0x2ee5a8] @0x85335; FLD in scripted_camera_time"},
+    {"offset": "0x0c", "width": 4, "kind": "float", "array_len": 3, "name": "point", "confidence": "typed", "evidence": "dword copies to 0x2ee5ac/b0/b4 @0x852a3..0x852b8; FLD in scripted_camera_update"},
+    {"offset": "0x18", "width": 4, "kind": "float", "array_len": 3, "name": "forward", "confidence": "typed", "evidence": "dword copies to 0x2ee5b8..c0 @0x852bf..0x852d3; vectors3d_from_euler_angles3d out-param"},
+    {"offset": "0x24", "width": 4, "kind": "float", "array_len": 3, "name": "up", "confidence": "typed", "evidence": "dword copies to 0x2ee5c4..cc @0x852db..0x852f1"},
+    {"offset": "0x30", "width": 4, "kind": "float", "name": "field_of_view", "confidence": "typed", "evidence": "MOV [0x2ee5d0] from float param / 0x3f9c61aa @0x852fc/0x85303"},
+    {"offset": "0x34", "width": 4, "signed": true, "name": "relative_object_index", "confidence": "typed", "evidence": "MOV [0x2ee5d4],EDX @0x8532f; compared to -1 in scripted_camera_update"},
+    {"offset": "0x38", "width": 4, "signed": true, "name": "animation_graph_index", "confidence": "typed", "evidence": "written in 0x85000; tag_get('antr', [0x2ee5d8]) in 0x853c0"},
+    {"offset": "0x3c", "width": 2, "signed": true, "name": "animation_index", "confidence": "typed", "evidence": "MOV word [0x2ee5dc] @0x8508f; MOVSX read @0x855a0"}
+  ]
+}

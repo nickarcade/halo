@@ -193,6 +193,104 @@ field-offset table and the gold behavior signature.
 
 ---
 
+## 5. Booting straight into a multiplayer game type (one player)
+
+`game_variant` selects the multiplayer engine for the next `map_name`. Put both in `init.txt` and the box boots
+into a live MP game with **one local player**: no menus, no second box, no controller input. The engine runs from
+tick 0: spawns, per-tick update, objective items. For example, the oddball ball spawns at tick 450.
+
+```
+game_variant team_oddball
+map_name levels\test\bloodgulch\bloodgulch
+```
+
+Proven variants (2026-09-30): `ctf`, `team_oddball`, `team_king`, `team_race`. `slayer` also works. Any string that
+is not a game type (e.g. `none`) returns to single player.
+
+`tools/xbox/boot_gametype.py` does the whole loop: stage `init.txt`, upload, magicboot, prove, delete `init.txt`:
+
+```
+python3 tools/xbox/boot_gametype.py --variant team_oddball --check                  # patched default.xbe
+python3 tools/xbox/boot_gametype.py --variant ctf --xbe cachebeta.xbe --check       # pristine original
+python3 tools/xbox/boot_gametype.py --variant none --map 'levels\a10\a10' --check
+```
+
+The title dir already holds the pristine `cachebeta.xbe`, so `--xbe cachebeta.xbe` magicboots the original
+directly. The deploy-path trap in section 4 does not apply.
+
+**Always prove the scenario.** A failed `init.txt` upload still boots, straight to the main menu. `--check` reads
+back:
+
+| Check | Address | Pass |
+|---|---|---|
+| `map_name` (kb.json) | `char[255]` | equals the requested map |
+| `current_game_engine` (kb.json) | engine record | ctf `0x2efe88`, king `0x2eff10`, oddball `0x2effe8`, race `0x2f0070`, SP `0` |
+| halt guard | byte `0x46e392` | `0` (1 = assert; text at `0x5aa8e8`) |
+| `game_time_globals`+0xc | tick | advances between two samples |
+
+**Transport gotcha:** on WSL `xbdm_rdcp.py` re-execs under Windows Python. The staged `init.txt` must sit on a
+drive Windows can see (the tool uses `<repo>/tmp/`). A `/tmp/...` path fails with `local file not found`, and the
+box then boots with no `init.txt`. Bridged xemu guests also need `HALO_WINDOWS_REEXEC=1`.
+
+Uses: per-engine smoke tests for game-engine lifts, golden captures, and live-state equivalence snapshots
+(section 6). MP maps do not depend on the scenario script thread, so the section 4 caveat about console
+`map_name` does not affect MP game-engine behavior.
+
+## 6. Live game-state snapshots for equivalence tests
+
+`tools/equivalence/capture_gametype_snapshot.py` boots the **pristine** build into a game type, waits for a game
+tick, then captures all writable game memory inside one QMP `stop`/`cont` window:
+
+- the XBE `.data`/`.bss` section (every engine global), with bounds read from the XBE section table;
+- the game-state allocation (players, objects, object bodies), with base and size read from `game_state_globals`.
+
+It verifies the captured bytes (map, engine, halt guard, object/player `data_t` magic), then writes the
+`{"regions": ...}` JSON that `unicorn_diff.py --state-snapshot` loads:
+
+```
+python3 tools/equivalence/capture_gametype_snapshot.py --variant team_oddball --at-tick 300 \
+    --out artifacts/equivalence/snapshots/oddball_t300.json
+python3 tools/equivalence/unicorn_diff.py oddball_engine_update --allow-stubs --mem-trace \
+    --state-snapshot artifacts/equivalence/snapshots/oddball_t300.json
+```
+
+Snapshots are about 13 MB and live under the gitignored `artifacts/equivalence/`. A stubbed pure getter still
+returns 0 from a snapshot, because the oracle calls a sentinel. Add `"stub_returns"` computed from the same
+captured state; for example, `game_engine_get_variant` is `mov eax,0x456af8; ret`.
+`tools/equivalence/derive_stub_returns.py` does this. For each no-parameter direct callee of a target, it runs
+the original XBE code on the snapshot. It keeps EAX (AL for a bool return) only when the callee returns
+without calling out or writing memory.
+
+```
+python3 tools/equivalence/derive_stub_returns.py --target oddball_engine_update \
+    --snapshot artifacts/equivalence/snapshots/oddball_t1200.json --out /tmp/oddball_update.json
+python3 tools/equivalence/unicorn_diff.py oddball_engine_update --allow-stubs --real-callees \
+    --trace-all-stubs --pinned-state --mem-trace --state-snapshot /tmp/oddball_update.json
+```
+
+`--real-callees` stops same-TU callees that the candidate calls, but does not inline, from crashing as
+`eip=0x8d`. `--pinned-state` treats the fixed snapshot as the input, so output that does not vary across seeds
+is not flagged as vacuous. That exemption applies only when writes or stub calls were actually compared.
+
+To commit a scenario as a regression test, trim the snapshot to the 4 KB pages the target reads or writes on
+either side:
+
+```
+python3 tools/equivalence/trim_snapshot.py oddball_engine_update \
+    --snapshot /tmp/oddball_update.json \
+    --out tools/equivalence/regression_snapshots/oddball_engine_update_x.json \
+    -- --allow-stubs --real-callees --trace-all-stubs --pinned-state --seeds 20 --mem-trace \
+       --no-concolic --no-leaf-cache
+```
+
+The trimmer reruns the target on the trimmed file. It writes output only if verdicts, coverage and
+compared writes/calls are identical, so a result of 13 MB -> 4-60 KB is safe. Then add a
+`regression_targets.json` entry with the same flags. Known gap: when the candidate inlines a same-TU callee
+the oracle stubs (the king update inlines `game_engine_set_goal_position`), the call sequences cannot align.
+That shows up as "call-seq diverged at index 0" plus lifted-only writes, and it is a harness artifact.
+
+---
+
 ## See also
 
 - `docs/debug-commands-keyboard.md` — full HaloScript command reference, console keys, cheats.

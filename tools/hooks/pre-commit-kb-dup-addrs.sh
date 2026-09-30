@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: ^kb\.json$
 # Pre-commit hook: every function addr and every data addr in kb.json must
 # appear exactly once.
 #
@@ -12,7 +13,8 @@
 #
 # Bypass: git commit --no-verify
 
-if ! git diff --cached --name-only | grep -qx 'kb.json'; then
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+if ! staged_list all | grep -qx 'kb.json'; then
     exit 0
 fi
 

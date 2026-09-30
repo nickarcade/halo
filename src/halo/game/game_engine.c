@@ -1,5 +1,16 @@
 #include "x87_math.h"
 
+/* Oddball timing constants, in 30 Hz game ticks. */
+#define ODDBALL_START_ANNOUNCEMENT_TICKS 60 /* CMP EAX,0x3c @0xb33a5 */
+#define ODDBALL_SPAWN_DELAY_TICKS 450       /* ADD EDX,0x1c2 @0xb2fd0 */
+#define ODDBALL_SCORE_TICKS_PER_UNIT 1800   /* IMUL ECX,ECX,0x708 @0xb2f39 */
+/* CTF flag-warning event repeat period, in ticks (CMP EAX,0x258 @0xb0e83). */
+#define CTF_WARNING_SOUND_INTERVAL 600
+
+/* MSVC 7.1 /Oi expands memset() to the inline `rep stosd` fills the original
+ * uses (cseries.c provides the clang-build body). */
+extern void *__cdecl memset(void *, int, unsigned int);
+
 /* Compute fmod of a float value against the double constant at 0x26b678 (~1.9).
  * Original: FLD [ebp+8]; FLD qword [0x26b678]; CALL _CIfmod (0x1d9e70). */
 float game_globals_get_weapon(float param_1)
@@ -3405,10 +3416,10 @@ typedef struct {
  * DEVIATION (2026-07-03): this assert was reported firing in live FFA
  * postgame-report play (game_engine.c #857). Re-verified the entire
  * reachable chain against disassembly — FUN_000abd20, this function,
- * FUN_000afcb0's caller-side guard, and data_iterator_next/datum_get in
+ * game_engine_post_rasterize_in_game's caller-side guard, and data_iterator_next/datum_get in
  * data.c — all byte-faithful to the original; no lift bug found. The
  * local player's own handle passes datum_get a few calls upstream
- * (FUN_000afcb0) yet is absent from FUN_000abd20's active-player scan
+ * (game_engine_post_rasterize_in_game) yet is absent from FUN_000abd20's active-player scan
  * by the time this runs, which must be a rare race even on real
  * hardware (see docs/lift-learnings.md §11 for the same failure
  * signature on a different caller). Since we cannot reproduce the
@@ -5938,9 +5949,9 @@ void game_engine_update(void)
       while ((player = (char *)data_iterator_next(&iter)) != NULL) {
         unit_handle = *(int *)(player + 0x34);
         if (unit_handle != NONE)
-          unit_set_actively_controlled_flag(unit_handle);
+          unit_kill(unit_handle);
         if (*(int16_t *)(player + 2) != NONE)
-          scenario_switch_structure_bsp(*(int16_t *)(player + 2));
+          rumble_player_clear(*(int16_t *)(player + 2));
       }
 
       object_iterator_new(object_iter, 2, 0);
@@ -6236,7 +6247,7 @@ void FUN_000af9a0(void)
 }
 
 /* In-game score overlay renderer (afa40). */
-void FUN_000afa40(int param_1, float param_2)
+void game_engine_rasterize_in_game_score(int param_1, float param_2)
 {
   int player_count;
   int player;
@@ -6328,7 +6339,7 @@ void FUN_000afa40(int param_1, float param_2)
 }
 
 /* Live score update: manage score fade-in/out per local player (afcb0). */
-void FUN_000afcb0(void)
+void game_engine_post_rasterize_in_game(void)
 {
   int local_idx;
   int player_handle;
@@ -6349,7 +6360,8 @@ void FUN_000afcb0(void)
                    "c:\\halo\\SOURCE\\game\\game_engine.c", 0x6f3, 1);
     system_exit(-1);
   }
-  if (player != 0)
+  /* 0xafd21..0xafd2f: game_engine is re-tested after its assert. */
+  if (current_game_engine != 0 && player != 0)
     FUN_000ac3e0(player_handle);
   gamepad = (int)input_get_gamepad_state(local_idx);
   if ((gamepad == 0 || *(char *)(gamepad + 0x1d) == 0) && *(int *)0x5aa730 != 1)
@@ -6363,8 +6375,8 @@ void FUN_000afcb0(void)
   if (fade > 1.0f)
     fade = 1.0f;
   if (fade > 0.0f) {
-    float alpha = (float)game_globals_get_weapon(fade);
-    ((void (*)(int, float))FUN_000afa40)(player_handle, alpha);
+    float alpha = (float)pow(fade, *(double *)0x26b678);
+    ((void (*)(int, float))game_engine_rasterize_in_game_score)(player_handle, alpha);
   }
   *(float *)(0x5aa734 + local_idx * 4) = fade;
 }
@@ -6380,7 +6392,7 @@ void FUN_000afdf0(void)
 
     case 1:
 
-      FUN_000afcb0();
+      game_engine_post_rasterize_in_game();
 
       return;
 
@@ -6421,6 +6433,11 @@ int FUN_000afe50(float *position)
   return handle;
 }
 
+/* ctf_engine_dispose (0xafeb0) — "ctf" record slot +0x08 (dispose): empty. */
+void ctf_engine_dispose(void)
+{
+}
+
 /* CTF: swap defense/offense team assignments (aff20). EAX = initial team. */
 void FUN_000aff20(int team)
 {
@@ -6440,10 +6457,22 @@ void FUN_000aff20(int team)
 
 /* Validate a player handle (datum_get). */
 
+/* ctf_engine_dispose_from_old_map (0xaff60) — "ctf" record slot +0x10
+ * (dispose_from_old_map): empty. */
+void ctf_engine_dispose_from_old_map(void)
+{
+}
+
 void ctf_player_added(int param_1)
 
 {
   datum_get(player_data, param_1);
+}
+
+/* ctf_engine_game_ending (0xaff90) — "ctf" record slot +0x18 (game_ending):
+ * empty. */
+void ctf_engine_game_ending(void)
+{
 }
 
 /* CTF: score a flag capture for a player's team (b0000). Register-arg
@@ -6559,6 +6588,14 @@ int ctf_allow_weapon_pick_up(int param_1, int param_2)
 }
 
 /* CTF message formatter (b0210). */
+
+/* ctf_engine_player_damaged_player (0xb01f0) — "ctf" record slot +0x5c:
+ * empty.  game_engine_player_damaged_player dispatches this slot with three
+ * ints. */
+void ctf_engine_player_damaged_player(int damaging_player_index,
+                                      int dead_player_index, int damage_type)
+{
+}
 
 int ctf_get_score_hud_text(int param_1, int param_2, int param_3,
                            wchar_t *param_4, int param_5)
@@ -6735,6 +6772,12 @@ int ctf_get_score_hud_text(int param_1, int param_2, int param_3,
  * ROLE, not the Bungie symbol, so the names stay FUN_ (T3 per
  * naming-confidence).
  * -------------------------------------------------------------------------- */
+
+/* ctf_engine_prespawn_player_update (0xb0420) — "ctf" record slot +0x6c:
+ * empty.  Dispatched with one player index. */
+void ctf_engine_prespawn_player_update(int player_index)
+{
+}
 
 /* FUN_000b04a0 (0xb04a0) — game_engine_ctf.c:0x3f5, "ctf" record slot +0x40
  *
@@ -7206,6 +7249,39 @@ void ctf_spawn_equipment(int weapon_handle, int weapon_obj)
   }
 }
 
+/* ctf_engine_update (0xb0e50) — "ctf" record slot +0x44 (update).
+ * Restarts the game once either team reaches score_to_win, then repeats the
+ * per-team flag warning event (8 for team 0, 0xb for team 1) every
+ * CTF_WARNING_SOUND_INTERVAL ticks while that team's warning is set. */
+void ctf_engine_update(void)
+{
+  boolean game_over;
+  int team_index;
+
+  game_over = false;
+  for (team_index = 0; team_index < NUMBER_OF_CTF_TEAMS; team_index++) {
+    if (ctf_globals.scores[team_index] >= ctf_globals.score_to_win)
+      game_over = true;
+  }
+  if (game_over)
+    game_engine_start_over();
+
+  if (ctf_globals.flag_warnings[0]) {
+    if (ctf_globals.flag_warning_ticks[0] > CTF_WARNING_SOUND_INTERVAL) {
+      game_engine_post_event(8);
+      ctf_globals.flag_warning_ticks[0] = 0;
+    }
+    ctf_globals.flag_warning_ticks[0]++;
+  }
+  if (ctf_globals.flag_warnings[1]) {
+    if (ctf_globals.flag_warning_ticks[1] > CTF_WARNING_SOUND_INTERVAL) {
+      game_engine_post_event(0xb);
+      ctf_globals.flag_warning_ticks[1] = 0;
+    }
+    ctf_globals.flag_warning_ticks[1]++;
+  }
+}
+
 /* CTF: handle a player picking up or returning a flag weapon (b0ed0). */
 int ctf_unit_can_enter_seat(int weapon_handle, int player_handle)
 {
@@ -7299,6 +7375,11 @@ float ctf_get_starting_location_rating(int param_1, float *param_2)
     }
   }
   return rating;
+}
+
+/* king_engine_dispose (0xb1150) — "king" record slot +0x08 (dispose): empty. */
+void king_engine_dispose(void)
+{
 }
 
 /* King of the Hill: compute hill geometry from scenario flag positions (b1180).
@@ -7430,6 +7511,12 @@ void FUN_000b1180(void)
 }
 
 /* Validate a player handle for post-spawn (datum_get). */
+
+/* king_engine_dispose_from_old_map (0xb14d0) — "king" record slot +0x10
+ * (dispose_from_old_map): empty. */
+void king_engine_dispose_from_old_map(void)
+{
+}
 
 void king_player_added(int param_1)
 
@@ -8283,10 +8370,22 @@ void game_engine_score_reset(void)
 
 /* Validate a player handle for oddball (datum_get). */
 
+/* oddball_engine_dispose (0xb2690) — "oddball" record (0x2effe8) slot +0x08
+ * (dispose): empty. */
+void oddball_engine_dispose(void)
+{
+}
+
 void oddball_player_added(int param_1)
 
 {
   datum_get(player_data, param_1);
+}
+
+/* oddball_engine_game_ending (0xb26d0) — "oddball" record slot +0x18
+ * (game_ending): empty. */
+void oddball_engine_game_ending(void)
+{
 }
 
 /* Oddball: increment score for a player holding the ball (b2740).
@@ -8750,6 +8849,58 @@ void FUN_000b2e70(int16_t slot_index)
   object_set_automatic_deactivation(handle, 0);
 }
 
+/* oddball_engine_initialize_for_new_map (0xb2f00) — "oddball" record slot
+ * +0x0c. Resets oddball_globals, derives score_to_win from the variant (scaled
+ * to ticks unless ball type 2), reports missing ball spawn flags for teams 0
+ * and 1, clears ball owners, then either staggers the ball spawn timers or
+ * (ball types 1..2) creates every ball immediately. Each variant field read is
+ * its own game_engine_get_variant() call, as in the binary. */
+boolean oddball_engine_initialize_for_new_map(void)
+{
+  int ball_index;
+  int ball_type;
+  int ball_spawn_count;
+  int spawn_delay;
+
+  global_scenario_get();
+  csmemset(&oddball_globals, 0, sizeof(oddball_globals));
+
+  oddball_globals.score_to_win =
+    ((game_variant_t *)game_engine_get_variant())->score_limit;
+  switch (((game_variant_t *)game_engine_get_variant())->field_5c) {
+  case 2:
+    break;
+  default:
+    oddball_globals.score_to_win *= ODDBALL_SCORE_TICKS_PER_UNIT;
+    break;
+  }
+
+  if (find_netgame_flag(NULL, 0.0f, 0.0f, 2, 0) == NONE)
+    error(2, "### failed to find ball spawn team id 0");
+  if (find_netgame_flag(NULL, 0.0f, 0.0f, 2, 1) == NONE)
+    error(2, "### failed to find ball spawn team id 1");
+
+  memset(oddball_globals.current_ball_owner, NONE,
+         sizeof(oddball_globals.current_ball_owner));
+
+  ball_type = ((game_variant_t *)game_engine_get_variant())->field_5c;
+  if (ball_type <= 0 || ball_type > 2) {
+    ball_spawn_count = ((game_variant_t *)game_engine_get_variant())->field_60;
+    spawn_delay = 0;
+    for (ball_index = 0; ball_index < ball_spawn_count; ball_index++) {
+      spawn_delay += ODDBALL_SPAWN_DELAY_TICKS;
+      oddball_globals.ball_spawn_timer[ball_index] = spawn_delay;
+    }
+  } else {
+    ball_spawn_count = ((game_variant_t *)game_engine_get_variant())->field_60;
+    for (ball_index = 0; ball_index < ball_spawn_count; ball_index++) {
+      oddball_globals.ball_spawn_timer[ball_index] = 0;
+      FUN_000b2e70((int16_t)ball_index);
+    }
+  }
+  return true;
+}
+
 /* Oddball: reset ball to a new spawn position (b3020). EDI = weapon_handle. */
 void FUN_000b3020(int weapon_handle)
 {
@@ -8909,6 +9060,54 @@ void oddball_spawn_equipment(int weapon_handle, int weapon_obj)
   }
 }
 
+/* oddball_engine_update (0xb33a0) — "oddball" record slot +0x44 (update).
+ * Posts the start announcement (0x21 with teams, else 0x13) at tick 60, counts
+ * down each ball spawn timer (event 0 + ball creation when it expires), and for
+ * ball types 1..2 points each ball's goal marker at its owner's unit (or clears
+ * it when unowned). */
+void oddball_engine_update(void)
+{
+  int ball_spawn_count;
+  int ball_index;
+  int ball_type;
+  int owner_player_index;
+  int unit_handle;
+  object_data_t *unit;
+
+  if (game_time_get() == ODDBALL_START_ANNOUNCEMENT_TICKS)
+    game_engine_post_event(game_engine_has_teams() ? 0x21 : 0x13);
+
+  ball_spawn_count = ((game_variant_t *)game_engine_get_variant())->field_60;
+  for (ball_index = 0; ball_index < ball_spawn_count; ball_index++) {
+    if (oddball_globals.ball_spawn_timer[ball_index] > 0) {
+      if (--oddball_globals.ball_spawn_timer[ball_index] == 0) {
+        game_engine_post_event(0);
+        FUN_000b2e70((int16_t)ball_index);
+      }
+    }
+  }
+
+  ball_type = ((game_variant_t *)game_engine_get_variant())->field_5c;
+  if (ball_type > 0 && ball_type <= 2) {
+    for (ball_index = 0; ball_index < ball_spawn_count; ball_index++) {
+      owner_player_index = oddball_globals.current_ball_owner[ball_index];
+      if (owner_player_index == NONE) {
+        game_engine_clear_goal_position((short)ball_index);
+      } else {
+        unit_handle =
+          ((player_data_t *)datum_get(player_data, owner_player_index))
+            ->unit_handle;
+        if (unit_handle != NONE) {
+          unit = (object_data_t *)object_get_and_verify_type(unit_handle, 3);
+          game_engine_set_goal_position(ball_index, (int *)&unit->unk_80, 0.0f,
+                                        "target_blue", NONE, NONE,
+                                        owner_player_index);
+        }
+      }
+    }
+  }
+}
+
 /* Oddball: handle player death — transfer ball possession (b3470). ECX =
  * killer. */
 void FUN_000b3470(int killer_handle, int param_2, int param_3, int dead_player,
@@ -9035,6 +9234,12 @@ char oddball_unit_can_enter_seat(int weapon_handle, int player_handle)
 }
 
 /* Collect all objects of type 2 (weapons) into a buffer and delete them. */
+
+/* race_engine_dispose (0xb36e0) — "race" record (0x2f0070) slot +0x08
+ * (dispose): empty. */
+void race_engine_dispose(void)
+{
+}
 
 void FUN_000b36f0(void)
 
@@ -9206,6 +9411,12 @@ void FUN_000b3860(void)
 
 /* Reset a player's race timer field. */
 
+/* race_engine_dispose_from_old_map (0xb38f0) — "race" record slot +0x10
+ * (dispose_from_old_map): empty. */
+void race_engine_dispose_from_old_map(void)
+{
+}
+
 void race_player_added(int param_1)
 
 {
@@ -9215,6 +9426,12 @@ void race_player_added(int param_1)
   player = (int)datum_get(player_data, param_1);
 
   *(int *)(player + 0x88) = 0;
+}
+
+/* race_engine_game_ending (0xb3930) — "race" record slot +0x18
+ * (game_ending): empty. */
+void race_engine_game_ending(void)
+{
 }
 
 /* Race: score a lap completion for a player (b39a0). EAX = player_handle. */
@@ -9335,6 +9552,13 @@ char FUN_000b3b30(int flag_index, int player_handle)
                  "c:\\halo\\SOURCE\\game\\game_engine_race.c", 0x289, 1);
   system_exit(-1);
   return 1;
+}
+
+/* race_engine_weapon_update (0xb3c50) — "race" record slot +0x38
+ * (objective weapon update): empty.  Dispatched with an item handle and the
+ * item's vehicle pointer. */
+void race_engine_weapon_update(int item_index, void *weapon)
+{
 }
 
 /* Race: check if a team has won (b3c60). EDI = team_index. */

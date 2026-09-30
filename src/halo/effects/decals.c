@@ -665,10 +665,6 @@ void decal_reinsert(int16_t cluster_index, int16_t layer, int decal_handle)
   decal_set_first_decal_index(cluster_index, layer, decal_handle);
 }
 
-static void decals_log_invalid_decal_type_once(
-  int16_t decal_type, int decal_tag_index, const char *decal_name,
-  int bitmap_tag_index, const char *bitmap_name, const char *context);
-
 int decal_insert(int new_index_hint, int16_t cluster_index, int16_t layer,
                  int old_index, bool randomize)
 {
@@ -1213,10 +1209,10 @@ void decal_clip_to_surface(void *geometry, float *projection, int surface_index,
   int16_t queue_write_index;
   int16_t deviant_count;
 
-  if (type < 0 || type >= 4) {
-    decals_log_invalid_decal_type_once(type, -1, NULL, -1, NULL,
-                                       "decal_surface_add");
-    return;
+  if (!(type >= 0 && type < NUMBER_OF_DECAL_TYPES)) {
+    display_assert("type>=0 && type<NUMBER_OF_DECAL_TYPES",
+                   "c:\\halo\\SOURCE\\effects\\decals.c", 0x47b, true);
+    system_exit(-1);
   }
 
   if (surface_index == -1) {
@@ -1501,30 +1497,6 @@ static int16_t decals_random_short(int16_t min, int16_t max)
   return seed_random_range(random_math_get_local_seed_address(), min, max);
 }
 
-static void
-decals_log_invalid_decal_type_once(int16_t decal_type, int decal_tag_index,
-                                   const char *decal_name, int bitmap_tag_index,
-                                   const char *bitmap_name, const char *context)
-{
-  static uint32_t reported_mask;
-
-  if (decal_type >= 0 && decal_type < 32) {
-    uint32_t bit = 1u << decal_type;
-    if ((reported_mask & bit) != 0) {
-      return;
-    }
-    reported_mask |= bit;
-  }
-
-  error(2,
-        "### ERROR decals: invalid decal type %d in %s (decal=%d '%s' bitm=%d "
-        "'%s') -- skipping",
-        decal_type, context, decal_tag_index,
-        decal_name ? tag_name_strip_path((char *)decal_name) : "<null>",
-        bitmap_tag_index,
-        bitmap_name ? tag_name_strip_path((char *)bitmap_name) : "<null>");
-}
-
 typedef struct s_decal_geometry_vertex {
   float position[3];
   float uv[2];
@@ -1549,9 +1521,6 @@ typedef struct s_decal_cached_quad {
   s_decal_staged_vertex vertices[4];
 } s_decal_cached_quad;
 
-static bool g_warned_decal_vertex_overflow;
-static bool g_warned_decal_quad_overflow;
-
 void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
                               void *direction, float scale, bool randomize,
                               int16_t color_index, int flags)
@@ -1567,11 +1536,11 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
   int16_t bitmap_index;
 
   if (collision_result == NULL) {
-    decals_assert_or_exit("collision_result", 0x7f1);
+    decals_assert_or_exit("collision", 0x7f1);
   }
 
   if (direction == NULL) {
-    decals_assert_or_exit("direction", 0x7f2);
+    decals_assert_or_exit("velocity", 0x7f2);
   }
 
   if (*(uint8_t *)0x2eebd0 == 0) {
@@ -1588,8 +1557,7 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
     char *decal_tag = (char *)tag_get(0x64656361, decal_tag_index);
     char *bitmap_tag = (char *)tag_get(0x6269746d, *(int *)(decal_tag + 0xe4));
 
-    if (*(int16_t *)(decal_tag + 2) >= 0 &&
-        *(int16_t *)(decal_tag + 2) < 4) {
+    {
 
       if (!reuse_previous) {
         float axis_vector[3];
@@ -2143,16 +2111,6 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
           return;
         }
 
-        if (*(int16_t *)0x453fd8 > 0x400) {
-          if (!g_warned_decal_vertex_overflow) {
-            error(2,
-                  "### ERROR decals: vertex overflow (count=%d) -- skipping decal",
-                  *(int16_t *)0x453fd8);
-            g_warned_decal_vertex_overflow = true;
-          }
-          return;
-        }
-
         {
           float offset[3];
           int16_t decal_quad_count = 0;
@@ -2185,16 +2143,6 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
 
             decal_quad_count +=
               (int16_t)((((int16_t *)0x453fda)[decal_surface_index] - 1) / 2);
-          }
-
-          if (decal_quad_count < 0 || decal_quad_count > 0x400) {
-            if (!g_warned_decal_quad_overflow) {
-              error(2,
-                    "### ERROR decals: quad overflow (count=%d) -- skipping decal",
-                    decal_quad_count);
-              g_warned_decal_quad_overflow = true;
-            }
-            return;
           }
 
           cache_size = decal_quad_count << 6;
@@ -2375,19 +2323,6 @@ void decal_new_from_collision(int decal_tag_index, int16_t *collision_result,
           }
         }
       }
-    } else {
-      int bitmap_tag_index = *(int *)(decal_tag + 0xe4);
-      const char *decal_name = tag_get_name(decal_tag_index);
-      const char *bitmap_name = tag_get_name(bitmap_tag_index);
-      decals_log_invalid_decal_type_once(*(int16_t *)(decal_tag + 2),
-                                         decal_tag_index, decal_name,
-                                         bitmap_tag_index, bitmap_name,
-                                         "decal_new");
-      /* Project guard (not in the binary): the skipped tag computed no
-       * radius/sprite/basis, so the next tag must not reuse them. */
-      reuse_previous = false;
-      decal_tag_index = *(int *)(decal_tag + 0x14);
-      continue;
     }
 
     reuse_previous = (*(uint8_t *)decal_tag & 1) != 0;
@@ -2589,6 +2524,14 @@ void FUN_0017cb90(void *decal)
   FUN_00170c90(decal);
 }
 
+/* Tail-call thunk to the full-screen screen-flash draw (FUN_00171bc0).
+ * 0x17cba0: bare JMP 0x171bc0 (no frame; render_scene calls it with no
+ * pushes). Dormant: kb ported=false. */
+void rasterizer_screen_flash(void)
+{
+  FUN_00171bc0();
+}
+
 /* Tail-call thunk to dynamic vertex geometry decal flush (FUN_0016bed0). */
 void FUN_0017cbb0(void *param_1, int param_2)
 {
@@ -2612,6 +2555,22 @@ void FUN_0017cbd0(void *shader, short p2, int p3, int widget_handle, int p5,
                p9);
 }
 
+/* 0x17cbe0: bare JMP 0x16b1c0 (FUN_0016b1c0 reads no caller stack slot
+ * before its RET). Called by render_model. Dormant: kb ported=false. */
+void rasterizer_model_end(void)
+{
+  FUN_0016b1c0();
+}
+
+/* 0x17cc00: bare JMP 0x160c30 (no frame, no stack args). Tail-call thunk to
+ * the environment render-state setup FUN_00160c30, whose body reads no
+ * caller stack slot before its RET. Sole C caller: structures.c.
+ * Dormant: kb ported=false. */
+void FUN_0017cc00(void)
+{
+  FUN_00160c30();
+}
+
 /* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00160dc0).
  */
 void FUN_0017cc10(int param_1)
@@ -2626,6 +2585,20 @@ void FUN_0017cc20(int param_1, int param_2, int param_3, int param_4,
 {
   FUN_00160f50((void *)param_1, param_2, param_3, param_4, param_5,
                (void *)param_6);
+}
+
+/* 0x17cc40: bare JMP 0x160920 -> _rasterizer_environment_lightmaps_end.
+ * Dormant: kb ported=false. */
+void FUN_0017cc40(void)
+{
+  _rasterizer_environment_lightmaps_end();
+}
+
+/* 0x17cc50: bare JMP 0x161f00 (no stack args read by the target).
+ * Dormant: kb ported=false. */
+void FUN_0017cc50(void)
+{
+  FUN_00161f00();
 }
 
 /* Tail-call thunk to rasterizer_xbox_environment gel-light setup
@@ -2650,6 +2623,13 @@ void FUN_0017cc70(int param_1, int param_2, int param_3, int param_4,
 {
   FUN_00162560((void *)param_1, param_2, param_3, param_4, param_5,
                (void *)param_6);
+}
+
+/* 0x17cc90: bare JMP 0x160940 -> _rasterizer_hud_begin.
+ * Dormant: kb ported=false. */
+void FUN_0017cc90(void)
+{
+  _rasterizer_hud_begin();
 }
 
 /* Tail-call thunk to rasterizer shadow-pass begin (FUN_00172a30).
@@ -2685,6 +2665,13 @@ void FUN_0017ccd0(void *decal, int param_2, void *param_3, void *param_4)
   FUN_00172de0(decal, param_2, param_3, param_4);
 }
 
+/* 0x17cce0: bare JMP 0x172640 (FUN_00172640 reads no caller stack slot
+ * before its RET). Called by render_model. Dormant: kb ported=false. */
+void rasterizer_environment_shadow_model_end(void)
+{
+  FUN_00172640();
+}
+
 /* Tail-call thunk to rasterizer decal rendering (FUN_00173090). */
 void FUN_0017ccf0(void *shader, int param_2, int vertices_per_primitive, int a2,
                   int triangle_count, void *vertex_buffer)
@@ -2699,4 +2686,11 @@ void FUN_0017cd30(int param_1, int param_2, int param_3, int param_4,
                   int param_5, int param_6)
 {
   FUN_00162920(param_1, param_2, param_3, param_4, param_5, param_6);
+}
+
+/* 0x17cd50: bare JMP 0x162f90 (no stack args read by the target).
+ * Dormant: kb ported=false. */
+void FUN_0017cd50(void)
+{
+  FUN_00162f90();
 }

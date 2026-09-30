@@ -1,3 +1,4 @@
+#include "x87_math.h" /* x87_fsin/x87_fcos/x87_fatan2f/x87_fabs: inline x87 ops */
 /* MSVC 7.1 FABS intrinsic: declared+pragma here so fabs() inlines to a single
  * FABS instruction instead of a CRT call. */
 extern double __cdecl fabs(double);
@@ -335,6 +336,195 @@ bool convex_polygon2d_verify(int16_t vertex_count, uint32_t *vertices)
     } while (i < vertex_count);
   }
   return 1;
+}
+
+/* 0x106960 — convex_polygon3d_clip_to_plane
+ *
+ * Sutherland-Hodgman clip of a 3D convex polygon (count xyz triples) against
+ * `plane` (i,j,k,d), keeping the side with plane distance >= 0. Output goes
+ * to out_verts (capacity max_count); verts may alias out_verts, in which case
+ * the input is first copied to a 512-vertex stack buffer (_chkstk 0x1818,
+ * buffer at EBP-0x1818 = 0x1800 bytes).
+ *
+ * Confirmed from 0x106960-0x106db7:
+ *  - [EBP+0x1c] (kb: out_bitmask) is only ever written as a BYTE: 0 on entry,
+ *    1 when an edge crosses the plane. [EBP+0x24] (kb: changed) is only read
+ *    as a BYTE (0x106d08). The kb types are kept so the existing callers
+ *    (bsp3d.c, structures.c) still compile; the accesses below are byte-wide.
+ *  - Per vertex, distance > epsilon latches a "front" byte (EBP-2); otherwise
+ *    distance < -epsilon latches a "back" byte (EBP-1).
+ *  - A new vertex is dropped (count--) when it lies within epsilon on all
+ *    three axes of the first output vertex or of the previous one.
+ *  - Crossing t = -(dist(cur) / dot(prev-cur, n)) clamped to [0,1]
+ *    (0x106b19 TEST AH,5 / JP; 0x106b30 TEST AH,0x41 / JNZ).
+ *  - Overflow (output full) returns NONE after copying the input unchanged
+ *    (assert line 0x637). Fewer than 3 outputs become 0.
+ *  - Result selection (0x106cfa): front and back -> clipped count;
+ *    front only -> input copied, count; back only -> 0; neither (coplanar)
+ *    -> input copied when the [EBP+0x24] byte is set, else 0 (assert 0x630).
+ * Distance sums follow the FLD order: last vertex (y*j + z*k) + i*x;
+ * loop vertex (z*k + i*x) + y*j.
+ */
+int16_t convex_polygon3d_clip_to_plane(int16_t count, float *verts,
+                                       float *plane, int16_t max_count,
+                                       float *out_verts, uint32_t *out_bitmask,
+                                       float epsilon, void *changed)
+{
+  float clip_buffer[0x200 * 3]; /* EBP-0x1818 */
+  float *previous;
+  float *current;
+  float *last;
+  float distance;
+  float dx;
+  float dy; /* EBP-0x14 */
+  float dz;
+  float t;
+  int byte_size; /* EBP-0x08 */
+  int16_t i; /* EBP-0x0c */
+  int16_t out_count;
+  bool inside; /* EBP+0x13 */
+  bool previous_inside;
+  bool any_front; /* EBP-0x02 */
+  bool any_back; /* EBP-0x01 */
+
+  out_count = 0;
+  any_front = 0;
+  any_back = 0;
+  if (count < 3) {
+    display_assert("count>=NUMBER_OF_VERTICES_PER_TRIANGLE",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x5d5, true);
+    system_exit(-1);
+  }
+  if (out_bitmask != NULL) {
+    *(uint8_t *)out_bitmask = 0;
+  }
+  if (verts == out_verts) {
+    if (count > 0x200) {
+      display_assert("count<=CLIP_BUFFER_SIZE",
+                     "c:\\halo\\SOURCE\\math\\geometry.c", 0x5dc, true);
+      system_exit(-1);
+    }
+    csmemcpy(clip_buffer, verts, count * 0xc);
+    verts = clip_buffer;
+  }
+
+  byte_size = count * 0xc;
+  previous = verts + count * 3 - 3;
+  previous_inside = (previous[1] * plane[1] + previous[2] * plane[2] +
+                     plane[0] * previous[0] - plane[3]) >= 0.0f;
+
+  if (count > 0) {
+    i = 0;
+    do {
+      current = verts + i * 3;
+      inside = 1;
+      distance = current[2] * plane[2] + plane[0] * current[0] +
+                 current[1] * plane[1] - plane[3];
+      if (!(distance >= 0.0f)) { /* 0x106a84 TEST AH,1 / JZ */
+        inside = 0;
+      }
+      if (distance > epsilon) {
+        any_front = 1;
+      } else if (distance < -epsilon) {
+        any_back = 1;
+      }
+
+      if (inside != previous_inside) {
+        if (out_count == max_count) {
+          out_count = -1;
+          break;
+        }
+        if (out_bitmask != NULL) {
+          *(uint8_t *)out_bitmask = 1;
+        }
+        dx = previous[0] - current[0];
+        dy = previous[1] - current[1];
+        dz = previous[2] - current[2];
+        t = -((current[2] * plane[2] + plane[0] * current[0] +
+               current[1] * plane[1] - plane[3]) /
+              (dx * plane[0] + dz * plane[2] + dy * plane[1]));
+        if (t < 0.0f) {
+          t = 0.0f;
+        } else if (t > 1.0f) {
+          t = 1.0f;
+        }
+        last = out_verts + out_count * 3;
+        last[0] = t * dx + current[0];
+        last[1] = dy * t + current[1];
+        last[2] = t * dz + current[2];
+        out_count++;
+        if (out_count != 1) {
+          last = out_verts + out_count * 3;
+          if ((fabs(last[-3] - out_verts[0]) < epsilon &&
+               fabs(last[-2] - out_verts[1]) < epsilon &&
+               fabs(last[-1] - out_verts[2]) < epsilon) ||
+              (fabs(last[-3] - last[-6]) < epsilon &&
+               fabs(last[-2] - last[-5]) < epsilon &&
+               fabs(last[-1] - last[-4]) < epsilon)) {
+            out_count--;
+          }
+        }
+      }
+
+      if (inside) {
+        if (out_count >= max_count) {
+          out_count = -1;
+          break;
+        }
+        last = out_verts + out_count * 3;
+        last[0] = current[0];
+        last[1] = current[1];
+        last[2] = current[2];
+        out_count++;
+        if (out_count != 1) {
+          last = out_verts + out_count * 3;
+          if ((fabs(last[-3] - out_verts[0]) < epsilon &&
+               fabs(last[-2] - out_verts[1]) < epsilon &&
+               fabs(last[-1] - out_verts[2]) < epsilon) ||
+              (fabs(last[-3] - last[-6]) < epsilon &&
+               fabs(last[-2] - last[-5]) < epsilon &&
+               fabs(last[-1] - last[-4]) < epsilon)) {
+            out_count--;
+          }
+        }
+      }
+
+      previous = current;
+      previous_inside = inside;
+      i++;
+    } while (i < count);
+
+    if (out_count == -1) {
+      if (count < 0 || count > max_count) {
+        display_assert("count>=0 && count<=maximum_count",
+                       "c:\\halo\\SOURCE\\math\\geometry.c", 0x637, true);
+        system_exit(-1);
+      }
+      csmemcpy(out_verts, verts, byte_size);
+      return out_count;
+    }
+    if (out_count < 3) {
+      out_count = 0;
+    }
+  } else {
+    out_count = 0;
+  }
+
+  if (any_front) {
+    if (any_back) {
+      return out_count;
+    }
+  } else if (any_back || *(uint8_t *)&changed == 0) {
+    return 0;
+  }
+
+  if (count < 0 || count > max_count) {
+    display_assert("count>=0 && count<=maximum_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x630, true);
+    system_exit(-1);
+  }
+  csmemcpy(out_verts, verts, byte_size);
+  return count;
 }
 
 /* 0x106dc0 — Verify that a 3D polygon is convex and (near-)planar.
@@ -685,4 +875,427 @@ bool FUN_00106f50(int16_t point_count, float *points, int16_t vertices_capacity,
     }
   }
   return 0;
+}
+
+/* 0x1056e0 — Dispose of a sphere geometry object.
+ * Asserts the sphere handle and its two allocated arrays (vertices at +0x4,
+ * triangle_strip_vertex_indices at +0x8) are non-NULL, then frees the two
+ * arrays followed by the sphere structure itself.
+ * Source: c:\halo\SOURCE\math\geometry.c (lines 0x75-0x7b). */
+void FUN_001056e0(void *handle)
+{
+  if (handle == 0) {
+    display_assert("sphere", "c:\\halo\\SOURCE\\math\\geometry.c", 0x75, 1);
+    system_exit(-1);
+  }
+  if (*(int *)((char *)handle + 4) == 0) {
+    display_assert("sphere->vertices", "c:\\halo\\SOURCE\\math\\geometry.c",
+                   0x76, 1);
+    system_exit(-1);
+  }
+  if (*(int *)((char *)handle + 8) == 0) {
+    display_assert("sphere->triangle_strip_vertex_indices",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x77, 1);
+    system_exit(-1);
+  }
+  debug_free(*(void **)((char *)handle + 4),
+             "c:\\halo\\SOURCE\\math\\geometry.c", 0x79);
+  debug_free(*(void **)((char *)handle + 8),
+             "c:\\halo\\SOURCE\\math\\geometry.c", 0x7a);
+  debug_free(handle, "c:\\halo\\SOURCE\\math\\geometry.c", 0x7b);
+}
+
+/* 0x105830 - interpolate a subdivision vertex between two parent vertices.
+ * (TU: c:\halo\SOURCE\math\geometry.c)
+ *
+ * Register ABI (prologue at 0x105830): MOV SI,DX and direct use of AX/CX/BX/EDI
+ * with only ESI preserved. Register args (all low-16 values):
+ *   subdivision_index@<eax>, subdivision_count@<ecx>, parent2@<edx> (copied to
+ *   SI), parent1@<ebx>, sphere@<edi>.  Stack arg: new_vertex ([EBP+0x8]).
+ *
+ * frac = subdivision_index / subdivision_count (FILD/FIDIV); the new vertex is
+ * inv_frac*parent1 + frac*parent2 component-wise (inv_frac = 1.0 - frac; 1.0 at
+ * 0x2533c8), written into sphere->vertices[new_vertex] (vertices at sphere+0x4,
+ * stride 3 floats), then normalized in place via normalize3d (return
+ * discarded). Asserts subdivision_index in (0,count) and each vertex index in
+ * [0,vertex_count] (vertex_count is a short at sphere+0xc). */
+void calculate_vertex(short subdivision_index /* @<eax> */,
+                      short subdivision_count /* @<ecx> */,
+                      short parent2 /* @<edx> */, short parent1 /* @<ebx> */,
+                      void *sphere /* @<edi> */, short new_vertex)
+{
+  float frac;
+  float inv_frac;
+  int itmp;
+  float *verts;
+  float *vp1;
+  float *vp2;
+  float *vout;
+  short vertex_count;
+
+  itmp = subdivision_index;
+  frac = (float)itmp;
+  itmp = subdivision_count;
+  frac = frac / itmp;
+  inv_frac = *(float *)0x002533c8 - frac;
+
+  if (subdivision_index <= 0 || subdivision_index >= subdivision_count) {
+    display_assert(
+      "subdivision_index > 0 && subdivision_index < subdivision_count",
+      "c:\\halo\\SOURCE\\math\\geometry.c", 0x13b, true);
+    system_exit(-1);
+  }
+  vertex_count = *(short *)((char *)sphere + 0xc);
+  if (parent1 < 0 || parent1 > vertex_count) {
+    display_assert("parent1 >=0 && parent1 <= sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x13c, true);
+    system_exit(-1);
+  }
+  if (parent2 < 0 || parent2 > vertex_count) {
+    display_assert("parent2 >=0 && parent2 <= sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x13d, true);
+    system_exit(-1);
+  }
+  if (new_vertex < 0 || new_vertex > vertex_count) {
+    display_assert("new_vertex >=0 && new_vertex <= sphere->vertex_count",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x13e, true);
+    system_exit(-1);
+  }
+
+  verts = *(float **)((char *)sphere + 4);
+  vp1 = verts + (int)parent1 * 3;
+  vp2 = verts + (int)parent2 * 3;
+  vout = verts + (int)new_vertex * 3;
+  vout[0] = inv_frac * vp1[0] + frac * vp2[0];
+  vout[1] = frac * vp2[1] + inv_frac * vp1[1];
+  vout[2] = frac * vp2[2] + inv_frac * vp1[2];
+  normalize3d(vout);
+}
+
+/* 0x105980 — Build a ring/cylinder (torus-like) mesh.
+ * Sweeps ring_segment_count rings around a cross-section of
+ * cylinder_segment_count segments. For each ring the ring angle drives a
+ * cos/sin pair (scaled by param_8) that offsets a cross-section built by
+ * rotating a base radius (param_10) about the ring normal, then transforms
+ * each vertex by the caller's matrix.
+ * Outputs: vertex positions (out_positions, stride 3 floats), tex coords
+ * (out_texcoords, stride 2 floats), a triangle-strip index buffer
+ * (out_indices), the emitted vertex count (*out_vertex_count) and the number
+ * of strip index-runs (*out_index_run_count).
+ * The ring normal is the cross product of the cross-section direction
+ * (cos*param_8, sin*param_8, 0) with the global axis vector at *0x31fc44,
+ * normalized when its length is >= the epsilon at 0x2533d0.
+ * Constants: 0x255a54 = 6.2831855f (2*pi), 0x2533c0 = 0.0f, 0x2533c8 = 1.0f,
+ * 0x2533d0 = double epsilon. Asserts at geometry.c:0x15a/0x15b.
+ * Source: c:\halo\SOURCE\math\geometry.c:346 */
+void FUN_00105980(float *matrix, short *out_vertex_count,
+                  short *out_index_run_count, float *out_positions,
+                  float *out_texcoords, short *out_indices,
+                  short ring_segment_count, float param_8,
+                  int cylinder_segment_count, float param_10)
+{
+  float fVar1, fVar2, fVar4, angle;
+  float fVar9, fVar10, fVar11, fVar12, fVar_sin;
+  int iVar5;
+  float *pfVar6;
+  short sVar8;
+  /* normal[0]=local_38, normal[1]=local_34, normal[2]=local_30; the three
+   * must be contiguous+ascending because &normal[0] is passed as the axis
+   * argument to rotate_vector3d_by_sincos (stack-aliasing hazard). */
+  float normal[3];
+  int local_2c;
+  float local_28, local_24;
+  int local_20, local_1c, local_18, local_14, local_10, local_c, local_8;
+
+  local_1c = 0;
+  local_8 = 0;
+  if (ring_segment_count <= 2) {
+    display_assert("ring_segment_count>2", "c:\\halo\\SOURCE\\math\\geometry.c",
+                   0x15a, 1);
+    system_exit(-1);
+  }
+  if ((short)cylinder_segment_count <= 2) {
+    display_assert("cylinder_segment_count>2",
+                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x15b, 1);
+    system_exit(-1);
+  }
+  local_10 = 0;
+  if (ring_segment_count >= 0) {
+    local_20 = (int)ring_segment_count;
+    local_18 = 0;
+    local_24 = (float)local_20;
+    pfVar6 = *(float **)0x0031fc44;
+    do {
+      fVar9 = (float)local_18 / local_24;
+      angle = *(float *)0x00255a54 * fVar9;
+      fVar10 = x87_fcos(angle);
+      fVar1 = fVar10 * param_8;
+      fVar11 = x87_fsin(angle);
+      fVar2 = param_8 * fVar11;
+      /* ring normal = (fVar1, fVar2, 0) x axis[]; 0x2533c0 == 0.0f.
+       * normal[2]=A, normal[1]=B, normal[0]=C; length sum is (C^2+B^2)+A^2 to
+       * match the original's x87 add order. */
+      normal[2] = fVar1 * pfVar6[1] - fVar2 * pfVar6[0];
+      normal[1] = pfVar6[0] * *(float *)0x002533c0 - fVar1 * pfVar6[2];
+      normal[0] = fVar2 * pfVar6[2] - pfVar6[1] * *(float *)0x002533c0;
+      fVar4 = sqrtf(normal[0] * normal[0] + normal[1] * normal[1] +
+                    normal[2] * normal[2]);
+      if (!(x87_fabs(fVar4) < *(double *)0x002533d0)) {
+        fVar4 = *(float *)0x002533c8 / fVar4;
+        normal[0] = normal[0] * fVar4;
+        normal[1] = normal[1] * fVar4;
+        normal[2] = fVar4 * normal[2];
+      }
+      sVar8 = 0;
+      if (-1 < (short)cylinder_segment_count) {
+        local_c = (int)(short)cylinder_segment_count;
+        local_14 = (local_8 - cylinder_segment_count) + -1;
+        local_28 = (float)(fVar9 + fVar9);
+        do {
+          out_texcoords[1] = local_28;
+          if (0 < (short)local_10) {
+            if (sVar8 == 0) {
+              *out_indices = (short)cylinder_segment_count * 2 + 2;
+              out_indices = out_indices + 1;
+              local_1c = local_1c + 1;
+            }
+            *out_indices = (short)local_8;
+            out_indices[1] = (short)local_14;
+            out_indices = out_indices + 2;
+          }
+          if ((short)local_10 == ring_segment_count) {
+            /* last ring: copy the vertex/texcoord from the first ring */
+            iVar5 = (local_c + 1) * local_20;
+            pfVar6 = out_positions + iVar5 * -3;
+            *out_positions = *pfVar6;
+            out_positions[1] = pfVar6[1];
+            out_positions[2] = pfVar6[2];
+            *out_texcoords = out_texcoords[iVar5 * -2];
+          } else {
+            local_2c = (int)sVar8;
+            fVar9 = (float)local_2c / (float)local_c;
+            *out_texcoords = (float)(fVar9 + fVar9);
+            if (sVar8 == (short)cylinder_segment_count) {
+              /* seam: copy from the start of this ring */
+              pfVar6 = out_positions + local_c * -3;
+              *out_positions = *pfVar6;
+              out_positions[1] = pfVar6[1];
+              out_positions[2] = pfVar6[2];
+            } else {
+              angle = *(float *)0x00255a54 * fVar9;
+              fVar12 = x87_fcos(angle);
+              *out_positions = fVar10 * param_10;
+              out_positions[1] = fVar11 * param_10;
+              out_positions[2] = 0.0f;
+              fVar_sin = x87_fsin(angle);
+              rotate_vector3d_by_sincos(out_positions, normal, fVar_sin, fVar12);
+              *out_positions = fVar1 + *out_positions;
+              out_positions[2] = out_positions[2];
+              out_positions[1] = fVar2 + out_positions[1];
+              matrix_transform_point(matrix, out_positions, out_positions);
+            }
+          }
+          out_texcoords = out_texcoords + 2;
+          out_positions = out_positions + 3;
+          local_8 = local_8 + 1;
+          local_14 = local_14 + 1;
+          sVar8 = sVar8 + 1;
+          pfVar6 = *(float **)0x0031fc44;
+        } while (sVar8 <= (short)cylinder_segment_count);
+      }
+      local_10 = local_10 + 1;
+      local_18 = local_18 + 1;
+    } while ((short)local_10 <= ring_segment_count);
+  }
+  *out_vertex_count = (short)local_8;
+  *out_index_run_count = (short)local_1c;
+}
+
+/* 0x105d20 — Reduce a 2D point set to its convex hull as an index list.
+ * Gift-wrapping (Jarvis march). shell_update (called with the vertex array in
+ * EBX) validates that at least three non-collinear points exist (returns 2);
+ * otherwise nothing is emitted and 0 is returned.
+ *   Phase 1: pick the start vertex (lowest y, then leftmost x) with an epsilon
+ *            tie-break (1e-4f) on both axes.
+ *   Phase 2: from the current vertex, atan2(dy,dx) angle scan against a running
+ *            angle base, wrapping candidate angles into [-1e-4f, ...) by adding
+ *            2*pi; keep the minimum-angle vertex, append its index, and stop
+ *            when the chosen vertex closes back on the first. A collinear/
+ *            degenerate guard uses a double epsilon (=(double)1e-4f) on the
+ *            |component delta| between the chosen and first vertices.
+ *   Phase 3: reached only when the walk fills all slots (index_count reaches
+ *            vertex_count); compacts a trailing duplicate run to the front with
+ *            three bounds asserts (geometry.c 0x279,0x27a,0x282).
+ * param_1 = vertex_count, param_2 = float[2] vertex array (x,y; 8-byte stride),
+ * param_3 = int16 output index list. Returns the emitted index count in AX.
+ * Source: c:\halo\SOURCE\math\geometry.c */
+int16_t convex_hull2d_reduce(int16_t vertex_count, float *vertices,
+                             int16_t *out_indices)
+{
+  int16_t index_count;
+
+  index_count = 0;
+  if (shell_update(vertex_count, vertices) == 2) {
+    float base_angle;
+    float best_x;
+    float best_y;
+    int16_t start_index;
+    int16_t current_index;
+    int16_t next_index;
+    float min_angle;
+    char collinear_flag;
+    int16_t i;
+    int16_t first;
+    float *p;
+    float *ref;
+
+    base_angle = 0.0f; /* FLOAT_002533c0 = 0.0f, running gift-wrap base */
+    best_x = 3.4028235e38f; /* FLT_MAX */
+    best_y = 3.4028235e38f;
+    start_index = -1; /* SI default = low word of FLT_MAX (dead: count>0) */
+    collinear_flag = 0;
+
+    /* Phase 1: lowest y, then leftmost x, with epsilon tie-break. */
+    if (vertex_count > 0) {
+      p = vertices + 1; /* &vertices[0].y */
+      for (i = 0; i < vertex_count; i = i + 1) {
+        if ((p[0] < best_y - 1e-4f) ||
+            ((p[0] < best_y) && (p[-1] < best_x + 1e-4f)) ||
+            ((p[0] < best_y + 1e-4f) && (p[-1] < best_x - 1e-4f))) {
+          best_x = p[-1];
+          best_y = p[0];
+          start_index = i;
+        }
+        p = p + 2;
+      }
+    }
+
+    current_index = start_index;
+    next_index =
+      start_index; /* EBX default (dead: inner loop always assigns) */
+    for (;;) {
+      min_angle = 3.4028235e38f; /* FLT_MAX reset (0x105de9) */
+      if (index_count >= vertex_count) {
+        goto compaction;
+      }
+      out_indices[index_count] = current_index;
+      index_count = index_count + 1;
+
+      /* Phase 2: min-angle gift-wrap scan. */
+      if (vertex_count > 0) {
+        ref = vertices + current_index * 2;
+        p = vertices;
+        for (i = 0; i < vertex_count; i = i + 1) {
+          if ((p[0] != ref[0]) || (p[1] != ref[1])) {
+            float angle;
+            float dy = p[1] - ref[1];
+            float dx = p[0] - ref[0];
+
+#if defined(_MSC_VER) && !defined(__clang__)
+            angle = (float)atan2((double)dy, (double)dx) - base_angle;
+#else
+            angle = x87_fatan2f(dy, dx) - base_angle;
+#endif
+            if (angle < -1e-4f) {
+              do {
+                angle = angle + 6.2831855f; /* 2*pi wrap */
+              } while (angle < -1e-4f);
+            }
+            if (angle < min_angle) {
+              min_angle = angle;
+              next_index = i;
+            }
+          }
+          p = p + 2;
+        }
+      }
+
+      base_angle = base_angle + min_angle;
+      current_index = next_index;
+
+      first = out_indices[0];
+      if (collinear_flag == 0) {
+        if ((fabs(vertices[next_index * 2] - vertices[first * 2]) >= 1e-4f) ||
+            (fabs(vertices[next_index * 2 + 1] - vertices[first * 2 + 1]) >=
+             1e-4f)) {
+          collinear_flag = 1;
+        }
+      }
+
+      first = out_indices[0];
+      if (next_index == first) {
+        return index_count;
+      }
+      if (collinear_flag == 0) {
+        continue;
+      }
+      if ((fabs(vertices[next_index * 2] - vertices[first * 2]) >= 1e-4f) ||
+          (fabs(vertices[next_index * 2 + 1] - vertices[first * 2 + 1]) >=
+           1e-4f)) {
+        continue;
+      }
+      return index_count;
+    }
+
+  compaction: {
+    int16_t last_hull;
+    int16_t search;
+    int16_t k;
+
+    search = index_count - 2;
+    if (search <= 0) {
+      goto assert_start_positive;
+    }
+    last_hull = out_indices[index_count - 1];
+    for (;;) {
+      if (out_indices[search] == last_hull) {
+        int16_t new_count;
+
+        new_count = (index_count - 1) - search;
+        index_count = new_count;
+        if (new_count > 0) {
+          int src;
+          int16_t *psrc;
+          int16_t *pdst;
+
+          src = search;
+          psrc = out_indices + search;
+          pdst = out_indices;
+          k = 0;
+          do {
+            if (vertex_count <= k) {
+              display_assert("vertex_index<vertex_count",
+                             "c:\\halo\\SOURCE\\math\\geometry.c", 0x279, 1);
+              system_exit(-1);
+            }
+            if (vertex_count <= src) {
+              display_assert("start_vertex_index+vertex_index<vertex_count",
+                             "c:\\halo\\SOURCE\\math\\geometry.c", 0x27a, 1);
+              system_exit(-1);
+            }
+            k = k + 1;
+            *pdst = *psrc;
+            psrc = psrc + 1;
+            pdst = pdst + 1;
+            src = src + 1;
+          } while (k < new_count);
+        }
+        if (search > 0) {
+          return index_count;
+        }
+        goto assert_start_positive;
+      }
+      search = search - 1;
+      if (search < 1) {
+        goto assert_start_positive;
+      }
+    }
+  }
+
+  assert_start_positive:
+    display_assert("start_vertex_index>0", "c:\\halo\\SOURCE\\math\\geometry.c",
+                   0x282, 1);
+    system_exit(-1);
+  }
+  return index_count;
 }

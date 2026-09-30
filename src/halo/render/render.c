@@ -98,6 +98,16 @@ short FUN_00184610(void *group)
   return -1;
 }
 
+/* FUN_00184680 @ 0x184680 -- confirmed empty: the function body in the
+ * binary is a single RET with no prologue/epilogue. Called unconditionally
+ * from FUN_00158f90's per-frame "first init" block (guarded by
+ * DAT_00476ab8=='\0', alongside FUN_001825d0/FUN_0015d160/FUN_00165a00/
+ * FUN_00181410/FUN_0017e030/FUN_0017e010), so this is a genuine no-op in the
+ * original debug build, not an unrecovered stub. */
+void FUN_00184680(void)
+{
+}
+
 /* rasterizer_transparent_geometry dispose counterpart to
  * rasterizer_transparent_geometry_new (0x184260): tears down the vertex
  * cache (FUN_00174cc0), frees the three group/index/vertex buffers if
@@ -137,6 +147,85 @@ void rasterizer_transparent_geometry_stop(void)
   FUN_00158ae0(0);
 }
 
+/* group_sorted_indices_cmpfn (0x184750): qsort comparator over int16 group
+ * indices into the 0xa0-byte transparent geometry group table at 0x4d0cec.
+ * cdecl (two stack pointers, plain RET), int result in EAX.
+ * Order: a group whose shader (+0x0c) passes shader_is_water_decal sorts
+ * first (-1), then the second group's (+1); then a shader whose type word
+ * (+0x24) is 7; then the group flag bit 0x80 of the first dword (a set group
+ * sorts after a clear one); then the float at +0x70 descending-first (+1
+ * when the first is greater, -1 when less); then the int at +0x08 (+1 when
+ * greater, -1 when less).  The byte at +0x9d overrides every comparison:
+ * a set byte on only one side sorts that side after the other. */
+int group_sorted_indices_cmpfn(const void *a, const void *b)
+{
+  const int16_t *group_index1;
+  const int16_t *group_index2;
+  char *group1;
+  char *group2;
+  int result;
+  int flag1;
+  char last1;
+  char last2;
+
+  group_index1 = (const int16_t *)a;
+  group_index2 = (const int16_t *)b;
+  result = 0;
+  if (group_index1 == NULL || *group_index1 < 0 ||
+      *group_index1 >= *(int *)0x4d0cf4) {
+    display_assert("group_index1 && (*group_index1)>=0 && "
+                   "(*group_index1)<transparent_geometry_group_count",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_transparent_"
+                   "geometry.c",
+                   0x1aa, 1);
+    system_exit(-1);
+  }
+  if (group_index2 == NULL || *group_index2 < 0 ||
+      *group_index2 >= *(int *)0x4d0cf4) {
+    display_assert("group_index2 && (*group_index2)>=0 && "
+                   "(*group_index2)<transparent_geometry_group_count",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_transparent_"
+                   "geometry.c",
+                   0x1ab, 1);
+    system_exit(-1);
+  }
+  group1 = *(char **)0x4d0cec + *group_index1 * 0xa0;
+  group2 = *(char **)0x4d0cec + *group_index2 * 0xa0;
+  if (shader_is_water_decal(*(void **)(group1 + 0xc))) {
+    result = -1;
+  } else if (shader_is_water_decal(*(void **)(group2 + 0xc))) {
+    result = 1;
+  } else if (*(char **)(group1 + 0xc) != NULL &&
+             *(int16_t *)(*(char **)(group1 + 0xc) + 0x24) == 7) {
+    result = -1;
+  } else if (*(char **)(group2 + 0xc) != NULL &&
+             *(int16_t *)(*(char **)(group2 + 0xc) + 0x24) == 7) {
+    result = 1;
+  } else {
+    flag1 = *(int *)group1 & 0x80;
+    if (flag1 != 0 && !(*(signed char *)group2 < 0)) {
+      result = 1;
+    } else if (flag1 == 0 && *(signed char *)group2 < 0) {
+      result = -1;
+    } else if (*(float *)(group1 + 0x70) > *(float *)(group2 + 0x70)) {
+      result = 1;
+    } else if (*(float *)(group1 + 0x70) < *(float *)(group2 + 0x70)) {
+      result = -1;
+    } else if (*(int *)(group1 + 0x8) > *(int *)(group2 + 0x8)) {
+      result = 1;
+    } else if (*(int *)(group1 + 0x8) < *(int *)(group2 + 0x8)) {
+      result = -1;
+    }
+  }
+  last1 = *(group1 + 0x9d);
+  last2 = *(group2 + 0x9d);
+  if (last1 != 0 && last2 == 0)
+    return 1;
+  if (last1 == 0 && last2 != 0)
+    return -1;
+  return result;
+}
+
 /* rasterizer_sort_internal (0x1848d0): builds the presorted index list for
  * the transparent geometry groups, sorts it, then writes each group's sorted
  * position back into its record.
@@ -145,8 +234,7 @@ void rasterizer_transparent_geometry_stop(void)
  *             single EAX load at 0x1848d0; the second loop reloads it)
  *   0x4d0cfc  int16 index array (qsort element size 2)
  * The null-group assert (line 0x192) is display_assert + system_exit(-1).
- * The comparator 0x184750 is still unported; its kb decl is a void(void)
- * placeholder, so it is cast to the qsort comparator type here.
+ * The comparator is group_sorted_indices_cmpfn (0x184750).
  * The second loop stores the loop counter (MOVSX EAX,DX before the store) as
  * an int at record +0x90; the record's element index comes from the sorted
  * int16 array (MOVSX ECX,word ptr [EBX+EAX*2]). */
@@ -172,8 +260,7 @@ void rasterizer_sort_internal(void)
       index++;
     } while (index < count);
   }
-  qsort(*(void **)0x4d0cfc, (size_t)count, 2,
-        (qsort_compar_proc)group_sorted_indices_cmpfn);
+  qsort(*(void **)0x4d0cfc, (size_t)count, 2, group_sorted_indices_cmpfn);
   count = *(int *)0x4d0cf4;
   index = 0;
   if (count > 0) {
@@ -355,7 +442,7 @@ void render_frame_pregame(pregame_render_info_t *pregame_info,
   float elapsed[2];
   float progress;
 
-  ++render;
+  ++render.frame_index;
   rasterizer_frame_begin(elapsed);
   rasterizer_windows_begin();
   profile_render_window_start(0);
@@ -442,6 +529,133 @@ void *rendered_cluster_get(int rendered_cluster_index)
     system_exit(-1);
   }
   return (char *)0x5067cc + index * 0x1a0;
+}
+
+/* render_scene (0x184ea0): render one scene pass for a window.
+ * player_index arrives in EBX (@<ebx>) and is pushed on to
+ * player_effect_get_screen_flash (0x184f50) and render_ui_widgets
+ * (0x185242). Stack args: [EBP+8] render_cam, [EBP+0xc] render_frustum,
+ * [EBP+0x10] rasterizer_cam, [EBP+0x14] rasterizer_frustum, [EBP+0x18]
+ * pass_type (word), [EBP+0x1c] reflected (byte).
+ *
+ * Local window-parameter block is 0x258 bytes at [EBP-0x258] (csmemset size):
+ *   +0x000 word  pass_type
+ *   +0x002 word  copy of *(int16_t *)0x50654a (window index, set by
+ *                render_frame)
+ *   +0x004 byte  reflected
+ *   +0x008 0x54  rasterizer camera copy (REP MOVSD ECX=0x15)
+ *   +0x05c 0x18c rasterizer frustum copy (REP MOVSD ECX=0x63)
+ *   +0x1e8 0x50  copy of 0x506730 (fog block written by render_window;
+ *                REP MOVSD ECX=0x14 into [EBP-0x70])
+ *   +0x238       screen flash, filled by player_effect_get_screen_flash
+ *                ([EBP-0x20]); read back as 0x5a5bc0+0x238 = 0x5a5df8 by
+ *                FUN_00171bc0 after rasterizer_window_begin copies the block.
+ * The render camera/frustum go to 0x506550 (0x54) and 0x5065a4 (0x18c).
+ *
+ * The five rendered-cluster loops inline rendered_cluster_get (same assert
+ * string, render.c line 0x250) and push the element's first word
+ * zero-extended (XOR reg,reg; MOV reg16,[elem]). The whole scene body is
+ * skipped while bink_playback_has_video() is true (TEST AL,AL; JNZ). */
+void render_scene(int16_t player_index, void *render_cam, void *render_frustum,
+                  void *rasterizer_cam, void *rasterizer_frustum,
+                  int16_t pass_type, char reflected)
+{
+  window_parameters_t window_params;
+  int16_t i;
+
+  profile_render_window_start(1);
+  *(int *)0x506544 = *(int *)0x506544 + 1;
+  csmemset(&window_params, 0, sizeof(window_parameters_t));
+  *(int16_t *)0x506548 = player_index;
+  qmemcpy(&unknown_global_camera, render_cam, sizeof(camera_t));
+  qmemcpy(global_frustum, render_frustum, 0x18c);
+  qmemcpy(&window_params.camera, rasterizer_cam, sizeof(camera_t));
+  qmemcpy(window_params.frustum, rasterizer_frustum, 0x18c);
+  window_params.unk_0[0] = pass_type;
+  *((char *)&window_params + 4) = reflected;
+  window_params.unk_0[1] = *(int16_t *)0x50654a;
+  qmemcpy((char *)&window_params + 0x1e8, (void *)0x506730, 0x50);
+  render_structure_visibility();
+  player_effect_get_screen_flash(player_index,
+                                 (char *)&window_params + 0x238);
+  rasterizer_window_begin(&window_params);
+
+  if (!bink_playback_has_video()) {
+    scenario_fog_region_get_fog_index();
+    render_sky();
+    first_person_weapon_render_update();
+    lights_preprocess_scene();
+    scenario_test_pvs();
+    FUN_001959f0();
+    FUN_00195b10();
+    FUN_00181a90();
+    scenario_test_pas();
+    lights_render_diffuse();
+
+    FUN_0017cb20(2);
+    for (i = 0; i < *(int16_t *)0x5137cc; i++) {
+      FUN_0017cb30(*(uint16_t *)rendered_cluster_get(i));
+    }
+    FUN_0017cb40();
+
+    FUN_0017cb20(3);
+    for (i = 0; i < *(int16_t *)0x5137cc; i++) {
+      FUN_0017cb30(*(uint16_t *)rendered_cluster_get(i));
+    }
+    FUN_0017cb40();
+
+    FUN_00195bc0();
+
+    FUN_0017cb20(0);
+    for (i = 0; i < *(int16_t *)0x5137cc; i++) {
+      FUN_0017cb30(*(uint16_t *)rendered_cluster_get(i));
+    }
+    FUN_0017cb40();
+
+    FUN_0017cb20(1);
+    for (i = 0; i < *(int16_t *)0x5137cc; i++) {
+      FUN_0017cb30(*(uint16_t *)rendered_cluster_get(i));
+    }
+    FUN_0017cb40();
+
+    lights_render_specular();
+    FUN_00195c40();
+    FUN_00195cb0();
+    FUN_00195d00();
+    FUN_00195d40();
+    FUN_00195dc0();
+    FUN_00195e40();
+    get_postgame_hilite_colors();
+    FUN_000a54b0();
+    FUN_0018c5b0();
+    particle_systems_render();
+    render_contrails_normal();
+    FUN_00184980(1);
+
+    FUN_0017cb20(4);
+    for (i = 0; i < *(int16_t *)0x5137cc; i++) {
+      FUN_0017cb30(*(uint16_t *)rendered_cluster_get(i));
+    }
+    FUN_0017cb40();
+
+    FUN_00193c00();
+    FUN_00184980(0);
+    rasterizer_transparent_geometry_stop();
+    FUN_00195ec0();
+    FUN_00181c20();
+    interface_draw_screen();
+    rasterizer_screen_flash();
+    render_ui_widgets(player_index,
+                      &((camera_t *)rasterizer_cam)->viewport_bounds);
+  }
+
+  bink_playback_render();
+  render_camera_debug_frustum(&unknown_global_camera, global_frustum);
+  FUN_0018ac50();
+  FUN_000977e0();
+  FUN_0017e190();
+  rasterizer_window_end();
+  profile_render_window_end();
 }
 
 /* Render a single game window. win is the window struct (passed via ESI in the

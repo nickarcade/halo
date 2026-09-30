@@ -92,7 +92,7 @@ extern NTSTATUS __stdcall NtWriteFile(HANDLE FileHandle, HANDLE Event,
 extern NTSTATUS __stdcall NtQueryDirectoryFile(
   HANDLE FileHandle, HANDLE Event, void *ApcRoutine, void *ApcContext,
   XAPI_IO_STATUS_BLOCK *IoStatusBlock, void *FileInformation, ULONG Length,
-  ULONG FileInformationClass, ULONG ReturnSingleEntry, ULONG RestartScan);
+  ULONG FileInformationClass, void *FileName, ULONG RestartScan);
 
 extern NTSTATUS __stdcall NtSetInformationFile(
   HANDLE FileHandle, XAPI_IO_STATUS_BLOCK *IoStatusBlock, void *FileInformation,
@@ -724,8 +724,8 @@ __attribute__((naked)) void _chkstk(void)
 #endif
 #endif /* !MSVC */
 
-/* LIBCMT:qsort.obj, 0x1d9260. _shortsort receives hi in EAX; its remaining
- * arguments use cdecl stack slots (verified at 0x1d92ba-0x1d92c4). */
+/* LIBCMT:qsort.obj. qsort_swap is the CRT's static swap helper, inlined into
+ * both _shortsort and qsort. */
 #if defined(_MSC_VER) && !defined(__clang__)
 #pragma optimize("ty", on)
 #endif
@@ -743,6 +743,28 @@ static __forceinline void __cdecl qsort_swap(char *left, char *right,
   }
 }
 
+/* LIBCMT:qsort.obj, 0x1d91f0. CRT shortsort: selection sort for <= 8
+ * elements. hi arrives in EAX (MOV EDI,EAX at 0x1d91fa); lo, width and comp
+ * are cdecl stack slots [ESP+4]/[ESP+8]/[ESP+0xc]. comp is called as
+ * comp(p, max) (PUSH EBX=max; PUSH ESI=p at 0x1d9210). */
+void _shortsort(void *hi, void *lo, size_t size, qsort_compar_proc compar)
+{
+  char *p;
+  char *max;
+
+  while ((char *)hi > (char *)lo) {
+    max = (char *)lo;
+    for (p = (char *)lo + size; p <= (char *)hi; p += size) {
+      if (compar(p, max) > 0)
+        max = p;
+    }
+    qsort_swap(max, (char *)hi, size);
+    hi = (char *)hi - size;
+  }
+}
+
+/* LIBCMT:qsort.obj, 0x1d9260. _shortsort receives hi in EAX; its remaining
+ * arguments use cdecl stack slots (verified at 0x1d92ba-0x1d92c4). */
 void __cdecl qsort(void *base, size_t nmemb, size_t width,
                    qsort_compar_proc compar)
 {
@@ -1221,7 +1243,7 @@ int __stdcall FUN_001d7b37(void *handle, void *buf)
   rec = (unsigned char *)buf;
   restart_scan = 1;
   do {
-    status = NtQueryDirectoryFile(handle, 0, 0, 0, &iosb, buf, 0x146, 1, 1,
+    status = NtQueryDirectoryFile(handle, 0, 0, 0, &iosb, buf, 0x146, 1, 0,
                                   restart_scan);
     restart_scan = 0;
     if (status < 0)

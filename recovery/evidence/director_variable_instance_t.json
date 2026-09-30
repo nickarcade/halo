@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "struct": "director_variable_instance_t",
+  "size": {
+    "value": "0xc",
+    "evidence": "0x867ca velocity float +4; 0x86838 delta float +8; 0x86847 value float +0; 0x86877 stride 0xc"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 4,
+      "name": "value",
+      "confidence": "typed",
+      "evidence": "0x867ca velocity float +4; 0x86838 delta float +8; 0x86847 value float +0; 0x86877 stride 0xc",
+      "kind": "float"
+    },
+    {
+      "offset": "0x4",
+      "width": 4,
+      "name": "velocity",
+      "confidence": "typed",
+      "evidence": "0x867ca velocity float +4; 0x86838 delta float +8; 0x86847 value float +0; 0x86877 stride 0xc",
+      "kind": "float"
+    },
+    {
+      "offset": "0x8",
+      "width": 4,
+      "name": "delta",
+      "confidence": "typed",
+      "evidence": "0x867ca velocity float +4; 0x86838 delta float +8; 0x86847 value float +0; 0x86877 stride 0xc",
+      "kind": "float"
+    }
+  ]
+}

@@ -107,542 +107,6 @@ enum unit_control_flags {
 #define NUMBER_OF_UNIT_STATES 44
 #define NUMBER_OF_VOCALIZATION_TYPES 209
 
-char *csstrcat(char *destination, const char *source)
-{
-  const char *source_cursor;
-  char *destination_cursor;
-  unsigned int source_size;
-  char c;
-
-  if (destination == NULL || source == NULL) {
-    display_assert("s1 && s2", "c:\\halo\\SOURCE\\cseries\\cseries.c", 0x122,
-                   true);
-    system_exit(-1);
-  }
-
-  source_cursor = source;
-  do {
-    c = *source_cursor++;
-  } while (c != '\0');
-  source_size = (unsigned int)(source_cursor - source);
-
-  destination_cursor = destination - 1;
-  do {
-    destination_cursor += 1;
-  } while (*destination_cursor != '\0');
-
-  memcpy(destination_cursor, source, source_size);
-
-  return destination;
-}
-
-/* -----------------------------------------------------------------------
- * overlay_animation_apply_continuous_scaled — animation 1D overlay frame apply
- *
- * For animation type 1 (overlay), interpolates rotation, translation, and
- * scale between the current frame and next frame for each node.  The result
- * is blended into the node output buffer using blend_weight.
- *
- * Disassembly range: 0x122a50 – 0x122e43.
- * Source: c:\halo\SOURCE\models\model_animations.c
- * ----------------------------------------------------------------------- */
-void overlay_animation_apply_continuous_scaled(int animation, float frame_pos, float blend_weight,
-                  int node_output)
-{
-  short *data;
-  short *next_data;
-  unsigned short frame_count_u;
-  int compressed;
-  short *data_cursor;
-  short *next_cursor;
-  int frame_index;
-  int next_frame_index;
-  int node_output_ptr;
-  float weight_complement;
-  float frac;
-  float floor_val;
-  int frame_idx_int;
-  int rotation_counter;
-  int translation_counter;
-  int scale_counter;
-  unsigned int node_idx;
-  unsigned int has_translation;
-  unsigned int has_rotation;
-  unsigned int has_scale;
-  float rot_a[4];
-  float rot_b[4];
-  float interp_rot[4];
-  float interp_trans[3];
-  float interp_scale;
-  int temp_scale_a;
-  int temp_scale_b;
-
-  weight_complement = *(float *)0x2533c8 - blend_weight;
-#if defined(_MSC_VER) && !defined(__clang__)
-  frac = (float)fmod((double)frame_pos, *(const double *)0x2573d8);
-#else
-  frac = (float)x87_fmod(frame_pos, *(const double *)0x2573d8);
-#endif
-  floor_val = (float)floor((double)frame_pos);
-  frame_idx_int = x87_round_to_int(floor_val);
-
-  if (frame_pos < *(float *)0x2533c0 ||
-      (float)*(short *)(animation + 0x22) < frame_pos) {
-    error(
-      2,
-      "### ERROR animation frame index out of bounds B(%f,%x) -- tell Bernie!!",
-      (double)frame_pos, *(int *)&frame_pos);
-  }
-
-  frame_count_u = *(unsigned short *)(animation + 0x22);
-  if ((short)frame_idx_int >= (short)frame_count_u) {
-    frame_idx_int = (int)(unsigned short)(frame_count_u - 1);
-    frac = 1.0f;
-    frame_pos = (float)(int)(short)frame_idx_int;
-  }
-
-  if (*(short *)(animation + 0x20) == 1) {
-    if ((*(unsigned char *)(animation + 0x3a) & 1) == 0 ||
-        (*(char *)0x322600 == '\0' && *(int *)(animation + 0x88) != 0)) {
-      compressed = 0;
-    } else {
-      compressed = 1;
-    }
-
-    frame_index = (int)(short)frame_idx_int;
-    if (frame_index == (int)(short)frame_count_u - 1) {
-      next_frame_index = 0;
-    } else {
-      next_frame_index = frame_index + 1;
-    }
-
-    data = (short *)FUN_00120500((void *)animation, (short)frame_idx_int);
-    next_data =
-      (short *)FUN_00120500((void *)animation, (short)next_frame_index);
-
-    rotation_counter = 0;
-    translation_counter = 0;
-    scale_counter = 0;
-    node_idx = 0;
-    if (0 < *(short *)(animation + 0x2c)) {
-      do {
-        node_output_ptr = (short)node_idx * 0x20 + node_output;
-        if ((node_idx & 0x1f) == 0) {
-          int bit_idx = (int)(short)((short)node_idx >> 5);
-          has_translation = *(unsigned int *)(animation + 0x5c + bit_idx * 4);
-          has_rotation = *(unsigned int *)(animation + 0x6c + bit_idx * 4);
-          has_scale = *(unsigned int *)(animation + 0x7c + bit_idx * 4);
-        }
-
-        data_cursor = data;
-        next_cursor = next_data;
-
-        if ((has_rotation & 1) != 0) {
-          if (compressed) {
-            FUN_00121330((void *)animation, (float)frame_index,
-                         (unsigned short)rotation_counter, (short)node_idx,
-                         interp_rot);
-            rotation_counter = rotation_counter + 1;
-          } else {
-            rot_a[0] = (float)data[0] * *(float *)0x290dd8;
-            rot_a[1] = (float)data[1] * *(float *)0x290dd8;
-            rot_a[2] = (float)data[2] * *(float *)0x290dd8;
-            rot_a[3] = (float)data[3] * *(float *)0x290dd8;
-            data += 4;
-            rot_b[0] = (float)next_data[0] * *(float *)0x290dd8;
-            rot_b[1] = (float)next_data[1] * *(float *)0x290dd8;
-            rot_b[2] = (float)next_data[2] * *(float *)0x290dd8;
-            rot_b[3] = (float)next_data[3] * *(float *)0x290dd8;
-            next_data += 4;
-            quaternions_interpolate_and_normalize(rot_a, rot_b, frac,
-                                                  interp_rot);
-          }
-          quaternions_interpolate_and_normalize(*(float **)0x31fc5c, interp_rot,
-                                                blend_weight, interp_rot);
-          FUN_0010b9c0(interp_rot, (float *)node_output_ptr,
-                       (float *)node_output_ptr);
-          data_cursor = data;
-        }
-        has_rotation = has_rotation >> 1;
-        next_cursor = next_data;
-        data = data_cursor;
-
-        if ((has_translation & 1) != 0) {
-          if (compressed) {
-            animation_get_node_orientations((void *)animation, frame_pos,
-                                            (unsigned short)translation_counter,
-                                            (short)node_idx, interp_trans);
-            translation_counter = translation_counter + 1;
-          } else {
-            points_interpolate((float *)data_cursor, (float *)next_cursor, frac,
-                               interp_trans);
-            data = data_cursor + 6;
-            next_data = next_cursor + 6;
-          }
-          *(float *)(node_output_ptr + 0x10) =
-            interp_trans[0] * blend_weight + *(float *)(node_output_ptr + 0x10);
-          *(float *)(node_output_ptr + 0x14) =
-            interp_trans[1] * blend_weight + *(float *)(node_output_ptr + 0x14);
-          *(float *)(node_output_ptr + 0x18) =
-            interp_trans[2] * blend_weight + *(float *)(node_output_ptr + 0x18);
-        }
-        has_translation = has_translation >> 1;
-
-        if ((has_scale & 1) != 0) {
-          if (compressed) {
-            animation_get_keyframe_scale(
-              (void *)animation, frame_pos, (unsigned short)scale_counter,
-              (short)node_idx, &interp_scale);
-            scale_counter = scale_counter + 1;
-          } else {
-            temp_scale_a = *(int *)data;
-            temp_scale_b = *(int *)next_data;
-            data = data + 2;
-            next_data = next_data + 2;
-            scalars_interpolate(*(float *)&temp_scale_a,
-                                *(float *)&temp_scale_b, frac, &interp_scale);
-          }
-          *(float *)(node_output_ptr + 0x1c) =
-            (interp_scale * blend_weight + weight_complement) *
-            *(float *)(node_output_ptr + 0x1c);
-        }
-        has_scale = has_scale >> 1;
-        node_idx = node_idx + 1;
-      } while ((short)node_idx < *(short *)(animation + 0x2c));
-    }
-
-    if (!compressed) {
-      int check_base;
-      check_base = (int)FUN_00120500((void *)animation, (short)frame_idx_int);
-      if ((int)data - check_base != (int)*(short *)(animation + 0x24)) {
-        display_assert(
-          "compressed || ((byte *)data-(byte *)animation_get_frame_data"
-          "(animation, frame_index)==animation->frame_size)",
-          "c:\\halo\\SOURCE\\models\\model_animations.c", 0x334, 1);
-        system_exit(-1);
-      }
-      check_base =
-        (int)FUN_00120500((void *)animation, (short)next_frame_index);
-      if ((int)next_data - check_base != (int)*(short *)(animation + 0x24)) {
-        display_assert("compressed || ((byte *)next_data-(byte *)"
-                       "animation_get_frame_data(animation, next_frame_index)"
-                       "==animation->frame_size)",
-                       "c:\\halo\\SOURCE\\models\\model_animations.c", 0x335,
-                       1);
-        system_exit(-1);
-      }
-    }
-  }
-}
-
-/* -----------------------------------------------------------------------
- * aiming_screen_apply — animation 2D blend
- *
- * Performs 2D bilinear interpolation of 4 corner animation frames,
- * blending rotation (quaternion slerp) and translation for each node
- * based on direction and throttle parameters.
- *
- * Disassembly range: 0x122e50 – 0x123462.
- * Source: c:\halo\SOURCE\models\model_animations.c
- * ----------------------------------------------------------------------- */
-void aiming_screen_apply(int animation, float *blend_params, float direction,
-                  float throttle, int node_output)
-{
-  int direction_count;
-  int throttle_count;
-  int throttle_count_s;
-  short dir_count_s;
-  char is_compressed;
-  float yaw_range;
-  float ratio;
-  int dir_frame;
-  float dir_frac;
-  unsigned short neg_dir_offset;
-  unsigned short neg_thr_offset;
-  int thr_frame;
-  float thr_frac;
-  short thr_s;
-  short dir_s;
-  int frame_00;
-  int frame_10;
-  int frame_01;
-  int frame_11;
-  short *data_00;
-  short *data_10;
-  short *data_01;
-  short *data_11;
-  int rotation_counter;
-  unsigned int node_idx;
-  int node_out_ptr;
-  unsigned int has_translation;
-  unsigned int has_rotation;
-  int translation_counter;
-  volatile float dir_complement;
-  volatile float thr_complement;
-  float rot_00[4];
-  float rot_10[4];
-  float rot_01[4];
-  float rot_11[4];
-  float blend_a[4];
-  float blend_b[4];
-  float final_rot[4];
-  float trans_00[3];
-  float trans_10[3];
-  float trans_01[3];
-  float trans_11[3];
-  int temp_int;
-
-  direction_count = (unsigned short)(*(short *)(blend_params + 2) +
-                                     *(short *)((int)blend_params + 10)) +
-                    1;
-  throttle_count = (unsigned short)(*(short *)(blend_params + 5) +
-                                    *(short *)((int)blend_params + 0x16)) +
-                   1;
-
-  if (*(short *)(animation + 0x20) != 1) {
-    return;
-  }
-
-  throttle_count_s = (int)(short)throttle_count;
-  dir_count_s = (short)direction_count;
-  if (dir_count_s * throttle_count_s > (int)*(short *)(animation + 0x22)) {
-    return;
-  }
-
-  is_compressed = FUN_00120620(animation);
-
-  /* Direction axis */
-  if (direction >= *(float *)0x2533c0) {
-    yaw_range = blend_params[1];
-  } else {
-    yaw_range = blend_params[0];
-  }
-  if (yaw_range == *(float *)0x2533c0) {
-    ratio = 0.0f;
-  } else {
-    ratio = direction / yaw_range;
-  }
-
-  dir_frame = (int)ratio;
-  /* 0x122ed8: ratio is narrowed before fmod and frame conversion. */
-  HALO_FLT_ROUNDTRIP(ratio);
-  dir_frac = (float)x87_fmod(ratio, 1.0);
-  /* 0x122ef5 stores before the negative check; later uses reload float32. */
-  HALO_FLT_ROUNDTRIP(dir_frac);
-  if (dir_frac < *(float *)0x2533c0) {
-    dir_frame = dir_frame - 1;
-    dir_frac = dir_frac + *(float *)0x2533c8;
-  }
-
-  neg_dir_offset = *(unsigned short *)((int)blend_params + 10);
-  if ((short)dir_frame >= (short)neg_dir_offset) {
-    dir_frame = (int)(unsigned short)(neg_dir_offset - 1);
-    dir_frac = 1.0f;
-  }
-
-  neg_dir_offset = *(unsigned short *)(blend_params + 2);
-  if ((int)(short)dir_frame < -(int)(short)neg_dir_offset) {
-    dir_frame = -(int)(unsigned int)neg_dir_offset;
-    dir_frac = 0.0f;
-  }
-  dir_frame = dir_frame + (unsigned int)neg_dir_offset;
-
-  if (dir_frac < *(float *)0x2533c0 ||
-      !(dir_frac < *(float *)0x2533c8 || dir_frac == *(float *)0x2533c8)) {
-    csprintf((char *)0x5ab100, "d0==%f direction(%f) yaw_delta(%f,%f)",
-             (double)dir_frac, (double)direction, (double)blend_params[0],
-             (double)blend_params[1]);
-    display_assert((char *)0x5ab100,
-                   "c:\\halo\\SOURCE\\models\\model_animations.c", 0x365, 1);
-    system_exit(-1);
-  }
-
-  /* Throttle axis */
-  if (throttle >= *(float *)0x2533c0) {
-    yaw_range = blend_params[4];
-  } else {
-    yaw_range = blend_params[3];
-  }
-  if (yaw_range == *(float *)0x2533c0) {
-    ratio = 0.0f;
-  } else {
-    ratio = throttle / yaw_range;
-  }
-
-  thr_frame = (int)ratio;
-  /* 0x122ff0: ratio is narrowed before fmod and frame conversion. */
-  HALO_FLT_ROUNDTRIP(ratio);
-  thr_frac = (float)x87_fmod(ratio, 1.0);
-  /* 0x12300e stores before the negative check; later uses reload float32. */
-  HALO_FLT_ROUNDTRIP(thr_frac);
-  if (thr_frac < *(float *)0x2533c0) {
-    thr_frame = thr_frame - 1;
-    thr_frac = thr_frac + *(float *)0x2533c8;
-  }
-
-  neg_thr_offset = *(unsigned short *)((int)blend_params + 0x16);
-  if ((short)thr_frame >= (short)neg_thr_offset) {
-    thr_frame = (int)(unsigned short)(neg_thr_offset - 1);
-    thr_frac = 1.0f;
-  }
-
-  neg_thr_offset = *(unsigned short *)(blend_params + 5);
-  if ((int)(short)thr_frame < -(int)(short)neg_thr_offset) {
-    thr_frame = -(int)(unsigned int)neg_thr_offset;
-    thr_frac = 0.0f;
-  }
-  thr_frame = thr_frame + (unsigned int)neg_thr_offset;
-
-  thr_s = (short)thr_frame;
-  dir_s = (short)dir_frame;
-
-  if (thr_s < 0 || thr_s >= (short)throttle_count || dir_s < 0 ||
-      dir_s >= dir_count_s) {
-    return;
-  }
-
-  {
-    int next_dir;
-    int next_thr;
-    next_dir = (int)(short)dir_s + 1;
-    if (next_dir == (int)(short)dir_count_s) {
-      next_dir = (int)(short)dir_s;
-    }
-    next_thr = (int)(short)thr_s + 1;
-    if (next_thr == throttle_count_s) {
-      next_thr = (int)(short)thr_s;
-    }
-
-    frame_00 = thr_frame * direction_count + dir_frame;
-    frame_10 = thr_frame * direction_count + next_dir;
-    frame_01 = dir_frame + next_thr * direction_count;
-    frame_11 = next_thr * direction_count + next_dir;
-
-    data_00 = (short *)FUN_00120500((void *)animation, (short)frame_00);
-    data_10 = (short *)FUN_00120500((void *)animation, (short)frame_10);
-    data_01 = (short *)FUN_00120500((void *)animation, (short)frame_01);
-    data_11 = (short *)FUN_00120500((void *)animation, (short)frame_11);
-
-    translation_counter = 0;
-    node_idx = 0;
-    rotation_counter = 0;
-
-    if (0 >= *(short *)(animation + 0x2c)) {
-      return;
-    }
-
-    do {
-      node_out_ptr = (short)node_idx * 0x20 + node_output;
-      if ((node_idx & 0x1f) == 0) {
-        int bit_idx = (int)(short)((short)node_idx >> 5);
-        has_translation = *(unsigned int *)(animation + 0x5c + bit_idx * 4);
-        has_rotation = *(unsigned int *)(animation + 0x6c + bit_idx * 4);
-      }
-
-      if ((has_rotation & 1) != 0) {
-        if (is_compressed != '\0') {
-          temp_int = (int)(short)frame_00;
-          FUN_00121330((void *)animation, (float)temp_int,
-                       (unsigned short)rotation_counter, (short)node_idx,
-                       rot_00);
-          temp_int = (int)(short)frame_10;
-          FUN_00121330((void *)animation, (float)temp_int,
-                       (unsigned short)rotation_counter, (short)node_idx,
-                       rot_10);
-          temp_int = (int)(short)frame_01;
-          FUN_00121330((void *)animation, (float)temp_int,
-                       (unsigned short)rotation_counter, (short)node_idx,
-                       rot_01);
-          temp_int = (int)(short)frame_11;
-          FUN_00121330((void *)animation, (float)temp_int,
-                       (unsigned short)rotation_counter, (short)node_idx,
-                       rot_11);
-          rotation_counter = rotation_counter + 1;
-        } else {
-          quaternion_decompress_8byte(data_00, rot_00);
-          data_00 = data_00 + 4;
-          quaternion_decompress_8byte(data_10, rot_10);
-          data_10 = data_10 + 4;
-          quaternion_decompress_8byte(data_01, rot_01);
-          data_01 = data_01 + 4;
-          quaternion_decompress_8byte(data_11, rot_11);
-          data_11 = data_11 + 4;
-        }
-        quaternions_interpolate_and_normalize(rot_00, rot_10, dir_frac,
-                                              blend_a);
-        quaternions_interpolate_and_normalize(rot_01, rot_11, dir_frac,
-                                              blend_b);
-        quaternions_interpolate_and_normalize(blend_a, blend_b, thr_frac,
-                                              final_rot);
-        FUN_0010b9c0(final_rot, (float *)node_out_ptr, (float *)node_out_ptr);
-      }
-      has_rotation = has_rotation >> 1;
-
-      if ((has_translation & 1) != 0) {
-        dir_complement = *(float *)0x2533c8 - dir_frac;
-        /* 0x1232d0: blend weight is reloaded after a float32 store. */
-        thr_complement = *(float *)0x2533c8 - thr_frac;
-        /* 0x1232dc: blend weight is reloaded after a float32 store. */
-
-        if (is_compressed != '\0') {
-          temp_int = (int)(short)frame_00;
-          animation_get_node_orientations((void *)animation, (float)temp_int,
-                                          (unsigned short)translation_counter,
-                                          (short)node_idx, trans_00);
-          temp_int = (int)(short)frame_10;
-          animation_get_node_orientations((void *)animation, (float)temp_int,
-                                          (unsigned short)translation_counter,
-                                          (short)node_idx, trans_10);
-          temp_int = (int)(short)frame_01;
-          animation_get_node_orientations((void *)animation, (float)temp_int,
-                                          (unsigned short)translation_counter,
-                                          (short)node_idx, trans_01);
-          temp_int = (int)(short)frame_11;
-          animation_get_node_orientations((void *)animation, (float)temp_int,
-                                          (unsigned short)translation_counter,
-                                          (short)node_idx, trans_11);
-          translation_counter = translation_counter + 1;
-        } else {
-          trans_00[0] = *(float *)data_00;
-          trans_00[1] = *((float *)data_00 + 1);
-          trans_00[2] = *((float *)data_00 + 2);
-          data_00 = data_00 + 6;
-          trans_10[0] = *(float *)data_10;
-          trans_10[1] = *((float *)data_10 + 1);
-          trans_10[2] = *((float *)data_10 + 2);
-          data_10 = data_10 + 6;
-          trans_01[0] = *(float *)data_01;
-          trans_01[1] = *((float *)data_01 + 1);
-          trans_01[2] = *((float *)data_01 + 2);
-          data_01 = data_01 + 6;
-          trans_11[0] = *(float *)data_11;
-          trans_11[1] = *((float *)data_11 + 1);
-          trans_11[2] = *((float *)data_11 + 2);
-          data_11 = data_11 + 6;
-        }
-
-        *(float *)(node_out_ptr + 0x10) =
-          (trans_10[0] * dir_frac + trans_00[0] * dir_complement) *
-            thr_complement +
-          (trans_11[0] * dir_frac + trans_01[0] * dir_complement) * thr_frac +
-          *(float *)(node_out_ptr + 0x10);
-        *(float *)(node_out_ptr + 0x14) =
-          (trans_10[1] * dir_frac + trans_00[1] * dir_complement) *
-            thr_complement +
-          (trans_11[1] * dir_frac + trans_01[1] * dir_complement) * thr_frac +
-          *(float *)(node_out_ptr + 0x14);
-        *(float *)(node_out_ptr + 0x18) =
-          (trans_10[2] * dir_frac + trans_00[2] * dir_complement) *
-            thr_complement +
-          (trans_11[2] * dir_frac + trans_01[2] * dir_complement) * thr_frac +
-          *(float *)(node_out_ptr + 0x18);
-      }
-      has_translation = has_translation >> 1;
-      node_idx = node_idx + 1;
-    } while ((short)node_idx < *(short *)(animation + 0x2c));
-  }
-}
-
 void animation_get_root_matrix(void *mode_tag, void *animation, int animation_index,
                   void *out_matrix)
 {
@@ -651,45 +115,6 @@ void animation_get_root_matrix(void *mode_tag, void *animation, int animation_in
   FUN_00121d60(mode_tag, animation, animation_index, node_data);
   component_vectors_from_normal3d(out_matrix, (float *)(node_data + 0x10),
                                   (float *)node_data);
-}
-
-/* animation_get_root_velocity (0x1234b0) - animation_get_root_delta
- *
- * Computes the delta position between frame param_3 and frame (param_3-1)
- * of an animation. Uses _chkstk for 0x1000 bytes of stack.
- * Two 0x800-byte node data buffers are filled via FUN_00121d60.
- * The translation component (offset 0x10 from each buffer base) is
- * subtracted to produce the frame delta in param_4[0..2].
- *
- * Confirmed: 4 cdecl params, void return. _chkstk 0x1000 frame.
- */
-void animation_get_root_velocity(void *mode_tag, void *animation, int frame_index,
-                  float *out_delta)
-{
-  uint8_t frame_data[0x800];
-  uint8_t prev_frame_data[0x800];
-  int frame;
-
-  if (*(short *)((char *)animation + 0x22) < 2) {
-    display_assert("animation->frame_count>1",
-                   "c:\\halo\\SOURCE\\models\\model_animations.c", 0xdd, true);
-    system_exit(-1);
-  }
-
-  frame = frame_index;
-  if ((short)frame == 0) {
-    frame = 1;
-  }
-
-  FUN_00121d60(mode_tag, animation, frame, frame_data);
-  FUN_00121d60(mode_tag, animation, frame - 1, prev_frame_data);
-
-  out_delta[0] =
-    *(float *)(frame_data + 0x10) - *(float *)(prev_frame_data + 0x10);
-  out_delta[1] =
-    *(float *)(frame_data + 0x14) - *(float *)(prev_frame_data + 0x14);
-  out_delta[2] =
-    *(float *)(frame_data + 0x18) - *(float *)(prev_frame_data + 0x18);
 }
 
 /* -----------------------------------------------------------------------
@@ -965,7 +390,7 @@ void biped_update_dead(int unit_handle, char *state_out)
   /* Normal dying state */
   if (*(uint8_t *)(biped + 0x253) == 0x18) {
     *(int *)(biped + 0x468) = 0;
-    FUN_001a4440(unit_handle);
+    biped_snap_facing(unit_handle);
   }
   *state_out = 0x19;
   biped_verify_object_vectors(unit_handle, "post-dying");
@@ -975,7 +400,7 @@ void biped_update_dead(int unit_handle, char *state_out)
 /* biped_update (0x1a6350)
  * Biped per-tick update dispatcher. Called each tick for biped-type units.
  * If the biped is free (no parent object), runs the full update chain:
- *   - FUN_001a4440: pre-update setup
+ *   - biped_snap_facing (0x1a4440): pre-update setup
  *   - normalize forward vector at +0x1D4, set animation state byte at +0x42a
  *   - clamp/reset velocity at +0x228, melee counters at +0x459/+0x45a
  *   - FUN_001a4c50: turning, FUN_001a5300: moving
@@ -1049,7 +474,7 @@ char biped_update(int unit_handle)
     }
   } else {
     /* Biped is free (not seated) */
-    FUN_001a4440(unit_handle);
+    biped_snap_facing(unit_handle);
 
     if ((*(unsigned char *)((char *)biped + 0xb6) & 0x4) != 0 ||
         (*(unsigned char *)(biped_tag + 0x2f4) & 0x44) == 0) {
@@ -1904,7 +1329,7 @@ void unit_notify_impulse_sound(int unit_handle, int sound_tag, int sound_handle)
  * Confirmed: DAT_006325a4 = actor data pointer.
  */
 char unit_make_damage_sound(int unit_handle, int *param_2, char param_3, char param_4,
-                  float param_5)
+                  float param_5, float param_6)
 {
   char *unit;
   char result;
@@ -2633,7 +2058,39 @@ char unit_scripting_has_weapon_readied(int unit_handle, int weapon_def_tag)
   return 0;
 }
 
-/* unit_set_actively_controlled_flag (0x1a7f80)
+/* units_initialize (0x1a7f00)
+ *
+ * Allocates the 8-byte "unit globals" block from game state and asserts it.
+ * Name from PAL-2342 units.c (T2); reason string "unit_globals", path and
+ * line 0x108 (264) are PUSHed verbatim.  Second argument is NULL, as in PAL. */
+void units_initialize(void)
+{
+  unit_globals = game_state_malloc("unit globals", NULL, 8);
+  assert_halt_at("c:\\halo\\SOURCE\\units\\units.c", 0x108, unit_globals);
+}
+
+/* units_initialize_for_new_map (0x1a7f40)
+ *
+ * Clears the first 4 bytes of unit_globals.  PAL-2342 (T2) writes this as
+ * memset(unit_globals, 0, offsetof(struct unit_globals, used_time)); the
+ * layout is not recovered here, so the size stays the literal 4 from the
+ * PUSH 4 at 0x1a7f45. */
+void units_initialize_for_new_map(void)
+{
+  csmemset(unit_globals, 0, 4);
+}
+
+/* units_dispose_from_old_map (0x1a7f60)
+ *
+ * Confirmed: the body is a single RET (C3); no prologue, no side effects.
+ * Confirmed: only reference is the unit object_type_definition table at
+ *   0x323ca8, slot +0x1c (dispose_from_old_map); name from PAL 2342
+ *   objects/object_types.c unit_data_definition (T2). */
+void units_dispose_from_old_map(void)
+{
+}
+
+/* unit_kill (0x1a7f80)
  *
  * Sets bit 5 (0x20) of the byte at object_data_t+0xb6 (offset 182,
  * the byte just before unk_183) on the resolved unit object.
@@ -2643,7 +2100,7 @@ char unit_scripting_has_weapon_readied(int unit_handle, int weapon_def_tag)
  * Confirmed: CALL 0x13d680 with type_mask=3 (biped|vehicle).
  * Confirmed: OR byte ptr [EAX+0xb6],0x20.
  */
-void unit_set_actively_controlled_flag(int unit_handle)
+void unit_kill(int unit_handle)
 {
   object_data_t *obj;
 
@@ -2651,9 +2108,9 @@ void unit_set_actively_controlled_flag(int unit_handle)
   *(uint8_t *)((char *)obj + 0xb6) |= 0x20;
 }
 
-/* unit_kill (0x1a7fa0)
+/* unit_kill_silent (0x1a7fa0)
  * Marks a unit for killing by setting bit 0x40 on object flags at +0xB6. */
-void unit_kill(int unit_handle)
+void unit_kill_silent(int unit_handle)
 {
   char *obj;
 
@@ -2675,6 +2132,15 @@ void unit_delete(int datum_handle)
 
   obj = (object_data_t *)object_get_and_verify_type(datum_handle, 3);
   obj->unk_183 |= 0x20;
+}
+
+/* FUN_001a7fe0 (0x1a7fe0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the unit object_type_definition table at
+ *   0x323ca8, slot +0x2c (datum delete), called with the object handle. */
+void FUN_001a7fe0(int unit_handle)
+{
 }
 
 /* units_update (0x1a7ff0)
@@ -10001,7 +9467,7 @@ apply_angle:
 /* unit_verify_vectors (0x1af620)
  *
  * Validates 6 directional vectors stored on a unit object:
- *   - unk_468 (offset 0x1D4) — facing vector
+ *   - desired_facing_vector (offset 0x1D4)
  *   - unk_480 (offset 0x1E0) — aiming vector
  *   - unk_516 (offset 0x204) — looking vector
  *   - unk_36/unk_48 (offsets 0x24/0x30) — forward/up from object_data_t
@@ -10085,16 +9551,16 @@ void unit_control_trace(int unit_handle, const char *label)
 
   /* dump object position, forward, up as floats */
   error(2, "  object: pos %f %f %f, fwd %f %f %f, up %f %f %f",
-        (double)unit->object.unk_12.x, (double)unit->object.unk_12.y,
-        (double)unit->object.unk_12.z, (double)unit->object.unk_36.x,
-        (double)unit->object.unk_36.y, (double)unit->object.unk_36.z,
-        (double)unit->object.unk_48.x, (double)unit->object.unk_48.y,
-        (double)unit->object.unk_48.z);
+        (double)unit->object.position.x, (double)unit->object.position.y,
+        (double)unit->object.position.z, (double)unit->object.forward.x,
+        (double)unit->object.forward.y, (double)unit->object.forward.z,
+        (double)unit->object.up.x, (double)unit->object.up.y,
+        (double)unit->object.up.z);
 
   /* dump desired facing, aiming, looking as floats */
   error(
     2, "  desired facing %f %f %f, aiming %f %f %f, looking %f %f %f",
-    (double)unit->unk_468.x, (double)unit->unk_468.y, (double)unit->unk_468.z,
+    (double)unit->desired_facing_vector.x, (double)unit->desired_facing_vector.y, (double)unit->desired_facing_vector.z,
     (double)unit->unk_480.x, (double)unit->unk_480.y, (double)unit->unk_480.z,
     (double)unit->unk_516.x, (double)unit->unk_516.y, (double)unit->unk_516.z);
 
@@ -10115,18 +9581,18 @@ void unit_control_trace(int unit_handle, const char *label)
   /* dump object position, forward, up as hex (raw dword reinterpret) */
   error(
     2, "  object: pos %08X %08X %08X, fwd %08X %08X %08X, up %08X %08X %08X",
-    *(uint32_t *)&unit->object.unk_12.x, *(uint32_t *)&unit->object.unk_12.y,
-    *(uint32_t *)&unit->object.unk_12.z, *(uint32_t *)&unit->object.unk_36.x,
-    *(uint32_t *)&unit->object.unk_36.y, *(uint32_t *)&unit->object.unk_36.z,
-    *(uint32_t *)&unit->object.unk_48.x, *(uint32_t *)&unit->object.unk_48.y,
-    *(uint32_t *)&unit->object.unk_48.z);
+    *(uint32_t *)&unit->object.position.x, *(uint32_t *)&unit->object.position.y,
+    *(uint32_t *)&unit->object.position.z, *(uint32_t *)&unit->object.forward.x,
+    *(uint32_t *)&unit->object.forward.y, *(uint32_t *)&unit->object.forward.z,
+    *(uint32_t *)&unit->object.up.x, *(uint32_t *)&unit->object.up.y,
+    *(uint32_t *)&unit->object.up.z);
 
   /* dump desired facing, aiming, looking as hex */
   error(2,
         "  desired facing %08X %08X %08X, aiming %08X %08X %08X, looking %08X "
         "%08X %08X",
-        *(uint32_t *)&unit->unk_468.x, *(uint32_t *)&unit->unk_468.y,
-        *(uint32_t *)&unit->unk_468.z, *(uint32_t *)&unit->unk_480.x,
+        *(uint32_t *)&unit->desired_facing_vector.x, *(uint32_t *)&unit->desired_facing_vector.y,
+        *(uint32_t *)&unit->desired_facing_vector.z, *(uint32_t *)&unit->unk_480.x,
         *(uint32_t *)&unit->unk_480.y, *(uint32_t *)&unit->unk_480.z,
         *(uint32_t *)&unit->unk_516.x, *(uint32_t *)&unit->unk_516.y,
         *(uint32_t *)&unit->unk_516.z);
@@ -10306,9 +9772,9 @@ void unit_set_control(int unit_handle, void *unit_control)
   }
 
   /* copy throttle vector (control +0x0C -> unit +0x228) */
-  unit->unk_552.x = *(float *)(cd + 0x0c);
-  unit->unk_552.y = *(float *)(cd + 0x10);
-  unit->unk_552.z = *(float *)(cd + 0x14);
+  unit->throttle.x = *(float *)(cd + 0x0c);
+  unit->throttle.y = *(float *)(cd + 0x10);
+  unit->throttle.z = *(float *)(cd + 0x14);
 
   /* copy primary trigger (control +0x18 -> unit +0x234) */
   unit->unk_564 = *(float *)(cd + 0x18);
@@ -10341,9 +9807,9 @@ void unit_set_control(int unit_handle, void *unit_control)
   unit->unk_480.z = *(float *)(cd + 0x30);
 
   /* copy facing vector (control +0x1C -> unit +0x1D4) */
-  unit->unk_468.x = *(float *)(cd + 0x1c);
-  unit->unk_468.y = *(float *)(cd + 0x20);
-  unit->unk_468.z = *(float *)(cd + 0x24);
+  unit->desired_facing_vector.x = *(float *)(cd + 0x1c);
+  unit->desired_facing_vector.y = *(float *)(cd + 0x20);
+  unit->desired_facing_vector.z = *(float *)(cd + 0x24);
 
   /* copy animation state (control +0x00 -> unit +0x256) */
   unit->unk_598 = cd[0];
@@ -13367,7 +12833,7 @@ void unit_scripting_enter_vehicle(int unit_handle, int vehicle_handle,
     while (1) {
       seat_element =
         (int)tag_block_get_element(seats_block, seat_element, 0x11c);
-      stricmp_result = csstricmp(seat_name, (char *)(seat_element + 4));
+      stricmp_result = crt_stricmp(seat_name, (char *)(seat_element + 4));
 
       if (stricmp_result == 0) {
         /* Seat name matches - check availability */
@@ -14520,4 +13986,251 @@ label_flashlight_done:
   }
 
   return 1;
+}
+
+/* unit_damage_aftermath (0x1b4dc0)
+ * Per-unit follow-up after object damage has been applied: delayed-damage
+ * bookkeeping, camouflage drain, feign death, the damage "ping" animation,
+ * kill/damage credit, damage sound, unzoom, AI damage/death notification,
+ * stun accumulation and finally unit_died for lethal or feigned damage.
+ *
+ * Confirmed TU: assert "unit->unit.feign_death_timer > 0" with
+ *   "c:\halo\SOURCE\units\units.c" line 0x1284 (was listed under vehicles.obj).
+ * Confirmed: cdecl, 7 dword stack args, void (bare RET, no EAX setup).
+ *   [EBP+0x14] is printed as "shld" and [EBP+0x18] as "body" by the
+ *   "p%d: body %.2f shld %.2f from %s %s" debug print, so arg 4 is the shield
+ *   damage and arg 5 the body damage. Arg 6 is never read.
+ * Confirmed: [EBP+0xC] is overwritten with jpt!-tag + 0x1c4 (the damage
+ *   block); every later "+0x1c4-relative" read goes through it.
+ * Confirmed: unit_make_damage_sound receives 6 pushes (ADD ESP,0x18):
+ *   body damage then shield damage last.
+ * Unknown: meaning of the unit/damage fields; kept as raw offsets like the
+ *   rest of this TU. */
+void unit_damage_aftermath(int unit_handle, void *damage_data,
+                           unsigned int damage_flags, float shield_damage,
+                           float body_damage, int body_damage_multiplier,
+                           int body_part)
+{
+  char *unit;
+  char *unit_definition;
+  char *damage_definition;
+  float total_damage;
+  char lethal;
+  char feigned;
+  char instantaneous;
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  unit_definition = (char *)tag_get(0x756e6974, *(int *)unit);
+  damage_definition = (char *)tag_get(0x6a707421, *(int *)damage_data) + 0x1c4;
+  total_damage = shield_damage + body_damage;
+  lethal = (char)(damage_flags & 1);
+  feigned = 0;
+
+  (void)body_damage_multiplier;
+
+  if (*(char *)0x5054f9 != 0 && *(int *)(unit + 0x1c8) != -1) {
+    const char *owner_name = "<unknown>";
+    const char *damage_name = "<unknown>";
+
+    if (*(int *)((char *)damage_data + 0xc) != -1) {
+      int *owner_object =
+        (int *)object_get_and_verify_type(*(int *)((char *)damage_data + 0xc), -1);
+      char *owner_definition = (char *)tag_get(0x6f626a65, *owner_object);
+      const char *separator = strrchr(*(char **)(owner_definition + 0x2c), '\\');
+
+      if (separator) {
+        owner_name = separator + 1;
+      }
+    }
+
+    if (*(int *)damage_data != -1) {
+      const char *tag_name = tag_get_name(*(int *)damage_data);
+      const char *separator = strrchr(tag_name, '\\');
+
+      if (separator) {
+        damage_name = separator + 1;
+      }
+    }
+
+    console_printf(0, "p%d: body %.2f shld %.2f from %s %s",
+                   *(int *)(unit + 0x1c8) & 0xffff, (double)body_damage,
+                   (double)shield_damage, owner_name, damage_name);
+  }
+
+  {
+    float vitality = *(float *)(unit + 0xa4) + *(float *)(unit + 0xa8);
+
+    if (vitality > 0.0f) {
+      *(short *)(unit + 0x3b4) = *(short *)(damage_definition + 2);
+      *(short *)(unit + 0x3b6) = 45;
+      if (vitality < *(float *)(unit + 0x3b8)) {
+        vitality = *(float *)(unit + 0x3b8);
+      }
+      *(float *)(unit + 0x3b8) = vitality;
+
+      if (*(int *)((char *)damage_data + 0xc) != -1) {
+        *(int *)(unit + 0x3bc) = *(int *)((char *)damage_data + 0xc);
+      }
+    }
+  }
+
+  if (*(unsigned int *)(unit + 0x1b4) & 0x10) {
+    *(float *)(unit + 0x32c) -= *(float *)(damage_definition + 0x1c);
+
+    if (*(float *)(unit + 0x32c) < 0.0f) {
+      *(float *)(unit + 0x32c) = 0.0f;
+    }
+  }
+
+  instantaneous = lethal && *(float *)(damage_definition + 0x30) >= 2.0f;
+
+  if (!lethal && (*(unsigned int *)(unit + 0x1b4) & 0x2000) &&
+      *(float *)(unit_definition + 0x22c) > 0.0f &&
+      *(float *)(unit_definition + 0x230) > 0.0f &&
+      *(float *)(unit + 0x90) > 0.0f &&
+      *(float *)(unit + 0xa8) > *(float *)(unit_definition + 0x22c)) {
+    float feign_death_ticks =
+      (FUN_000121e0(0.0f, 1.0f) + *(float *)(unit_definition + 0x230)) *
+      30.0f;
+
+    *(unsigned char *)(unit + 0xb6) |= 4;
+    feigned = 1;
+    *(short *)(unit + 0x3d0) =
+      (short)(1.0f > feign_death_ticks ? 1.0f : feign_death_ticks);
+    if (!(*(short *)(unit + 0x3d0) > 0)) {
+      display_assert("unit->unit.feign_death_timer > 0",
+                     "c:\\halo\\SOURCE\\units\\units.c", 0x1284, true);
+      system_exit(-1);
+    }
+  }
+
+  if (!(*(unsigned char *)((char *)damage_data + 4) & 0x10) &&
+      (lethal || feigned || !(*(unsigned char *)(unit + 0xb6) & 4)) &&
+      !(*(unsigned int *)(unit + 0x1b4) & 0x800000) &&
+      !(*(unsigned char *)(damage_definition + 4) & 0x10)) {
+    float damage_direction[2];
+    float unit_forward[2];
+    char resists_pings;
+    char animation_flag;
+    char direction_valid;
+    float angle;
+
+    damage_direction[0] = *(float *)((char *)damage_data + 0x34);
+    damage_direction[1] = *(float *)((char *)damage_data + 0x38);
+    unit_forward[0] = *(float *)(unit + 0x24);
+    unit_forward[1] = *(float *)(unit + 0x28);
+    resists_pings = 0;
+    animation_flag = 0;
+    direction_valid = 0;
+    angle = 0.0f;
+
+    if (normalize2d(damage_direction) > 0.0f &&
+        normalize2d(unit_forward) > 0.0f) {
+      angle = signed_angle_between_vectors2d(damage_direction, unit_forward);
+      direction_valid = 1;
+    }
+
+    if ((*(unsigned char *)(unit_definition + 0x17c) & 0x80) &&
+        !(*(unsigned char *)(damage_definition + 4) & 4)) {
+      resists_pings = 1;
+    }
+
+    if (*(unsigned char *)(unit + 0x23b) > 0) {
+      resists_pings = 1;
+    }
+
+    if (damage_flags & 0x8a) {
+      animation_flag = 1;
+    }
+
+    unit_ping_animation(unit_handle, lethal, feigned, instantaneous,
+                        resists_pings, animation_flag, angle, body_part,
+                        (int)(direction_valid ? damage_direction : NULL));
+  }
+
+  {
+    int owner_player_index = *(int *)((char *)damage_data + 8);
+    int player_index = *(int *)(unit + 0x1c8);
+
+    if (owner_player_index != -1 && player_index != -1) {
+      game_engine_player_damaged_player(owner_player_index, player_index,
+                                        (char)(damage_flags >> 4) & 1);
+    }
+  }
+
+  if (*(int *)((char *)damage_data + 8) != -1 || *(int *)((char *)damage_data + 0xc) != -1) {
+    unit_record_damage(unit_handle, total_damage,
+                       *(unsigned short *)(damage_definition + 2), lethal,
+                       *(int *)((char *)damage_data + 8), *(unsigned short *)((char *)damage_data + 0x10),
+                       *(int *)((char *)damage_data + 0xc));
+  }
+
+  if (!(*(unsigned char *)((char *)damage_data + 4) & 0x10) &&
+      ((damage_flags & 1) || body_damage > 0.0f || shield_damage > 0.0f)) {
+    unit_make_damage_sound(unit_handle, (int *)damage_data, lethal | feigned,
+                           (char)(damage_flags >> 6) & 1, body_damage,
+                           shield_damage);
+  }
+
+  if (body_damage > 0.0f || shield_damage > 0.0f) {
+    unit_reset_weapon_state(unit_handle);
+  }
+
+  if (*(short *)(unit + 0x64) == 0) {
+    if (lethal) {
+      ai_handle_death(unit_handle, *(int *)((char *)damage_data + 0xc),
+                      *(unsigned short *)(damage_definition + 2));
+    } else if (!(*(unsigned char *)(unit + 0xb6) & 4)) {
+      ai_handle_damage(unit_handle, *(int *)((char *)damage_data + 0xc),
+                       *(unsigned short *)(damage_definition + 2),
+                       total_damage, (int)((char *)damage_data + 0x34), 0);
+    }
+  }
+
+  if (*(int *)(unit + 0x1c8) != -1 &&
+      *(float *)(damage_definition + 0x20) > 0.0f &&
+      (game_engine_running() || *(char *)0x5054f8 != 0)) {
+    char *player_information =
+      (char *)tag_block_get_element((char *)game_globals_get() + 0x170, 0,
+                                    0xf4);
+    float stun_increment =
+      *(float *)(damage_definition + 0x20) * *(float *)((char *)damage_data + 0x40);
+    float maximum_stun =
+      *(float *)(damage_definition + 0x24) * *(float *)((char *)damage_data + 0x40);
+    short stun_ticks;
+    short minimum_stun_ticks;
+    short maximum_stun_ticks;
+
+    if (stun_increment < 0.0f) {
+      stun_increment = 0.0f;
+    }
+    if (maximum_stun < 0.0f) {
+      maximum_stun = 0.0f;
+    } else if (maximum_stun >= 1.0f) {
+      maximum_stun = 1.0f;
+    }
+
+    if (*(float *)(unit + 0x3d4) < maximum_stun) {
+      *(float *)(unit + 0x3d4) += stun_increment;
+      if (*(float *)(unit + 0x3d4) > maximum_stun) {
+        *(float *)(unit + 0x3d4) = maximum_stun;
+      }
+    }
+
+    stun_ticks = (short)(*(float *)(damage_definition + 0x28) * 30.0f);
+    minimum_stun_ticks = (short)(*(float *)(player_information + 0x8c) * 30.0f);
+    maximum_stun_ticks = (short)(*(float *)(player_information + 0x90) * 30.0f);
+
+    if (*(short *)(unit + 0x3d8) < minimum_stun_ticks) {
+      *(short *)(unit + 0x3d8) = minimum_stun_ticks;
+    }
+    *(short *)(unit + 0x3d8) += stun_ticks;
+    if (*(short *)(unit + 0x3d8) > maximum_stun_ticks) {
+      *(short *)(unit + 0x3d8) = maximum_stun_ticks;
+    }
+  }
+
+  if (lethal || feigned) {
+    unit_died(unit_handle, feigned);
+  }
 }

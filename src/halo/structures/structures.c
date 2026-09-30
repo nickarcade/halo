@@ -1,7 +1,6 @@
 #include "x87_math.h" /* x87_fatan2f: inline FPATAN atan2, matches original */
 #define file_location_volume_names ((char *)0x505500)
 
-
 /* MSVC 7.1 FABS intrinsic: declared+pragma here so fabs() inlines to a single
  * FABS instruction instead of a CRT call. */
 extern double __cdecl fabs(double);
@@ -1018,8 +1017,8 @@ short FUN_00099220(float *plane)
 int FUN_00099270(float *plane, short basis)
 {
   if (basis < 0 || basis > 2) {
-    display_assert("basis>=0 && basis<=2",
-                   "c:\\halo\\SOURCE\\structures\\structures.c", 0x350, true);
+    display_assert("projection>=_x && projection<=_z",
+                   "..\\math\\real_math.h", 0x350, true);
     system_exit(-1);
   }
   if (plane[basis] > 0.0f)
@@ -1580,34 +1579,6 @@ void FUN_00105610(float *point, float radius, float *color)
   }
 }
 
-/* 0x1056e0 — Dispose of a sphere geometry object.
- * Asserts the sphere handle and its two allocated arrays (vertices at +0x4,
- * triangle_strip_vertex_indices at +0x8) are non-NULL, then frees the two
- * arrays followed by the sphere structure itself.
- * Source: c:\halo\SOURCE\math\geometry.c (lines 0x75-0x7b). */
-void FUN_001056e0(void *handle)
-{
-  if (handle == 0) {
-    display_assert("sphere", "c:\\halo\\SOURCE\\math\\geometry.c", 0x75, 1);
-    system_exit(-1);
-  }
-  if (*(int *)((char *)handle + 4) == 0) {
-    display_assert("sphere->vertices", "c:\\halo\\SOURCE\\math\\geometry.c",
-                   0x76, 1);
-    system_exit(-1);
-  }
-  if (*(int *)((char *)handle + 8) == 0) {
-    display_assert("sphere->triangle_strip_vertex_indices",
-                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x77, 1);
-    system_exit(-1);
-  }
-  debug_free(*(void **)((char *)handle + 4),
-             "c:\\halo\\SOURCE\\math\\geometry.c", 0x79);
-  debug_free(*(void **)((char *)handle + 8),
-             "c:\\halo\\SOURCE\\math\\geometry.c", 0x7a);
-  debug_free(handle, "c:\\halo\\SOURCE\\math\\geometry.c", 0x7b);
-}
-
 /* FUN_001057a0 (0x1057a0)
  *
  * Signed-distance evaluation of a 2D point against a plane2d
@@ -1663,212 +1634,6 @@ float FUN_001057f0(float *param_1, float *param_2, float *param_3)
              param_2[2] * param_3[2])));
 }
 
-/* 0x105830 - interpolate a subdivision vertex between two parent vertices.
- * (TU: c:\halo\SOURCE\math\geometry.c)
- *
- * Register ABI (prologue at 0x105830): MOV SI,DX and direct use of AX/CX/BX/EDI
- * with only ESI preserved. Register args (all low-16 values):
- *   subdivision_index@<eax>, subdivision_count@<ecx>, parent2@<edx> (copied to
- *   SI), parent1@<ebx>, sphere@<edi>.  Stack arg: new_vertex ([EBP+0x8]).
- *
- * frac = subdivision_index / subdivision_count (FILD/FIDIV); the new vertex is
- * inv_frac*parent1 + frac*parent2 component-wise (inv_frac = 1.0 - frac; 1.0 at
- * 0x2533c8), written into sphere->vertices[new_vertex] (vertices at sphere+0x4,
- * stride 3 floats), then normalized in place via normalize3d (return
- * discarded). Asserts subdivision_index in (0,count) and each vertex index in
- * [0,vertex_count] (vertex_count is a short at sphere+0xc). */
-void calculate_vertex(short subdivision_index /* @<eax> */,
-                      short subdivision_count /* @<ecx> */,
-                      short parent2 /* @<edx> */, short parent1 /* @<ebx> */,
-                      void *sphere /* @<edi> */, short new_vertex)
-{
-  float frac;
-  float inv_frac;
-  int itmp;
-  float *verts;
-  float *vp1;
-  float *vp2;
-  float *vout;
-  short vertex_count;
-
-  itmp = subdivision_index;
-  frac = (float)itmp;
-  itmp = subdivision_count;
-  frac = frac / itmp;
-  inv_frac = *(float *)0x002533c8 - frac;
-
-  if (subdivision_index <= 0 || subdivision_index >= subdivision_count) {
-    display_assert(
-      "subdivision_index > 0 && subdivision_index < subdivision_count",
-      "c:\\halo\\SOURCE\\math\\geometry.c", 0x13b, true);
-    system_exit(-1);
-  }
-  vertex_count = *(short *)((char *)sphere + 0xc);
-  if (parent1 < 0 || parent1 > vertex_count) {
-    display_assert("parent1 >=0 && parent1 <= sphere->vertex_count",
-                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x13c, true);
-    system_exit(-1);
-  }
-  if (parent2 < 0 || parent2 > vertex_count) {
-    display_assert("parent2 >=0 && parent2 <= sphere->vertex_count",
-                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x13d, true);
-    system_exit(-1);
-  }
-  if (new_vertex < 0 || new_vertex > vertex_count) {
-    display_assert("new_vertex >=0 && new_vertex <= sphere->vertex_count",
-                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x13e, true);
-    system_exit(-1);
-  }
-
-  verts = *(float **)((char *)sphere + 4);
-  vp1 = verts + (int)parent1 * 3;
-  vp2 = verts + (int)parent2 * 3;
-  vout = verts + (int)new_vertex * 3;
-  vout[0] = inv_frac * vp1[0] + frac * vp2[0];
-  vout[1] = frac * vp2[1] + inv_frac * vp1[1];
-  vout[2] = frac * vp2[2] + inv_frac * vp1[2];
-  normalize3d(vout);
-}
-
-/* 0x105980 — Build a ring/cylinder (torus-like) mesh.
- * Sweeps ring_segment_count rings around a cross-section of
- * cylinder_segment_count segments. For each ring the ring angle drives a
- * cos/sin pair (scaled by param_8) that offsets a cross-section built by
- * rotating a base radius (param_10) about the ring normal, then transforms
- * each vertex by the caller's matrix.
- * Outputs: vertex positions (out_positions, stride 3 floats), tex coords
- * (out_texcoords, stride 2 floats), a triangle-strip index buffer
- * (out_indices), the emitted vertex count (*out_vertex_count) and the number
- * of strip index-runs (*out_index_run_count).
- * The ring normal is the cross product of the cross-section direction
- * (cos*param_8, sin*param_8, 0) with the global axis vector at *0x31fc44,
- * normalized when its length is >= the epsilon at 0x2533d0.
- * Constants: 0x255a54 = 6.2831855f (2*pi), 0x2533c0 = 0.0f, 0x2533c8 = 1.0f,
- * 0x2533d0 = double epsilon. Asserts at geometry.c:0x15a/0x15b.
- * Source: c:\halo\SOURCE\math\geometry.c:346 */
-void FUN_00105980(float *matrix, short *out_vertex_count,
-                  short *out_index_run_count, float *out_positions,
-                  float *out_texcoords, short *out_indices,
-                  short ring_segment_count, float param_8,
-                  int cylinder_segment_count, float param_10)
-{
-  float fVar1, fVar2, fVar4, angle;
-  float fVar9, fVar10, fVar11, fVar12, fVar_sin;
-  int iVar5;
-  float *pfVar6;
-  short sVar8;
-  /* normal[0]=local_38, normal[1]=local_34, normal[2]=local_30; the three
-   * must be contiguous+ascending because &normal[0] is passed as the axis
-   * argument to rotate_vector3d_by_sincos (stack-aliasing hazard). */
-  float normal[3];
-  int local_2c;
-  float local_28, local_24;
-  int local_20, local_1c, local_18, local_14, local_10, local_c, local_8;
-
-  local_1c = 0;
-  local_8 = 0;
-  if (ring_segment_count <= 2) {
-    display_assert("ring_segment_count>2", "c:\\halo\\SOURCE\\math\\geometry.c",
-                   0x15a, 1);
-    system_exit(-1);
-  }
-  if ((short)cylinder_segment_count <= 2) {
-    display_assert("cylinder_segment_count>2",
-                   "c:\\halo\\SOURCE\\math\\geometry.c", 0x15b, 1);
-    system_exit(-1);
-  }
-  local_10 = 0;
-  if (ring_segment_count >= 0) {
-    local_20 = (int)ring_segment_count;
-    local_18 = 0;
-    local_24 = (float)local_20;
-    pfVar6 = *(float **)0x0031fc44;
-    do {
-      fVar9 = (float)local_18 / local_24;
-      angle = *(float *)0x00255a54 * fVar9;
-      fVar10 = x87_fcos(angle);
-      fVar1 = fVar10 * param_8;
-      fVar11 = x87_fsin(angle);
-      fVar2 = param_8 * fVar11;
-      /* ring normal = (fVar1, fVar2, 0) x axis[]; 0x2533c0 == 0.0f.
-       * normal[2]=A, normal[1]=B, normal[0]=C; length sum is (C^2+B^2)+A^2 to
-       * match the original's x87 add order. */
-      normal[2] = fVar1 * pfVar6[1] - fVar2 * pfVar6[0];
-      normal[1] = pfVar6[0] * *(float *)0x002533c0 - fVar1 * pfVar6[2];
-      normal[0] = fVar2 * pfVar6[2] - pfVar6[1] * *(float *)0x002533c0;
-      fVar4 = sqrtf(normal[0] * normal[0] + normal[1] * normal[1] +
-                    normal[2] * normal[2]);
-      if (!(x87_fabs(fVar4) < *(double *)0x002533d0)) {
-        fVar4 = *(float *)0x002533c8 / fVar4;
-        normal[0] = normal[0] * fVar4;
-        normal[1] = normal[1] * fVar4;
-        normal[2] = fVar4 * normal[2];
-      }
-      sVar8 = 0;
-      if (-1 < (short)cylinder_segment_count) {
-        local_c = (int)(short)cylinder_segment_count;
-        local_14 = (local_8 - cylinder_segment_count) + -1;
-        local_28 = (float)(fVar9 + fVar9);
-        do {
-          out_texcoords[1] = local_28;
-          if (0 < (short)local_10) {
-            if (sVar8 == 0) {
-              *out_indices = (short)cylinder_segment_count * 2 + 2;
-              out_indices = out_indices + 1;
-              local_1c = local_1c + 1;
-            }
-            *out_indices = (short)local_8;
-            out_indices[1] = (short)local_14;
-            out_indices = out_indices + 2;
-          }
-          if ((short)local_10 == ring_segment_count) {
-            /* last ring: copy the vertex/texcoord from the first ring */
-            iVar5 = (local_c + 1) * local_20;
-            pfVar6 = out_positions + iVar5 * -3;
-            *out_positions = *pfVar6;
-            out_positions[1] = pfVar6[1];
-            out_positions[2] = pfVar6[2];
-            *out_texcoords = out_texcoords[iVar5 * -2];
-          } else {
-            local_2c = (int)sVar8;
-            fVar9 = (float)local_2c / (float)local_c;
-            *out_texcoords = (float)(fVar9 + fVar9);
-            if (sVar8 == (short)cylinder_segment_count) {
-              /* seam: copy from the start of this ring */
-              pfVar6 = out_positions + local_c * -3;
-              *out_positions = *pfVar6;
-              out_positions[1] = pfVar6[1];
-              out_positions[2] = pfVar6[2];
-            } else {
-              angle = *(float *)0x00255a54 * fVar9;
-              fVar12 = x87_fcos(angle);
-              *out_positions = fVar10 * param_10;
-              out_positions[1] = fVar11 * param_10;
-              out_positions[2] = 0.0f;
-              fVar_sin = x87_fsin(angle);
-              rotate_vector3d_by_sincos(out_positions, normal, fVar_sin, fVar12);
-              *out_positions = fVar1 + *out_positions;
-              out_positions[2] = out_positions[2];
-              out_positions[1] = fVar2 + out_positions[1];
-              matrix_transform_point(matrix, out_positions, out_positions);
-            }
-          }
-          out_texcoords = out_texcoords + 2;
-          out_positions = out_positions + 3;
-          local_8 = local_8 + 1;
-          local_14 = local_14 + 1;
-          sVar8 = sVar8 + 1;
-          pfVar6 = *(float **)0x0031fc44;
-        } while (sVar8 <= (short)cylinder_segment_count);
-      }
-      local_10 = local_10 + 1;
-      local_18 = local_18 + 1;
-    } while ((short)local_10 <= ring_segment_count);
-  }
-  *out_vertex_count = (short)local_8;
-  *out_index_run_count = (short)local_1c;
-}
-
 /* 0x105c80 - classify a 2D vertex set as empty/point/collinear/planar.
  *
  * Register ABI (prologue at 0x105c80): no entry moves; ESI/EDI are zeroed at
@@ -1918,195 +1683,6 @@ short shell_update(short vertex_count, float *vertices /* @<ebx> */)
     i++;
   } while (state < 2);
   return state;
-}
-
-/* 0x105d20 — Reduce a 2D point set to its convex hull as an index list.
- * Gift-wrapping (Jarvis march). shell_update (called with the vertex array in
- * EBX) validates that at least three non-collinear points exist (returns 2);
- * otherwise nothing is emitted and 0 is returned.
- *   Phase 1: pick the start vertex (lowest y, then leftmost x) with an epsilon
- *            tie-break (1e-4f) on both axes.
- *   Phase 2: from the current vertex, atan2(dy,dx) angle scan against a running
- *            angle base, wrapping candidate angles into [-1e-4f, ...) by adding
- *            2*pi; keep the minimum-angle vertex, append its index, and stop
- *            when the chosen vertex closes back on the first. A collinear/
- *            degenerate guard uses a double epsilon (=(double)1e-4f) on the
- *            |component delta| between the chosen and first vertices.
- *   Phase 3: reached only when the walk fills all slots (index_count reaches
- *            vertex_count); compacts a trailing duplicate run to the front with
- *            three bounds asserts (geometry.c 0x279,0x27a,0x282).
- * param_1 = vertex_count, param_2 = float[2] vertex array (x,y; 8-byte stride),
- * param_3 = int16 output index list. Returns the emitted index count in AX.
- * Source: c:\halo\SOURCE\math\geometry.c */
-int16_t convex_hull2d_reduce(int16_t vertex_count, float *vertices,
-                             int16_t *out_indices)
-{
-  int16_t index_count;
-
-  index_count = 0;
-  if (shell_update(vertex_count, vertices) == 2) {
-    float base_angle;
-    float best_x;
-    float best_y;
-    int16_t start_index;
-    int16_t current_index;
-    int16_t next_index;
-    float min_angle;
-    char collinear_flag;
-    int16_t i;
-    int16_t first;
-    float *p;
-    float *ref;
-
-    base_angle = 0.0f; /* FLOAT_002533c0 = 0.0f, running gift-wrap base */
-    best_x = 3.4028235e38f; /* FLT_MAX */
-    best_y = 3.4028235e38f;
-    start_index = -1; /* SI default = low word of FLT_MAX (dead: count>0) */
-    collinear_flag = 0;
-
-    /* Phase 1: lowest y, then leftmost x, with epsilon tie-break. */
-    if (vertex_count > 0) {
-      p = vertices + 1; /* &vertices[0].y */
-      for (i = 0; i < vertex_count; i = i + 1) {
-        if ((p[0] < best_y - 1e-4f) ||
-            ((p[0] < best_y) && (p[-1] < best_x + 1e-4f)) ||
-            ((p[0] < best_y + 1e-4f) && (p[-1] < best_x - 1e-4f))) {
-          best_x = p[-1];
-          best_y = p[0];
-          start_index = i;
-        }
-        p = p + 2;
-      }
-    }
-
-    current_index = start_index;
-    next_index =
-      start_index; /* EBX default (dead: inner loop always assigns) */
-    for (;;) {
-      min_angle = 3.4028235e38f; /* FLT_MAX reset (0x105de9) */
-      if (index_count >= vertex_count) {
-        goto compaction;
-      }
-      out_indices[index_count] = current_index;
-      index_count = index_count + 1;
-
-      /* Phase 2: min-angle gift-wrap scan. */
-      if (vertex_count > 0) {
-        ref = vertices + current_index * 2;
-        p = vertices;
-        for (i = 0; i < vertex_count; i = i + 1) {
-          if ((p[0] != ref[0]) || (p[1] != ref[1])) {
-            float angle;
-            float dy = p[1] - ref[1];
-            float dx = p[0] - ref[0];
-
-#if defined(_MSC_VER) && !defined(__clang__)
-            angle = (float)atan2((double)dy, (double)dx) - base_angle;
-#else
-            angle = x87_fatan2f(dy, dx) - base_angle;
-#endif
-            if (angle < -1e-4f) {
-              do {
-                angle = angle + 6.2831855f; /* 2*pi wrap */
-              } while (angle < -1e-4f);
-            }
-            if (angle < min_angle) {
-              min_angle = angle;
-              next_index = i;
-            }
-          }
-          p = p + 2;
-        }
-      }
-
-      base_angle = base_angle + min_angle;
-      current_index = next_index;
-
-      first = out_indices[0];
-      if (collinear_flag == 0) {
-        if ((fabs(vertices[next_index * 2] - vertices[first * 2]) >= 1e-4f) ||
-            (fabs(vertices[next_index * 2 + 1] - vertices[first * 2 + 1]) >=
-             1e-4f)) {
-          collinear_flag = 1;
-        }
-      }
-
-      first = out_indices[0];
-      if (next_index == first) {
-        return index_count;
-      }
-      if (collinear_flag == 0) {
-        continue;
-      }
-      if ((fabs(vertices[next_index * 2] - vertices[first * 2]) >= 1e-4f) ||
-          (fabs(vertices[next_index * 2 + 1] - vertices[first * 2 + 1]) >=
-           1e-4f)) {
-        continue;
-      }
-      return index_count;
-    }
-
-  compaction: {
-    int16_t last_hull;
-    int16_t search;
-    int16_t k;
-
-    search = index_count - 2;
-    if (search <= 0) {
-      goto assert_start_positive;
-    }
-    last_hull = out_indices[index_count - 1];
-    for (;;) {
-      if (out_indices[search] == last_hull) {
-        int16_t new_count;
-
-        new_count = (index_count - 1) - search;
-        index_count = new_count;
-        if (new_count > 0) {
-          int src;
-          int16_t *psrc;
-          int16_t *pdst;
-
-          src = search;
-          psrc = out_indices + search;
-          pdst = out_indices;
-          k = 0;
-          do {
-            if (vertex_count <= k) {
-              display_assert("vertex_index<vertex_count",
-                             "c:\\halo\\SOURCE\\math\\geometry.c", 0x279, 1);
-              system_exit(-1);
-            }
-            if (vertex_count <= src) {
-              display_assert("start_vertex_index+vertex_index<vertex_count",
-                             "c:\\halo\\SOURCE\\math\\geometry.c", 0x27a, 1);
-              system_exit(-1);
-            }
-            k = k + 1;
-            *pdst = *psrc;
-            psrc = psrc + 1;
-            pdst = pdst + 1;
-            src = src + 1;
-          } while (k < new_count);
-        }
-        if (search > 0) {
-          return index_count;
-        }
-        goto assert_start_positive;
-      }
-      search = search - 1;
-      if (search < 1) {
-        goto assert_start_positive;
-      }
-    }
-  }
-
-  assert_start_positive:
-    display_assert("start_vertex_index>0", "c:\\halo\\SOURCE\\math\\geometry.c",
-                   0x282, 1);
-    system_exit(-1);
-  }
-  return index_count;
 }
 
 /* FUN_00106030 (0x106030)
@@ -2376,26 +1952,6 @@ float FUN_00106330(int16_t count, float *points)
     } while (n != 0);
   }
   return (float)fabs(area); /* FABS */
-}
-
-/* FUN_0018e420 (0x18e420)
- *
- * Returns the global BSP3D pointer (DAT_005064d8). Asserts with a halt if
- * the pointer has not been initialized (i.e. is NULL). Called by BSP
- * traversal and portal-intersection code to obtain the current structure
- * BSP3D tag data.
- *
- * Confirmed: no parameters (plain MOV EAX,[global]; TEST; RET).
- * Confirmed: assert string "global_bsp3d", file scenario.c, line 0xd5.
- */
-void *FUN_0018e420(void)
-{
-  if (*(void **)0x5064d8 == NULL) {
-    display_assert("global_bsp3d", "c:\\halo\\SOURCE\\scenario\\scenario.c",
-                   0xd5, true);
-    system_exit(-1);
-  }
-  return *(void **)0x5064d8;
 }
 
 /* Remove a value from a reference list linked through a datum array (0x1913c0).
@@ -3358,7 +2914,7 @@ void leaf_map_build_portal_from_leaves(void *structure /* @<edi> */,
   vertex_count = FUN_00108060(
     *(int16_t *)((char *)leaf0_link + 4), *(void **)((char *)leaf0_link + 8),
     *(int16_t *)((char *)leaf1_link + 4), *(void **)((char *)leaf1_link + 8),
-    0x40, (uint16_t *)coord_buffer, 0x3a000000);
+    0x40, (uint16_t *)coord_buffer, 0.00048828125f);
 
   if (vertex_count < 1) {
     if ((uint16_t)vertex_count == 0xffff) {
@@ -5207,8 +4763,8 @@ void FUN_00195bc0(void)
  *    offset table) plus 6 stack args; ADD ESP,0x18 = 6 stack dwords.  Push
  *    order (first push = last C arg): 0 (param_7), 0x17cdd0 (pass_end_cb),
  *    0x17cdc0 (surface_draw_cb), 0x17cdb0 (material_begin_cb), *0x4d8eb4
- *    (lightmap_pass_index), uint16 @0x5937d0 (surface_count).  0x17cdd0 is a
- *    bare label, passed as a raw address.
+ *    (lightmap_pass_index), uint16 @0x5937d0 (surface_count).  0x17cdd0 is the
+ *    FUN_0017cdd0 JMP thunk.
  */
 void FUN_00195c40(void)
 {
@@ -5223,7 +4779,7 @@ void FUN_00195c40(void)
     }
     FUN_0017cda0();
     FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
-                 (void *)FUN_0017cdb0, (void *)FUN_0017cdc0, (void *)0x17cdd0,
+                 (void *)FUN_0017cdb0, (void *)FUN_0017cdc0, (void *)FUN_0017cdd0,
                  0);
     FUN_0017cde0();
     *(short *)0x3256b0 = (short)saved_flag;
@@ -5241,7 +4797,7 @@ void FUN_00195c40(void)
  * Notes from disasm (0x195cb0):
  *  - FUN_00195790 takes an @eax pointer (MOV EAX,0x5937d4 = surface->material
  *    offset table) plus 6 stack args.  Push order (first push = last C arg):
- *    0 (param_7), 0x17ce20 (pass_end_cb, bare label), FUN_0017ce10
+ *    0 (param_7), 0x17ce20 (pass_end_cb, FUN_0017ce20 thunk), FUN_0017ce10
  *    (surface_draw_cb), FUN_0017ce00 (material_begin_cb), *0x4d8eb4
  *    (lightmap_pass_index), uint16 @0x5937d0 (surface_count, XOR ECX,ECX;
  *    MOV CX,word ptr).  ADD ESP,0x18 = 6 stack dwords confirms.
@@ -5252,7 +4808,7 @@ void FUN_00195cb0(void)
   if (*(char *)0x4d8eb0 != 0) {
     FUN_0017cdf0();
     FUN_00195790((int *)0x5937d4, *(unsigned short *)0x5937d0, *(int *)0x4d8eb4,
-                 (void *)FUN_0017ce00, (void *)FUN_0017ce10, (void *)0x17ce20,
+                 (void *)FUN_0017ce00, (void *)FUN_0017ce10, (void *)FUN_0017ce20,
                  0);
     FUN_0017ce30();
   }
@@ -5701,6 +5257,29 @@ __declspec(noinline) void structure_runtime_decals_initialize_for_new_map(void)
   structure_decals_globals->field_00 = 0;
 }
 
+/* structure_decals_reconnect_to_structure_bsp (0x196300)
+ *
+ * Confirmed (disasm 0x196300-0x19632e): MOV EAX,[0x4d8ec8]; null -> assert
+ *   "structure_decals_globals" / structure_runtime_decals.c line 0x2d
+ *   (display_assert 0x8d9f0 + system_exit(-1)); then MOV byte [EAX],1.
+ * Confirmed: only reference is slot 8 (0-based) of the structure-BSP
+ *   reconnect table at 0x326a10 (walked by 0x18e260 and 0x18eb40); the
+ *   matching slot of PAL 2342 scenario_structure_bsp_reconnect_proc_table is
+ *   structure_decals_reconnect_to_structure_bsp (T2).
+ * Inferred: PAL names the byte at +0x00 reconnect_to_structure_bsp; the
+ *   field keeps its field_00 name here. */
+void structure_decals_reconnect_to_structure_bsp(void)
+{
+  if (structure_decals_globals == NULL) {
+    display_assert("structure_decals_globals",
+                   "c:\\halo\\SOURCE\\structures\\structure_runtime_decals.c",
+                   0x2d, true);
+    system_exit(-1);
+  }
+
+  structure_decals_globals->field_00 = 1;
+}
+
 /*
  * FUN_00196330  (0x196330) — structures.obj
  *
@@ -5765,6 +5344,33 @@ __declspec(noinline) void structure_runtime_decals_dispose_from_old_map(void)
  * empty body to keep the address populated and the ABI intact. */
 __declspec(noinline) void structure_runtime_decals_dispose(void)
 {
+}
+
+/* Dequantize the six byte bounds of a structure BSP node/leaf relative to its
+ * parent rectangle (0x196eb0). PAL name:
+ * dequantize_byte_to_real_rectangle3d. A component value of 255 maps exactly
+ * to the corresponding maximum; every other value uses
+ * min + (max-min)*(value/255). Returns out_bounds. */
+float *FUN_00196eb0(float *parent_bounds, unsigned char *fractions,
+                    float *out_bounds)
+{
+  int i;
+  int axis;
+  float minimum;
+  float maximum;
+
+  for (i = 0; i < 6; i++) {
+    axis = i & ~1;
+    minimum = parent_bounds[axis];
+    maximum = parent_bounds[axis + 1];
+    if (fractions[i] == 0xff) {
+      out_bounds[i] = maximum;
+    } else {
+      out_bounds[i] =
+        minimum + (maximum - minimum) * ((float)fractions[i] / 255.0f);
+    }
+  }
+  return out_bounds;
 }
 
 /* FUN_00196fd0 (0x196fd0) — structures.obj
@@ -5867,208 +5473,6 @@ int16_t FUN_00196fd0(int *out_buf, int16_t max_count, int unused_10,
     } while ((short)outer_index < cluster_count);
   }
   return (int16_t)out_count;
-}
-
-/* 0x197130 - gather visible clusters referenced by a BSP leaf's surfaces.
- *
- * Register ABI (prologue at 0x197130): MOV EBX,[EBP+0x2c] then MOV ESI,EAX; the
- * only register arg is leaf@<eax> (BSP node/leaf value; its sign bit is a
- * node/leaf discriminator, masked off with &0x7fffffff for the leaf index).
- * Stack args: bounds ([EBP+0x8] parent_bounds), param_2 ([EBP+0xc] per-call
- * visited-cluster bitset base), param_3 ([EBP+0x10] int* out cluster array),
- * count ([EBP+0x14] out capacity), center ([EBP+0x18] cull-sphere center,
- * null-checked only), radius ([EBP+0x1c], unused here), cull_bounds
- * ([EBP+0x20]), param_8 ([EBP+0x24]), param_9 ([EBP+0x28]), intersection
- * ([EBP+0x2c], mode: the incoming value is read into EBX and the slot is then
- * reused as the running output accumulator that is returned).
- *
- * Resolves the leaf element (scenario+0xe0, stride 0x10), validates it, derives
- * child bounds via FUN_00196eb0, and (unless intersection==2) culls against the
- * cull bounds via FUN_00196a60/FUN_00196b10 taking the min classification.  If
- * the leaf is at all visible it walks the leaf's surface run (scenario+0xec,
- * stride 8), and for each surface's cluster index sets a bit in the global
- * cluster visibility set at 0x5137d0 gated bitset and, if newly visible and not
- * already recorded in the per-call bitset, appends the cluster to the out array
- * (until count is reached).  Returns the number of clusters appended. */
-int FUN_00197130(float *bounds, void *param_2, int *param_3, int count,
-                 float *center, float radius, float *cull_bounds, int param_8,
-                 int param_9, int intersection, int leaf /* @<eax> */)
-{
-  void *scenario;
-  char *leaf_element;
-  int accumulator;
-  int cull_result;
-  float local_20[6];
-
-  (void)radius;
-  accumulator = 0;
-  scenario = scenario_get();
-  leaf_element = (char *)tag_block_get_element((char *)scenario + 0xe0,
-                                               leaf & 0x7fffffff, 0x10);
-
-  if ((short)intersection == 0) {
-    display_assert("intersection",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x2f0, true);
-    system_exit(-1);
-  }
-  if (bounds == (float *)0) {
-    display_assert("parent_bounds",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x2f1, true);
-    system_exit(-1);
-  }
-  if (center == (float *)0) {
-    display_assert("cull_sphere_center",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x2f2, true);
-    system_exit(-1);
-  }
-  if (cull_bounds == (float *)0) {
-    display_assert("cull_bounds",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x2f3, true);
-    system_exit(-1);
-  }
-  if (*(short *)(leaf_element + 8) < 0 ||
-      *(int *)((char *)scenario + 0x134) <= (int)*(short *)(leaf_element + 8)) {
-    display_assert(
-      "leaf->cluster_index>=0 && leaf->cluster_index<structure->clusters.count",
-      "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x2f4, true);
-    system_exit(-1);
-  }
-
-  FUN_00196eb0(bounds, (unsigned char *)leaf_element, local_20);
-
-  cull_result = (short)intersection;
-  if ((short)intersection != 2) {
-    int a = FUN_00196a60(cull_bounds, local_20);
-    int b = FUN_00196b10(local_20, param_8, param_9);
-    cull_result = a;
-    if ((short)b < (short)a) {
-      cull_result = b;
-    }
-  }
-
-  if ((short)cull_result != 0) {
-    int i;
-    int first = *(int *)(leaf_element + 0xc);
-    int end = (int)*(short *)(leaf_element + 0xa) + first;
-    char *surface_block = (char *)scenario + 0xec;
-    for (i = first; i < end; i++) {
-      int *elem = (int *)tag_block_get_element(surface_block, i, 8);
-      int cluster = *elem;
-      int word_off = (cluster >> 5) * 4;
-      unsigned int mask = 1u << (cluster & 0x1f);
-      if ((mask & *(unsigned int *)((char *)0x5137d0 + word_off)) != 0) {
-        unsigned int *per_call = (unsigned int *)((char *)param_2 + word_off);
-        if ((mask & *per_call) == 0) {
-          if ((short)count <= (short)accumulator) {
-            break;
-          }
-          *per_call |= mask;
-          param_3[(short)accumulator] = cluster;
-          accumulator = accumulator + 1;
-        }
-      }
-      end = (int)*(short *)(leaf_element + 0xa) + *(int *)(leaf_element + 0xc);
-    }
-  }
-
-  return accumulator;
-}
-
-/* 0x197310 - project a structure surface's vertices to screen and clip.
- *
- * Register ABI (prologue at 0x197310): MOV EBX,EAX / MOV EDI,ECX / MOV ESI,EDX
- *   verts@<eax>  -> float* source vertex array (stride 3 floats)
- *   plane@<ecx>  -> float* plane {nx,ny,nz,d}
- *   ref@<edx>    -> float* reference point; byte at ref+0x24 flips winding
- * Stack args: arg1 (matrix container; transform matrix at arg1+0x10),
- *   count (int16_t vertex count), sign (winding direction, +/-1),
- *   out (short* result: [0]=clipped vertex count, then {float x,float y} pairs
- *   at byte offsets +4,+8,... i.e. 8-byte stride starting at out+4).
- *
- * Computes signed distance of ref from plane, scaled by sign; if the magnitude
- * is below the 0x2674e8 epsilon the surface is coplanar (return 2); if the
- * signed side is <= 0 the surface faces away (return 1).  Otherwise transforms
- * each vertex through the matrix into a 3-float scratch buffer, clips the
- * polygon against 0x2b35c4, perspective-divides each surviving vertex
- * (ooz = k / z, k at 0x255e94) walking forward (sign==1) or backward, and
- * writes the 2D coords to out.  Returns 1 if fewer than 3 vertices survive,
- * else 0.  0x2533c0 == 0.0f threshold. */
-short FUN_00197310(void *verts, void *plane, void *ref, void *arg1,
-                   int16_t count, int sign, short *out)
-{
-  float *v = (float *)verts;
-  float *p = (float *)plane;
-  float *r = (float *)ref;
-  float buf[256][3];
-  float side;
-  float ooz;
-  int orig_sign;
-  int j;
-  short idx;
-  short end;
-  short oidx;
-
-  scenario_get();
-  *out = 0;
-  orig_sign = (short)sign;
-  side = (r[2] * p[2] + r[1] * p[1] + r[0] * p[0] - p[3]) * (float)orig_sign;
-  if (*((char *)ref + 0x24) != '\0') {
-    sign = -sign;
-  }
-  if (fabs(side) < *(double *)0x002674e8) {
-    return 2;
-  }
-  if (side <= *(float *)0x002533c0) {
-    return 1;
-  }
-
-  if (count > 0) {
-    float *mtx = (float *)((char *)arg1 + 0x10);
-    for (j = 0; j < count; j++) {
-      matrix_transform_point(mtx, v + j * 3, &buf[j][0]);
-    }
-  }
-
-  *out = convex_polygon3d_clip_to_plane(count, &buf[0][0], (float *)0x002b35c4,
-                                        0x100, &buf[0][0], (uint32_t *)0,
-                                        0.0001f, (void *)0x1);
-  if (*out == -1) {
-    display_assert("result->vertex_count!=NONE",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x485, true);
-    system_exit(-1);
-  }
-
-  if (sign == 1) {
-    idx = 0;
-    end = *out;
-  } else {
-    idx = (short)(*out - 1);
-    end = -1;
-  }
-  oidx = 0;
-  if (idx != end) {
-    do {
-      int e = (int)idx;
-      ooz = *(float *)0x00255e94 / buf[e][2];
-      if (ooz <= *(float *)0x002533c0) {
-        display_assert("ooz>0.f",
-                       "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                       0x497, true);
-        system_exit(-1);
-      }
-      *(float *)(out + oidx * 4 + 2) = ooz * buf[e][0];
-      *(float *)(out + oidx * 4 + 4) = ooz * buf[e][1];
-      idx = (short)(idx + sign);
-      oidx = (short)(oidx + 1);
-    } while (idx != end);
-  }
-
-  return (short)(*out < 3);
 }
 
 /* 0x1974f0 - resolve a structure-connection plane and dispatch the edge solve.
@@ -6291,7 +5695,7 @@ char FUN_001975e0(void *ref, void *frustum, void *out)
               if (r == 0) {
                 result.count = FUN_00108060(
                   quad.count, quad.points, clip.count, (uint16_t *)clip.points,
-                  0x100, (uint16_t *)result.points, 0x38d1b717);
+                  0x100, (uint16_t *)result.points, 0.0001f);
                 if (result.count == 0) {
                   goto next_element;
                 }
@@ -6344,140 +5748,6 @@ char FUN_001975e0(void *ref, void *frustum, void *out)
   } while ((short)surface_index < *block);
 
   return found;
-}
-
-/* FUN_001978a0: recursive bsp3d structure-visibility traversal.
- *   Original: c:\halo\SOURCE\structures\structure_visibility.c line ~0x2ab.
- *
- * Walks the structure BSP3D node tree from `node_index`. At each node it
- * subdivides the incoming (parent) bounds across the node's fraction record
- * (FUN_00196eb0 -> child bounds in `bounds`), tests those bounds against the
- * cull bounds (FUN_00196a60) and the frustum planes (FUN_00196b10) unless the
- * caller already reported "fully inside" ((short)intersection == 2), then for
- * each of the node's two child slots that survive the splitting-plane sphere
- * test recurses into subtrees (child >= 0) or dispatches leaves (child < 0,
- * child != -1) via FUN_00197130. Returns the accumulated 16-bit count in AX.
- *
- * 11 cdecl stack args (recursive tail cleans ADD ESP,0x2c = 44 = 11*4).
- * ESI is the running accumulator, EDI the propagated intersection mode.
- *
- * Verified against disasm 0x1978a0-0x197afa. Notes on decompiler traps fixed
- * here:
- *   - The two side flags are independent stack bytes (side[0]/side[1]),
- *     defaulted to 1 and cleared by the plane test; Ghidra modelled them as a
- *     CONCAT into param_2. param_2 is really a float* (parent bounds).
- *   - The value passed to children in slot 7 is the UNCHANGED radius (held in
- *     EBX across the FPU block), not fVar1; the decompiler mis-aliased EBX.
- *   - FUN_00196eb0 is a 3-arg call (bounds, fractions, out); its 3rd arg is the
- *     &local_24 push that tag_block_get_element left on the stack (this is the
- *     ADD ESP,0xc "anomaly"). FUN_00196b10 takes &bounds in @eax. */
-unsigned short FUN_001978a0(int node_index, float *parent_bounds, void *param_3,
-                            int *param_4, int param_5, float *center,
-                            float radius, float *cull_bounds, int param_9,
-                            int param_10, int intersection)
-{
-  int accum;
-  char *scenario;
-  char *nodes_block;
-  unsigned char *fractions;
-  int mode;
-  int t;
-  int *node;
-  float *plane;
-  float dist;
-  unsigned char side[2];
-  int count;
-  int *child_ptr;
-  unsigned char *side_ptr;
-  int child;
-  float bounds[6];
-
-  accum = 0;
-  scenario = (char *)scenario_get();
-  nodes_block = (char *)tag_block_get_element(scenario + 0xb0, 0, 0x60);
-
-  if (parent_bounds == 0) {
-    display_assert("parent_bounds",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x2ab, true);
-    system_exit(-1);
-  }
-  if (center == 0) {
-    display_assert("cull_sphere_center",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x2ac, true);
-    system_exit(-1);
-  }
-  if (cull_bounds == 0) {
-    display_assert("cull_bounds",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x2ad, true);
-    system_exit(-1);
-  }
-  /* the original loads intersection into EDI here and keeps that register as
-   * the running mode for the rest of the function */
-  mode = intersection;
-  if ((short)mode == 0) {
-    display_assert("intersection",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x2ae, true);
-    system_exit(-1);
-  }
-
-  fractions =
-    (unsigned char *)tag_block_get_element(scenario + 0xbc, node_index, 6);
-  FUN_00196eb0(parent_bounds, fractions, bounds);
-
-  if ((short)mode != 2) {
-    mode = FUN_00196a60(cull_bounds, bounds);
-    if ((short)mode == 0)
-      return (unsigned short)accum;
-    t = FUN_00196b10(bounds, param_9, param_10);
-    if ((short)t == 2)
-      param_9 = 0;
-    if ((short)mode > (short)t)
-      mode = t;
-  }
-
-  if ((short)mode != 0) {
-    node = (int *)tag_block_get_element(nodes_block, node_index, 0xc);
-    plane = (float *)tag_block_get_element(nodes_block + 0xc, *node, 0x10);
-    dist = plane[2] * center[2] + plane[1] * center[1] + center[0] * plane[0] -
-           plane[3];
-
-    side[0] = 1;
-    if (!(dist < radius))
-      side[0] = 0;
-    side[1] = 1;
-    if (!(dist > -radius))
-      side[1] = 0;
-
-    child_ptr = node + 1;
-    side_ptr = side;
-    count = 2;
-    do {
-      if (*side_ptr != 0) {
-        child = *child_ptr;
-        /* recurse arm first: original falls through into the self-call and
-         * sinks the leaf arm past the join (JS to it) */
-        if (child >= 0) {
-          accum += FUN_001978a0(child, bounds, param_3, param_4 + (short)accum,
-                                param_5 - accum, center, radius, cull_bounds,
-                                param_9, param_10, mode);
-        } else if (child != -1) {
-          /* 0x19713c: callee reads the leaf ref from EAX (strips the sign
-           * bit itself via AND 0x7fffffff) — implicit @<eax> arg. */
-          accum += FUN_00197130(bounds, param_3, param_4 + (short)accum,
-                                param_5 - accum, center, radius, cull_bounds,
-                                param_9, param_10, mode, child);
-        }
-      }
-      child_ptr++;
-      side_ptr++;
-    } while (--count != 0);
-  }
-
-  return (unsigned short)accum;
 }
 
 /* FUN_00197e90 (0x197e90) — structures.obj

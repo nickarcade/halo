@@ -8,6 +8,34 @@
  * EBP-0x20..EBP), so its layout is an explicit unknown. */
 #define XGAME_FIND_DATA_SIZE 0x344
 
+/* One record of a memory unit's mapfile (0x206 bytes, read and written whole
+ * by get_nth_entry_in_mapfile / set_nth_entry_in_mapfile /
+ * append_entry_to_mapfile).  Offsets are confirmed by the stores in
+ * create_enumerated_saved_game_file (0x1c5560): REP STOSD zero-fill of
+ * EBP-0x214..EBP-0xf, ustrncpy into EBP-0x114 (+0x100), the 0x7f-char
+ * terminator at EBP-0x16 (+0x1fe), type at EBP-0x14 (+0x200), index at
+ * EBP-0x12 (+0x202), and the two flag bytes at EBP-0x10 / EBP-0xf
+ * (+0x204 / +0x205) that are pushed as build_saved_game_file_index's two
+ * boolean stack arguments.  `file.index` is named by the assert string
+ * "profile_index == file.index"; the other field names follow PAL 2342
+ * (T2): +0x204 is the read-only bit (bit 30 of the packed index, tested by
+ * delete_enumerated_saved_game_file before XDeleteSaveGame) and +0x205 is
+ * set once the blank block with its checksum was written. */
+typedef struct {
+  char path[0x100]; ///< offset=0x000
+  wchar_t display_name[0x80]; ///< offset=0x100
+  int16_t type; ///< offset=0x200
+  int16_t index; ///< offset=0x202
+  bool read_only; ///< offset=0x204
+  bool valid; ///< offset=0x205
+} enumerated_saved_game_file_t;
+cs(enumerated_saved_game_file_t, 0x206);
+co(enumerated_saved_game_file_t, display_name, 0x100);
+co(enumerated_saved_game_file_t, type, 0x200);
+co(enumerated_saved_game_file_t, index, 0x202);
+co(enumerated_saved_game_file_t, read_only, 0x204);
+co(enumerated_saved_game_file_t, valid, 0x205);
+
 /* Helper: call ensure_directory at 0x1c31f0, which takes the path in EAX and
  * returns its result in AL.  kb.json carries that as `const char *path@<eax>`,
  * so the build system generates the thunk and this is a plain call. */
@@ -280,6 +308,65 @@ void playlist_profiles_dispose(void)
   csmemset((void *)0x4eaa38, 0, 0x74);
 }
 
+/* 0x1c1e20 — playlist_profile_new (PAL 2342 playlist_profile.c body, T2).
+ * Creates a new playlist-profile saved-game file (type 1, PUSH 0x1 at
+ * 0x1c1e32) named `name`, fills its 0x200-byte record with the slayer default
+ * variant, and returns the new saved-game file index, or -1.
+ *   - create failure: returns create's -1 with no report (MOV EAX,EBX).
+ *   - open failure: "failed to open newly created playlist profile", delete
+ *     the file, return -1 (OR EAX,-1).
+ *   - the record is `= {0}` (MOV byte + REP STOSD/STOSW/STOSB), the variant is
+ *     a 0x68-byte struct copy of game_engine_slayer_default's result (REP
+ *     MOVSD 0x1a dwords) that csmemcpy puts at record +0; bit 0 of the flags
+ *     byte at record +0x64 is cleared (AND byte [EBP-0x19c],0xfe; PAL
+ *     _game_variant_is_system_default_bit); game_engine_variant_cleanup runs
+ *     on the record; 0xb name chars are copied to record +0 with the word
+ *     terminator at +0x16; the checksum of the first 0x68 bytes goes to
+ *     record +0x68 -- the layout FUN_001c2120 writes and playlist_profile_get
+ *     reads back.
+ *   - set_position/write failure: "failed to initialize newly created
+ *     playlist profile", delete, index = -1.  The file is closed with the
+ *     final index on both the success and write-failure paths.
+ * Frame (SUB ESP,0x3dc): builder scratch [EBP-0x3dc], file_ref_t [EBP-0x374],
+ * variant copy [EBP-0x268], record [EBP-0x200]. */
+int playlist_profile_new(unsigned short local_player_index, wchar_t *name)
+{
+  game_variant_t temporary;
+  file_ref_t file;
+  int playlist_profile_index;
+
+  playlist_profile_index =
+    create_enumerated_saved_game_file(1, local_player_index, name);
+  if (playlist_profile_index != -1) {
+    if (saved_game_file_open(&file, playlist_profile_index)) {
+      char block[0x200] = { 0 };
+      game_variant_t variant;
+
+      variant = *game_engine_slayer_default(&temporary);
+      csmemcpy(block, &variant, 0x68);
+      *(uint16_t *)(block + 0x64) &= ~1;
+      game_engine_variant_cleanup((game_variant_t *)block);
+      ustrncpy((wchar_t *)block, name, 0xb);
+      *(wchar_t *)(block + 0x16) = 0;
+      saved_game_file_generate_checksum(block, 0x68, block + 0x68);
+
+      if (!file_set_position(&file, 0) || !file_write(&file, 0x200, block)) {
+        error(2, "failed to initialize newly created playlist profile");
+        delete_enumerated_saved_game_file(playlist_profile_index);
+        playlist_profile_index = -1;
+      }
+
+      saved_game_file_close(&file, playlist_profile_index);
+    } else {
+      error(2, "failed to open newly created playlist profile");
+      delete_enumerated_saved_game_file(playlist_profile_index);
+      playlist_profile_index = -1;
+    }
+  }
+
+  return playlist_profile_index;
+}
+
 /* 0x1c1f70 — deletes the enumerated saved-game file backing a playlist profile
  * index.  The index arrives on the stack ([EBP+0x8] into ESI at 0x1c1f74) and
  * -1 is the "no profile" sentinel (CMP ESI,-0x1 / JZ at 0x1c1f77).  The single
@@ -501,6 +588,162 @@ void FUN_001c2120(void)
 
   (void)unknown_flag;
   saved_game_files_notify_memory_units_changed();
+}
+
+/* 0x1c22e0 — playlist_profile_create_default_profiles_on_disk
+ * Source TU confirmed by the __FILE__ assert string
+ * "c:\halo\SOURCE\saved games\playlist_profile.c" (line 0x18c).
+ *
+ * The kb name comes from PDB line containment and does not match the body:
+ * no string names this function, so the name is kept, but behaviourally it
+ * reads one playlist profile (a 0x68-byte game variant) into the record in
+ * EBX (TEST EBX,EBX at 0x1c22e9 before any write, "variant" assert string).
+ *
+ * The stack dword is a saved game file index, tested signed (JNS at
+ * 0x1c2362) and forwarded to saved_game_file_open/_close/_get_display_name.
+ * Its meaning beyond that is not proven, so it stays an explicit unknown.
+ * With the sign bit set: drain the async playlist io thread, take the saved
+ * game files mutex, open + read a 0x200-byte block, verify the 0x14-byte
+ * checksum over the first 0x68 bytes, and copy the variant out.  With the
+ * sign bit clear, or on a checksum mismatch, the record is instead filled
+ * from game_engine_slayer_default with the file's display name (0xb chars)
+ * and the words at +0x16 (name terminator) and +0x64 cleared; that path
+ * reports success too (MOV AL,1 at 0x1c2547 / MOV [EBP-1],1 at 0x1c2472).
+ *
+ * Frame (from the LEAs): block [EBP-0x3f4] 0x200, file [EBP-0x1f4],
+ * temporary [EBP-0xe8], default_variant [EBP-0x80], checksum [EBP-0x18]
+ * 0x14, success byte [EBP-0x1].  default_variant is copied from the slayer
+ * result with REP MOVSD 0x1a dwords (a struct assignment).
+ */
+boolean playlist_profile_create_default_profiles_on_disk(
+  game_variant_t *variant /* @<ebx> */, int unknown)
+{
+  char block[0x200];
+  file_ref_t file;
+  game_variant_t temporary;
+  game_variant_t default_variant;
+  char checksum[0x14];
+  boolean success = false;
+
+  if (variant == NULL) {
+    display_assert("variant",
+                   "c:\\halo\\SOURCE\\saved games\\playlist_profile.c", 0x18c,
+                   true);
+    system_exit(-1);
+  }
+
+  if (*(void **)0x4eaaa4 != NULL) {
+    error(2, "waiting for asynchronous playlist profile io to finish...");
+    do {
+      /* spin until the async playlist io thread signals completion */
+    } while (!thread_is_done(*(void **)0x4eaaa4));
+    thread_close(*(void **)0x4eaaa4);
+    *(void **)0x4eaaa4 = NULL;
+  }
+
+  if (unknown & 0x80000000) {
+    if (saved_game_files_take_mutex()) {
+      if (saved_game_file_open(&file, unknown)) {
+        if (file_read(&file, 0x200, block)) {
+          saved_game_file_generate_checksum(block, 0x68, checksum);
+          if (csmemcmp(checksum, &block[0x68], 0x14) == 0) {
+            csmemcpy(variant, block, 0x68);
+          } else {
+            default_variant = *game_engine_slayer_default(&temporary);
+            error(2, "checksum failed on playlist profile file, sanitizing "
+                     "memory resident version...");
+            /* word store MOV [EBP-0x1c],SI = default_variant + 0x64 */
+            *(int16_t *)default_variant.pad_64 = 0;
+            ustrncpy((wchar_t *)&default_variant,
+                     saved_game_file_get_display_name(unknown), 0xb);
+            /* word store MOV [EBP-0x6a],SI = name element 0xb (+0x16) */
+            ((wchar_t *)&default_variant)[0xb] = 0;
+            csmemcpy(variant, &default_variant, 0x68);
+          }
+          success = true;
+        } else {
+          error(2, "failed to read playlist profile from file");
+        }
+        saved_game_file_close(&file, unknown);
+      } else {
+        error(2, "failed to open playlist profile file");
+      }
+      saved_game_files_release_mutex();
+    } else {
+      error(2, "failed to get saved game files mutex; perhaps another "
+               "operation is in progress?");
+    }
+  } else {
+    default_variant = *game_engine_slayer_default(&temporary);
+    error(2, "checksum failed on playlist profile file, sanitizing memory "
+             "resident version...");
+    *(int16_t *)default_variant.pad_64 = 0;
+    ustrncpy((wchar_t *)&default_variant,
+             saved_game_file_get_display_name(unknown), 0xb);
+    ((wchar_t *)&default_variant)[0xb] = 0;
+    csmemcpy(variant, &default_variant, 0x68);
+    success = true;
+  }
+
+  return success;
+}
+
+/* 0x1c2550 — playlist_profile_write
+ * Source TU confirmed by the __FILE__ assert string
+ * "c:\halo\SOURCE\saved games\playlist_profile.c" (line 0x202).
+ *
+ * Worker thread started by playlist_profile_read via thread_new with the
+ * 0x4eaa38 state block as its parameter: __stdcall (RET 0x4), one stack
+ * argument asserted non-NULL ("input"), always returns 0 (XOR EAX,EAX).
+ * input[0] is the saved game file index forwarded to open/close/delete and
+ * the metadata sync; input + 1 (ADD ESI,4) is the 0x68-byte record, copied
+ * into a 0x200-byte block with its 0x14-byte checksum stored at +0x68, and
+ * also forwarded as the display name to the metadata sync.
+ * Frame (from the LEAs): block [EBP-0x30c] 0x200, file [EBP-0x10c].
+ */
+int __stdcall playlist_profile_write(int *input)
+{
+  char block[0x200];
+  file_ref_t file;
+  int32_t saved_game_file_index;
+  bool write_failed;
+
+  if (input == NULL) {
+    display_assert("input", "c:\\halo\\SOURCE\\saved games\\playlist_profile.c",
+                   0x202, true);
+    system_exit(-1);
+  }
+
+  error(2, "begin playlist profile write");
+  if (saved_game_files_take_mutex()) {
+    saved_game_file_index = *input;
+    write_failed = false;
+    if (saved_game_file_open(&file, saved_game_file_index)) {
+      csmemcpy(block, input + 1, 0x68);
+      saved_game_file_generate_checksum(block, 0x68, block + 0x68);
+      if (!file_set_position(&file, 0) || !file_write(&file, 0x200, block)) {
+        error(2, "failed to write playlist profile to file");
+        write_failed = true;
+      }
+      if (saved_game_file_close(&file, saved_game_file_index) &&
+          !synchronize_metadata_display_name_with_profile_name(
+            saved_game_file_index, (wchar_t *)(input + 1))) {
+        error(2, "metadata name may not match game display name");
+      }
+      if (write_failed) {
+        delete_enumerated_saved_game_file(saved_game_file_index);
+      }
+      saved_game_files_release_mutex();
+    } else {
+      error(2, "failed to open playlist profile file");
+      saved_game_files_release_mutex();
+    }
+  } else {
+    error(2, "failed to get saved game files mutex; perhaps another "
+             "operation is in progress?");
+  }
+  error(2, "end playlist profile write");
+  return 0;
 }
 
 /* Flush the pending saved-game update (guarded by the byte flag at 0x32eb90)
@@ -820,7 +1063,13 @@ void saved_game_file_get_useable_untitled_profile_name(wchar_t *display_name)
  * dword at 0x4eacbc (initialized by saved_game_files_initialize via 0x817e0);
  * the disassembly loads its VALUE into EAX and passes that as take_mutex's
  * `mutex_reference`.  Timeout is the immediate 0x36ee80 = 3600000 ms.
- * The boolean result is discarded (no test after the call at 0x1c2afb). */
+ * The boolean result is discarded (no test after the call at 0x1c2afb).
+ * noinline (VC71 verification only, cl.exe only): the original's playlist
+ * profile read lives in playlist_profile.c and CALLs this out of line; with
+ * the body in scope cl.exe would inline it there. */
+#if defined(_MSC_VER) && !defined(__clang__)
+__declspec(noinline)
+#endif
 bool saved_game_files_take_mutex(void)
 {
   return take_mutex(*(int **)0x4eacbc, 3600000);
@@ -829,7 +1078,13 @@ bool saved_game_files_take_mutex(void)
 /* Release the saved-game file system mutex.  Same handle dword at 0x4eacbc as
  * saved_game_files_take_mutex: the disassembly loads its VALUE into EAX
  * (MOV EAX,[0x4eacbc]) and passes that as release_mutex's `mutex_reference`
- * (PUSH EAX; CALL 0x818d0; POP ECX).  No return value. */
+ * (PUSH EAX; CALL 0x818d0; POP ECX).  No return value.
+ * noinline (VC71 verification only, cl.exe only): the original's playlist
+ * profile read lives in playlist_profile.c and CALLs this out of line; with
+ * the body in scope cl.exe would inline it there. */
+#if defined(_MSC_VER) && !defined(__clang__)
+__declspec(noinline)
+#endif
 void saved_game_files_release_mutex(void)
 {
   release_mutex(*(int **)0x4eacbc);
@@ -1176,6 +1431,22 @@ void saved_game_file_generate_checksum(const void *buffer, unsigned short size,
    * the JZ at 0x1c3198 jumps forward to; written last here to keep that
    * block order. */
   error(2, "XCalculateSignatureBegin() failed");
+}
+
+/* 0x1c31f0 — make sure `path` (in EAX, pushed straight through to
+ * file_reference_create_from_path at 0x1c31fc with a4 = 1) exists, creating
+ * it with file_create when file_exists reports it missing.  Returns 1 (BL,
+ * preloaded by MOV BL,0x1 at 0x1c3204) when the reference was built and the
+ * entry exists or was created, 0 (XOR AL,AL at 0x1c3238) otherwise.  Sole
+ * caller is saved_game_files_initialize, via the ensure_dir helper above. */
+char FUN_001c31f0(const char *path)
+{
+  file_ref_t info;
+
+  if (file_reference_create_from_path(&info, path, true) != NULL &&
+      (file_exists(&info) || file_create(&info)))
+    return 1;
+  return 0;
 }
 
 /* Begin enumerating the saved game files on a memory unit.  `memory_unit`
@@ -1845,6 +2116,102 @@ int16_t enumerate_default_player_profiles(void)
   return (int16_t)i;
 }
 
+/* 0x1c3e40 — get_nth_entry_in_mapfile.  Name confirmed by the callers' error
+ * strings ("get_nth_entry_in_mapfile() failed").  Read-side twin of
+ * set_nth_entry_in_mapfile below, same shape as PAL 2342's
+ * get_nth_entry_in_mapfile.
+ *
+ * `memory_unit_index` arrives in AX (MOV SI,AX at 0x1c3e48).  The entry index
+ * arrives in EDI: the callee never saves or writes EDI before MOVZX EDI,DI at
+ * 0x1c3f37, so only its low 16 bits are used (the kb decl keeps the
+ * immutable int32_t@<edi>).  The record pointer is the one stack argument at
+ * [EBP+8].  Entry asserts are lines 0x7a7/0x7a9/0x7aa.  The mapfile mutex at
+ * 0x4eacc0 is taken with the 3600000 ms timeout; failing it reports and
+ * returns the flag still in BL (MOV AL,BL at 0x1c401b).  The file is opened
+ * with flag 1 (read).  file_get_eof is divided by 0x206 (unsigned DIV at
+ * 0x1c3f35) only to report corruption; the record is read only when
+ * offset + 0x206 <= size (LEA EAX,[ESI+0x206] / CMP EAX,EBX / JA at 0x1c3f5c).
+ * The out-of-range path leaves the result at its initial 0; the read-failure
+ * path stores 0 explicitly (MOV byte ptr [EBP-1],0 at 0x1c3f9d).  A failed
+ * close clears the flag again.  The result byte at [EBP-1] is returned in AL
+ * at 0x1c3fff. */
+bool get_nth_entry_in_mapfile(int16_t memory_unit_index, int32_t entry_index,
+                              void *entry)
+{
+  bool result;
+  uint16_t unit;
+  uint16_t index;
+  uint32_t size;
+  uint32_t offset;
+
+  result = 0;
+
+  if (memory_unit_index != 0) {
+    display_assert("memory_unit_index==_memory_unit_hard_drive",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x7a7,
+                   1);
+    system_exit(-1);
+  }
+
+  if (*(uint8_t *)0x4eacc8 != 0) {
+    display_assert("!saved_game_files_globals.enumeration_in_progress",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x7a9,
+                   1);
+    system_exit(-1);
+  }
+
+  if ((uint16_t)memory_unit_index >= 9 || entry == NULL) {
+    display_assert(
+      "(memory_unit_index < NUMBER_OF_MEMORY_UNITS) && (file != NULL)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x7aa, 1);
+    system_exit(-1);
+  }
+
+  if (!take_mutex(*(int **)0x4eacc0, 3600000)) {
+    error(2, "failed to take mapfile mutex");
+    return result;
+  }
+
+  unit = (uint16_t)memory_unit_index;
+
+  if (file_reference_create_from_path(
+        (file_ref_t *)0x4eabb0, ((const char **)0x32eb98)[unit], 0) != 0 &&
+      file_open((file_ref_t *)0x4eabb0, 1)) {
+    size = (uint32_t)file_get_eof((file_ref_t *)0x4eabb0);
+    index = (uint16_t)entry_index;
+    offset = (uint32_t)index * 0x206;
+
+    if (size % 0x206 != 0) {
+      error(2, "memory unit mapfile for memory unit #%d is possibly corrupt",
+            unit);
+    }
+
+    if (offset + 0x206 <= size) {
+      if (file_set_position((file_ref_t *)0x4eabb0, (int32_t)offset) &&
+          file_read((file_ref_t *)0x4eabb0, 0x206, entry)) {
+        result = 1;
+      } else {
+        result = 0;
+        error(2, "failed to retrieve entry #%d from memory unit mapfile (#%d)",
+              index, unit);
+      }
+    } else {
+      error(2, "invalid profile index (#%d) into memory unit #%d specified",
+            index, unit);
+    }
+
+    if (!file_close((file_ref_t *)0x4eabb0)) {
+      error(2, "failed to close memory unit mapfile for memory unit #%d", unit);
+      result = 0;
+    }
+  } else {
+    error(2, "failed to open memory unit mapfile for memory unit #%d", unit);
+  }
+
+  release_mutex(*(int **)0x4eacc0);
+  return result;
+}
+
 /* Overwrite the nth 0x206-byte record of the memory-unit mapfile in place.
  * `memory_unit_index` arrives in AX (MOV SI,AX at 0x1c4038); the entry index is
  * the 16-bit stack slot at [EBP+8] (MOVZX EBX,word ptr at 0x1c4126) and the
@@ -2034,6 +2401,102 @@ bool append_entry_to_mapfile(int16_t memory_unit_index, const void *file,
   return result;
 }
 
+/* 0x1c43f0 — remove_nth_entry_in_mapfile.  Name confirmed by the caller's
+ * error string ("remove_nth_entry_in_mapfile() failed"); same shape as PAL
+ * 2342's remove_nth_entry_in_mapfile.
+ *
+ * `memory_unit_index` arrives in AX (MOV DI,AX at 0x1c4405) and the entry
+ * index in CX (MOVZX ESI,CX / IMUL ESI,ESI,0x206 at 0x1c43fb, before the
+ * asserts).  Entry asserts are lines 0x87a/0x87c/0x87d.  The mapfile is
+ * rewritten only when file_get_size succeeds and the size covers the whole
+ * entry (CMP EAX,EDI / JB at 0x1c44dd, EDI = offset + 0x206), then opened
+ * with flag 3 (read|write).  file_set_position's AL is the running result
+ * (MOV BL,AL at 0x1c4507) and the shift loop runs only when it is exactly 1
+ * (CMP BL,1 at 0x1c450c).  Each following record is copied down one slot
+ * through the 0x206-byte stack buffer at EBP-0x20c; a failed read or write
+ * reports, clears the result and skips the truncate.  A successful shift
+ * truncates the file by one record (ADD EAX,-0x206 / file_set_eof), whose AL
+ * becomes the result.  A failed close reports and clears it.  Every exit
+ * returns BL. */
+bool remove_nth_entry_in_mapfile(int16_t memory_unit_index, int16_t entry_index)
+{
+  enumerated_saved_game_file_t file;
+  uint32_t mapfile_size;
+  uint32_t entry_offset;
+  uint32_t next_entry_offset;
+  bool success;
+
+  entry_offset = (uint32_t)(uint16_t)entry_index * 0x206;
+  success = 0;
+
+  if (memory_unit_index != 0) {
+    display_assert("memory_unit_index==_memory_unit_hard_drive",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x87a,
+                   1);
+    system_exit(-1);
+  }
+
+  if (*(uint8_t *)0x4eacc8 != 0) {
+    display_assert("!saved_game_files_globals.enumeration_in_progress",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x87c,
+                   1);
+    system_exit(-1);
+  }
+
+  if ((uint16_t)memory_unit_index >= 9) {
+    display_assert("memory_unit_index < NUMBER_OF_MEMORY_UNITS",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x87d,
+                   1);
+    system_exit(-1);
+  }
+
+  if (!take_mutex(*(int **)0x4eacc0, 3600000)) {
+    error(2, "failed to take mapfile mutex");
+    return success;
+  }
+
+  if (file_reference_create_from_path(
+        (file_ref_t *)0x4eabb0,
+        ((const char **)0x32eb98)[(uint16_t)memory_unit_index], 0) != 0 &&
+      file_get_size((file_ref_t *)0x4eabb0, &mapfile_size) &&
+      mapfile_size >= entry_offset + 0x206 &&
+      file_open((file_ref_t *)0x4eabb0, 3)) {
+    success = file_set_position((file_ref_t *)0x4eabb0, (int)entry_offset);
+
+    next_entry_offset = entry_offset + 0x206;
+
+    if (success == 1) {
+      while (next_entry_offset < mapfile_size) {
+        if (!file_read_from_position((file_ref_t *)0x4eabb0,
+                                     (int)next_entry_offset, 0x206, &file) ||
+            !file_write_to_position((file_ref_t *)0x4eabb0, (int)entry_offset,
+                                    0x206, &file)) {
+          error(2, "failed to update memory unit mapfile after removing an "
+                   "enumerated file");
+          success = 0;
+          break;
+        }
+
+        next_entry_offset += 0x206;
+        entry_offset += 0x206;
+      }
+    }
+
+    if (success) {
+      success =
+        file_set_eof((file_ref_t *)0x4eabb0, (int)(mapfile_size - 0x206));
+    }
+
+    if (!file_close((file_ref_t *)0x4eabb0)) {
+      error(2, "failed to close memory unit map file");
+      success = 0;
+    }
+  }
+
+  release_mutex(*(int **)0x4eacc0);
+  return success;
+}
+
 /* Unpack a saved game file index and return the display name of the entry it
  * names.  The two fields read here are the ones build_saved_game_file_index
  * (0x1c36f0) packs: MOVZX ESI,AH at 0x1c460d takes the 8-bit memory unit at
@@ -2075,6 +2538,476 @@ wchar_t *saved_game_file_get_display_name(int32_t saved_game_file_index)
   }
 
   return (wchar_t *)0x4eaab0;
+}
+
+/* 0x1c46c0 — delete_enumerated_saved_game_file.  Name confirmed by its own
+ * error strings ("...failed in delete_enumerated_saved_game_file()").
+ *
+ * The memory-units-dirty byte at 0x4eacc7 is tested first; when set it
+ * reports and exits through reset_last_player1_profile_index with the flag
+ * at [EBP-1] still 0.  The packed index is unpacked like the siblings
+ * (AND 0xf type, MOVZX EBX,AH unit, SAR 0x10 / AND 0xfff file index) and the
+ * hard-drive assert is line 0x1ef.  get_nth_entry_in_mapfile gets the unit
+ * in EAX and the file index still in EDI, filling the 0x208-byte slot at
+ * EBP-0x214.  success = (unit == 0) (SETZ AL at 0x1c4781); when bit 30 of
+ * the index (read-only) is clear, XDeleteSaveGame (0x1d3185, __stdcall, no
+ * ADD ESP) is called with wide_to_ascii(root[unit], root_path, 8) and the
+ * entry's display name (EBP-0x114 = entry+0x100).  remove_nth_entry_in_mapfile
+ * gets the unit in EAX and the file index in ECX (MOV ECX,EDI at 0x1c47d9).
+ * The "unmount" / "mount" messages are unreachable after the line-0x1ef
+ * assert but are present in the binary and kept. */
+bool delete_enumerated_saved_game_file(int32_t saved_game_file_index)
+{
+  enumerated_saved_game_file_t file;
+  bool success;
+
+  success = false;
+
+  if (*(uint8_t *)0x4eacc7 != 0) { /* memory_units_dirty */
+    error(2, "failed to delete saved game file because memory units have "
+             "been inserted/removed");
+  } else {
+    int32_t type = saved_game_file_index & 0xf;
+    int32_t memory_unit = (saved_game_file_index >> 8) & 0xff;
+    int32_t n = (saved_game_file_index >> 16) & 0xfff;
+
+    if (memory_unit != 0) {
+      display_assert("memory_unit==_memory_unit_hard_drive",
+                     "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x1ef,
+                     true);
+      system_exit(-1);
+    }
+
+    if (type >= 0 && type < 2 && memory_unit >= 0 && memory_unit < 9 &&
+        n >= 0 && n < 100) {
+      if (get_nth_entry_in_mapfile((int16_t)memory_unit, n, &file)) {
+        char root_path[8] = { 0 };
+
+        success = (memory_unit == 0);
+
+        if (success) {
+          if ((saved_game_file_index & 0x40000000) == 0) {
+            if (FUN_001d3185(
+                  wide_to_ascii(((const wchar_t **)0x32eb94)[memory_unit],
+                                root_path, 8),
+                  file.display_name) != 0) {
+              error(2, "XDeleteSaveGame() failed... ghost meta data likely");
+              success = false;
+            }
+          }
+
+          if (!remove_nth_entry_in_mapfile((int16_t)memory_unit, (int16_t)n)) {
+            error(2, "remove_nth_entry_in_mapfile() failed");
+            success = false;
+          }
+
+          if (memory_unit != 0) {
+            error(2, "failed to unmount memory unit");
+          }
+        } else {
+          error(2, "failed to mount memory unit #%d", memory_unit);
+        }
+      } else {
+        error(2, "get_nth_entry_in_mapfile() failed in "
+                 "delete_enumerated_saved_game_file()");
+      }
+    } else {
+      error(2, "delete_enumerated_saved_game_file() failed because the game "
+               "file index was invalid");
+    }
+  }
+
+  reset_last_player1_profile_index();
+
+  return success;
+}
+
+/* 0x1c4850 — saved_game_file_open.  Opens the file named by a packed saved
+ * game file index for read/write.  The kb name enumerate_memory_units_test
+ * (CEA PDB line containment) was wrong: that is a void no-argument hs
+ * command.  This body's asserts are lines 0x241 and 0x244-0x247, the same
+ * shape as saved_game_file_close (0x1c2890, lines 0x25b/0x25e-0x261), and
+ * both callers report "failed to open player profile file" on false.
+ *
+ * Result is the conjunction at 0x1c4940-0x1c4976: get_nth_entry_in_mapfile
+ * (unit in EAX, file index in EDI, entry at EBP-0x208) AND
+ * file_reference_create_from_path(saved_game_file, entry.path, 0) AND
+ * unit == 0 AND file_open(saved_game_file, 3). */
+bool saved_game_file_open(file_ref_t *saved_game_file,
+                          int32_t saved_game_file_index)
+{
+  enumerated_saved_game_file_t file;
+  int32_t type;
+  int32_t memory_unit;
+  int32_t n;
+
+  type = saved_game_file_index & 0xf;
+  memory_unit = (saved_game_file_index >> 8) & 0xff;
+  n = (saved_game_file_index >> 16) & 0xfff;
+
+  if (memory_unit != 0) {
+    display_assert("memory_unit==_memory_unit_hard_drive",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x241,
+                   true);
+    system_exit(-1);
+  }
+
+  if (saved_game_file == NULL) {
+    display_assert("saved_game_file",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x244,
+                   true);
+    system_exit(-1);
+  }
+
+  if (type < 0 || type >= 2) {
+    display_assert("(type >= 0) && (type < NUMBER_OF_SAVED_GAME_FILE_TYPES)",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x245,
+                   true);
+    system_exit(-1);
+  }
+
+  if (memory_unit < 0 || memory_unit >= 9) {
+    display_assert(
+      "(memory_unit >= 0) && (memory_unit < NUMBER_OF_MEMORY_UNITS)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x246, true);
+    system_exit(-1);
+  }
+
+  if (n < 0 || n >= 100) {
+    display_assert(
+      "(n >= 0) && (n < "
+      "MAXIMUM_ENUMERATED_SAVED_GAME_FILES_ANY_TYPE_PER_MEMORY_UNIT)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x247, true);
+    system_exit(-1);
+  }
+
+  return get_nth_entry_in_mapfile((int16_t)memory_unit, n, &file) &&
+         file_reference_create_from_path(saved_game_file, file.path, 0) !=
+           NULL &&
+         memory_unit == 0 && file_open(saved_game_file, 3);
+}
+
+/* 0x1c4990 — synchronize_metadata_display_name_with_profile_name.  Name
+ * confirmed by its own error string ("XCreateSaveGame() failed in
+ * synchronize_metadata_display_name_with_profile_name() ...").  Same shape as
+ * PAL 2342's function of that name.
+ *
+ * Renames the XAPI save-game metadata of a mapfile entry to match
+ * game_display_name: creates a new save game with the new name, copies the
+ * entry's file(s) into its directory, deletes the old save game and rewrites
+ * the mapfile record.  game_display_name is the second stack argument; the
+ * assert string "ustrlen(game_display_name)<MAXIMUM_SAVED_GAME_NAME_LENGTH"
+ * names it, and the caller FUN_001c15c0 passes the profile payload, whose
+ * first field is the wide profile name (FUN_001c1720 ustrncpy's the name to
+ * offset 0 of the same record).
+ *
+ * The result starts TRUE (MOV BL,1 at 0x1c49b1), so the get_nth failure,
+ * mount failure, XCreateSaveGame failure and "name unchanged" paths all return
+ * true.  Asserts are lines 0x306/0x309/0x30a/0x30b/0x30d and 0x343.
+ *
+ * Frame (SUB ESP,0x610): file at EBP-0x410 (0x206 bytes, filled by
+ * get_nth_entry_in_mapfile with the unit in EAX, n in EDI); root_path[8] at
+ * EBP-8; save_game_directory[0x100] at EBP-0x208 (zero-filled with REP STOSD);
+ * new_path[0x100] at EBP-0x108; old/new persistent-storage paths [0x100] at
+ * EBP-0x510 / EBP-0x610.  Every snprintf is bounded to 0xff with an explicit
+ * terminator store at index 0xff.
+ *
+ * Callees: FUN_001d2f22 = XCreateSaveGame (__stdcall, 6 args; creation flag
+ * 1, the 0 pushed from ESI which is memory_unit == 0 on this path),
+ * FUN_001d21f2 = CopyFileA (__stdcall: RET 0xc, no ADD ESP at the call sites;
+ * its AL is kept as the byte result, MOV BL,AL), FUN_001d3185 =
+ * XDeleteSaveGame (__stdcall, 2 args), FUN_001c0720 = the persistent-storage
+ * filename (called twice, once per use, as in the binary).  set_nth gets the
+ * unit in EAX (XOR EAX,EAX: constant 0 here) and n / &file on the stack. */
+bool synchronize_metadata_display_name_with_profile_name(
+  int32_t saved_game_file_index, wchar_t *game_display_name)
+{
+  enumerated_saved_game_file_t file;
+  bool success;
+  int32_t type;
+  int32_t memory_unit;
+  int32_t n;
+
+  memory_unit = (saved_game_file_index >> 8) & 0xff;
+  n = (saved_game_file_index >> 0x10) & 0xfff;
+  type = saved_game_file_index & 0xf;
+  success = 1;
+
+  if (memory_unit != 0) {
+    display_assert("memory_unit==_memory_unit_hard_drive",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x306,
+                   true);
+    system_exit(-1);
+  }
+
+  if (type < 0 || type >= 2) {
+    display_assert("(type >= 0) && (type < NUMBER_OF_SAVED_GAME_FILE_TYPES)",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x309,
+                   true);
+    system_exit(-1);
+  }
+
+  if (memory_unit < 0 || memory_unit >= 9) {
+    display_assert(
+      "(memory_unit >= 0) && (memory_unit < NUMBER_OF_MEMORY_UNITS)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x30a, true);
+    system_exit(-1);
+  }
+
+  if (n < 0 || n >= 100) {
+    display_assert(
+      "(n >= 0) && (n < "
+      "MAXIMUM_ENUMERATED_SAVED_GAME_FILES_ANY_TYPE_PER_MEMORY_UNIT)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x30b, true);
+    system_exit(-1);
+  }
+
+  if ((uint32_t)ustrlen(game_display_name) >= 0x80) {
+    display_assert("ustrlen(game_display_name)<MAXIMUM_SAVED_GAME_NAME_LENGTH",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x30d,
+                   true);
+    system_exit(-1);
+  }
+
+  if (get_nth_entry_in_mapfile((int16_t)memory_unit, n, &file)) {
+    if (game_display_name != NULL && game_display_name[0] != 0 &&
+        ustrcmp(file.display_name, game_display_name) != 0) {
+      if (memory_unit == 0) {
+        char root_path[8] = { 0 };
+        char save_game_directory[0x100] = { 0 };
+
+        if (FUN_001d2f22(
+              wide_to_ascii(*(const wchar_t **)0x32eb94, root_path, 8),
+              game_display_name, 1, 0, save_game_directory, 0x100) == 0) {
+          char new_path[0x100];
+
+          switch (file.type) {
+          case 0: {
+            char old_persistent_storage_path[0x100];
+            char new_persistent_storage_path[0x100];
+            char *filename;
+
+            snprintf(new_path, 0xff, "%s%s", save_game_directory, "blam.sav");
+            new_path[0xff] = 0;
+            success = (bool)FUN_001d21f2(file.path, new_path, 1);
+
+            if (success == 1) {
+              csstrncpy(old_persistent_storage_path, file.path, 0xff);
+              old_persistent_storage_path[0xff] = 0;
+              filename = crt_strstr(old_persistent_storage_path, "blam.sav");
+
+              if (filename != NULL) {
+                *filename = 0;
+                csstrncat(old_persistent_storage_path, FUN_001c0720(), 0xff);
+                old_persistent_storage_path[0xff] = 0;
+                snprintf(new_persistent_storage_path, 0xff, "%s%s",
+                         save_game_directory, FUN_001c0720());
+                success = (bool)FUN_001d21f2(old_persistent_storage_path,
+                                             new_persistent_storage_path, 1);
+              } else {
+                success = 0;
+              }
+            }
+            break;
+          }
+
+          case 1:
+            snprintf(new_path, 0xff, "%s%s", save_game_directory, "blam.lst");
+            new_path[0xff] = 0;
+            success = (bool)FUN_001d21f2(file.path, new_path, 1);
+            break;
+
+          default:
+            display_assert("!\"unknown enumerated file type\"",
+                           "c:\\halo\\SOURCE\\saved games\\saved_game_files.c",
+                           0x343, true);
+            system_exit(-1);
+            success = 0;
+            break;
+          }
+
+          if (success == 1) {
+            if (FUN_001d3185(root_path, file.display_name) != 0) {
+              error(2, "XDeleteSaveGame() failed to delete old saved game "
+                       "metadata in rename_metadata_display_name()");
+            }
+
+            csstrncpy(file.path, new_path, 0xff);
+            file.path[0xff] = 0;
+            ustrncpy(file.display_name, game_display_name, 0x7f);
+            file.display_name[0x7f] = 0;
+
+            if (!set_nth_entry_in_mapfile((int16_t)memory_unit, (int16_t)n,
+                                          &file)) {
+              error(2, "failed to update memory unit mapfile after renaming "
+                       "saved game metadata");
+            }
+          } else if (!success) {
+            if (FUN_001d3185(root_path, game_display_name) != 0) {
+              error(2, "XDeleteSaveGame() failed to delete empty saved game "
+                       "metadata in rename_metadata_display_name()");
+            }
+          }
+        } else {
+          error(2, "XCreateSaveGame() failed in "
+                   "synchronize_metadata_display_name_with_profile_name() "
+                   "(maybe the name is already in use?)");
+        }
+      } else {
+        error(2, "failed to mount memory unit #%d", memory_unit);
+      }
+    }
+  } else {
+    error(2, "get_nth_entry_in_mapfile() failed");
+  }
+
+  return success;
+}
+
+/* 0x1c4da0 — copy the path of the directory holding the saved game file
+ * named by profile_index into path (at most 0xff chars + NUL).
+ *
+ * Confirmed from disassembly:
+ *   - XOR BL,BL at 0x1c4dae is the return value for the profile_index == -1
+ *     early exit (MOV AL,BL at 0x1c4f03); path[0] is cleared first.
+ *   - The index is unpacked exactly like saved_game_file_get_display_name:
+ *     MOVZX EBX,AH (memory unit, bits 8-15), SAR 0x10 / AND 0xfff (file
+ *     index, bits 16-27).  Range checks are unit < 9, 0 <= file < 100.
+ *   - get_nth_entry_in_mapfile gets the unit in EAX (MOV EAX,EBX at
+ *     0x1c4e3e), the file index in EDI and the 0x208-byte stack entry
+ *     (EBP-0x208).  The entry's path is at +0x000 and a 16-bit file type at
+ *     +0x200 (MOV AX,[EBP-8]).
+ *   - Type 0 strips "blam.sav", type 1 strips "blam.lst" (crt_strstr, then
+ *     *found = 0); any other type reports through error() and fails.
+ *   - A pathname that does not contain the file name reports through
+ *     error() and re-clears path[0] (0x1c4ec6). */
+bool saved_game_file_get_path_to_enclosing_directory(int profile_index,
+                                                     char *path)
+{
+  char entry[0x208];
+  bool success;
+  int memory_unit_index;
+  int file_index;
+  int16_t type;
+  const char *file_name;
+  char *found;
+
+  success = 0;
+
+  if (path == NULL) {
+    display_assert("full_path",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x38d,
+                   1);
+    system_exit(-1);
+  }
+
+  *path = 0;
+
+  if (profile_index != -1) {
+    memory_unit_index = (profile_index >> 8) & 0xff;
+    file_index = (profile_index >> 0x10) & 0xfff;
+
+    if (memory_unit_index != 0) {
+      display_assert("memory_unit==_memory_unit_hard_drive",
+                     "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x397,
+                     1);
+      system_exit(-1);
+    }
+
+    if (memory_unit_index >= 0 && memory_unit_index < 9 && file_index >= 0 &&
+        file_index < 100) {
+      if (get_nth_entry_in_mapfile((int16_t)memory_unit_index, file_index,
+                                   entry)) {
+        type = *(int16_t *)(entry + 0x200);
+        if (type == 0) {
+          file_name = "blam.sav";
+        } else if (type == 1) {
+          file_name = "blam.lst";
+        } else {
+          error(2, "unknown saved game file type");
+          return 0;
+        }
+
+        csstrncpy(path, entry, 0xff);
+        path[0xff] = 0;
+        found = crt_strstr(path, file_name);
+        if (found != NULL) {
+          *found = 0;
+          return 1;
+        }
+
+        error(2, "player profile pathname doesn't appear to be valid");
+        *path = 0;
+        return 0;
+      }
+
+      error(2, "unable to locate the specified player profile file in memory "
+               "unit mapfile");
+      return 0;
+    }
+
+    error(2, "invalid saved game file index");
+    return 0;
+  }
+
+  return success;
+}
+
+/* 0x1c4f30 — delete every saved-game directory XFindFirstSaveGame /
+ * XFindNextSaveGame enumerate on the hard-drive root
+ * (*(const wchar_t **)0x32eb94), capped at 100 (CMP EBX,0x64 at 0x1c4f90),
+ * then re-run the two default-profile enumerators.
+ *
+ * Same unit loop shape as FUN_001c5010 below: unit starts at 0 and the loop
+ * repeats only while the incremented unit is 0 (INC ESI / JZ at 0x1c4ffa).
+ * No mutex is taken here.  enumerate_saved_game_files_start(unit) gets the
+ * unit in AX; a false return skips the body including
+ * enumerate_saved_game_files_end.  The `unit == 0` guard (0x1c4f4f) skips
+ * only the delete/enumerate block, not enumerate_saved_game_files_end.
+ *
+ * XDeleteSaveGame (FUN_001d3185, __stdcall) gets the 8-byte ascii root and
+ * the wide save-game name at find_data+0x244.  The counter is never
+ * incremented inside the loop; only the 16-bit sum of the two enumerators
+ * is added to it afterwards (MOVSX ECX,AX / ADD EBX,ECX at 0x1c4ff0). */
+void FUN_001c4f30(void)
+{
+  int unit;
+  int count;
+  char root_path[8] = "";
+  char find_data[XGAME_FIND_DATA_SIZE];
+  int find_handle;
+  int16_t playlist_count;
+
+  count = 0;
+
+  for (unit = 0; unit == 0; unit++) {
+    if (enumerate_saved_game_files_start((int16_t)unit)) {
+      if (unit == 0) {
+        find_handle = XFindFirstSaveGame(
+          wide_to_ascii(*(const wchar_t **)0x32eb94, root_path, 8), find_data);
+
+        if (find_handle != -1) {
+          while (count < 100) {
+            if (FUN_001d3185(root_path, (const wchar_t *)(find_data + 0x244)) !=
+                0)
+              error(2, "XDeleteSaveGame() failed to delete profile");
+
+            if (!XFindNextSaveGame(find_handle, find_data))
+              break;
+          }
+
+          if (!XFindClose(find_handle))
+            error(2, "XFindClose() failed");
+        }
+
+        playlist_count = enumerate_default_playlist_profiles();
+        count +=
+          (int16_t)(enumerate_default_player_profiles() + playlist_count);
+      }
+
+      enumerate_saved_game_files_end((int16_t)unit);
+    }
+  }
 }
 
 /* 0x1c5010 — verify (and, if necessary, upgrade) the checksums of every
@@ -2299,4 +3232,253 @@ void FUN_001c5010(void)
   }
 
   *(uint8_t *)0x4eacc7 = 0;
+}
+
+/* saved_game_files_enumerate_available_to_local_player_index (0x1c53f0) —
+ * PAL 2342 saved_game_files.c (names T2; assert line 0xec).  Fills
+ * player_profile_indices with the saved-game-file indices of every hard-drive
+ * mapfile entry whose type (record+0x200) equals saved_game_file_type,
+ * skipping read-only entries (record+0x204) unless include_default_profiles
+ * is exactly 1, and stops at the capacity passed in the low word of
+ * *number_of_profiles.  The found count is written back as a word.
+ *
+ * Register-arg callees all receive the hard-drive memory unit 0
+ * (XOR ESI,ESI at 0x1c546e/0x1c54f8, XOR EAX,EAX at 0x1c5492); the record
+ * buffer goes to enumerate_saved_game_file_from_mapfile in ESI (LEA ESI,
+ * [EBP-0x20c]); build_saved_game_file_index gets entry index in EAX, 0 in ECX
+ * and the zero-extended file type still live in EDX from 0x1c54bc.
+ * The mapfile entry count from count_enumerated_profiles_in_mapfile is kept
+ * in the player_index argument slot ([EBP+8]) and compared signed.
+ *
+ * When the general mutex cannot be taken the binary stores the low word of
+ * player_index (MOV DX,[EBP+8] at 0x1c5546, before that slot is reused) into
+ * *number_of_profiles, not 0 as PAL 2342 does; reproduced as-is. */
+void saved_game_files_enumerate_available_to_local_player_index(
+  int player_index, int saved_game_file_type, int *number_of_profiles,
+  int *player_profile_indices, int include_default_profiles)
+{
+  char record[0x206];
+  int number_of_entries;
+  int number_of_available_profiles;
+  int entry_index;
+
+  if (!(((int16_t)player_index == -1 ||
+         ((int16_t)player_index >= 0 && (int16_t)player_index < 4)) &&
+        (uint16_t)saved_game_file_type < 2 && number_of_profiles != NULL &&
+        player_profile_indices != NULL)) {
+    display_assert(
+      "((player_index==NONE) || ((player_index>=0) && "
+      "(player_index<MAXIMUM_GAMEPADS))) && "
+      "(saved_game_file_type<NUMBER_OF_SAVED_GAME_FILE_TYPES) && "
+      "(number_of_profiles != NULL) && (player_profile_indices != NULL)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0xec, 1);
+    system_exit(-1);
+  }
+
+  if (!take_mutex(*(int **)0x4eacbc /* general_mutex */, 3600000)) {
+    error(2, "failed to take saved game files mutex");
+    *(uint16_t *)number_of_profiles = (uint16_t)player_index;
+    return;
+  }
+
+  if (*(uint8_t *)0x4eacc7 != 0) { /* memory_units_dirty */
+    FUN_001c5010();
+  }
+
+  number_of_available_profiles = 0;
+  number_of_entries = (int)count_enumerated_profiles_in_mapfile(0);
+  if (take_mutex(*(int **)0x4eacc0 /* mapfile_mutex */, 3600000)) {
+    if (enumerate_mapfile_start(0)) {
+      entry_index = 0;
+      if (*(uint16_t *)number_of_profiles != 0) {
+        do {
+          if (entry_index >= number_of_entries) {
+            break;
+          }
+          if (!enumerate_saved_game_file_from_mapfile(record)) {
+            break;
+          }
+          if ((int)*(int16_t *)(record + 0x200) ==
+                (int)(uint16_t)saved_game_file_type &&
+              ((char)include_default_profiles == 1 || record[0x204] == 0)) {
+            player_profile_indices[number_of_available_profiles] =
+              (int)build_saved_game_file_index(
+                entry_index, 0, (int32_t)(uint16_t)saved_game_file_type,
+                (bool)record[0x204], (bool)record[0x205]);
+            number_of_available_profiles++;
+          }
+          entry_index++;
+        } while (number_of_available_profiles <
+                 (int)*(uint16_t *)number_of_profiles);
+      }
+      enumerate_mapfile_end(0);
+    }
+    release_mutex(*(int **)0x4eacc0);
+  } else {
+    error(2, "failed to take mapfile mutex");
+  }
+
+  release_mutex(*(int **)0x4eacbc);
+  *(uint16_t *)number_of_profiles = (uint16_t)number_of_available_profiles;
+}
+
+/* 0x1c5560 — create_enumerated_saved_game_file.  Name confirmed by its own
+ * error string "file_close() failed in create_enumerated_saved_game_file()".
+ * Returns the packed saved game file index of the new file, or -1.
+ *
+ * Parameters are read as MOV BX,[EBP+8] (unsigned compare, JNC, against 2),
+ * MOV AX,[EBP+0xc] (-1 or signed < 4) and [EBP+0x10] (non-NULL); the three
+ * checks share one assert at line 0x14c.  A dirty memory-unit flag
+ * (0x4eacc7) re-enumerates through FUN_001c5010.  The file-system check
+ * result is switched on: 1 -> display_error_abort_to_dashboard_deferred(0x21,
+ * 1), 2 -> (0x22, 1); any non-zero result returns -1.
+ *
+ * Frame (SUB ESP,0x620): 0x200-byte blank block at EBP-0x620, file_ref_t at
+ * EBP-0x420, save-game directory [0x100] at EBP-0x314, the mapfile record at
+ * EBP-0x214 and the 8-byte root path at EBP-0x8.  XCreateSaveGame (0x1d2f22,
+ * __stdcall) gets (root_path, display_name, 1, 0, directory, 0x100); a
+ * non-zero result means failure.  Type 0 builds "<dir>blam.sav" with a
+ * 0x30-byte checksum span and calls FUN_001c0cd0(dir) (PAL:
+ * game_state_create_persistent_storage), type 1 builds "<dir>blam.lst" with
+ * a 0x68-byte span; any other type stores -1 into record.type and goes
+ * straight to the XDeleteSaveGame cleanup.  append_entry_to_mapfile gets
+ * unit 0 in EAX and writes the new entry index through its out pointer (the
+ * original reuses the [EBP+8] argument slot for it).  On success the result
+ * is build_saved_game_file_index(index in EAX, unit 0 in ECX, type in EDX,
+ * read_only, valid). */
+int32_t create_enumerated_saved_game_file(uint16_t saved_game_file_type,
+                                          int16_t local_player_index,
+                                          wchar_t *display_name)
+{
+  uint8_t block[0x200];
+  file_ref_t saved_game_file;
+  int32_t new_profile_index;
+  int16_t file_system_check;
+
+  new_profile_index = -1;
+
+  if (!(saved_game_file_type < 2 &&
+        (local_player_index == -1 || local_player_index < 4) &&
+        display_name != NULL)) {
+    display_assert(
+      "(saved_game_file_type<NUMBER_OF_SAVED_GAME_FILE_TYPES) && "
+      "((local_player_index==NONE) || "
+      "(local_player_index<MAXIMUM_GAMEPADS)) && (display_name != NULL)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x14c, true);
+    system_exit(-1);
+  }
+
+  if (*(uint8_t *)0x4eacc7 != 0) { /* memory_units_dirty */
+    FUN_001c5010();
+  }
+
+  file_system_check = saved_game_perform_file_system_checks();
+
+  switch (file_system_check) {
+  case 1: /* PAL: _saved_game_file_system_out_of_disk_space */
+    display_error_abort_to_dashboard_deferred(0x21, 1);
+    break;
+  case 2: /* PAL: _saved_game_file_system_too_many_saved_games */
+    display_error_abort_to_dashboard_deferred(0x22, 1);
+    break;
+  }
+
+  if (file_system_check == 0) {
+    int32_t number_of_entries =
+      (int32_t)count_enumerated_profiles_in_mapfile(0);
+
+    if (number_of_entries < 100) {
+      char root_path[8] = { 0 };
+      char save_game_directory[0x100] = { 0 };
+
+      if (FUN_001d2f22(wide_to_ascii(*(const wchar_t **)0x32eb94, root_path, 8),
+                       display_name, 1, 0, save_game_directory, 0x100) == 0) {
+        enumerated_saved_game_file_t file = { 0 };
+        uint32_t profile_index;
+        uint16_t checksum_data_size;
+
+        ustrncpy(file.display_name, display_name, 0x7f);
+        file.type = (int16_t)saved_game_file_type;
+        file.display_name[0x7f] = 0;
+        file.index = (int16_t)number_of_entries;
+        file.read_only = false;
+        file.valid = false;
+
+        switch (saved_game_file_type) {
+        case 0:
+          snprintf(file.path, 0xff, "%s%s", save_game_directory, "blam.sav");
+          checksum_data_size = 0x30;
+          FUN_001c0cd0((int)save_game_directory);
+          break;
+        case 1:
+          snprintf(file.path, 0xff, "%s%s", save_game_directory, "blam.lst");
+          checksum_data_size = 0x68;
+          break;
+        default:
+          file.type = -1;
+          break;
+        }
+
+        if (file.type != -1) {
+          if (file_reference_create_from_path(&saved_game_file, file.path, 0) !=
+                NULL &&
+              file_create(&saved_game_file)) {
+            if (file_open(&saved_game_file, 2)) {
+              csmemset(block, 0, sizeof(block));
+              saved_game_file_generate_checksum(block, checksum_data_size,
+                                                block + checksum_data_size);
+
+              if (file_write(&saved_game_file, sizeof(block), block)) {
+                file.valid = true;
+              }
+
+              if (!file_close(&saved_game_file)) {
+                error(2, "file_close() failed in "
+                         "create_enumerated_saved_game_file()");
+              }
+            } else {
+              error(2, "failed to write blank saved game file block to disk");
+            }
+
+            if (append_entry_to_mapfile(0, &file, &profile_index)) {
+              if ((int32_t)profile_index != file.index) {
+                display_assert(
+                  "profile_index == file.index",
+                  "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x1b2,
+                  true);
+                system_exit(-1);
+              }
+
+              return (int32_t)build_saved_game_file_index(
+                file.index, 0, saved_game_file_type, file.read_only,
+                file.valid);
+            }
+
+            error(2, "append_entry_to_mapfile() failed; deleting newly "
+                     "created meta data");
+          } else {
+            error(2, "failed to create empty saved game file '%s'", file.path);
+          }
+        }
+
+        if (FUN_001d3185(
+              wide_to_ascii(*(const wchar_t **)0x32eb94, root_path, 8),
+              display_name) != 0) {
+          error(2, "XDeleteSaveGame() failed... ghost meta data likely");
+        }
+
+        return -1;
+      }
+
+      error(2, "XCreateSaveGame() failed to create meta data for a new saved "
+               "game file");
+      return -1;
+    }
+
+    error(2, "failed to create new saved game file because there are already "
+             "the maximum number of game files on the hard drive");
+    display_error_deferred(0x24, -1, 1, 0);
+  }
+
+  return new_profile_index;
 }

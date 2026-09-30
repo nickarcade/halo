@@ -171,10 +171,15 @@ void *tag_get(int group_tag, int tag_index)
   entry = tag_instance_resolve(tag_index);
 
   if (entry[0] != group_tag && entry[1] != group_tag && entry[2] != group_tag) {
-    error(2, "expected tag group %08x but got %08x for datum %08x", group_tag,
-          entry[0], tag_index);
-    display_assert("expected tag group mismatch",
-                   "c:\\halo\\SOURCE\\cache\\cache_files.c", 0xf7, true);
+    uint32_t expected_string[4];
+    uint32_t actual_string[4];
+
+    display_assert(
+      csprintf(error_string_buffer,
+               "expected tag group '%s' but got '%s' for %08x",
+               (char *)tag_to_string(group_tag, expected_string),
+               (char *)tag_to_string(entry[0], actual_string), tag_index),
+      "c:\\halo\\SOURCE\\cache\\cache_files.c", 0xf7, true);
     system_exit(-1);
   }
   if (entry[5] == 0) {
@@ -880,6 +885,34 @@ short *FUN_001ba9d0(char *self, short key)
   return (short *)0;
 }
 
+/* 0x1baa50 -- resolve a read-request id pointer (self+0xa78, short[8]) back
+ * to its 128KB read buffer (pointer array at self+0x964). No stack frame in
+ * the original (leaf: PUSH ESI / ... / POP ESI, RET, no EBP setup); both
+ * `request` and `self` arrive in registers, hence @<eax>/@<edi>.
+ *
+ * `read_buffer_index` is computed and BOUNDS-TESTED as a 16-bit value
+ * (TEST SI,SI / CMP SI,0x8 in the disassembly, matching the decompiler's own
+ * `short sVar1`) even though the pointer subtraction is done in EAX -- keep
+ * the local `short` so the comparisons narrow exactly as the original does.
+ *
+ * Source: c:\halo\SOURCE\cache\cache_files_decompress_windows.c, assert at
+ * line 0x646. */
+void *FUN_001baa50(void *request, char *self)
+{
+  short read_buffer_index;
+
+  read_buffer_index = (short)(((int)request - (int)self - 0xa78) >> 1);
+
+  if (read_buffer_index < 0 || read_buffer_index >= 8) {
+    display_assert(
+      "read_buffer_index>=0 && read_buffer_index<NUMBER_OF_READ_BUFFERS",
+      "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x646, 1);
+    system_exit(-1);
+  }
+
+  return *((void **)(self + 0x964) + read_buffer_index);
+}
+
 /* 0x1bab60 — get_write_buffer_size (kb name, PDB line-containment
  * probable; the body is a wait-for-idle + reset of the overlapped
  * bookkeeping, so treat the name as unproven): spin until every
@@ -1063,8 +1096,8 @@ void FUN_001baca0(void)
  * Globals block reached through the POINTER global at 0x32ea98, the same block
  * FUN_001baf50 and FUN_001ba2f0 use. The original reloads that pointer after
  * every call (0x1bae10, 0x1bae46, 0x1bae6a), which the reloads of `globals`
- * below reproduce; the +0x904 flag word is read once up front, before the argument
- * assert (MOV EBX,[EAX+0x904] at 0x1badc9), so it is held in a local.
+ * below reproduce; the +0x904 flag word is read once up front, before the
+ * argument assert (MOV EBX,[EAX+0x904] at 0x1badc9), so it is held in a local.
  *
  *   +0x904  flag word; zero means "copy in progress", otherwise exactly one of
  *           bits 1/2/0 is expected (tested in that order at 0x1baed6/0x1baeee/

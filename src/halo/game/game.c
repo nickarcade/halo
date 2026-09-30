@@ -489,7 +489,7 @@ void game_set_game_variant(game_variant_t *variant)
 void game_set_game_engine_index(void)
 {
   display_assert(
-    "this is broken and should get updated for the variants, ask michael",
+    "!\"this is broken and should get updated for the variants, ask michael\"",
     __FILE__, __LINE__, true);
   system_exit(-1);
 }
@@ -1065,6 +1065,54 @@ void FUN_000B4800(int player_handle)
       }
     }
   }
+}
+
+/* FUN_000b48a0 (0xb48a0) — race engine: per-tick update.
+ *
+ * When game_time_get() == 2: runs FUN_000b36f0 and FUN_000b4490, posts event
+ * 0x22 (teams) or 0x14, and if race_globals.flag_set, posts events by the
+ * variant dword at +0x48 (jump table 0xb4948: 0 -> 0x17,0x18,0x19; 2 -> 0x17;
+ * 3 -> 0x18; 4 -> 0x19; 1/other -> none). Then, in team games, calls
+ * game_engine_start_over() for each of teams 0/1 where FUN_000b3c60 returns 0,
+ * and tail-calls FUN_000b3cf0. */
+void FUN_000b48a0(void)
+{
+  int event_type;
+
+  if (game_time_get() == 2) {
+    FUN_000b36f0();
+    FUN_000b4490();
+    game_engine_post_event(game_engine_has_teams() ? 0x22 : 0x14);
+    if (race_globals.flag_set) {
+      switch (*(int *)((char *)game_engine_get_variant() + 0x48)) {
+      case 0:
+        game_engine_post_event(0x17);
+        game_engine_post_event(0x18);
+        game_engine_post_event(0x19);
+        goto done;
+      case 2:
+        event_type = 0x17;
+        break;
+      case 3:
+        event_type = 0x18;
+        break;
+      case 4:
+        event_type = 0x19;
+        break;
+      default:
+        goto done;
+      }
+      game_engine_post_event(event_type);
+    }
+  }
+done:
+  if (game_engine_has_teams()) {
+    if (!FUN_000b3c60(0))
+      game_engine_start_over();
+    if (!FUN_000b3c60(1))
+      game_engine_start_over();
+  }
+  FUN_000b3cf0();
 }
 
 /* FUN_000b4960 (0xb4960) — race engine: initialize for new map.

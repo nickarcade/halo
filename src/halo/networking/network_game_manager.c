@@ -1,8 +1,6 @@
-#include <stdarg.h>
 #define network_machine_is_valid(m)                     \
   ((m) != NULL && *(char *)((char *)(m) + 0x40) >= 0 && \
    *(char *)((char *)(m) + 0x40) < 4)
-
 
 bool network_game_add_machine(void *game, void *machine)
 {
@@ -143,7 +141,6 @@ void network_game_reset_for_next_round(void *game, bool flag)
   }
   game_time_end();
 }
-
 
 bool network_player_is_valid(void *client)
 {
@@ -622,41 +619,6 @@ wchar_t *network_game_get_random_player_name(void)
     }
   }
   return (wchar_t *)0x26cdf0;
-}
-
-void network_event(const char *format, ...)
-{
-  va_list args;
-
-  if (format == NULL) {
-    display_assert("format", "c:\\halo\\SOURCE\\networking\\network_messages.c",
-                   0x14b, 1);
-    system_exit(-1);
-  }
-
-  va_start(args, format);
-  crt_vsnprintf(error_string_buffer, 0xff, format, args);
-  va_end(args);
-
-  error(3, error_string_buffer);
-}
-
-bool encode_network_game_message(void *message_struct, char *encoded_message,
-                                 int16_t *encoded_message_size, int16_t type,
-                                 int one)
-{
-  if (message_struct == NULL || encoded_message == NULL ||
-      encoded_message_size == NULL || !(*encoded_message_size > 0)) {
-    display_assert("message_struct && encoded_message && encoded_message_size "
-                   "&& (*encoded_message_size>0)",
-                   "c:\\halo\\SOURCE\\networking\\network_messages.c", 0x161,
-                   1);
-    system_exit(-1);
-  }
-
-  return encode_packet_group(&s_network_game_messages_group, message_struct,
-                             encoded_message, encoded_message_size, type,
-                             (short)one);
 }
 
 /* 0x12ac70 — network_game_assign_players_to_team */

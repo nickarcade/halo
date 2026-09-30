@@ -20,6 +20,9 @@
 
 #include "../../types.h"
 
+/* Integer game-tick rate; TICKS_PER_SECOND (common.h) is the 30.0f pool. */
+#define TICKS_PER_SECOND_INT 30
+
 /// size=0xc
 typedef struct {
   uint16_t unk_0;         ///< offset=0x00
@@ -66,35 +69,6 @@ typedef struct {
   uint8_t unk_1149;         ///< offset=0x47D .text:0019FAE0                 mov     cl, [esi+47Dh]
   char unk_1150[2];         ///< offset=0x47E
 } biped_data_t;
-
-// OBJE -> UNIT -> VEHI
-/// size=0x47C
-typedef struct {
-  unit_data_t unit;       ///< offset=0x000
-  uint16_t unk_1060;      ///< offset=0x424 .text:001B578E                 mov     [esi+424h], bx
-  uint16_t unk_1062;      ///< offset=0x426 .text:001B9819                 cmp     word ptr [ebx+426h], 0
-  uint8_t unk_1064;       ///< offset=0x428 .text:001A2020                 cmp     byte ptr [ebx+428h], 1Eh
-  uint8_t unk_1065;       ///< offset=0x429 .text:001B57A2                 mov     [esi+429h], bl
-  uint8_t unk_1066;       ///< offset=0x42A .text:001B57A8                 mov     [esi+42Ah], bl
-  uint8_t unk_1067;       ///< offset=0x42B .text:001B572C                 mov     al, [esi+42Bh]
-  float unk_1068;         ///< offset=0x42C .text:001B6025                 fld     dword ptr [esi+42Ch]
-  float unk_1072;         ///< offset=0x430 .text:001B7B31                 fld     dword ptr [esi+430h]
-  float unk_1076;         ///< offset=0x434 .text:001B602B                 fsub    dword ptr [esi+434h]
-  float unk_1080;         ///< offset=0x438 .text:001B5BA9                 fld     dword ptr [esi+438h]
-  float unk_1084;         ///< offset=0x43C .text:001B604C                 fadd    dword ptr [esi+43Ch]
-  float unk_1088;         ///< offset=0x440 .text:001B608F                 fadd    dword ptr [esi+440h]
-  float unk_1092;         ///< offset=0x444 .text:0002EAA8                 fld     dword ptr [edi+444h]
-  float unk_1096;         ///< offset=0x448 .text:001B6860                 fcomp   dword ptr [edi+448h]
-  uint8_t unk_1100[8];    ///< offset=0x44C .text:001B5786                 lea     ecx, [esi+44Ch] & .text:001B5C28                 mov     cl, [edi+esi+44Ch]
-  vector3_t unk_1108;     ///< offset=0x454 .text:001B5631                 lea     eax, [esi+454h]
-  float unk_1120;         ///< offset=0x460 .text:0015225F                 fadd    dword ptr [edi+460h]
-  float unk_1124;         ///< offset=0x464 .text:0015226E                 fadd    dword ptr [edi+464h]
-  float unk_1128;         ///< offset=0x468 .text:0015227D                 fadd    dword ptr [edi+468h]
-  float unk_1132;         ///< offset=0x46C .text:0015228C                 fadd    dword ptr [edi+46Ch]
-  float unk_1136;         ///< offset=0x470 .text:0015229B                 fadd    dword ptr [edi+470h]
-  float unk_1140;         ///< offset=0x474 .text:001522AA                 fadd    dword ptr [edi+474h]
-  uint32_t unk_1144;      ///< offset=0x478 .text:001B80DA                 test    [ebx+478h], edx
-} vehicle_data_t;
 
 // OBJE -> ITEM -> EQUI
 /// size=0x1F4
@@ -223,15 +197,8 @@ typedef struct {
 #define MAXIMUM_RENDERED_POINT_LIGHTS 2
 #define MAXIMUM_CLUSTERS_PER_LIGHT 0x200
 
-/// size=0xc.
-typedef struct {
-  real red;   ///< offset=0x00
-  real green; ///< offset=0x04
-  real blue;  ///< offset=0x08
-} real_rgb_color;
-cs(real_rgb_color, 0xc);
-co(real_rgb_color, green, 0x04);
-co(real_rgb_color, blue, 0x08);
+/* real_rgb_color lives in src/types.h (render_animation, a kb.json-visible
+ * type, needs it). */
 
 /// Prefix of the 'ligh' tag definition; the full size is not yet proven.
 typedef struct {
@@ -319,6 +286,17 @@ co(light_datum_t, attachment, 0x60);
 co(light_datum_t, relative_forward, 0x6c);
 co(light_datum_t, scale, 0x78);
 
+/// size=0x08 (element size passed to game_state_data_new @0x134b50).
+typedef struct {
+  int16_t datum_salt;  ///< offset=0x00  standard data_t element prefix
+  uint8_t pad_02[2];   ///< offset=0x02
+  int32_t field_04;    ///< offset=0x04  MOV dword [EAX+0x4],EDX @0x134c0c (light_volume_new param)
+} light_volume_datum_t;
+cs(light_volume_datum_t, 0x08);
+co(light_volume_datum_t, field_04, 0x04);
+
+#define MAXIMUM_LIGHT_VOLUMES 256 /* game_state_data_new count @0x134b52 */
+
 /// size=0x28 (the lens flare queue stride).
 typedef struct {
   void *definition;                ///< offset=0x00  'lens' tag
@@ -391,6 +369,19 @@ co(lights_globals_t, queued_lens_flare_count, 0x34c);
 #define REAL_HALF_PI_POOL (*(float *)0x2568bc) /* 1.5707964f */
 #define REAL_MAX_POOL (*(float *)0x2548fc) /* 3.4028235e38f */
 #define DOUBLE_0_25_POOL (*(double *)0x28c8d8) /* 0.25 */
+#define REAL_PI_POOL (*(float *)0x256980) /* 3.1415927f */
+#define REAL_0_0001_POOL (*(float *)0x253f44) /* 0.0001f */
+#define REAL_0_3_POOL (*(float *)0x2533e4) /* 0.3f */
+#define REAL_0_55_POOL (*(float *)0x26c744) /* 0.55f */
+#define REAL_ONE_THIRTIETH_POOL (*(float *)0x2546a4) /* 0.033333335f */
+#define REAL_100_POOL (*(float *)0x253f00) /* 100.0f */
+#define REAL_ONE_OVER_TWO_PI_POOL (*(float *)0x29c120) /* 0.15915494f */
+#define REAL_ONE_OVER_255_POOL (*(float *)0x261518) /* 0.003921569f */
+#define DOUBLE_0_001_POOL (*(double *)0x2549d8) /* (double)0.001f */
+#define DOUBLE_0_995_POOL (*(double *)0x29c128) /* 0.995 */
+#define glow_data (*(data_t **)0x5a90c8) /* "glow" data_new name */
+#define glow_particle_data (*(data_t **)0x5a90cc) /* "glow particles" data_new name */
+#define light_volume_data (*(data_t **)0x46f020) /* "light volumes" data_new name */
 
 #define light_get(index) ((light_datum_t *)datum_get(light_data, (index)))
 #define light_definition_get(index) \

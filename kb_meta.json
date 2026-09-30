@@ -73,6 +73,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x13120": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x13dd0": {
       "kind": "function",
       "status": "ported"
@@ -906,6 +910,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x22dc0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The helper calls map to PAL 2342 actor_combat_update as: actor_combat_check_mode = enable_special_fire_situation, actor_combat_check_fire_target = allow_special_fire_situation, actor_combat_evaluate_firing = actor_start_first_burst_delay, actor_combat_set_fire_timer = actor_start_pause, actor_combat_get_burst_parameters = get_firing_parameters, FUN_0002a360 = actor_move_animation_busy."
+      ],
+      "uncertain": [
+        "The third argument of actor_unit_control_primary_trigger (0x3c2d0) is the float trigger value (0 or 1.0f bits, MOV dword 0x3f800000 @0x23eee), but its kb decl is int, so the lift passes the bits through a union.",
+        "0x1a9240 (kb unit_set_seat_state) is called where PAL 2342 calls unit_get_camera_position(unit, &origin), so the kb name may be wrong.",
+        "The binary keeps the burst alignment dot product in 80-bit x87 precision for the threshold compare and stores it with FST, while the C rounds it to float first; results can differ only at the last float bit."
+      ]
+    },
     "0x24060": {
       "kind": "function",
       "status": "ported",
@@ -1273,6 +1289,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x2f470": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0x2f5b0": {
       "kind": "function",
       "status": "ported"
@@ -1354,6 +1374,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x30b80": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0x30d10": {
       "kind": "function",
       "status": "ported"
@@ -1362,13 +1386,41 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x30f50": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x31440": {
       "kind": "function",
       "status": "ported"
     },
+    "0x314f0": {
+      "kind": "function",
+      "status": "unknown"
+    },
+    "0x31850": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0x31a90": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x31c00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x31df0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x32170": {
+      "kind": "function",
+      "status": "unknown"
+    },
+    "0x32380": {
+      "kind": "function",
+      "status": "unknown"
     },
     "0x32940": {
       "kind": "function",
@@ -1395,6 +1447,22 @@
       "status": "ported"
     },
     "0x33330": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x33440": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x342a0": {
+      "kind": "function",
+      "status": "unknown"
+    },
+    "0x34970": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x34c80": {
       "kind": "function",
       "status": "ported"
     },
@@ -2139,6 +2207,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x416e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x41e80": {
       "kind": "function",
       "status": "ported"
@@ -2358,6 +2430,13 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x441c0": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "The 0x18e800 call is the PVS/cluster test (kb name scenario_ensure_point_within_world) by position in PAL ai_get_player_rating."
+      ]
+    },
     "0x44500": {
       "kind": "function",
       "status": "ported",
@@ -2394,6 +2473,20 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x44fd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x45290": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "actor_audibility_at_point (0x31850) is passed PUSH 0x3f800000 (1.0f) in its int-declared 6th slot; the callee never reads [EBP+0x1c], so the int decl is harmless, but actors.c actors_handle_unit_effect passes 1.0f converted to int 1 for the same slot."
+      ],
+      "uncertain": [
+        "The comm_data record (unit+0x348) is only partly understood: +0x06 is ai_information->dialogue_type_index per the assert text, while +0x0c, +0x14, +0x18, +0x1a and +0x1c have no string evidence."
+      ]
+    },
     "0x45830": {
       "kind": "function",
       "status": "ported"
@@ -2410,6 +2503,13 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x46530": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "reply_usage_t, unit_speech_item_t and ai_information_packet_t field names are PAL 2342 (T2); offsets are confirmed by the 0x46530 stores and reads."
+      ]
+    },
     "0x46b60": {
       "kind": "function",
       "status": "ported"
@@ -2417,6 +2517,17 @@
     "0x46cb0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x46f10": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Actor fields +0x200/+0x245/+0x274/+0x278/+0x27c/+0x6a/+0xa0 carry PAL 2342 meanings (area/close friends, any_target_ever, since_any_target_visible_timer, target_really_alive, mode, obey allow_communication) by position only."
+      ],
+      "uncertain": [
+        "play_type and look_unit_index are not reset per dialogue usage in the binary (stale stack slots); the C initializes them once, which only differs for reply or no-look usages whose consumers ignore them.",
+        "0xa7a30 (kb game_allegiance_get_team_is_friendly) is called where PAL 2342 calls game_team_is_enemy; a true result sets hostility to traitor, so the kb name may be inverted."
+      ]
     },
     "0x48e90": {
       "kind": "function",
@@ -2727,6 +2838,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x538e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x538f0": {
       "kind": "function",
       "status": "ported",
@@ -2737,7 +2852,19 @@
         "The int16_t field at actor record +0x1e is treated as a per-actor entity count but is left unnamed; actors_move_randomly reads swarm component counts from the swarm datum (+0x28 handle, count at swarm+2) rather than from this field, so the two are not proven to be the same quantity."
       ]
     },
+    "0x53940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x53950": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x53960": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x539b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3372,6 +3499,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x59dd0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x5a050": {
       "kind": "function",
       "status": "ported"
@@ -3503,6 +3634,10 @@
       "status": "ported"
     },
     "0x5c940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x5ca80": {
       "kind": "function",
       "status": "ported"
     },
@@ -3726,6 +3861,10 @@
       "status": "ported"
     },
     "0x645a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x647c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -3974,6 +4113,10 @@
       "status": "ported"
     },
     "0x66920": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x669f0": {
       "kind": "function",
       "status": "ported"
     },
@@ -4716,6 +4859,10 @@
       "status": "ported"
     },
     "0x70a00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x715c0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5503,6 +5650,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x85c80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x861a0": {
       "kind": "function",
       "status": "ported"
@@ -5555,6 +5706,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x86be0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x86cb0": {
       "kind": "function",
       "status": "ported"
@@ -5580,6 +5735,10 @@
       "status": "ported"
     },
     "0x875f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x877e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5619,11 +5778,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x88d50": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x89270": {
       "kind": "function",
       "status": "ported"
     },
     "0x89330": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x893a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5639,7 +5806,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x89940": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x89ab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x89cd0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5683,11 +5858,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x8aa80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x8ab10": {
       "kind": "function",
       "status": "ported"
     },
     "0x8ab90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8acb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -5737,6 +5920,10 @@
       }
     },
     "0x8cf10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x8cf30": {
       "kind": "function",
       "status": "ported"
     },
@@ -6289,6 +6476,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x95330": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x955b0": {
       "kind": "function",
       "status": "ported"
@@ -6308,7 +6499,49 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x956c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x956d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x957c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x95990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x959a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x95ab0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x95ac0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x95c60": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Field meanings (does-not-operate bit0 and one-sided bit1 at +0x1c4, door open ticks +0x1c8, elevator position +0x1cc) are taken from PAL 2342 device_machines.c; offsets and control flow are confirmed from the binary."
+      ],
+      "uncertain": [
+        "FUN_00096f20 (0x96f20) is called as PAL device_group_set_desired_value and 0xa7a30 is kb-named game_allegiance_get_team_is_friendly although PAL calls game_team_is_enemy at this site; neither callee name was changed."
+      ]
+    },
+    "0x96060": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x960b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -6426,6 +6659,10 @@
       ]
     },
     "0x96900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x969e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -6768,6 +7005,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x9c990": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x9c9a0": {
       "kind": "function",
       "status": "ported"
@@ -7093,6 +7334,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa1580": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa1590": {
       "kind": "function",
       "status": "ported"
@@ -7178,11 +7423,17 @@
     },
     "0xa2970": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "inferred": [
+        "Twin of 0xa29c0; the byte at player_effect_globals+0x3c2 is 0 here and 1 in fade_out, so it is inferred to be the fade direction flag."
+      ]
     },
     "0xa29c0": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "inferred": [
+        "player_effect_globals+0x3b0/+0x3b4/+0x3b8 hold the fade color, +0x3bc the start time, +0x3c0 the duration in ticks and +0x3c2 the direction (1 = fade out), inferred from the fade_in/fade_out HaloScript help text and parameter types."
+      ]
     },
     "0xa2a10": {
       "kind": "function",
@@ -7228,7 +7479,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa2fc0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa32e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa3370": {
       "kind": "function",
       "status": "ported"
     },
@@ -7326,6 +7585,10 @@
       "status": "ported"
     },
     "0xa57a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa57b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -8150,7 +8413,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xafa40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xafcb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xafeb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xaff60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xaff70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xaff90": {
       "kind": "function",
       "status": "ported"
     },
@@ -8158,7 +8441,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb01f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb0210": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb0420": {
       "kind": "function",
       "status": "ported"
     },
@@ -8194,11 +8485,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb0e50": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb0ed0": {
       "kind": "function",
       "status": "ported"
     },
     "0xb1030": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb1150": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb14d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -8250,7 +8553,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb2690": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb26b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb26d0": {
       "kind": "function",
       "status": "ported"
     },
@@ -8274,7 +8585,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb2f00": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb32e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb33a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -8282,7 +8601,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb36e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb38f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb3900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb3930": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb3c50": {
       "kind": "function",
       "status": "ported"
     },
@@ -9584,14 +9919,14 @@
       "kind": "function",
       "status": "ported",
       "inferred": [
-        "HS built-in wrapper that kills a unit: hs_macro_function_evaluate returns a record pointer whose first dword is the unit handle, passed to unit_kill (0x1a7fa0); real Bungie name still TBD so the FUN_000bef40 placeholder is retained."
+        "HS built-in wrapper that kills a unit: hs_macro_function_evaluate returns a record pointer whose first dword is the unit handle, passed to unit_kill_silent (0x1a7fa0); real Bungie name still TBD so the FUN_000bef40 placeholder is retained."
       ]
     },
     "0xbef80": {
       "kind": "function",
       "status": "ported",
       "inferred": [
-        "FUN_001AC0E0 (0x1ac0e0) is called with the evaluation record's first dword, which in the sibling handler FUN_000bef40 is a unit handle passed to unit_kill; the argument is therefore inferred to be a unit/object handle."
+        "FUN_001AC0E0 (0x1ac0e0) is called with the evaluation record's first dword, which in the sibling handler FUN_000bef40 is a unit handle passed to unit_kill_silent; the argument is therefore inferred to be a unit/object handle."
       ],
       "uncertain": [
         "The semantics of FUN_001AC0E0's 16-bit AX result are unknown; it is only forwarded verbatim to hs_return as the script return value."
@@ -11594,7 +11929,7 @@
       "kind": "function",
       "status": "ported",
       "inferred": [
-        "FUN_000c4770 is inferred to be a qsort comparator over file_ref_t elements because its only known caller (hs_needs_recompile at 0xc47c0) passes its address to qsort over the 0x10c-stride find_files result array.",
+        "FUN_000c4770 is inferred to be a qsort comparator over file_ref_t elements because its only known caller (hs_rebuild_source at 0xc47c0) passes its address to qsort over the 0x10c-stride find_files result array.",
         "The int return is inferred from the absence of any write to EAX between the crt_stricmp CALL at 0xc47ab and the RET, so the stricmp result falls through as the return value even though Ghidra prototypes the function as void."
       ],
       "uncertain": [
@@ -13268,6 +13603,20 @@
         "The permuter VACUOUS RUN blocker noted above is obsolete as of commit dfeb37285 (run.py now strips __cdecl before pycparser), and a full 100-attempt run on 2026-08-16 completed and wrote nothing: it printed Best LCS 90.9 percent against Baseline 88.9 percent as IMPROVED by 2.0pp, but 90.9 is exactly the unmodified baseline dp_lcs_pct in the score context, so the two figures are different metrics and no candidate improvement exists."
       ]
     },
+    "0xd9960": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Named hud_update_weapon_local_player from PAL 2342 hud_weapon.c; the assert line numbers 0x16e, 0x197 and 0x19e match PAL exactly, and the __FILE__ strings say hud_weapon.c although kb lists the function under event_manager.obj."
+      ],
+      "uncertain": [
+        "Crosshair cases 8 and 14 both test unit+0x1b8 bit 0x800 in this build (shared block 0xd9d19), whereas PAL uses the secondary trigger bit for case 14; the lift follows the binary."
+      ]
+    },
+    "0xd9f20": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xda980": {
       "kind": "function",
       "status": "ported"
@@ -13285,6 +13634,10 @@
       "status": "ported"
     },
     "0xdb4c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xdb950": {
       "kind": "function",
       "status": "ported"
     },
@@ -13511,6 +13864,10 @@
         "The 16-byte local buffer is a 4-float ARGB color filled by interface_get_color and passed to draw_string_set_font."
       ]
     },
+    "0xdefb0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xdf350": {
       "kind": "function",
       "status": "ported"
@@ -13569,7 +13926,10 @@
     },
     "0xe0810": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "inferred": [
+        "The previous int return decl was wrong: the miss path writes only AX, so as int the not-found value read 0x0000FFFF instead of -1."
+      ]
     },
     "0xe0840": {
       "kind": "function",
@@ -13675,6 +14035,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe10c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe1350": {
       "kind": "function",
       "status": "ported"
@@ -13688,6 +14052,10 @@
       "status": "ported"
     },
     "0xe1500": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe15b0": {
       "kind": "function",
       "status": "ported"
     },
@@ -13923,6 +14291,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe3e80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe4310": {
       "kind": "function",
       "status": "ported"
@@ -14149,6 +14521,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe5de0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe6140": {
       "kind": "function",
       "status": "ported",
@@ -14165,6 +14541,10 @@
         "FUN_0019d420's second parameter is declared int in kb.json but the original passes it with a bare PUSH ECX after a 16-bit MOV CX, which is the MSVC signature of a short parameter; the prototype was left alone because eight call sites in other translation units depend on it, at the cost of one extra MOVSX instruction in this lift.",
         "The equivalence lane reports 9 divergences and 9 errors out of 140 seeds at 48.3 percent coverage, but every divergence shows the candidate with an ESP delta of -300 and a much lower instruction count than the oracle, which is the known unresolved-callee harness artifact for a non-leaf with six unported callees; the divergences were not treated as evidence of a lift bug and remain unproven either way."
       ]
+    },
+    "0xe6450": {
+      "kind": "function",
+      "status": "ported"
     },
     "0xe6890": {
       "kind": "function",
@@ -14319,6 +14699,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe98a0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe98b0": {
       "kind": "function",
       "status": "ported"
@@ -14339,7 +14723,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xe9c30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe9c60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe9c70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe9c80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe9c90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xe9cb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xe9d00": {
       "kind": "function",
       "status": "ported"
     },
@@ -14352,6 +14760,22 @@
       "status": "ported"
     },
     "0xea010": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xea080": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xea090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xea0d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xea0e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14384,6 +14808,10 @@
       "status": "ported"
     },
     "0xea900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xeaa10": {
       "kind": "function",
       "status": "ported"
     },
@@ -14519,11 +14947,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xef950": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xef970": {
       "kind": "function",
       "status": "ported"
     },
     "0xefa80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xefbc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xefc10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xefc50": {
       "kind": "function",
       "status": "ported"
     },
@@ -14543,7 +14987,27 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf0010": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf0030": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf0050": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf0070": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf0090": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf00a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14571,6 +15035,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf0420": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf0430": {
       "kind": "function",
       "status": "ported"
@@ -14584,6 +15052,10 @@
       "status": "ported"
     },
     "0xf0640": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf0720": {
       "kind": "function",
       "status": "ported"
     },
@@ -14711,6 +15183,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf33d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf3400": {
       "kind": "function",
       "status": "ported"
@@ -14727,6 +15203,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf3690": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0xf3740": {
       "kind": "function",
       "status": "ported"
@@ -14740,6 +15220,10 @@
       "status": "ported"
     },
     "0xf39c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf3c80": {
       "kind": "function",
       "status": "ported"
     },
@@ -14759,6 +15243,10 @@
       ]
     },
     "0xf5290": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf52e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -14878,7 +15366,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xf68e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf68f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf6910": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf6950": {
       "kind": "function",
       "status": "ported"
     },
@@ -14922,7 +15422,7 @@
     },
     "0xf7110": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "FUN_000f7110 takes three register arguments proven by both call sites in item_update: EBX = item handle, ESI = surface normal pointer (asserted non-NULL at line 0x2c9), EAX = optional out-position pointer (XOR EAX,EAX at 0xf79fc passes NULL and the callee substitutes a local scratch), plus one cdecl stack argument that is a point pointer."
       ]
@@ -14961,11 +15461,27 @@
         "VC71 reports an [FPU-WARN] on the bounce-impulse block claiming the reference multiplies by the constant at 0x25686c before the velocity component, but the pristine disassembly at 0xf7809-0xf7812 is FLD normal.x, FMUL [EBP-0x18], FMUL [0x25686c]; the warning is believed to be a block-index misalignment caused by our three extra instructions."
       ]
     },
+    "0xf7c70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf7c80": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf7c90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xf7cb0": {
       "kind": "function",
       "status": "ported"
     },
     "0xf7ce0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xf7d20": {
       "kind": "function",
       "status": "ported"
     },
@@ -15070,6 +15586,14 @@
       "status": "ported"
     },
     "0xfad00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfad20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xfad30": {
       "kind": "function",
       "status": "ported"
     },
@@ -15266,7 +15790,10 @@
     },
     "0xfc8e0": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "inferred": [
+        "The constants at 0x28af00 and 0x28aefc are pi/100 and pi - pi/100 (PAL 2342 weapon_get_field_of_view clamps the zoomed field of view to that open range)."
+      ]
     },
     "0xfc930": {
       "kind": "function",
@@ -15373,7 +15900,13 @@
     },
     "0xfe910": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "inferred": [
+        "Field meanings (heat at +0x1ec, integrated light at +0x1f8, overcharged at +0x1f4, control flags at +0x1e0, trigger records at +0x210 stride 36, magazines at +0x258 stride 12) are taken from the PAL 2342 weapon_update body, which has the same statement order; offsets are binary-confirmed but names are not."
+      ],
+      "uncertain": [
+        "The original merged the two first_person_weapon_message_from_weapon calls (0x10 vs 0xf) into one CALL, and it inlined the effect-object lookup and the magazine and trigger getters in the loops; the lift uses the PAL source shape, so VC71 is 82.2 percent with one extra CALL and an 8-byte smaller frame."
+      ]
     },
     "0xff400": {
       "kind": "function",
@@ -16101,6 +16634,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x107ec0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108270": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108400": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1089a0": {
       "kind": "function",
       "status": "ported"
@@ -16126,6 +16671,10 @@
       "status": "ported"
     },
     "0x108a70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108a90": {
       "kind": "function",
       "status": "ported"
     },
@@ -17025,6 +17574,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x11c1f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x11c210": {
       "kind": "function",
       "status": "ported"
@@ -17460,6 +18013,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x120fd0": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0x121640": {
       "kind": "function",
       "status": "ported"
@@ -17479,6 +18036,17 @@
     "0x122240": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x122450": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x122690": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Name overlay_animation_apply_continuous is PAL 2342 (T2) corroborated by the 2276 error string A(%f,%x) and the paired data/next_data frame-size asserts."
+      ]
     },
     "0x122a50": {
       "kind": "function",
@@ -17515,11 +18083,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x123ed0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x124730": {
       "kind": "function",
       "status": "ported"
     },
     "0x124900": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x124970": {
       "kind": "function",
       "status": "ported"
     },
@@ -18539,6 +19115,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x132f40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x132f50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x132f80": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x132fb0": {
       "kind": "function",
       "status": "ported"
@@ -18595,6 +19183,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x133750": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1337c0": {
       "kind": "function",
       "status": "ported"
@@ -18642,6 +19234,22 @@
         "The function is a glow-widget initializer for an object (widget tag 0x676c7721 = 'glw!'), but the exact subsystem name is unconfirmed so the FUN_ name is retained rather than a speculative object_glow_initialize."
       ]
     },
+    "0x134b50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x134b90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x134ba0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x134bc0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x134be0": {
       "kind": "function",
       "status": "ported"
@@ -18666,11 +19274,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x135320": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x135360": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x135370": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x135390": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1353b0": {
       "kind": "function",
       "status": "ported"
     },
     "0x1353f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x135410": {
       "kind": "function",
       "status": "ported"
     },
@@ -18817,11 +19445,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1377d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x137d20": {
       "kind": "function",
       "status": "ported"
     },
     "0x1384e0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x138900": {
       "kind": "function",
       "status": "ported"
     },
@@ -18840,6 +19476,10 @@
     "0x138f10": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x138f70": {
+      "kind": "function",
+      "status": "unknown"
     },
     "0x138fd0": {
       "kind": "function",
@@ -18909,6 +19549,10 @@
         "The light data table lives at 0x5a90bc; the cluster partition at 0x5a90b0."
       ]
     },
+    "0x139740": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1397f0": {
       "kind": "function",
       "status": "ported"
@@ -18930,6 +19574,10 @@
       "status": "ported"
     },
     "0x139990": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1399f0": {
       "kind": "function",
       "status": "ported"
     },
@@ -19130,6 +19778,10 @@
       "status": "ported"
     },
     "0x13ce90": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x13cf30": {
       "kind": "function",
       "status": "ported"
     },
@@ -19690,6 +20342,26 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1454c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1454d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x145520": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x145530": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x145540": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1457f0": {
       "kind": "function",
       "status": "ported"
@@ -19851,6 +20523,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x148910": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x148b20": {
       "kind": "function",
       "status": "ported",
@@ -19872,6 +20548,10 @@
         "The dominant-axis pick asserts against ..\\\\math\\\\real_math.h line 848, so in the original it was an inline function in that header rather than open-coded here; recovering it as a static helper is the most plausible route past the measured 87.1% ceiling, because the three named xbox_fabsf locals this lift needs cost 12 bytes of frame (sub esp,0x20 vs the original 0x14) yet removing them costs about 20pp."
       ]
     },
+    "0x1491d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1493b0": {
       "kind": "function",
       "status": "ported"
@@ -19889,6 +20569,14 @@
         "The original build materialised the clamped span end in the dead flags parameter slot at EBP+0x10 via MSVC stack-slot colouring; the lift writes it back into max_t instead, which preserves the 0x28 frame and the instruction shape but not the displacement operands.",
         "The second and third arguments to FUN_00148eb0 are both literal 0 (xor edx,edx pushed twice) so their true types are unproven; they are declared int node_index and int param_3 from the callee prologue only, where [ebp+0xc] is sign-tested as a BSP3D node index."
       ]
+    },
+    "0x149570": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x149680": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x14ad40": {
       "kind": "function",
@@ -19939,6 +20627,18 @@
       "status": "ported"
     },
     "0x14bc10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14bdb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14bf30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x14c220": {
       "kind": "function",
       "status": "ported"
     },
@@ -20402,6 +21102,10 @@
         "IDirect3DPalette8_Unlock has no CALL in the reference; only its success test survives, so the Unlock is assumed to be a no-op inline on Xbox and is represented by the FUN_00167ff0 guard alone."
       ]
     },
+    "0x1579d0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x157e40": {
       "kind": "function",
       "status": "ported"
@@ -20534,6 +21238,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x162920": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0x165ea0": {
       "kind": "function",
       "status": "ported"
@@ -20603,6 +21311,10 @@
       "inferred": [
         "Cull-plane dot product in the C source is written as (0x5a5dc8-term + 0x5a5dcc-term + 0x5a5dd0-term) left-to-right, but the disassembly computes it as (0x5a5dd0-term + 0x5a5dcc-term) first, then + 0x5a5dc8-term (FLD 0x5a5dd0 first). Verified the FCOMP/FNSTSW/TEST AH,0x5/JP branch sense is still correct (matches binary exactly) despite the differing floating-point summation order; this is an FP-association deviation only, not a logic bug, and does not affect the visual-regression investigation (this dot product feeds a boolean cull flag DAT_0047e003, not a color)."
       ]
+    },
+    "0x16e160": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x16f500": {
       "kind": "function",
@@ -20771,6 +21483,10 @@
     "0x17adc0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x17b7d0": {
+      "kind": "function",
+      "status": "unknown"
     },
     "0x17ba10": {
       "kind": "function",
@@ -20972,9 +21688,25 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x17cc00": {
+      "kind": "function",
+      "status": "unknown"
+    },
+    "0x17cc40": {
+      "kind": "function",
+      "status": "unknown"
+    },
+    "0x17cc50": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0x17cc80": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x17cc90": {
+      "kind": "function",
+      "status": "unknown"
     },
     "0x17cce0": {
       "kind": "function",
@@ -20988,7 +21720,23 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x17cd50": {
+      "kind": "function",
+      "status": "unknown"
+    },
+    "0x17cdd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17ce20": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x17cfa0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x17d060": {
       "kind": "function",
       "status": "ported"
     },
@@ -21098,6 +21846,10 @@
         "VC71 measures 43.8 percent but the per-function delinked reference carries a mid-instruction Ghidra symbol LAB_00181025+3 at .text+0x8 that makes the disassembler skip the reference's first six instructions and emit two bogus IMM-WARNs, so the true match against a clean reference is unmeasured; the structural cap from the @<si> register-defining prologue is separate and independently confirmed."
       ]
     },
+    "0x181060": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0x181180": {
       "kind": "function",
       "status": "unknown",
@@ -21121,6 +21873,10 @@
       "uncertain": [
         "The residual VC71 gap is MSVC hoisting the three position-minus-camera x87 subtractions above the short-circuit equality test and popping them with FSTP on both exits; no source shape reproduced that scheduling, so our lift pairs each FSUB with its FMUL instead."
       ]
+    },
+    "0x181900": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1824e0": {
       "kind": "function",
@@ -21355,6 +22111,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x184ea0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x185290": {
       "kind": "function",
       "status": "ported"
@@ -21502,6 +22262,14 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x18e240": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x18e260": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x18e280": {
       "kind": "function",
       "status": "ported"
@@ -21539,6 +22307,10 @@
       "status": "ported"
     },
     "0x18e450": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x18e480": {
       "kind": "function",
       "status": "ported"
     },
@@ -21933,6 +22705,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1939e0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1939f0": {
       "kind": "function",
       "status": "ported",
@@ -21993,6 +22769,10 @@
         "summary": "Asserts 0x4d8ec8 is non-null, then zeroes the first byte of the decals globals block."
       }
     },
+    "0x196300": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1963a0": {
       "kind": "function",
       "status": "ported",
@@ -22024,6 +22804,14 @@
     "0x1965f0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x196a60": {
+      "kind": "function",
+      "status": "unknown"
+    },
+    "0x196d60": {
+      "kind": "function",
+      "status": "unknown"
     },
     "0x198180": {
       "kind": "function",
@@ -22722,6 +23510,10 @@
         "The binary does not expose callers for this function, so its public semantic name and the complete allocation extent of the buffer at 0x4d9be8 remain unproven."
       ]
     },
+    "0x19fa20": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0x1a01d0": {
       "kind": "function",
       "status": "ported"
@@ -22731,6 +23523,14 @@
       "status": "ported"
     },
     "0x1a0680": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a0790": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a07a0": {
       "kind": "function",
       "status": "ported"
     },
@@ -22934,6 +23734,10 @@
         "new_position writeback (+0xac) representation: original at 0x1a4160 integer-copies a per-mode carried stack vector rather than recomputing los_dir-los_dir2; current source recomputes (float). Whether the VALUE diverges is unresolved (fn dormant, no equivalence run); flagged as latent-bug risk in the back-half writeback."
       ]
     },
+    "0x1a4440": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1a4990": {
       "kind": "function",
       "status": "ported"
@@ -22941,6 +23745,26 @@
     "0x1a4a50": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1a4c50": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Structure and three internal markers (post-fly-turn, post-moving-turn, post-standing-turn) match PAL 2342 biped_update_turning; T2 rename candidate not yet applied."
+      ],
+      "uncertain": [
+        "Field meanings of biped+0x253/+0x257/+0x42a and tag+0x2f0/+0x324..+0x348 are taken from PAL correlation, not from binary strings."
+      ]
+    },
+    "0x1a5300": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Structure matches PAL 2342 biped_update_moving and the caller's post-moving marker; T2 rename candidate not yet applied; the 0xcc-byte physics block field names follow PAL biped_physics."
+      ],
+      "uncertain": [
+        "Layout of the 0x420-byte collision model test result and 0x50-byte world collision locals is only known at the offsets read here (+0x00,+0x02,+0x08,+0x0c,+0x14,+0x1a and +0x0c)."
+      ]
     },
     "0x1a6280": {
       "kind": "function",
@@ -23066,6 +23890,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1a7f00": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7f40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7f60": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1a7f80": {
       "kind": "function",
       "status": "ported",
@@ -23078,6 +23914,10 @@
       "status": "ported"
     },
     "0x1a7fc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1a7fe0": {
       "kind": "function",
       "status": "ported"
     },
@@ -23540,6 +24380,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1ac350": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ac3f0": {
       "kind": "function",
       "status": "ported"
@@ -23904,6 +24748,18 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1b4dc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b5550": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b5560": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1b5580": {
       "kind": "function",
       "status": "ported"
@@ -23932,6 +24788,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1b5c90": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1b5d90": {
       "kind": "function",
       "status": "ported"
@@ -23940,7 +24800,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1b5f20": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b5ff0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1b6140": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b6250": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b6560": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b69a0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b6ca0": {
       "kind": "function",
       "status": "ported"
     },
@@ -23952,15 +24836,53 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1b72b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b74d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b77f0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b79c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1b7ee0": {
       "kind": "function",
       "status": "ported",
       "name": "vehicle_moving_near_any_player",
       "name_confidence": "high"
     },
+    "0x1b8060": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b81d0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b8570": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1b8f10": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1b8f80": {
+      "kind": "function",
+      "status": "ported",
+      "inferred": [
+        "Vehicle, unit and definition field meanings (+0x424 flags, +0x42c speed, +0x430 slide, +0x434 turn, +0x2f4 vehicle type) are taken from PAL 2342 units/vehicles.c; offsets and control flow are confirmed from the binary."
+      ],
+      "uncertain": [
+        "FUN_001b56b0 receives an extra pushed powered_mass_points stack argument that its body never reads; the lift calls it with only its two register args."
+      ]
     },
     "0x1b9890": {
       "kind": "function",
@@ -23971,6 +24893,10 @@
       "uncertain": [
         "The byte flag at 0x4e4d00 is cleared here on unload and gates cache tag access in cache/tags.c, but no assert string names it, so cache_tags_available is a behavior-derived name rather than a recovered one."
       ]
+    },
+    "0x1b98c0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1b9920": {
       "kind": "function",
@@ -23996,6 +24922,10 @@
       "status": "ported"
     },
     "0x1b9b30": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1b9bf0": {
       "kind": "function",
       "status": "ported"
     },
@@ -24076,6 +25006,18 @@
     "0x1badc0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1bafa0": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "self+0xa90 is assert-proven async_read_bytes_left from this function's own __FILE__ text \"global_self->async_read_bytes_left>0\" at cache_files_decompress_windows.c line 0x50b; distinct from the already-documented self+0xa94 (unnamed, field_a94) and self+0xa98 (async_write_bytes_left, proven elsewhere in cache_files_windows.c).",
+        "self+0xaa0, written here as (self->header.size - self->0xa90) / self->header.size, is likely the progress fraction independently read and clamped to [0,1] by a progress-reporting function in tags.c; not renamed in this lift since no assert in THIS function names it, kept as a raw offset per project convention."
+      ],
+      "uncertain": [
+        "The QueryPerformanceCounter(&unused_counter) call in the 0<=overlapped_index<11 branch writes an 8-byte scratch LARGE_INTEGER whose value is never read again in this function (no later use of EAX or the buffer); its purpose could not be determined from this function alone and is reproduced as a discarded call for fidelity.",
+        "overlapped_index >= 11 and overlapped_index < 0 both fall through to a pure no-op return with no flag update and no accounting; this matches the disassembly's CMP/Jcc chain exactly but the intended meaning of slots outside [0,10] (if any exist) is unknown."
+      ]
     },
     "0x1bb5a0": {
       "kind": "function",
@@ -24196,6 +25138,16 @@
     "0x1bd020": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1bd210": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Selects the least-recently-written cache slot of the smallest sufficient capacity for a DVD-to-Z: map copy; the FILETIME at slot entry+4 is inferred from the CompareFileTime operands."
+      ],
+      "uncertain": [
+        "The second parameter is named header_size in kb.json but the caller passes cache header+0x08, which is most likely the map file length rather than a header size."
+      ]
     },
     "0x1bd4d0": {
       "kind": "function",
@@ -24453,6 +25405,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1bfbd0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1bfbf0": {
       "kind": "function",
       "status": "ported"
@@ -24531,6 +25487,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c0ac0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c0c20": {
       "kind": "function",
       "status": "ported"
@@ -24539,7 +25499,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c0ee0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c0f70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c1280": {
       "kind": "function",
       "status": "ported"
     },
@@ -24554,6 +25522,16 @@
     "0x1c18f0": {
       "kind": "function",
       "status": "ported"
+    },
+    "0x1c19e0": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Writes both default player profiles to z:\\saved\\player_profiles\\default_profile\\NN.sav; only the first 0x30 bytes plus the checksum at +0x30 are initialised, the rest of the 0x200-byte write is stack contents in the original too."
+      ],
+      "uncertain": [
+        "Equivalence lane reports 100/100 divergence because the oracle stops at the first call while the clang candidate inlines player_profile_set_to_default; this is a harness artifact, not a verified behavioural difference."
+      ]
     },
     "0x1c1b00": {
       "kind": "function",
@@ -24571,11 +25549,19 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c1e20": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c1fa0": {
       "kind": "function",
       "status": "ported"
     },
     "0x1c2110": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c22e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -24659,6 +25645,13 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c31f0": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "Ensures a path exists, creating it via file_create when file_exists fails; the a4=1 argument to file_reference_create_from_path likely marks the reference as a directory, so this is probably ensure-directory."
+      ]
+    },
     "0x1c3250": {
       "kind": "function",
       "status": "ported"
@@ -24719,6 +25712,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c43f0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c4600": {
       "kind": "function",
       "status": "ported"
@@ -24727,9 +25724,17 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1c4850": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1c4990": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1c4da0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "TU is saved_game_files.c: pushes __FILE__ 0x2ba8e8 (c:\\halo\\SOURCE\\saved games\\saved_game_files.c) into display_assert. Moved from bink_playback.obj to saved_game_files.obj in kb.json (2026-08-22)."
       ]
@@ -24750,14 +25755,14 @@
     },
     "0x1c53f0": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "TU is saved_game_files.c: pushes __FILE__ 0x2ba8e8 (c:\\halo\\SOURCE\\saved games\\saved_game_files.c) into display_assert. Moved from bink_playback.obj to saved_game_files.obj in kb.json (2026-08-22)."
       ]
     },
     "0x1c5560": {
       "kind": "function",
-      "status": "unknown",
+      "status": "ported",
       "inferred": [
         "TU is saved_game_files.c: pushes __FILE__ 0x2ba8e8 (c:\\halo\\SOURCE\\saved games\\saved_game_files.c) into display_assert. Moved from bink_playback.obj to saved_game_files.obj in kb.json (2026-08-22)."
       ]
@@ -25244,6 +26249,10 @@
         "The fourth NULL argument to IDirectSound_CreateSoundBuffer is passed as EBX=0 in the binary; it is presumed to be the standard pvUnknown/outer-unknown parameter but its exact XDK meaning was not verified."
       ]
     },
+    "0x1c9de0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x1ca5e0": {
       "kind": "function",
       "status": "ported",
@@ -25308,7 +26317,8 @@
       "kind": "function",
       "status": "ported",
       "inferred": [
-        "SetMode's second argument is 2 when use_3d is 0 and 0 otherwise (MSVC branchless setne/dec/and $2 ternary); 2 is read as the DirectSound 'disable 3D processing' mode by analogy with DS3DMODE_DISABLE, which is consistent with channel+0x4 gating whether sound_dsound_channel_update_3d sends 3D parameters at all."
+        "SetMode's second argument is 2 when use_3d is 0 and 0 otherwise (MSVC branchless setne/dec/and $2 ternary); 2 is read as the DirectSound 'disable 3D processing' mode by analogy with DS3DMODE_DISABLE, which is consistent with channel+0x4 gating whether sound_dsound_channel_update_3d sends 3D parameters at all.",
+        "Parameter 3 is named spatialized in the C definition from the log string 'couldn't set channel spatialization.'; the kb decl keeps param_3 because the @<ebx> baseline string is compared verbatim."
       ],
       "uncertain": [
         "The two float parameters cached at channel+0x44 and channel+0x48 are named scalar_44/scalar_48 because their meaning is unproven; sound_dsound_channel_update_3d consumes both as 1.0-value gain sends, so they are plausibly obstruction and occlusion, but nothing in the binary names them."
@@ -25322,9 +26332,28 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x1cb210": {
+      "kind": "function",
+      "status": "unknown",
+      "inferred": [
+        "The 0x18-byte stream description and 0x14-byte format block are read as the XDK DSSTREAMDESC and XBOXADPCMWAVEFORMAT layouts from their store offsets; field names are XDK-derived, not binary-proven.",
+        "The equivalence divergences come from the natively executed @<ebx> callee dsound_channel_set_location asserting in the candidate run; with --no-real-callees all 100 seeds pass with 0 stub-arg mismatches."
+      ],
+      "uncertain": [
+        "The meaning of speaker-config bit 0x10000 and of mix-bin masks 3, 7 and 0x1833 is not proven from this binary."
+      ]
+    },
     "0x1cb4c0": {
       "kind": "function",
-      "status": "ported"
+      "status": "ported",
+      "inferred": [
+        "The assert strings name sound_dsound_xbox.c (lines 0xea and 0x1a6), so the real TU is sound_dsound_xbox.obj; the lift stays in sound_manager.c to follow the current kb.json object attribution.",
+        "The listener block passed to FUN_001ca2b0 is 0x34 bytes: zeroed position and velocity, forward and up copied from *0x31fc3c and *0x31fc44, and environment pointer 0x2c1220 at +0x30."
+      ],
+      "uncertain": [
+        "The preferences block layout is known only from int16 reads at +2..+8 (actual channel counts per type) and +0xa..+0x10 (virtual channel counts per type); the field names are not proven.",
+        "The unicorn equivalence lane diverges on the return value (oracle 0, lifted 1) while the oracle runs about 488k instructions of real callee code against 437 for the stubbed lifted run; this is probably stub asymmetry on the unported dsound_initialize_channel, but it is not proven."
+      ]
     },
     "0x1cb790": {
       "kind": "function",
@@ -25479,11 +26508,11 @@
     },
     "0x1ccbe0": {
       "kind": "function",
-      "status": "ported"
+      "status": "unknown"
     },
     "0x1ccca0": {
       "kind": "function",
-      "status": "ported"
+      "status": "unknown"
     },
     "0x1ccd70": {
       "kind": "function",
@@ -25541,6 +26570,10 @@
         "The assert for index bounds at line 0x430 appears unreachable given the loop bounds, suggesting it may be an inlined bounds-check macro."
       ]
     },
+    "0x1cd690": {
+      "kind": "function",
+      "status": "unknown"
+    },
     "0x1cd8b0": {
       "kind": "function",
       "status": "ported"
@@ -25568,6 +26601,10 @@
       "uncertain": [
         "The source struct layout is accessed by offsets (0x0=spatialization_mode, 0x4=scale, 0x18=forward vector) but the full struct type is unknown."
       ]
+    },
+    "0x1ce550": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x1cebb0": {
       "kind": "function",

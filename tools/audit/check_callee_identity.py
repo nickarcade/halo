@@ -428,6 +428,26 @@ def _callee_own_targets(addrs: Set[int], bounds: Dict[int, int]) -> Set[int]:
     return out
 
 
+def _forwarder_targets(addrs: Set[int], bounds: Dict[int, int]) -> Set[int]:
+    """Tail-jump targets of a named callee whose body makes no CALLs.
+
+    A pure forwarder (network_game_client_write 0x124d40: PUSH EBP / MOV EBP,ESP
+    / POP EBP / JMP 0x128e00) inlined by MSVC leaves its jump target as a
+    direct CALL in the caller.  If that target is among the caller's binary
+    targets, the named call is the inlined forwarder, even when unrelated
+    orphans (assert-path halt_and_catch_fire) defeat the containment test.
+    """
+    out: Set[int] = set()
+    for a in addrs:
+        end = bounds.get(a)
+        if end is None or end <= a:
+            continue
+        bt = function_targets(a, end)
+        if bt.decoded and not bt.call_imm and not bt.indirect:
+            out |= bt.jmp_imm
+    return out
+
+
 def _relpath(p: Path) -> str:
     try:
         return str(p.resolve().relative_to(REPO_ROOT))
@@ -587,6 +607,9 @@ def analyze(files: Optional[List[str]] = None,
                 own = _callee_own_targets(cand, bounds)
                 if justifying and justifying <= own:
                     sev, reason = "INFO", "inlined"
+                    stats["inlined_downgrades"] += 1
+                elif _forwarder_targets(cand, bounds) & bin_targets:
+                    sev, reason = "INFO", "inlined-forwarder"
                     stats["inlined_downgrades"] += 1
             stats[sev.lower()] += 1
 

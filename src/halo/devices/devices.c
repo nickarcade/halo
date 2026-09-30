@@ -1,3 +1,25 @@
+/* devices_initialize (0x96060)
+ *
+ * Allocates the "device groups" game-state data array (1024 entries of 8
+ * bytes) and asserts the pool pointer.  Name from PAL-2342 devices.c (T2);
+ * the reason string "device_groups_data", the path and line 0x48 (72) are
+ * PUSHed verbatim in the original. */
+void devices_initialize(void)
+{
+  device_groups_data = game_state_data_new("device groups", 0x400, 8);
+  assert_halt_at("c:\\halo\\SOURCE\\devices\\devices.c", 0x48,
+                 device_groups_data);
+}
+
+/* devices_dispose_from_old_map (0x960b0)
+ *
+ * Invalidates the device-group pool on map unload.  Name from PAL-2342 (T2);
+ * the original is MOV EAX,[0x5aa8c8] / PUSH / CALL data_make_invalid. */
+void devices_dispose_from_old_map(void)
+{
+  data_make_invalid(device_groups_data);
+}
+
 /* Initialize a newly created device object.
  *
  * Original 0x960c0: resolves the object datum to a device (type mask 0x380),
@@ -195,14 +217,14 @@ void device_preprocess_node_orientations(int object_datum, void *node_data)
         if ((flags & 2) != 0) {
           overlay_animation_apply(anim, (int)frame, node_data);
         } else {
-          FUN_00122690(anim, frame, node_data);
+          overlay_animation_apply_continuous(anim, frame, node_data);
         }
       }
 
       if (*(int *)(elem + 0x54) > 1 && (*(short **)(elem + 0x58))[1] != -1) {
         anim = (char *)tag_block_get_element(
           antr + 0x74, (*(short **)(elem + 0x58))[1], 0xb4);
-        FUN_00122690(anim,
+        overlay_animation_apply_continuous(anim,
                      (float)(int)*(short *)(anim + 0x22) *
                        *(float *)(device + 0x1ac),
                      node_data);
@@ -785,6 +807,20 @@ void create_initial_device_groups(void)
       group_index++;
     } while (group_index < *device_group_block);
   }
+}
+
+/* devices_initialize_for_new_map (0x969e0)
+ *
+ * Resets the device-group pool for the new map, then creates the scenario's
+ * initial device groups.  Name from PAL-2342 devices.c (T2), whose body is
+ * data_make_valid(device_groups_data); create_initial_device_groups(); --
+ * the pool call here is the function kb.json names data_delete_all
+ * (0x119b20).  The original tail-calls create_initial_device_groups with a
+ * JMP after ADD ESP,4. */
+void devices_initialize_for_new_map(void)
+{
+  data_delete_all(device_groups_data);
+  create_initial_device_groups();
 }
 
 /* Release the device groups a device object owns.

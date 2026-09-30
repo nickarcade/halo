@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: ^(src/.*\.c|src/.*\.h|kb\.json|tools/equivalence/.*\.py)$
 # Pre-commit: run Unicorn regression tests when source files are staged.
 # Quick mode is 5 seeds per function, and the corpus has grown to 110 targets.
 # Serially (--jobs 1, the runner's default) that is 426s measured -- not the
@@ -14,19 +15,33 @@
 # (83 passed, 2 failed, 0 errors, 25 skipped) and no target hitting the 120s
 # per-target timeout.
 #
-# NOT scoped to the staged files, deliberately. The regressions this gate
-# exists to catch are in functions the commit did NOT touch -- a renamed
-# callee, a changed struct offset in a shared header, a corrected kb.json decl.
-# Mapping staged .c files to their .obj and running only those targets would
-# have run 0 of 110 targets for two of the last three real lift commits.
+# EVERY target is still checked on every run -- the gate is not scoped by guesswork
+# about which files a regression can hide behind (a renamed callee, a changed
+# struct offset in a shared header, a corrected kb.json decl all move targets in
+# TUs the commit did not touch). What changed is that an unchanged target costs
+# ~0 instead of ~3s:
+#
+#   * `--staged` compiles each target TU from a SNAPSHOT OF THE INDEX (never a
+#     stale build/ object, never another agent's unstaged edits), with the exact
+#     CMake Release flags and a decl.h regenerated from the staged kb.json.
+#   * A target's PASS verdict is reused only when the content key of ALL its
+#     inputs is unchanged: candidate object bytes (so any source/header/decl.h
+#     change that moves codegen misses), the target row, the kb.json entries the
+#     object references plus the function-address set, every tools/equivalence
+#     *.py, function_bounds.json, the pristine XBE, versions and HALO_* env.
+#     Only passes are cached; any doubt (unreadable cache, unpinnable input,
+#     snapshot/compile failure) means the target runs, uncached.
+#   * The full, uncached sweep stays available: regression_test.py --no-cache
+#     (pre-push runs it), or plain regression_test.py (legacy working-tree run,
+#     used by auto_reintegrate Gate 5 and CI).
 #
 # tools/equivalence/*.py is in the filter deliberately. It used to gate on
 # src/kb.json only, so a commit that changed nothing but the harness itself --
 # exactly the change that can break the harness -- skipped this hook entirely
 # and reported no opinion at all (2026-07-29).
 
-STAGED=$(git diff --cached --name-only -- 'src/*.c' 'src/*.h' 'kb.json' \
-                                          'tools/equivalence/*.py')
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+STAGED=$(staged_list all | grep -E '^(src/.*\.c|src/.*\.h|kb\.json|tools/equivalence/.*\.py)$')
 if [ -z "$STAGED" ]; then
     exit 0
 fi
@@ -99,12 +114,12 @@ JOBS=$((JOBS - 2))
 [ "$JOBS" -lt 1 ] && JOBS=1
 [ "$JOBS" -gt 8 ] && JOBS=8
 
-echo "Running Unicorn regression tests (quick, -j$JOBS)..."
-"$PY" "$SCRIPT" --quick -j "$JOBS"
+echo "Running Unicorn regression tests (quick, -j$JOBS, staged snapshot)..."
+"$PY" "$SCRIPT" --quick -j "$JOBS" --staged
 RC=$?
 if [ $RC -ne 0 ]; then
     echo ""
     echo "Unicorn regression test FAILED. Fix the divergence before committing."
-    echo "Run: python3 tools/equivalence/regression_test.py  (for full details)"
+    echo "Run: python3 tools/equivalence/regression_test.py --staged --no-cache  (full details, uncached)"
 fi
 exit $RC

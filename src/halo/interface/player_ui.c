@@ -87,6 +87,33 @@ player_ui_get_single_player_local_player_controller(__int16 local_player_index)
   return word_46BFC4[(__int16)local_player_index];
 }
 
+/* 0xe0810. Reverse lookup of the single-player controller table: return the
+ * first local player index whose controller entry equals controller_index,
+ * or -1 (NONE) when no entry matches.
+ * Confirmed (0xe0810..0xe0839): MOV CX,word [EBP+8] (16-bit parameter);
+ *   EAX counts from 0 (XOR EAX,EAX), MOVSX ESI,AX indexes
+ *   CMP word [ESI*2+0x46bfc4],CX; JE -> return; INC EAX; CMP AX,4; JL loop.
+ *   The miss path returns MOV AX,DX with EDX = -1 (OR EDX,-1), so only AX
+ *   carries the result: the return is a 16-bit short, not int.
+ * Confirmed: no assert on the argument.
+ * Name/signature: PAL 2342 interface/player_ui.h declares
+ *   short player_ui_get_single_player_local_player_from_controller(
+ *   short controller_index) (T2). */
+short player_ui_get_single_player_local_player_from_controller(
+  short controller_index)
+{
+  short local_player_index;
+
+  for (local_player_index = 0;
+       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS;
+       local_player_index++) {
+    if (word_46BFC4[local_player_index] == controller_index) {
+      return local_player_index;
+    }
+  }
+  return -1;
+}
+
 /* 0xe0840. The index is read as a 16-bit stack slot (MOV SI,word ptr [EBP+8])
  * and sign-extended (MOVSX EAX,SI) before both stores.
  * Store 1: MOV byte ptr [ECX+0x46bf14],1 with ECX = index*0x38 -- byte 0x34 of
@@ -383,7 +410,7 @@ bool player_ui_get_path_to_local_player_profile_directory(
 {
   if (local_player_index >= 0 &&
       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS)
-    return FUN_001c1280(
+    return player_profile_get_enclosing_directory_path(
       *(int *)(player_ui_globals + local_player_index * 0x38 + 0x30), path);
   return false;
 }
@@ -394,8 +421,8 @@ void player_ui_remember_player1_profile(bool save)
     if (*(int *)0x46bf10 == -1) {
       error(2, "player 1 has no active player profile assigned");
     } else {
-      if (!((bool (*)(int, void *))0x1c1280)(*(int *)0x46bf10,
-                                             (void *)0x46c110))
+      if (!player_profile_get_enclosing_directory_path(*(int *)0x46bf10,
+                                                       (char *)0x46c110))
         error(2, "player 1 has no active player profile assigned");
     }
     *(int *)0x30f02c = *(int *)0x46bf10;
@@ -486,6 +513,39 @@ void player_ui_fast_setup_network_server(void)
   network_game_set_accept_remote_connections(0);
   error(2, "failed to initiate a multiplayer game server");
   main_goto_main_menu();
+}
+
+/* Bit 30 of a saved-game file index.  build_saved_game_file_index (0x1c3710)
+ * sets it; PAL 2342 names it _saved_game_file_index_read_only_bit (T2), and
+ * player_ui_save_profile below reports "saving over a default player profile"
+ * when it is set. */
+#define SAVED_GAME_FILE_INDEX_READ_ONLY_FLAG 0x40000000
+
+/* 0xe0d80 -- player_ui_edit_profile_is_default_profile (PAL 2342 body, T2).
+ * Returns bit 30 (read-only / default-profile flag) of the saved-game file
+ * index being edited, player_ui_globals + 0x158 (0x46c038).
+ *   - index == -1: returns false with no report (XOR BL,BL / MOV AL,BL).
+ *   - saved_game_file_get_type's 16-bit result is zero-extended (MOVZX EAX,AX)
+ *     and range-checked with signed compares (JL 0 / JG 1), so it is held in
+ *     an int.  Types 0 (player profile) and 1 (playlist) are accepted.
+ *   - the flag is read by reloading the global: SHR EAX,0x1e / AND AL,1.
+ *   - any other type reports "unknown saved game file type being edited"
+ *     and returns false. */
+bool player_ui_edit_profile_is_default_profile(void)
+{
+  bool result;
+  int type;
+
+  result = false;
+  if (*(int *)(player_ui_globals + 0x158) != -1) {
+    type = saved_game_file_get_type(*(int *)(player_ui_globals + 0x158));
+    if (type >= 0 && type <= 1)
+      result = (*(int *)(player_ui_globals + 0x158) &
+                SAVED_GAME_FILE_INDEX_READ_ONLY_FLAG) != 0;
+    else
+      error(2, "unknown saved game file type being edited");
+  }
+  return result;
 }
 
 /* 0xe0dd0. Returns true when the profile name currently being edited differs
@@ -636,6 +696,61 @@ void *player_ui_get_edit_playlist_profile(void)
                                                            NULL;
 }
 
+/* 0xe0ee0 -- player_ui_edit_profile_is_dirty (PAL 2342 body, T2).
+ * Compares the live edit copy (player_ui_globals + 0x15c, 0x46c03c) against
+ * the pristine copy taken by player_ui_begin_editing_profile
+ * (player_ui_globals + 0x1c4, 0x46c0a4) with the 16-bit flags word of both
+ * temporarily zeroed, so a flags-only change does not count as dirty.
+ *   - index == -1: returns false, no report.
+ *   - type 0 (player profile, 0x30 bytes): flags at record +0x1a --
+ *     original 0x46c0be saved in SI, current 0x46c056 in DI; both zeroed,
+ *     csmemcmp(original, current, 0x30), current restored, then original.
+ *   - type 1 (playlist, 0x68 bytes): flags at record +0x64 -- original
+ *     0x46c108 and current 0x46c0a0 spilled to [EBP-4]/[EBP-8]; same
+ *     zero / compare / restore sequence with size 0x68.
+ *   - other: "unknown profile type being edited", returns false.
+ * The type switch is the SUB EAX,EBX / JZ / DEC EAX / JZ lowering. */
+bool player_ui_edit_profile_is_dirty(void)
+{
+  bool result;
+  unsigned short original_flags;
+  unsigned short current_flags;
+
+  result = false;
+  if (*(int *)(player_ui_globals + 0x158) != -1) {
+    switch (saved_game_file_get_type(*(int *)(player_ui_globals + 0x158))) {
+    case 0:
+      original_flags = *(unsigned short *)(player_ui_globals + 0x1c4 + 0x1a);
+      current_flags = *(unsigned short *)(player_ui_globals + 0x15c + 0x1a);
+      *(unsigned short *)(player_ui_globals + 0x1c4 + 0x1a) = 0;
+      *(unsigned short *)(player_ui_globals + 0x15c + 0x1a) = 0;
+      if (csmemcmp(player_ui_globals + 0x1c4, player_ui_globals + 0x15c,
+                   0x30) != 0)
+        result = true;
+      *(unsigned short *)(player_ui_globals + 0x15c + 0x1a) = current_flags;
+      *(unsigned short *)(player_ui_globals + 0x1c4 + 0x1a) = original_flags;
+      break;
+
+    case 1:
+      original_flags = *(unsigned short *)(player_ui_globals + 0x1c4 + 0x64);
+      current_flags = *(unsigned short *)(player_ui_globals + 0x15c + 0x64);
+      *(unsigned short *)(player_ui_globals + 0x1c4 + 0x64) = 0;
+      *(unsigned short *)(player_ui_globals + 0x15c + 0x64) = 0;
+      if (csmemcmp(player_ui_globals + 0x1c4, player_ui_globals + 0x15c,
+                   0x68) != 0)
+        result = true;
+      *(unsigned short *)(player_ui_globals + 0x1c4 + 0x64) = original_flags;
+      *(unsigned short *)(player_ui_globals + 0x15c + 0x64) = current_flags;
+      break;
+
+    default:
+      error(2, "unknown profile type being edited");
+      break;
+    }
+  }
+  return result;
+}
+
 /* 0xe0fd0. Marks every solo level complete on every difficulty in local
  * player 0's profile, then writes the profile back if that player has one.
  *
@@ -772,6 +887,259 @@ int player0_joystick_set_is_normal(void)
   return 0;
 }
 
+/* Enumerations and records used by set_local_player_controls_from_player_profile.
+ * Names and member order are PAL 2342 (input/input.h, saved games/
+ * player_profile.h, input/input_abstraction.h) -- T2.  Every value below is
+ * re-confirmed against the 2276 binary: the five button-preset arms of the
+ * jump table at 0xe12bc store exactly these codes, the joystick preset is
+ * clamped at 3, and the look-sensitivity tables have 10 entries. */
+enum {
+  _gamepad_analog_button_a = 0,
+  _gamepad_analog_button_b,
+  _gamepad_analog_button_x,
+  _gamepad_analog_button_y,
+  _gamepad_analog_button_black,
+  _gamepad_analog_button_white,
+  _gamepad_analog_button_left_trigger,
+  _gamepad_analog_button_right_trigger,
+  _gamepad_binary_button_dpad_up = 8,
+  _gamepad_binary_button_dpad_down,
+  _gamepad_binary_button_dpad_left,
+  _gamepad_binary_button_dpad_right,
+  _gamepad_binary_button_start,
+  _gamepad_binary_button_back,
+  _gamepad_binary_button_left_thumb,
+  _gamepad_binary_button_right_thumb
+};
+
+enum {
+  _button_preset_standard = 0,
+  _button_preset_swap_triggers,
+  _button_preset_swap_a_and_left_trigger,
+  _button_preset_swap_b_and_left_trigger,
+  _button_preset_swap_b_and_right_thumb
+};
+
+enum {
+  _joystick_preset_standard = 0,
+  _joystick_preset_south_paw,
+  _joystick_preset_legacy,
+  _joystick_preset_legacy_south_paw
+};
+
+#define NUMBER_OF_LOOK_SENSITIVITY_SETTINGS 10
+
+/* The last 8 bytes (+0x28) of the 0x30-byte player profile record.  Offsets
+ * +0/+1/+2/+3/+5 are read here; +4 is the byte player_ui_rumble_disabled
+ * reads (record +0x2c), +6 the byte player_ui_autolevel_enabled reads
+ * (record +0x2e), and player_profile_set_to_default writes +0..+7. */
+typedef struct player_profile_controller_settings {
+  unsigned char button_preset;
+  unsigned char joystick_preset;
+  unsigned char look_sensitivity;
+  bool invert_look;
+  bool vibration_disabled;
+  bool flight_stick_aircraft_controls;
+  bool autocenter;
+  bool ingame_help_disabled;
+} player_profile_controller_settings;
+cs(player_profile_controller_settings, 0x8);
+co(player_profile_controller_settings, look_sensitivity, 0x2);
+co(player_profile_controller_settings, flight_stick_aircraft_controls, 0x5);
+
+/* The 0x18-byte block input_abstraction_update_local_player_preferences
+ * (0xce740) copies into its per-controller table at 0x46b820.  Offsets from
+ * the stores at 0xe11db (+4), 0xe11ec (+0), [EBP-0x10..-5] (+8..+0x13),
+ * [EBP-4] word (+0x14), [EBP-2] (+0x16) and [EBP-1] (+0x17); that callee
+ * asserts +0x10/+0x11 (buttons 8/9) are start/back. */
+typedef struct game_input_preferences {
+  float yaw_rate;
+  float pitch_rate;
+  unsigned char game_control_to_xbox_buttons[12];
+  short joystick_controls;
+  bool invert_look;
+  bool invert_look_aircraft_control;
+} game_input_preferences;
+cs(game_input_preferences, 0x18);
+co(game_input_preferences, game_control_to_xbox_buttons, 0x8);
+co(game_input_preferences, joystick_controls, 0x14);
+co(game_input_preferences, invert_look_aircraft_control, 0x17);
+
+/* 0xe10c0 -- set_local_player_controls_from_player_profile (PAL 2342 name and
+ * body, T2; the 2276 assert sits at line 0x392, PAL has 0x396).
+ *
+ * local_player_index arrives in DI: both callers (0xe14eb, 0xe17a7) CALL with
+ * no pushes and ADD nothing, and the body reads DI before writing it
+ * (CMP DI,BX at 0xe10d4).  EDI is never written, and is pushed as the
+ * fallback controller index at 0xe12ae.
+ *
+ * The controller settings are record +0x28 of the 0x38-stride local-player
+ * record (ADD EAX,0x46bf08 after IMUL 0x38).  look_sensitivity is read with
+ * MOVZX; sensitivity-1 is clamped into [0,9] twice, once into the short pitch
+ * index (DX) and once into the yaw index (CX).  The pitch table is the one
+ * built at [EBP-0x40] (40..130) and lands at preferences +4; the yaw table at
+ * [EBP-0x68] (80..260) lands at +0.  The joystick preset is clamped at 3 with
+ * an unsigned compare (JBE).  Button-preset values outside 0..4 skip every
+ * button store, leaving the zero-initialised mapping.  The controller comes
+ * from word_46BFC4 (zero-extended word load, compared against 0xffff); on -1
+ * the local player index itself is passed. */
+void set_local_player_controls_from_player_profile(short local_player_index)
+{
+  game_input_preferences preferences = { 0 };
+  float pitch_rate_table[NUMBER_OF_LOOK_SENSITIVITY_SETTINGS] = {
+    40.0f, 50.0f, 60.0f, 70.0f, 80.0f, 90.0f, 100.0f, 110.0f, 120.0f, 130.0f
+  };
+  float yaw_rate_table[NUMBER_OF_LOOK_SENSITIVITY_SETTINGS] = {
+    80.0f, 100.0f, 120.0f, 140.0f, 160.0f, 180.0f, 200.0f, 220.0f, 240.0f,
+    260.0f
+  };
+  player_profile_controller_settings *controls;
+  int look_sensitivity;
+  int yaw_index;
+  short pitch_index;
+  short controller_index;
+
+  assert_halt_msg_at("(local_player_index>=0) && "
+                     "(local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS)",
+                     "c:\\halo\\SOURCE\\interface\\player_ui.c", 0x392,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  controls = (player_profile_controller_settings *)(player_ui_globals +
+                                                     local_player_index * 0x38 +
+                                                     0x28);
+  look_sensitivity = controls->look_sensitivity;
+  yaw_index = look_sensitivity - 1;
+  if (look_sensitivity - 1 < 0) {
+    pitch_index = 0;
+  } else if (yaw_index > NUMBER_OF_LOOK_SENSITIVITY_SETTINGS - 1) {
+    pitch_index = NUMBER_OF_LOOK_SENSITIVITY_SETTINGS - 1;
+  } else {
+    pitch_index = (short)yaw_index;
+  }
+  if (yaw_index < 0) {
+    yaw_index = 0;
+  } else if (yaw_index > NUMBER_OF_LOOK_SENSITIVITY_SETTINGS - 1) {
+    yaw_index = NUMBER_OF_LOOK_SENSITIVITY_SETTINGS - 1;
+  }
+
+  preferences.pitch_rate = pitch_rate_table[pitch_index];
+  preferences.yaw_rate = yaw_rate_table[(short)yaw_index];
+  preferences.joystick_controls =
+    controls->joystick_preset > _joystick_preset_legacy_south_paw ?
+      _joystick_preset_legacy_south_paw :
+      controls->joystick_preset;
+
+  switch (controls->button_preset) {
+  case _button_preset_standard:
+    preferences.game_control_to_xbox_buttons[0] = _gamepad_analog_button_a;
+    preferences.game_control_to_xbox_buttons[1] = _gamepad_analog_button_black;
+    preferences.game_control_to_xbox_buttons[2] = _gamepad_analog_button_x;
+    preferences.game_control_to_xbox_buttons[3] = _gamepad_analog_button_y;
+    preferences.game_control_to_xbox_buttons[4] = _gamepad_analog_button_b;
+    preferences.game_control_to_xbox_buttons[5] = _gamepad_analog_button_white;
+    preferences.game_control_to_xbox_buttons[6] =
+      _gamepad_analog_button_left_trigger;
+    preferences.game_control_to_xbox_buttons[7] =
+      _gamepad_analog_button_right_trigger;
+    preferences.game_control_to_xbox_buttons[8] = _gamepad_binary_button_start;
+    preferences.game_control_to_xbox_buttons[9] = _gamepad_binary_button_back;
+    preferences.game_control_to_xbox_buttons[10] =
+      _gamepad_binary_button_left_thumb;
+    preferences.game_control_to_xbox_buttons[11] =
+      _gamepad_binary_button_right_thumb;
+    break;
+
+  case _button_preset_swap_triggers:
+    preferences.game_control_to_xbox_buttons[0] = _gamepad_analog_button_a;
+    preferences.game_control_to_xbox_buttons[1] = _gamepad_analog_button_black;
+    preferences.game_control_to_xbox_buttons[2] = _gamepad_analog_button_x;
+    preferences.game_control_to_xbox_buttons[3] = _gamepad_analog_button_y;
+    preferences.game_control_to_xbox_buttons[4] = _gamepad_analog_button_b;
+    preferences.game_control_to_xbox_buttons[5] = _gamepad_analog_button_white;
+    preferences.game_control_to_xbox_buttons[6] =
+      _gamepad_analog_button_right_trigger;
+    preferences.game_control_to_xbox_buttons[7] =
+      _gamepad_analog_button_left_trigger;
+    preferences.game_control_to_xbox_buttons[8] = _gamepad_binary_button_start;
+    preferences.game_control_to_xbox_buttons[9] = _gamepad_binary_button_back;
+    preferences.game_control_to_xbox_buttons[10] =
+      _gamepad_binary_button_left_thumb;
+    preferences.game_control_to_xbox_buttons[11] =
+      _gamepad_binary_button_right_thumb;
+    break;
+
+  case _button_preset_swap_a_and_left_trigger:
+    preferences.game_control_to_xbox_buttons[0] =
+      _gamepad_analog_button_left_trigger;
+    preferences.game_control_to_xbox_buttons[1] = _gamepad_analog_button_black;
+    preferences.game_control_to_xbox_buttons[2] = _gamepad_analog_button_x;
+    preferences.game_control_to_xbox_buttons[3] = _gamepad_analog_button_y;
+    preferences.game_control_to_xbox_buttons[4] = _gamepad_analog_button_b;
+    preferences.game_control_to_xbox_buttons[5] = _gamepad_analog_button_white;
+    preferences.game_control_to_xbox_buttons[6] = _gamepad_analog_button_a;
+    preferences.game_control_to_xbox_buttons[7] =
+      _gamepad_analog_button_right_trigger;
+    preferences.game_control_to_xbox_buttons[8] = _gamepad_binary_button_start;
+    preferences.game_control_to_xbox_buttons[9] = _gamepad_binary_button_back;
+    preferences.game_control_to_xbox_buttons[10] =
+      _gamepad_binary_button_left_thumb;
+    preferences.game_control_to_xbox_buttons[11] =
+      _gamepad_binary_button_right_thumb;
+    break;
+
+  case _button_preset_swap_b_and_left_trigger:
+    preferences.game_control_to_xbox_buttons[0] = _gamepad_analog_button_a;
+    preferences.game_control_to_xbox_buttons[1] = _gamepad_analog_button_black;
+    preferences.game_control_to_xbox_buttons[2] = _gamepad_analog_button_x;
+    preferences.game_control_to_xbox_buttons[3] = _gamepad_analog_button_y;
+    preferences.game_control_to_xbox_buttons[4] =
+      _gamepad_analog_button_left_trigger;
+    preferences.game_control_to_xbox_buttons[5] = _gamepad_analog_button_white;
+    preferences.game_control_to_xbox_buttons[6] = _gamepad_analog_button_b;
+    preferences.game_control_to_xbox_buttons[7] =
+      _gamepad_analog_button_right_trigger;
+    preferences.game_control_to_xbox_buttons[8] = _gamepad_binary_button_start;
+    preferences.game_control_to_xbox_buttons[9] = _gamepad_binary_button_back;
+    preferences.game_control_to_xbox_buttons[10] =
+      _gamepad_binary_button_left_thumb;
+    preferences.game_control_to_xbox_buttons[11] =
+      _gamepad_binary_button_right_thumb;
+    break;
+
+  case _button_preset_swap_b_and_right_thumb:
+    preferences.game_control_to_xbox_buttons[0] = _gamepad_analog_button_a;
+    preferences.game_control_to_xbox_buttons[1] = _gamepad_analog_button_black;
+    preferences.game_control_to_xbox_buttons[2] = _gamepad_analog_button_x;
+    preferences.game_control_to_xbox_buttons[3] = _gamepad_analog_button_y;
+    preferences.game_control_to_xbox_buttons[4] =
+      _gamepad_binary_button_right_thumb;
+    preferences.game_control_to_xbox_buttons[5] = _gamepad_analog_button_white;
+    preferences.game_control_to_xbox_buttons[6] =
+      _gamepad_analog_button_left_trigger;
+    preferences.game_control_to_xbox_buttons[7] =
+      _gamepad_analog_button_right_trigger;
+    preferences.game_control_to_xbox_buttons[8] = _gamepad_binary_button_start;
+    preferences.game_control_to_xbox_buttons[9] = _gamepad_binary_button_back;
+    preferences.game_control_to_xbox_buttons[10] =
+      _gamepad_binary_button_left_thumb;
+    preferences.game_control_to_xbox_buttons[11] = _gamepad_analog_button_b;
+    break;
+  }
+
+  preferences.invert_look = controls->invert_look;
+  preferences.invert_look_aircraft_control =
+    controls->flight_stick_aircraft_controls;
+  controller_index = word_46BFC4[local_player_index];
+  if (controller_index != -1) {
+    input_abstraction_update_local_player_preferences(controller_index,
+                                                      &preferences);
+  } else {
+    input_abstraction_update_local_player_preferences(local_player_index,
+                                                      &preferences);
+  }
+}
+
 void player_ui_initialize(void)
 {
   int i;
@@ -904,6 +1272,142 @@ void player_ui_set_active_player_profile(short local_player_index,
     profile_index;
   csmemcpy(player_ui_globals + local_player_index * 0x38, profile, 0x30);
   set_local_player_controls_from_player_profile(local_player_index);
+}
+
+/* 0xe1500 -- player_ui_begin_editing_profile (PAL 2342 name and body, T2).
+ *
+ * MOV [0x46c038],-1 (player_ui_globals + 0x158, the edited-file index) is
+ * stored before the saved_game_file_get_type call; the result is MOVZX'd and
+ * dispatched 0 / 1 / other.
+ *   type 0 (player profile): CALL 0x1c18f0 (kb player_profile_new, which
+ *     behaves as PAL player_profile_get) into player_ui_globals + 0x1c4
+ *     (0x46c0a4), then csmemcpy 0x30 bytes to player_ui_globals + 0x15c
+ *     (0x46c03c).
+ *   type 1 (playlist): CALL 0x1c26f0 (kb playlist_profile_delete, which
+ *     behaves as PAL playlist_profile_get) into the same buffer, then the
+ *     same csmemcpy with 0x68 bytes.  The two arms share the tail at
+ *     0xe1575 with only the size PUSH differing.
+ *   other: error(2, "invalid profile index (#%08lX)", profile_index).
+ * A failed get reports through error(2, ...) and returns without storing the
+ * index.  On success the index is stored at 0xe1587. */
+void player_ui_begin_editing_profile(int profile_index)
+{
+  *(int *)(player_ui_globals + 0x158) = -1;
+  switch (saved_game_file_get_type(profile_index)) {
+  case 0:
+    if (player_profile_new(profile_index, player_ui_globals + 0x1c4)) {
+      csmemcpy(player_ui_globals + 0x15c, player_ui_globals + 0x1c4, 0x30);
+    } else {
+      error(2, "failed to retrieve player profile #%08lX for editing",
+            profile_index);
+      return;
+    }
+    break;
+
+  case 1:
+    if (playlist_profile_delete(
+          profile_index, (game_variant_t *)(player_ui_globals + 0x1c4))) {
+      csmemcpy(player_ui_globals + 0x15c, player_ui_globals + 0x1c4, 0x68);
+    } else {
+      error(2, "failed to retrieve playlist profile #%08lX for editing",
+            profile_index);
+      return;
+    }
+    break;
+
+  default:
+    error(2, "invalid profile index (#%08lX)", profile_index);
+    return;
+  }
+  *(int *)(player_ui_globals + 0x158) = profile_index;
+}
+
+/* 0xe15b0 -- player_ui_save_profile (PAL 2342 body, T2).
+ * Writes the live edit copy (player_ui_globals + 0x15c, 0x46c03c) of the
+ * saved-game file being edited (player_ui_globals + 0x158, 0x46c038) back to
+ * disk, then clears the edit index to -1 on every path (the inlined PAL
+ * clear_profile_edit_data).  There is no -1 guard before
+ * saved_game_file_get_type.
+ *   - type 0: warns when the read-only bit is set and when the profile is not
+ *     dirty, then CALL 0x1c1bc0 (kb player_profile_get_from_path; PAL
+ *     player_profile_save) with (index, edit copy); returns true.
+ *   - type 1: warns when not dirty.  Read-only (default) playlist: the name
+ *     must differ from the original (ustrncmp 0xc chars), else "cannot save
+ *     over default profiles"; a renamed default clears bit 0 of the flags byte
+ *     (AND byte [0x46c0a0],0xfe), creates a new playlist file with
+ *     playlist_profile_new(0, name), writes the edit copy through CALL
+ *     0x1c27f0 (kb playlist_profile_get_display_name; PAL
+ *     playlist_profile_save), adopts the new index, and remembers its
+ *     directory.  A writable playlist is written in place and its directory
+ *     remembered.  Directory lookup failure does not change the true result.
+ *   - other: "failed to save profile because we are not editing one".
+ * Frame: SUB ESP,0x100 is the directory path buffer. */
+bool player_ui_save_profile(void)
+{
+  char directory_path[0x100];
+  bool result;
+  int new_profile_index;
+
+  result = false;
+  switch (saved_game_file_get_type(*(int *)(player_ui_globals + 0x158))) {
+  case 0:
+    if (*(int *)(player_ui_globals + 0x158) &
+        SAVED_GAME_FILE_INDEX_READ_ONLY_FLAG)
+      error(2, "### WARNING: saving over a default player profile");
+    if (!player_ui_edit_profile_is_dirty())
+      error(2, "### WARNING: saving player profile even though it hasn't been "
+               "changed");
+    player_profile_get_from_path(*(int *)(player_ui_globals + 0x158),
+                                 player_ui_globals + 0x15c);
+    result = true;
+    break;
+
+  case 1:
+    if (!player_ui_edit_profile_is_dirty())
+      error(2, "### WARNING: saving player profile even though it hasn't been "
+               "changed");
+    if (*(int *)(player_ui_globals + 0x158) &
+        SAVED_GAME_FILE_INDEX_READ_ONLY_FLAG) {
+      if (ustrncmp((wchar_t *)(player_ui_globals + 0x15c),
+                   (wchar_t *)(player_ui_globals + 0x1c4), 0xc) != 0) {
+        *(unsigned short *)(player_ui_globals + 0x15c + 0x64) &= ~1;
+        new_profile_index =
+          playlist_profile_new(0, (wchar_t *)(player_ui_globals + 0x15c));
+        if (new_profile_index != -1) {
+          playlist_profile_get_display_name(
+            new_profile_index, (game_variant_t *)(player_ui_globals + 0x15c));
+          *(int *)(player_ui_globals + 0x158) = new_profile_index;
+          if (saved_game_file_get_path_to_enclosing_directory(new_profile_index,
+                                                             directory_path))
+            saved_game_file_remember_last_used_multiplayer_variant_directory(
+              directory_path);
+          result = true;
+        } else {
+          error(2, "failed to save renamed profile to disk");
+        }
+      } else {
+        error(2, "cannot save over default profiles; must rename and save-as a "
+                 "new profile");
+      }
+    } else {
+      playlist_profile_get_display_name(
+        *(int *)(player_ui_globals + 0x158),
+        (game_variant_t *)(player_ui_globals + 0x15c));
+      if (saved_game_file_get_path_to_enclosing_directory(
+            *(int *)(player_ui_globals + 0x158), directory_path))
+        saved_game_file_remember_last_used_multiplayer_variant_directory(
+          directory_path);
+      result = true;
+    }
+    break;
+
+  default:
+    error(2, "failed to save profile because we are not editing one");
+    break;
+  }
+
+  *(int *)(player_ui_globals + 0x158) = -1;
+  return result;
 }
 
 /* player_ui_end_editing_profile (0xe1760)

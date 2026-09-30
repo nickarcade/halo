@@ -1885,7 +1885,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
                             "%s: assert_valid_real_point3d(%f, %f, %f)",
                             "old_position", (double)old_pos[0],
                             (double)old_pos[1], (double)old_pos[2]),
-                   "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3ad, 1);
+                   "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3ad, 1);
     system_exit(-1);
   }
   if (!real_vector3d_valid(old_vel)) {
@@ -1893,26 +1893,26 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
                             "%s: assert_valid_real_vector2d(%f, %f, %f)",
                             "old_velocity", (double)old_vel[0],
                             (double)old_vel[1], (double)old_vel[2]),
-                   "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3ae, 1);
+                   "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3ae, 1);
     system_exit(-1);
   }
 
   if (features[0] > 0x100) {
     display_assert("features->count[_collision_feature_sphere]<=MAXIMUM_"
                    "COLLISION_FEATURES_PER_TEST",
-                   "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3af, 1);
+                   "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3af, 1);
     system_exit(-1);
   }
   if (features[1] > 0x100) {
     display_assert("features->count[_collision_feature_cylinder]<=MAXIMUM_"
                    "COLLISION_FEATURES_PER_TEST",
-                   "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3b0, 1);
+                   "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3b0, 1);
     system_exit(-1);
   }
   if (features[2] > 0x100) {
     display_assert("features->count[_collision_feature_prism]<=MAXIMUM_"
                    "COLLISION_FEATURES_PER_TEST",
-                   "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3b1, 1);
+                   "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3b1, 1);
     system_exit(-1);
   }
 
@@ -1927,7 +1927,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
 
     if (collision_count >= max_clips) {
       display_assert("collision_count<maximum_collision_count",
-                     "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3bf,
+                     "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3bf,
                      1);
       system_exit(-1);
     }
@@ -1946,7 +1946,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
                                 "%s: assert_valid_real_point3d(%f, %f, %f)",
                                 "&clipped_position", (double)position[0],
                                 (double)position[1], (double)position[2]),
-                       "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x418,
+                       "c:\\halo\\SOURCE\\physics\\collisions.c", 0x418,
                        1);
         system_exit(-1);
       }
@@ -1988,14 +1988,14 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
                               "&collision->plane", (double)plane_ptr[0],
                               (double)plane_ptr[1], (double)plane_ptr[2],
                               (double)plane_ptr[3]),
-                     "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3ce,
+                     "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3ce,
                      1);
       system_exit(-1);
     }
 
     if (clip_count >= 3) {
       display_assert("clip_count<3",
-                     "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3d1,
+                     "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3d1,
                      1);
       system_exit(-1);
     }
@@ -2092,7 +2092,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
                          "%s: assert_valid_real_point3d(%f, %f, %f)",
                          "&clip_point", (double)clip_point[0],
                          (double)clip_point[1], (double)clip_point[2]),
-                "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3ee, 1);
+                "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3ee, 1);
               system_exit(-1);
             }
             clip_staging[2] = clip_indices[1];
@@ -2125,7 +2125,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
                        "%s: assert_valid_real_point3d(%f, %f, %f)",
                        "&clip_line_point", (double)clip_result[0],
                        (double)clip_result[1], (double)clip_result[2]),
-              "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3fe, 1);
+              "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3fe, 1);
             system_exit(-1);
           }
           if (!real_vector3d_valid(clip_line)) {
@@ -2134,7 +2134,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
                        "%s: assert_valid_real_vector2d(%f, %f, %f)",
                        "&clip_line_vector", (double)clip_line[0],
                        (double)clip_line[1], (double)clip_line[2]),
-              "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x3ff, 1);
+              "c:\\halo\\SOURCE\\physics\\collisions.c", 0x3ff, 1);
             system_exit(-1);
           }
 
@@ -2187,7 +2187,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
           (char *)0x5ab100, "%s: assert_valid_real_plane3d(%f, %f, %f / %f)",
           "&clip_plane", (double)collision_plane[0], (double)collision_plane[1],
           (double)collision_plane[2], (double)collision_plane[3]),
-        "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x428, 1);
+        "c:\\halo\\SOURCE\\physics\\collisions.c", 0x428, 1);
       system_exit(-1);
     }
     dot = ((x87_wide_t)collision_plane[0] * old_vel[0] +
@@ -2205,7 +2205,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
         csprintf((char *)0x5ab100, "%s: assert_valid_real_point3d(%f, %f, %f)",
                  "&clip_line_point", (double)clip_result[0],
                  (double)clip_result[1], (double)clip_result[2]),
-        "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x42d, 1);
+        "c:\\halo\\SOURCE\\physics\\collisions.c", 0x42d, 1);
       system_exit(-1);
     }
     if (!real_vector3d_valid(clip_line)) {
@@ -2213,7 +2213,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
         csprintf((char *)0x5ab100, "%s: assert_valid_real_vector2d(%f, %f, %f)",
                  "&clip_line_vector", (double)clip_line[0],
                  (double)clip_line[1], (double)clip_line[2]),
-        "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x42e, 1);
+        "c:\\halo\\SOURCE\\physics\\collisions.c", 0x42e, 1);
       system_exit(-1);
     }
     collision_log_usage(new_vel, old_vel, clip_line);
@@ -2225,7 +2225,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
         csprintf((char *)0x5ab100, "%s: assert_valid_real_point3d(%f, %f, %f)",
                  "&clip_point", (double)clip_point[0], (double)clip_point[1],
                  (double)clip_point[2]),
-        "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x433, 1);
+        "c:\\halo\\SOURCE\\physics\\collisions.c", 0x433, 1);
       system_exit(-1);
     }
     new_vel[0] = 0.0f;
@@ -2234,8 +2234,8 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
     break;
 
   default:
-    display_assert("unreachable",
-                   "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x438, 1);
+    display_assert("!\"unreachable\"",
+                   "c:\\halo\\SOURCE\\physics\\collisions.c", 0x438, 1);
     system_exit(-1);
     break;
   }
@@ -2245,7 +2245,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
                             "%s: assert_valid_real_point3d(%f, %f, %f)",
                             "new_position", (double)new_pos[0],
                             (double)new_pos[1], (double)new_pos[2]),
-                   "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x43b, 1);
+                   "c:\\halo\\SOURCE\\physics\\collisions.c", 0x43b, 1);
     system_exit(-1);
   }
   if (!real_vector3d_valid(new_vel)) {
@@ -2253,7 +2253,7 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
                             "%s: assert_valid_real_vector2d(%f, %f, %f)",
                             "new_velocity", (double)new_vel[0],
                             (double)new_vel[1], (double)new_vel[2]),
-                   "c:\\\\halo\\\\SOURCE\\\\physics\\\\collisions.c", 0x43c, 1);
+                   "c:\\halo\\SOURCE\\physics\\collisions.c", 0x43c, 1);
     system_exit(-1);
   }
 
@@ -2354,6 +2354,69 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
   return (short)collision_count;
 }
 
+/* 0x150550 — Swept collision query for a moving point/sphere.
+ * Pushes collision user 7 on the collision-user stack (0x4761d8 depth,
+ * 0x5a8c80 stack), gathers features around the sweep midpoint
+ * (position + 0.5*velocity, z lifted by 0.5*arg4) with radius
+ * 0.5*|velocity| + 0.5*arg4 + arg5 via FUN_0014ec30, then clips the motion
+ * through them with FUN_0014f2c0. When no features are found, new_position is
+ * position + velocity and new_velocity is velocity (dword copy).
+ * Returns the FUN_0014f2c0 clip count, 0 when no features (MOV AX,BX: short).
+ * Confirmed: arg4/arg5 are floats (FLD [EBP+0x14], FADD [EBP+0x18]) and feed
+ *   FUN_0014ec30's float params 4/5; 0x253398 = 0.5f.
+ * Confirmed: _chkstk(0xac14); feature buffer at EBP-0xac14, 0xac08 bytes
+ *   (counts[3] + 256 spheres*0x1c + 256 cylinders*0x28 + 256 prisms*0x68).
+ * Confirmed: asserts are collisions.c #0x4be / #0x4ce.
+ * Status: dormant (ported=false).
+ * 0x150550 / collision_usage.obj
+ */
+short FUN_00150550(void *collision_flags, float *position, float *velocity,
+                   float arg4, float arg5, int arg6, float *new_position,
+                   float *new_velocity, int max_collisions, void *collisions)
+{
+  char features[0xac08];
+  float center[3];
+  float half_height;
+  float magnitude;
+  short count;
+
+  count = 0;
+  if (*(short *)0x4761d8 >= 0x20) {
+    display_assert((const char *)0x253440, (const char *)0x29d5a0, 0x4be, 1);
+    system_exit(-1);
+  }
+  ((short *)0x5a8c80)[*(short *)0x4761d8] = 7;
+  *(short *)0x4761d8 = *(short *)0x4761d8 + 1;
+
+  center[0] = velocity[0] * *(float *)0x253398 + position[0];
+  center[1] = velocity[1] * *(float *)0x253398 + position[1];
+  half_height = arg4 * *(float *)0x253398;
+  center[2] = velocity[2] * *(float *)0x253398 + position[2] + half_height;
+
+  magnitude = sqrtf(velocity[2] * velocity[2] + velocity[1] * velocity[1] +
+                    velocity[0] * velocity[0]);
+  if (FUN_0014ec30((int)collision_flags, center,
+                   magnitude * *(float *)0x253398 + half_height + arg5, arg4,
+                   arg5, arg6, features)) {
+    count = FUN_0014f2c0(position, velocity, (short *)features, new_position,
+                         new_velocity, (short)max_collisions, (int)collisions);
+  } else {
+    new_position[0] = position[0] + velocity[0];
+    new_position[1] = position[1] + velocity[1];
+    new_position[2] = position[2] + velocity[2];
+    *(int *)&new_velocity[0] = *(int *)&velocity[0];
+    *(int *)&new_velocity[1] = *(int *)&velocity[1];
+    *(int *)&new_velocity[2] = *(int *)&velocity[2];
+  }
+
+  if (*(short *)0x4761d8 <= 1) {
+    display_assert((const char *)0x253418, (const char *)0x29d5a0, 0x4ce, 1);
+    system_exit(-1);
+  }
+  (*(short *)0x4761d8)--;
+  return count;
+}
+
 
 /* FUN_001506d0 — thin forwarder to the 10-arg collision/line-of-sight query
  * FUN_00150550, supplying a literal 0 for that callee's 4th parameter
@@ -2363,11 +2426,11 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
  * cdecl: ADD ESP,0x28 after the CALL confirms 10 pushed dwords.
  * EAX is not touched after the CALL, so the callee's int result is the
  * wrapper's return value.
- * Types mirror FUN_00150550's kb.json declaration; the two int slots are
- * dword-copied (callers pun floats through them), meaning unproven here.
+ * arg5 is a float: FUN_00150550 loads it with FADD [EBP+0x18] and forwards
+ * it to FUN_0014ec30's float parameter; here it is dword-forwarded.
  * 0x1506d0 / collision_usage.obj
  */
-int FUN_001506d0(void *out_point, float *direction, float *origin, int arg5,
+int FUN_001506d0(void *out_point, float *direction, float *origin, float arg5,
                  int arg6, float *out_point2, void *out_arg8, int max_results,
                  void *results)
 {

@@ -16,6 +16,57 @@ static double breakable_ceil(double x)
   return (double)((x > (double)i) ? (i + 1) : i);
 }
 
+/* placeholder_initialize_for_new_map (0x1454c0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the placeholder object_type_definition table
+ *   at 0x324568, slot +0x18 (initialize_for_new_map); name from PAL 2342
+ *   objects/object_types.c placeholder_data_definition (T2).
+ * Uncertain: TU attribution. The original TU is the placeholder object
+ *   file; it sits here with the neighbouring scenery callbacks that kb.json
+ *   already attributes to breakable_surfaces.obj. */
+void placeholder_initialize_for_new_map(void)
+{
+}
+
+/* placeholder_dispose_from_old_map (0x1454d0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the placeholder object_type_definition table
+ *   at 0x324568, slot +0x1c (dispose_from_old_map); name from PAL 2342 (T2).
+ * Uncertain: TU attribution (see placeholder_initialize_for_new_map). */
+void placeholder_dispose_from_old_map(void)
+{
+}
+
+/* scenery_initialize (0x145520)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the scenery object_type_definition table at
+ *   0x3241a8, slot +0x10 (initialize); name from PAL 2342
+ *   objects/object_types.c scenery_data_definition (T2). */
+void scenery_initialize(void)
+{
+}
+
+/* scenery_initialize_for_new_map (0x145530)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the scenery object_type_definition table at
+ *   0x3241a8, slot +0x18 (initialize_for_new_map); name from PAL 2342 (T2). */
+void scenery_initialize_for_new_map(void)
+{
+}
+
+/* scenery_dispose_from_old_map (0x145540)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the scenery object_type_definition table at
+ *   0x3241a8, slot +0x1c (dispose_from_old_map); name from PAL 2342 (T2). */
+void scenery_dispose_from_old_map(void)
+{
+}
+
 /* FUN_00145560 (0x145560)
  *
  * Two-argument forwarding wrapper: passes arg1 through unchanged and arg2
@@ -426,7 +477,7 @@ void FUN_00145ad0(unsigned short param_1, void *damage_params, int param_3)
   collision_bsp = (int)global_collision_bsp_get();
 
   if (param_2 == NULL) {
-    display_assert("param_2", "c:\\halo\\SOURCE\\physics\\breakable_surfaces.c",
+    display_assert("damage_data", "c:\\halo\\SOURCE\\physics\\breakable_surfaces.c",
                    0xfb, 1);
     system_exit(-1);
   }
@@ -455,7 +506,7 @@ void FUN_00145ad0(unsigned short param_1, void *damage_params, int param_3)
   have_bbox = false;
   bfs_head = 0;
   if (*(uint8_t *)(surface_element + 9) != (uint8_t)param_1) {
-    display_assert("surface->breakable_surface==breakable_surface_index",
+    display_assert("collision_surface->breakable_surface_index==breakable_surface_index",
                    "c:\\halo\\SOURCE\\physics\\breakable_surfaces.c", 0x10a, 1);
     system_exit(-1);
   }
@@ -614,7 +665,7 @@ void FUN_00145ad0(unsigned short param_1, void *damage_params, int param_3)
           max_v = v_val;
 
         if (edge_count > 7) {
-          display_assert("edge_count<MAXIMUM_VERTICES_PER_SURFACE",
+          display_assert("surface_vertex_index<MAXIMUM_VERTICES_PER_COLLISION_SURFACE",
                          "c:\\halo\\SOURCE\\physics\\breakable_surfaces.c",
                          0x15c, 1);
           system_exit(-1);
@@ -673,7 +724,7 @@ void FUN_00145ad0(unsigned short param_1, void *damage_params, int param_3)
                   *(short *)(surface_element + 0xa)) {
               if (bfs_count_s >= 0x400) {
                 display_assert(
-                  "surface_count<MAXIMUM_BREAKABLE_SURFACE_SURFACES",
+                  "surface_queue_write_index<MAXIMUM_BREAKABLE_SURFACE_QUEUE_SIZE",
                   "c:\\halo\\SOURCE\\physics\\breakable_surfaces.c", 0x184, 1);
                 system_exit(-1);
               }

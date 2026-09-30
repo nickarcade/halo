@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "struct": "real_euler_angles3d",
+  "size": {
+    "value": "0xc",
+    "evidence": "0x89420/0x89429/0x8945e controls +8/+c/+10 FLD respectively"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 4,
+      "name": "yaw",
+      "confidence": "typed",
+      "evidence": "0x89420/0x89429/0x8945e controls +8/+c/+10 FLD respectively",
+      "kind": "float"
+    },
+    {
+      "offset": "0x4",
+      "width": 4,
+      "name": "pitch",
+      "confidence": "typed",
+      "evidence": "0x89420/0x89429/0x8945e controls +8/+c/+10 FLD respectively",
+      "kind": "float"
+    },
+    {
+      "offset": "0x8",
+      "width": 4,
+      "name": "roll",
+      "confidence": "typed",
+      "evidence": "0x89420/0x89429/0x8945e controls +8/+c/+10 FLD respectively",
+      "kind": "float"
+    }
+  ]
+}

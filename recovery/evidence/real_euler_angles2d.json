@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "struct": "real_euler_angles2d",
+  "size": {
+    "value": "0x8",
+    "evidence": "0x89e4e/0x89e59 yaw dword load and FADD; 0x89e5c/0x89e6b pitch dword load and FADD"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 4,
+      "name": "yaw",
+      "confidence": "typed",
+      "evidence": "0x89e4e/0x89e59 yaw dword load and FADD; 0x89e5c/0x89e6b pitch dword load and FADD",
+      "kind": "float"
+    },
+    {
+      "offset": "0x4",
+      "width": 4,
+      "name": "pitch",
+      "confidence": "typed",
+      "evidence": "0x89e4e/0x89e59 yaw dword load and FADD; 0x89e5c/0x89e6b pitch dword load and FADD",
+      "kind": "float"
+    }
+  ]
+}

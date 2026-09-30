@@ -832,3 +832,370 @@ bool collision_features_test_los(void *features, void *los_data, void *out_hit)
 
   return 1;
 }
+
+/* 0x14bdb0 — Swept test of a moving point against a sphere feature.
+ * Solves |point + t*vector - center|^2 = r^2 for the entry time t in [0,1].
+ * If the point already starts inside/on the sphere (c <= 0), t = 0.
+ * On a hit writes *t_out and the outward plane at the hit
+ * (normal = t*vector - (center - point), normalized; {0,0,1} when degenerate;
+ * plane[3] = dot(center, normal) + radius) and returns 1; 0 otherwise.
+ * Confirmed: cdecl, 5 args (ADD ESP,0x14 at 0x14c50f); returns AL.
+ * Confirmed: 0x2533c0 = 0.0f; FUN_00013010 = normalize3d.
+ * Status: dormant (ported=false). */
+char collision_sphere_test_vector(void *feature, float *point, float *vector,
+                                  float *t_out, float *plane_out)
+{
+  float *sphere = (float *)feature;
+  float dx, dy, dz;
+  float c;
+  float b;
+  float a;
+  float disc;
+  float t;
+  float scaled_y, scaled_z;
+
+  dx = sphere[3] - point[0];
+  dy = sphere[4] - point[1];
+  dz = sphere[5] - point[2];
+  c = dz * dz + dx * dx + dy * dy - sphere[6] * sphere[6];
+
+  if (c <= *(float *)0x2533c0) {
+    *t_out = 0.0f;
+  } else {
+    b = dx * vector[0] + dz * vector[2] + dy * vector[1];
+    if (!(b > *(float *)0x2533c0))
+      return 0;
+    a = vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2];
+    disc = b * b - a * c;
+    /* TEST AH,0x1: C0 is also set when unordered, so NaN fails here */
+    if (!(disc >= *(float *)0x2533c0))
+      return 0;
+    t = b - sqrtf(disc);
+    if (!(t <= a))
+      return 0;
+    *t_out = t / a;
+  }
+
+  t = *t_out;
+  scaled_y = t * vector[1];
+  scaled_z = t * vector[2];
+  plane_out[0] = t * vector[0] - dx;
+  plane_out[1] = scaled_y - dy;
+  plane_out[2] = scaled_z - dz;
+  if (normalize3d(plane_out) == *(float *)0x2533c0) {
+    plane_out[0] = 0.0f;
+    plane_out[1] = 0.0f;
+    plane_out[2] = 1.0f;
+  }
+  plane_out[3] = sphere[5] * plane_out[2] + sphere[4] * plane_out[1] +
+                 sphere[3] * plane_out[0] + sphere[6];
+  return 1;
+}
+
+/* 0x14bf30 — Swept test of a moving point against a cylinder feature
+ * (base +0x0c, axis +0x18 (unnormalized, length = height), radius +0x24).
+ * Solves the infinite-cylinder quadratic for [t0,t1], clamps it to [0,1],
+ * then clips it against the two end caps along the axis. On a hit writes
+ * *t_out = t0 and the plane through the hit point perpendicular to the axis
+ * ({1,0,0} when degenerate), plane[3] = dot(base, normal) + radius.
+ * Confirmed: cdecl, 5 args; returns AL; 0x2533c8 = 1.0f; FUN_00012f80 =
+ *   vector3d_scale_add(base, dir, scale, out); FUN_00013070(a, b) is a
+ *   float-returning 3-vector product used as dot(base, normal).
+ * Status: dormant (ported=false). */
+char collision_cylinder_test_vector(void *feature, float *point, float *vector,
+                                    float *t_out, float *plane_out)
+{
+  char *cyl = (char *)feature;
+  float *axis = (float *)(cyl + 0x18);
+  float axis_sq;
+  float axis_dot_v;
+  float a;
+  float d[3];
+  float hit[3];
+  float axis_dot_d;
+  float b;
+  float disc;
+  float root;
+  float inv_a;
+  float t0, t1;
+  float inv_av;
+  float cap_lo, cap_hi;
+
+  axis_sq = axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2];
+  axis_dot_v = axis[2] * vector[2] + axis[1] * vector[1] + axis[0] * vector[0];
+  a = (vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]) *
+        axis_sq -
+      axis_dot_v * axis_dot_v;
+  if (a == *(float *)0x2533c0)
+    return 0;
+
+  d[0] = point[0] - *(float *)(cyl + 0x0c);
+  d[1] = point[1] - *(float *)(cyl + 0x10);
+  d[2] = point[2] - *(float *)(cyl + 0x14);
+  axis_dot_d = d[1] * axis[1] + d[2] * axis[2] + d[0] * axis[0];
+  b = axis_dot_d * axis_dot_v -
+      (d[1] * vector[1] + d[2] * vector[2] + d[0] * vector[0]) * axis_sq;
+  disc = b * b - ((d[1] * d[1] + d[2] * d[2] + d[0] * d[0] -
+                   *(float *)(cyl + 0x24) * *(float *)(cyl + 0x24)) *
+                    axis_sq -
+                  axis_dot_d * axis_dot_d) *
+                   a;
+  if (disc < *(float *)0x2533c0)
+    return 0;
+
+  root = sqrtf(disc);
+  inv_a = *(float *)0x2533c8 / a;
+  t0 = (b - root) * inv_a;
+  t1 = (b + root) * inv_a;
+  if (t0 > *(float *)0x2533c8)
+    return 0;
+  if (t1 < *(float *)0x2533c0)
+    return 0;
+  if (t0 < *(float *)0x2533c0)
+    t0 = 0.0f;
+  if (t1 > *(float *)0x2533c8)
+    t1 = *(float *)0x2533c8;
+
+  if (axis_dot_v == *(float *)0x2533c0) {
+    /* moving parallel to the caps: must already lie between them */
+    if (axis_dot_d < *(float *)0x2533c0)
+      return 0;
+    if (axis_dot_d > axis_sq)
+      return 0;
+  } else {
+    inv_av = *(float *)0x2533c8 / axis_dot_v;
+    cap_lo = -(axis_dot_d * inv_av);
+    cap_hi = (axis_sq - axis_dot_d) * inv_av;
+    if (axis_dot_v > *(float *)0x2533c0) {
+      if (t0 < cap_lo)
+        t0 = cap_lo;
+      if (t1 > cap_hi)
+        t1 = cap_hi;
+    } else {
+      if (t0 < cap_hi)
+        t0 = cap_hi;
+      if (t1 > cap_lo)
+        t1 = cap_lo;
+    }
+    if (t0 > t1)
+      return 0;
+  }
+
+  *t_out = t0;
+  vector3d_scale_add(d, vector, t0, hit);
+  vector3d_scale_add(
+    hit, axis,
+    -((hit[1] * axis[1] + hit[2] * axis[2] + hit[0] * axis[0]) / axis_sq),
+    plane_out);
+  if (normalize3d(plane_out) == *(float *)0x2533c0) {
+    plane_out[0] = 1.0f;
+    plane_out[1] = 0.0f;
+    plane_out[2] = 0.0f;
+  }
+  plane_out[3] =
+    FUN_00013070((float *)(cyl + 0x0c), plane_out) + *(float *)(cyl + 0x24);
+  return 1;
+}
+
+/* 0x14c220 — Swept test of a moving point against a prism feature
+ * (plane normal +0x0c, plane d +0x18, height +0x1c, projection +0x20 (u16) /
+ * +0x22 (u8), point count +0x24, 2D points at +0x28 stride 8).
+ * Clips [tmin,tmax] = [0,1] against the slab 0 <= h < height, projects the
+ * point and vector onto the base plane / 2D, then clips against every edge.
+ * On a hit writes *t_out = tmin and plane = {normal, d + height}.
+ * Confirmed: cdecl, 5 args; returns AL; FUN_00061df0 = 2D projection
+ *   (point, projection, sign, out2).
+ * Status: dormant (ported=false). */
+char collision_prism_test_vector(void *feature, float *point, float *vector,
+                                 float *t_out, float *plane_out)
+{
+  char *prism = (char *)feature;
+  float *normal = (float *)(prism + 0x0c);
+  float tmin;
+  float tmax;
+  float h;
+  float nv;
+  float inv;
+  float t_enter, t_exit;
+  float neg;
+  float proj_point[3];
+  float proj_vector[3];
+  float point2d[2];
+  float vector2d[2];
+  float *edge;
+  float ex, ey;
+  float num, denom;
+  float q;
+  int count;
+  int counter;
+  int j;
+
+  tmin = 0.0f;
+  tmax = 1.0f;
+  h = normal[1] * point[1] + normal[2] * point[2] + point[0] * normal[0] -
+      *(float *)(prism + 0x18);
+  nv = normal[2] * vector[2] + normal[1] * vector[1] + vector[0] * normal[0];
+
+  if (nv == *(float *)0x2533c0) {
+    if (h < *(float *)0x2533c0)
+      return 0;
+    if (h >= *(float *)(prism + 0x1c))
+      return 0;
+  } else {
+    inv = *(float *)0x2533c8 / nv;
+    t_enter = -(h * inv);
+    t_exit = -((h - *(float *)(prism + 0x1c)) * inv);
+    if (nv > *(float *)0x2533c0) {
+      if (*(float *)0x2533c0 < t_enter)
+        tmin = t_enter;
+      if (*(float *)0x2533c8 > t_exit)
+        tmax = t_exit;
+    } else {
+      if (*(float *)0x2533c0 < t_exit)
+        tmin = t_exit;
+      if (*(float *)0x2533c8 > t_enter)
+        tmax = t_enter;
+    }
+    if (tmin > tmax)
+      return 0;
+  }
+
+  neg = -h;
+  proj_point[0] = neg * normal[0] + point[0];
+  proj_point[1] = neg * normal[1] + point[1];
+  proj_point[2] = neg * normal[2] + point[2];
+  neg = -nv;
+  proj_vector[0] = neg * normal[0] + vector[0];
+  proj_vector[1] = neg * normal[1] + vector[1];
+  proj_vector[2] = neg * normal[2] + vector[2];
+  FUN_00061df0(proj_point, *(short *)(prism + 0x20),
+               *(unsigned char *)(prism + 0x22), point2d);
+  FUN_00061df0(proj_vector, *(short *)(prism + 0x20),
+               *(unsigned char *)(prism + 0x22), vector2d);
+
+  count = *(int *)(prism + 0x24);
+  if (count > 0) {
+    counter = 1;
+    edge = (float *)(prism + 0x28);
+    do {
+      j = ((counter >= count) - 1) & counter;
+      ex = *(float *)(prism + j * 8 + 0x28) - edge[0];
+      ey = *(float *)(prism + j * 8 + 0x2c) - edge[1];
+      denom = ey * vector2d[0] - vector2d[1] * ex;
+      num = (point2d[1] - edge[1]) * ex - ey * (point2d[0] - edge[0]);
+      if (denom == *(float *)0x2533c0) {
+        if (num < *(float *)0x2533c0)
+          return 0;
+      } else {
+        q = num / denom;
+        if (denom < *(float *)0x2533c0) {
+          if (tmin < q)
+            tmin = q;
+        } else {
+          if (tmax > q)
+            tmax = q;
+        }
+        if (tmin > tmax)
+          return 0;
+      }
+      edge += 2;
+      counter++;
+    } while (counter - 1 < count);
+  }
+
+  *t_out = tmin;
+  *(int *)&plane_out[0] = *(int *)(prism + 0x0c);
+  *(int *)&plane_out[1] = *(int *)(prism + 0x10);
+  *(int *)&plane_out[2] = *(int *)(prism + 0x14);
+  plane_out[3] = *(float *)(prism + 0x18) + *(float *)(prism + 0x1c);
+  return 1;
+}
+
+/* 0x14c4b0 — Earliest swept hit of a moving point against all features.
+ * Walks spheres (+0x08, stride 0x1c), cylinders (+0x1c08, stride 0x28) and
+ * prisms (+0x4408, stride 0x68), keeping the smallest t whose plane faces the
+ * motion (dot(plane.normal, vector) < -1e-4f, 0x26a810). Result record
+ * (0x2c bytes): +0x00 t, +0x04 point + t*vector, +0x10 plane[4],
+ * +0x20..+0x2b the hit feature's 12-byte header (dword, dword, byte, byte,
+ * word). With no hit writes t = 1.0f and point + vector and returns 0
+ * (+0x10.. untouched); returns 1 otherwise.
+ * Confirmed: best t starts at 0x7f7fffff (FLT_MAX); strict t < best.
+ * Status: dormant (ported=false). */
+char FUN_0014c4b0(int arg1, float *arg2, float *arg3, void *out_result)
+{
+  char *features = (char *)arg1;
+  float *result = (float *)out_result;
+  short best_type;
+  short best_index;
+  float best_t;
+  float best_plane[4];
+  float t;
+  float plane[4];
+  short type;
+  short i;
+  char hit;
+  char *record;
+
+  best_type = -1;
+  best_index = -1;
+  best_t = 3.4028235e+38f;
+  for (type = 0; type < 3; type++) {
+    for (i = 0; i < *(short *)(features + type * 2); i++) {
+      if (type == 0)
+        hit = collision_sphere_test_vector(features + 8 + i * 0x1c, arg2, arg3,
+                                           &t, plane);
+      else if (type == 1)
+        hit = collision_cylinder_test_vector(features + 0x1c08 + i * 0x28, arg2,
+                                             arg3, &t, plane);
+      else if (type == 2)
+        hit = collision_prism_test_vector(features + 0x4408 + i * 0x68, arg2,
+                                          arg3, &t, plane);
+      else
+        continue;
+      if (hit && best_t > t &&
+          plane[1] * arg3[1] + plane[2] * arg3[2] + plane[0] * arg3[0] <
+            *(float *)0x26a810) {
+        best_t = t;
+        best_type = type;
+        best_index = i;
+        best_plane[0] = plane[0];
+        best_plane[1] = plane[1];
+        best_plane[2] = plane[2];
+        best_plane[3] = plane[3];
+      }
+    }
+  }
+
+  if (best_type == -1) {
+    *(int *)&result[0] = 0x3f800000;
+    result[1] = arg2[0] + arg3[0];
+    result[2] = arg2[1] + arg3[1];
+    result[3] = arg2[2] + arg3[2];
+    return 0;
+  }
+
+  result[0] = best_t;
+  result[1] = best_t * arg3[0] + arg2[0];
+  result[2] = best_t * arg3[1] + arg2[1];
+  result[3] = best_t * arg3[2] + arg2[2];
+  *(int *)&result[4] = *(int *)&best_plane[0];
+  *(int *)&result[5] = *(int *)&best_plane[1];
+  *(int *)&result[6] = *(int *)&best_plane[2];
+  *(int *)&result[7] = *(int *)&best_plane[3];
+
+  if (best_type == 0)
+    record = features + 8 + best_index * 0x1c;
+  else if (best_type == 1)
+    record = features + 0x1c08 + best_index * 0x28;
+  else if (best_type == 2)
+    record = features + 0x4408 + best_index * 0x68;
+  else
+    return 1;
+
+  *(int *)((char *)out_result + 0x20) = *(int *)record;
+  *(int *)((char *)out_result + 0x24) = *(int *)(record + 4);
+  *((char *)out_result + 0x28) = *(record + 8);
+  *((char *)out_result + 0x29) = *(record + 9);
+  *(short *)((char *)out_result + 0x2a) = *(short *)(record + 0xa);
+  return 1;
+}

@@ -1113,7 +1113,7 @@ void hs_evaluate_ai_allegiance_broken(int16_t function_index, int thread_datum, 
  * Callees (all cdecl):
  *   0xcc560 = hs_macro_function_evaluate(int16 function_index, int
  * thread_datum, char init) -> result pointer
- *   0x86cb0 = director_script_camera(int) — receives the +0x0 byte,
+ *   0x86cb0 = director_script_camera(unsigned char) — receives the +0x0 byte,
  * zero-extended 0xcbf80 = hs_return(int thread_datum, int value)
  */
 void hs_evaluate_camera_control(int16_t function_index, int thread_datum, char init)
@@ -3412,10 +3412,10 @@ void hs_evaluate_ai_debug_speak_list(int16_t function_index, int thread_datum, c
  * player_effect_screen_fade_in() and the script call returns 0.
  *
  * Result block layout (0x0e bytes read, derived from the disassembly):
- *   +0x00  int     effect / definition handle   (MOV EAX,[EAX])
- *   +0x04  float   scale a                      (FLD dword [EAX+4])
- *   +0x08  float   scale b                      (FLD dword [EAX+8])
- *   +0x0c  uint16  flags / index                (XOR EDX,EDX; MOV DX,[EAX+0xc])
+ *   +0x00  float   red    (MOV EAX,[EAX]; raw dword copy of a real)
+ *   +0x04  float   green  (FLD dword [EAX+4])
+ *   +0x08  float   blue   (FLD dword [EAX+8])
+ *   +0x0c  uint16  ticks  (XOR EDX,EDX; MOV DX,[EAX+0xc])
  *
  * Disassembly (0xc22a0-0xc22e8, 73 bytes).  PUSH EBP; MOV EBP,ESP; PUSH ESI —
  * no `sub esp`, so there are no stack locals; ESI is the only callee-saved
@@ -3452,7 +3452,7 @@ void hs_evaluate_ai_debug_speak_list(int16_t function_index, int thread_datum, c
  *
  * Callees (all cdecl, no register args):
  *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
- *   0xa2970 = player_effect_screen_fade_in(effect, scale_a, scale_b, flags)
+ *   0xa2970 = player_effect_screen_fade_in(red, green, blue, ticks)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_fade_in(int16_t function_index, int thread_datum, char init)
@@ -3462,7 +3462,7 @@ void hs_evaluate_fade_in(int16_t function_index, int thread_datum, char init)
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    player_effect_screen_fade_in(result[0], *(float *)(result + 1),
+    player_effect_screen_fade_in(*(float *)result, *(float *)(result + 1),
                                  *(float *)(result + 2),
                                  *(uint16_t *)(result + 3));
     hs_return(thread_datum, 0);
@@ -3521,7 +3521,7 @@ void hs_evaluate_fade_in(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, no register args):
  *   0xcc560 = hs_macro_function_evaluate(function_index, thread_datum, init)
- *   0xa29c0 = player_effect_screen_fade_out(effect, scale_a, scale_b, flags)
+ *   0xa29c0 = player_effect_screen_fade_out(red, green, blue, ticks)
  *   0xcbf80 = hs_return(thread_handle, value)
  */
 void hs_evaluate_fade_out(int16_t function_index, int thread_datum, char init)
@@ -3531,7 +3531,7 @@ void hs_evaluate_fade_out(int16_t function_index, int thread_datum, char init)
   result =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (result != NULL) {
-    player_effect_screen_fade_out(result[0], *(float *)(result + 1),
+    player_effect_screen_fade_out(*(float *)result, *(float *)(result + 1),
                                   *(float *)(result + 2),
                                   *(uint16_t *)(result + 3));
     hs_return(thread_datum, 0);
@@ -8468,7 +8468,7 @@ bool hs_scenario_merge(void *destination_scenario, void *source_scenario)
  * "script node", max 0x4a39 entries, datum size 0x14) and, if a scenario
  * is present, the old data pointer at scenario+0x480 is freed and the
  * scenario fields are updated to point at the new table. */
-void hs_scripts_initialize(void)
+void hs_allocate(void)
 {
   char *scenario_tag;
 
@@ -8787,7 +8787,7 @@ void hs_tokens_add(const char *name)
  *
  * The walking pointer is built once from the sign-extended start index
  * (`MOVSX EDX,CX` / `LEA EDI,[ESI+EDX*4]`), and the loop is the same
- * countdown shape as hs_tokens_enumerate_types: `MOV ESI,[EDI]` (the @<esi> argument to
+ * countdown shape as hs_enumerate_type_names: `MOV ESI,[EDI]` (the @<esi> argument to
  * hs_tokens_add) / `CALL` / `ADD EDI,4` / `DEC EBX` / `JNZ`.  There is no NULL
  * test on the slots — every entry in the range is passed through.
  *
@@ -8842,7 +8842,7 @@ void hs_tokens_enumerate_tag_block(void *block, int16_t name_offset, int element
  *
  * Guarded by the scenario tag index at 0x326a08, exactly like the other
  * scenario readers in this file. */
-void hs_tokens_enumerate_scenario_tag_block(int16_t block_offset, int16_t name_offset, int element_size)
+void hs_enumerate_scenario_data(int16_t block_offset, int16_t name_offset, int element_size)
 {
   void *block;
 
@@ -8860,7 +8860,7 @@ void hs_tokens_enumerate_scenario_tag_block(int16_t block_offset, int16_t name_o
 
 /* 0xc4160 — Add the two fixed command names to the active token enumeration.
  * Each literal is loaded directly into ESI before calling hs_tokens_add. */
-void hs_tokens_enumerate_fixed_commands(void)
+void hs_enumerate_special_form_names(void)
 {
   hs_tokens_add((const char *)0x25bb40);
   hs_tokens_add((const char *)0x27b978);
@@ -8870,7 +8870,7 @@ void hs_tokens_enumerate_fixed_commands(void)
 /* 0xc4180 — Add all five name pointers in the fixed table at 0x2f156c.
  * The original walks the table with EDI and counts down EBX; no slot is
  * skipped or tested for NULL. */
-void hs_tokens_enumerate_special_forms(void)
+void hs_enumerate_script_type_names(void)
 {
   const char **name;
   int remaining;
@@ -8898,7 +8898,7 @@ void hs_tokens_enumerate_special_forms(void)
  * What the 0x2d names are is unproven from this function alone; only their
  * count, stride, and that hs_tokens_add treats each as a NUL-terminated name
  * are established here. */
-void hs_tokens_enumerate_types(void)
+void hs_enumerate_type_names(void)
 {
   const char **name;
   int remaining;
@@ -8930,7 +8930,7 @@ void hs_tokens_enumerate_types(void)
  * The name passed to hs_tokens_add is descriptor+4 (`MOV EAX,[EBX]` /
  * `MOV ESI,[EAX+4]`), the same field the by-name search at 0xc3fc0 compares
  * against. */
-void hs_tokens_enumerate_functions(void)
+void hs_enumerate_function_names(void)
 {
   int16_t i;
 
@@ -8958,13 +8958,12 @@ void hs_enumerate_script_names(void)
 void hs_enumerate_variable_names(void)
 {
   int16_t i;
-  int16_t external_count;
   void *block;
   const char *name;
 
-  external_count = *(int16_t *)0x27d504;
-  for (i = 0; i < external_count; i++) {
-    if (i < 0 || i >= external_count) {
+  /* 0xc4270/0xc42bb: hs_external_global_count is re-read each iteration. */
+  for (i = 0; i < *(int16_t *)0x27d504; i++) {
+    if (i < 0 || i >= *(int16_t *)0x27d504) {
       display_assert("global_index>=0 && global_index<hs_external_global_count",
                      "c:\\halo\\SOURCE\\hs\\hs.c", 0x240, 1);
       system_exit(-1);
@@ -9069,7 +9068,8 @@ void hs_enumerate_navpoints(void)
   tag_index = interface_get_tag_index(6);
   if (tag_index != NONE) {
     void *hud_globals;
-    hud_globals = tag_get(0x68756467 /* \x27hudg\x27 */, tag_index);
+    /* 0xc4510: the binary calls interface_get_tag_index(6) a second time. */
+    hud_globals = tag_get(0x68756467 /* \x27hudg\x27 */, interface_get_tag_index(6));
     hs_tokens_enumerate_tag_block((char *)hud_globals + 0x160, 0, 0x68);
   }
 }
@@ -9082,6 +9082,8 @@ void hs_enumerate_hud_messages(void)
   scenario = global_scenario_get();
   if (*(int *)((char *)scenario + 0x5a0) != NONE) {
     void *messages;
+    /* 0xc454f: the binary re-fetches the scenario before reading +0x5a0. */
+    scenario = global_scenario_get();
     messages = tag_get(0x686d7420 /* \x27hmt \x27 */, *(int *)((char *)scenario + 0x5a0));
     hs_tokens_enumerate_tag_block((char *)messages + 0x20, 0, 0x40);
   }
@@ -9199,7 +9201,7 @@ bool hs_load_source_file(void *file_ref)
 }
 
 /* 0xc4770 — qsort comparator over an array of file_ref_t (stride 0x10c), used
- * by hs_needs_recompile to sort the .hsc files returned by find_files.  Each
+ * by hs_rebuild_source to sort the .hsc files returned by find_files.  Each
  * reference is expanded with flag 4 (name only) into its own 256-byte stack
  * buffer, then the two names are compared case-insensitively.
  *
@@ -9229,7 +9231,7 @@ int hs_file_reference_compare(file_ref_t *a, file_ref_t *b)
  * Uses find_files to enumerate .hsc files, sorts them with qsort using
  * stricmp-based comparison (FUN_0xc4770), then iterates.  The file extension
  * "hsc" at 0x27ba34 is compared with csstrcmp to filter results. */
-bool hs_needs_recompile(void)
+bool hs_rebuild_source(void)
 {
   /* Frame layout read off the reference (SUB ESP,0xc7c), highest local first:
    * result at EBP-0x1, path at EBP-0x104 (0x100 bytes -- the gap to the byte
@@ -9571,7 +9573,7 @@ void hs_evaluate_real_random_range(int16_t function_index, int thread_datum, cha
 }
 
 /* Load scenario scripts from the scenario tag.  Allocates a fresh syntax
- * data table via hs_scripts_initialize, then either validates existing
+ * data table via hs_allocate, then either validates existing
  * compiled scripts or recompiles from source.  If the scenario has no
  * pre-existing globals (offset +0x49c count == 0) but has scripts (offset
  * +0x4c0 count > 0), a full recompile is triggered.  On failure, resets
@@ -9579,7 +9581,7 @@ void hs_evaluate_real_random_range(int16_t function_index, int thread_datum, cha
  *
  * If preserve_syntax is non-zero, restores the original hs_syntax_data
  * pointer on exit (used during console evaluate recompile). */
-bool hs_load_scenario_scripts(int preserve_syntax)
+bool hs_scenario_postprocess(int preserve_syntax)
 {
   char *scenario_tag;
   void *old_syntax_data;
@@ -9592,7 +9594,7 @@ bool hs_load_scenario_scripts(int preserve_syntax)
   scenario_tag = (char *)global_scenario_get();
   old_syntax_data = *(void **)0x5aa6c8;
 
-  hs_scripts_initialize();
+  hs_allocate();
 
   /* Determine if recompilation is needed: no existing globals but
    * scripts exist */
@@ -9679,10 +9681,10 @@ void hs_initialize_for_new_map(void)
   else
     scenario_tag = 0;
 
-  hs_scripts_initialize();
+  hs_allocate();
 
   if (scenario_tag != 0 && *(int *)(scenario_tag + 0x474) != 0)
-    hs_load_scenario_scripts(0);
+    hs_scenario_postprocess(0);
 
   object_lists_initialize_for_new_map();
   hs_runtime_initialize_for_new_map();
@@ -9779,7 +9781,7 @@ void hs_doc(void)
 /* 0xc4f90 — Developer test hook for script execution.
  *
  * Binary evidence (0xc4f90..0xc4fe0):
- *   CALL hs_needs_recompile
+ *   CALL hs_rebuild_source
  *   TEST AL,AL
  *   JE   0xc4fe0
  *   CALL hs_mark_recompile
@@ -9792,14 +9794,14 @@ void hs_doc(void)
  * 0xc4fb6:
  *   XOR  ESI,ESI
  * 0xc4fb8:
- *   CALL hs_scripts_initialize
+ *   CALL hs_allocate
  *   TEST ESI,ESI
  *   JE   0xc4fd5
  *   MOV  EAX,[ESI+0x474] ; scenario->source_files.count
  *   TEST EAX,EAX
  *   JE   0xc4fd5
  *   PUSH 0
- *   CALL hs_load_scenario_scripts(0)
+ *   CALL hs_scenario_postprocess(0)
  *   ADD  ESP,4
  * 0xc4fd5:
  *   CALL hs_runtime_initialize
@@ -9812,7 +9814,7 @@ void hs_hack(void)
 {
   scenario_t *scenario;
 
-  if (hs_needs_recompile()) {
+  if (hs_rebuild_source()) {
     hs_mark_recompile();
     hs_dispose_from_old_map();
     if (*(int *)0x326a08 != NONE) {
@@ -9820,9 +9822,9 @@ void hs_hack(void)
     } else {
       scenario = NULL;
     }
-    hs_scripts_initialize();
+    hs_allocate();
     if (scenario != NULL && *(int *)((char *)scenario + 0x474) != 0) {
-      hs_load_scenario_scripts(0);
+      hs_scenario_postprocess(0);
     }
     object_lists_initialize_for_new_map();
     hs_runtime_initialize_for_new_map();
@@ -10007,7 +10009,7 @@ skip_wrap:
 
 post_eval:
   if (*(uint8_t *)0x46b6d8 != 0) {
-    if (hs_needs_recompile()) {
+    if (hs_rebuild_source()) {
       hs_mark_recompile();
       if (*(void **)0x5aa6c8 != 0) {
         hs_scripts_dispose();
@@ -10027,10 +10029,10 @@ post_eval:
         scenario_tag = 0;
       }
 
-      hs_scripts_initialize();
+      hs_allocate();
 
       if (scenario_tag != 0 && *(int *)(scenario_tag + 0x474) != 0)
-        hs_load_scenario_scripts(0);
+        hs_scenario_postprocess(0);
 
       object_lists_initialize_for_new_map();
       hs_runtime_initialize_for_new_map();

@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "struct": "camera_action_t",
+  "size": {
+    "value": "0x24",
+    "evidence": "0x89d2c word +0; 0x89ddb byte +2; 0x85d7c float +4; 0x89420/29/5e float +8/c/10; 0x894d5/da/ec float +14/18/1c; 0x8cfb9 float +20; director_update stack control zero-fill 0x24"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 2,
+      "name": "local_player_index",
+      "confidence": "typed",
+      "evidence": "0x89d2c word +0; 0x89ddb byte +2; 0x85d7c float +4; 0x89420/29/5e float +8/c/10; 0x894d5/da/ec float +14/18/1c; 0x8cfb9 float +20; director_update stack control zero-fill 0x24",
+      "signed": true
+    },
+    {
+      "offset": "0x2",
+      "width": 1,
+      "name": "active",
+      "confidence": "typed",
+      "evidence": "0x89d2c word +0; 0x89ddb byte +2; 0x85d7c float +4; 0x89420/29/5e float +8/c/10; 0x894d5/da/ec float +14/18/1c; 0x8cfb9 float +20; director_update stack control zero-fill 0x24",
+      "signed": false
+    },
+    {
+      "offset": "0x4",
+      "width": 4,
+      "name": "seconds_elapsed",
+      "confidence": "typed",
+      "evidence": "0x89d2c word +0; 0x89ddb byte +2; 0x85d7c float +4; 0x89420/29/5e float +8/c/10; 0x894d5/da/ec float +14/18/1c; 0x8cfb9 float +20; director_update stack control zero-fill 0x24",
+      "kind": "float"
+    },
+    {
+      "offset": "0x8",
+      "width": 4,
+      "name": "facing_delta",
+      "confidence": "typed",
+      "evidence": "0x89d2c word +0; 0x89ddb byte +2; 0x85d7c float +4; 0x89420/29/5e float +8/c/10; 0x894d5/da/ec float +14/18/1c; 0x8cfb9 float +20; director_update stack control zero-fill 0x24",
+      "array_len": 3,
+      "kind": "float"
+    },
+    {
+      "offset": "0x14",
+      "width": 4,
+      "name": "translation",
+      "confidence": "typed",
+      "evidence": "0x89d2c word +0; 0x89ddb byte +2; 0x85d7c float +4; 0x89420/29/5e float +8/c/10; 0x894d5/da/ec float +14/18/1c; 0x8cfb9 float +20; director_update stack control zero-fill 0x24",
+      "array_len": 3,
+      "kind": "float"
+    },
+    {
+      "offset": "0x20",
+      "width": 4,
+      "name": "wheel_delta",
+      "confidence": "typed",
+      "evidence": "0x89d2c word +0; 0x89ddb byte +2; 0x85d7c float +4; 0x89420/29/5e float +8/c/10; 0x894d5/da/ec float +14/18/1c; 0x8cfb9 float +20; director_update stack control zero-fill 0x24",
+      "kind": "float"
+    }
+  ]
+}

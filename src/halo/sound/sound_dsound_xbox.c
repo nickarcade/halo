@@ -536,6 +536,33 @@ void sound_dsound_channel_release(int virtual_channel_index)
   }
 }
 
+/* dsound_virtual_get_state (0x1c9c80)
+ *
+ * Backend descriptor slot +0x24 (table entry 0x32f6c0); called only through
+ * that pointer (sound_manager.c: `(*(int (**)(int))(backend + 0x24))(i)`).
+ * cdecl, one stack arg.  Returns 0 (XOR EAX,EAX) when the virtual channel has
+ * no bound channel, otherwise the first int16 of the bound channel record
+ * (MOV AX,[EAX] - only AX is defined), after asserting (line 0x5f3) that the
+ * channel's virtual_channel_index (+0x2) points back at this virtual channel.
+ * Both vchannel reads re-load the index from the vchannel (XOR ESI,ESI /
+ * MOV SI,[EDI] twice). */
+int16_t dsound_virtual_get_state(int virtual_channel_index)
+{
+  short *vchannel;
+
+  vchannel = (short *)sound_dsound_vchannel_get((short)virtual_channel_index);
+  if (vchannel[0] == -1)
+    return 0;
+  if (*(short *)((char *)sound_dsound_channel_get(vchannel[0]) + 0x2) !=
+      (short)virtual_channel_index) {
+    display_assert("channel_get(vchannel->channel_index)->virtual_channel_"
+                   "index==virtual_channel_index",
+                   "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x5f3, 1);
+    system_exit(-1);
+  }
+  return *(short *)sound_dsound_channel_get(vchannel[0]);
+}
+
 /* dsound_fix_rear_speakers (0x1c9cf0)
  *
  * Xbox rear-speaker workaround: create a 32-byte 16-bit mono 22050 Hz
@@ -592,6 +619,23 @@ boolean dsound_fix_rear_speakers(void)
   }
 
   return true;
+}
+
+/* dsound_begin_scene (0x1c9de0)
+ *
+ * Services DirectSound, then flushes any error text accumulated by
+ * sound_dsound_set_last_error through sound_dsound_log_error (HRESULT in
+ * ESI), and clears both the reason buffer and the saved HRESULT.  Name and
+ * shape from PAL-2342 sound_dsound_xbox.c dsound_begin_scene (T2). */
+void dsound_begin_scene(void)
+{
+  DirectSoundDoWork();
+  if (csstrlen(SOUND_DSOUND_ERROR_REASON)) {
+    sound_dsound_log_error(SOUND_DSOUND_LAST_HRESULT,
+                           SOUND_DSOUND_ERROR_REASON);
+  }
+  SOUND_DSOUND_ERROR_REASON[0] = 0;
+  SOUND_DSOUND_LAST_HRESULT = 0;
 }
 
 /* FUN_001c9e20 (0x1c9e20)
@@ -1141,6 +1185,97 @@ done:
   return;
 }
 
+/* FUN_001ca900 (0x1ca900)
+ *
+ * Keep an actual channel's stream fed: while the int16 at channel+0x08 is
+ * below 4 and the dword at channel+0x68 is non-zero, query the stream status
+ * through IDirectSoundStream vtable slot 3 (byte offset 0x0c; this and
+ * &status pushed, no ADD ESP -> __stdcall) and queue another packet with
+ * dsound_channel_queue_packet while bit 0 of the status is set.  A failing
+ * HRESULT (JL) goes to sound_dsound_set_last_error with
+ * "couldn't get channel status." and ends the loop; a clear status bit or a
+ * false queue result ends it silently.
+ * channel_index arrives in EAX (MOV ESI,EAX at 0x1ca908 before any write). */
+void FUN_001ca900(short channel_index)
+{
+  char *channel;
+  void *stream;
+  int hresult;
+  unsigned int status;
+
+  channel = (char *)sound_dsound_channel_get(channel_index);
+  while (*(short *)(channel + 0x8) < 4 && *(int *)(channel + 0x68) != 0) {
+    stream = *(void **)(channel + 0x70);
+    hresult = ((int(__stdcall *)(void *, unsigned int *))(
+      *(void ***)stream)[3])(stream, &status);
+    if (hresult < 0) {
+      sound_dsound_set_last_error(&hresult, "couldn't get channel status.");
+      return;
+    }
+    if (!(status & 0x1))
+      return;
+    if (!dsound_channel_queue_packet(channel_index))
+      return;
+  }
+}
+
+/* FUN_001ca970 (0x1ca970)
+ *
+ * Stream packet-completion callback (RET 0xc -> __stdcall, three stack
+ * args).  Arg 1 is an actual-channel index (tested as SI), arg 2 is handed
+ * unchanged to FUN_001be140, arg 3 is the packet status HRESULT.
+ * An out-of-range index only appends "trying to queue sound to invalid
+ * channel." to the reason accumulator (inlined append, no hresult store).
+ * A status other than 0 / 0x80004004 records a reason through
+ * sound_dsound_set_last_error with a NULL hresult (XOR EAX,EAX) and
+ * returns: 0x80004005 "failure", 0x8000000a "pending", else "undefined".
+ * Otherwise the permutation reference is released, the int16 count at
+ * channel+0x08 is decremented and, unless the byte at 0x505484 is set,
+ * a zero count clears the int16 at channel+0x00 while a non-zero count
+ * refills the stream via FUN_001ca900 unless the status was 0x80004004. */
+void __stdcall FUN_001ca970(short channel_index, int permutation_ptr,
+                            int status)
+{
+  char *channel;
+
+  if (channel_index < 0 || channel_index >= *(short *)0x4fdfc4) {
+    if ((unsigned int)(csstrlen(SOUND_DSOUND_ERROR_REASON) +
+                       csstrlen("trying to queue sound to invalid channel.")) <
+        0x100) {
+      crt_sprintf(SOUND_DSOUND_ERROR_REASON +
+                    csstrlen(SOUND_DSOUND_ERROR_REASON),
+                  "trying to queue sound to invalid channel.");
+    }
+    return;
+  }
+
+  channel = (char *)sound_dsound_channel_get(channel_index);
+  if (status != 0 && status != (int)0x80004004) {
+    if (status == (int)0x80004005) {
+      sound_dsound_set_last_error(NULL, "status is failure.");
+      return;
+    }
+    if (status == (int)0x8000000a) {
+      sound_dsound_set_last_error(NULL, "status is pending.");
+      return;
+    }
+    sound_dsound_set_last_error(NULL, "status is undefined.");
+    return;
+  }
+
+  FUN_001be140(permutation_ptr);
+  *(short *)(channel + 0x8) -= 1;
+  if (*(char *)0x505484 == 0) {
+    if (*(short *)(channel + 0x8) == 0) {
+      *(short *)channel = 0;
+      return;
+    }
+    if (status != (int)0x80004004) {
+      FUN_001ca900(channel_index);
+    }
+  }
+}
+
 /* sound_dsound_set_channel_properties (0x1caa80)
  *
  * Vtable+0x34 entry point for the DirectSound driver.  Resolves the
@@ -1306,6 +1441,121 @@ void FUN_001caab0(char paused)
   *(char *)0x505484 = paused;
 }
 
+/* dsound_channel_set_location (0x1cadd0)
+ *
+ * Push a 3D channel's position / forward / velocity and two cached scalars
+ * down to its DirectSound stream, skipping each sub-update whose inputs have
+ * not moved past an epsilon since the last send (same pattern as the
+ * listener update FUN_001ca2b0 above).
+ *
+ * Confirmed (disasm 0x1cadd0-0x1cb0b1):
+ *   - `location` arrives in EBX (read at 0x1cae77 with EBX never written).
+ *     It is a 9-float block: [0..2] position, [3..5] forward (assert text
+ *     "valid_real_normal3d(&location->forward)" at line 0x3a5 on
+ *     &location[3]), [6..8] velocity.
+ *   - channel_index is [EBP+8]; it is handed to sound_dsound_channel_get in
+ *     ESI and to sound_dsound_channel_update_3d in EAX.
+ *   - Asserts at lines 0x38a / 0x38b: channel+0x38 bit 0 (3D channel) and
+ *     channel+0x70 (stream) non-null.
+ *   - SetMode(stream, spatialized ? 0 : 2, 1) (SETNE/DEC/AND 2) runs unless
+ *     channel+0x4 already equals the argument and the "settings valid" byte
+ *     0x4fdbc0 is set; the byte is stored and mode_changed set BEFORE the
+ *     HRESULT test.
+ *   - Epsilons are qword constants 0x25f0c8 / 0x28b800 / 0x2549d8 holding the
+ *     float-rounded values 0.05f / 0.01f / 0.001f; the compare is
+ *     FABS / FCOMP / TEST AH,5 / JP -> "fabs(d) < eps" keeps the skip.
+ *   - Every vector is pushed (x, z, y): FSTP [ESP+4] gets element 1,
+ *     FSTP [ESP] element 2, then element 0 is PUSHed as a dword.
+ *   - Call targets: 0x205350 SetPosition, 0x2052ed SetConeOrientation,
+ *     0x205379 SetVelocity (kb XDK names); all stdcall (no ADD ESP).
+ *   - Last block: skipped only when |param_4 - ch+0x44| < 0.001,
+ *     |param_5 - ch+0x48| < 0.001 (FSUBR), ch+0x5 == param_6, no mode change
+ *     and 0x4fdbc0 set; otherwise stores ch+0x5, +0x44, +0x48 and calls
+ *     sound_dsound_channel_update_3d(channel_index).
+ * Uncertain: meanings of param_4/param_5/param_6 (see kb_meta notes). */
+void dsound_channel_set_location(short channel_index, char spatialized,
+                                 float *location, float param_4, float param_5,
+                                 char param_6)
+{
+  char *channel;
+  int result;
+  char mode_changed;
+
+  channel = (char *)sound_dsound_channel_get(channel_index);
+  mode_changed = 0;
+  assert_halt_msg_at("TEST_FLAG(channel->type_flags, _sound_channel_3d_bit)",
+                     "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x38a,
+                     (*(unsigned char *)(channel + 0x38) & 1) != 0);
+  assert_halt_msg_at("channel->stream",
+                     "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x38b,
+                     *(void **)(channel + 0x70) != 0);
+
+  if (!(*(char *)(channel + 0x4) == spatialized && *(char *)0x4fdbc0 != 0)) {
+    result = IDirectSoundStream_SetMode(*(void **)(channel + 0x70),
+                                        spatialized ? 0 : 2, 1);
+    *(char *)(channel + 0x4) = spatialized;
+    mode_changed = 1;
+    if (result < 0) {
+      sound_dsound_log_error(result, "couldn't set channel spatialization.");
+    }
+  }
+
+  if (!(fabs(location[0] - *(float *)(channel + 0x0c)) < 0.05f &&
+        fabs(location[1] - *(float *)(channel + 0x10)) < 0.05f &&
+        fabs(location[2] - *(float *)(channel + 0x14)) < 0.05f &&
+        *(char *)0x4fdbc0 != 0)) {
+    result = IDirectSoundStream_SetPosition(
+      *(void **)(channel + 0x70), location[0], location[2], location[1], 1);
+    if (result < 0) {
+      sound_dsound_log_error(result, "couldn't set channel position.");
+    }
+    *(float *)(channel + 0x0c) = location[0];
+    *(float *)(channel + 0x10) = location[1];
+    *(float *)(channel + 0x14) = location[2];
+  }
+
+  if (!(fabs(location[3] - *(float *)(channel + 0x18)) < 0.05f &&
+        fabs(location[4] - *(float *)(channel + 0x1c)) < 0.05f &&
+        fabs(location[5] - *(float *)(channel + 0x20)) < 0.05f &&
+        *(char *)0x4fdbc0 != 0)) {
+    assert_halt_msg_at("valid_real_normal3d(&location->forward)",
+                       "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x3a5,
+                       valid_real_normal3d(&location[3]));
+    result = IDirectSoundStream_SetConeOrientation(
+      *(void **)(channel + 0x70), location[3], location[5], location[4], 1);
+    if (result < 0) {
+      sound_dsound_log_error(result, "couldn't set channel orientation.");
+    }
+    *(float *)(channel + 0x18) = location[3];
+    *(float *)(channel + 0x1c) = location[4];
+    *(float *)(channel + 0x20) = location[5];
+  }
+
+  if (!(fabs(location[6] - *(float *)(channel + 0x24)) < 0.01f &&
+        fabs(location[7] - *(float *)(channel + 0x28)) < 0.01f &&
+        fabs(location[8] - *(float *)(channel + 0x2c)) < 0.01f &&
+        *(char *)0x4fdbc0 != 0)) {
+    result = IDirectSoundStream_SetVelocity(
+      *(void **)(channel + 0x70), location[6], location[8], location[7], 1);
+    if (result < 0) {
+      sound_dsound_log_error(result, "couldn't set channel velocity.");
+    }
+    *(float *)(channel + 0x24) = location[6];
+    *(float *)(channel + 0x28) = location[7];
+    *(float *)(channel + 0x2c) = location[8];
+  }
+
+  if (!(fabs(param_4 - *(float *)(channel + 0x44)) < 0.001f &&
+        fabs(param_5 - *(float *)(channel + 0x48)) < 0.001f &&
+        *(char *)(channel + 0x5) == param_6 && mode_changed == 0 &&
+        *(char *)0x4fdbc0 != 0)) {
+    *(char *)(channel + 0x5) = param_6;
+    *(float *)(channel + 0x44) = param_4;
+    *(float *)(channel + 0x48) = param_5;
+    sound_dsound_channel_update_3d(channel_index);
+  }
+}
+
 /* FUN_001cb0c0 (0x1cb0c0)
  *
  * Attaches a sound to a DirectSound channel and advances the channel's
@@ -1385,8 +1635,7 @@ void FUN_001cb0c0(short channel_index, void *sound)
  * the same single MOV the original performs. */
 __declspec(noinline) bool __stdcall dsound_stream_is_active(void *stream)
 {
-  return (*(volatile unsigned int *)(*(char **)((char *)stream + 0x24) +
-                                     0x8) &
+  return (*(volatile unsigned int *)(*(char **)((char *)stream + 0x24) + 0x8) &
           0x10000002) != 0;
 }
 
@@ -1408,4 +1657,294 @@ __declspec(noinline) void __stdcall FUN_0020f081(void *stream)
 
   object = *(void **)((char *)stream + 0x24);
   ((dsound_stream_object_method4_t)(*(void ***)object)[4])(object, 0, 0, 0);
+}
+
+/* dsound_initialize_channel (0x1cb210)
+ *
+ * Creates the DirectSound stream for one actual channel.  type_flags
+ * arrives in AX (the caller loads it from the per-type table at 0x32fcf8)
+ * and is stored as the channel's type flags at +0x38; channel_index is the
+ * only stack argument.  Bits used here: 0 = 3D channel, 1 = stereo,
+ * 2 = sample-rate index, 3 = compressed (Xbox ADPCM, format tag 0x69).
+ *
+ *   1. Reset the channel record (sound_dsound_channel_get): +0x02 = NONE,
+ *      +0x06 = 0, the dwords at +0x68/+0x6c = 0.
+ *   2. Fill the stream format: PCM at the rate in 0x2bcc1c, 16-bit stereo,
+ *      or ADPCM 4-bit with 1/2 channels, block align 36 * channels,
+ *      64 samples per block.
+ *   3. IDirectSound_CreateSoundStream with a 0x18-byte stream description
+ *      (flags 0x10 when 3D, 4 packets, the format, callback FUN_001ca970
+ *      and channel_index as context) into the stream slot at +0x70.
+ *      Failure logs and returns FALSE.
+ *   4. 3D channels get an initial location (zero position/velocity, the
+ *      global forward vector from *0x31fc3c) via
+ *      dsound_channel_set_location.  Other channels get mix bins picked by
+ *      the speaker config (bit 0x10000) and the stereo bit, with volumes
+ *      from sound_dsound_gain_to_volume; stereo without bit 0x10000 sets
+ *      nothing (the original jumps past the single SetMixBins call site,
+ *      so the goto keeps that shape).
+ *   5. Push properties {1.0, 1.0, 0...} through
+ *      sound_dsound_update_channel_properties and return TRUE.
+ *
+ * The channel record has no struct yet; offsets are the ones touched
+ * here and in this TU. */
+boolean dsound_initialize_channel(short type_flags, short channel_index)
+{
+  /* Stream properties block for sound_dsound_update_channel_properties. */
+  float properties[8];
+  /* XDK DSSTREAMDESC (0x18 bytes). */
+  struct {
+    unsigned int flags;
+    unsigned int max_attached_packets;
+    void *format;
+    void (*callback)(void);
+    int context;
+    unsigned int field_14;
+  } desc;
+  /* XDK XBOXADPCMWAVEFORMAT / WAVEFORMATEX (0x14 bytes). */
+  struct {
+    unsigned short format_tag;
+    unsigned short channels;
+    unsigned int samples_per_sec;
+    unsigned int avg_bytes_per_sec;
+    unsigned short block_align;
+    unsigned short bits_per_sample;
+    unsigned short cb_size;
+    unsigned short samples_per_block;
+  } format;
+  unsigned int speaker_config;
+  char *channel;
+  unsigned int mix_bins;
+  int hr;
+  boolean success;
+
+  channel = (char *)sound_dsound_channel_get(channel_index);
+  *(short *)(channel + 0x38) = type_flags;
+  *(short *)(channel + 0x2) = -1;
+  *(char *)(channel + 0x6) = 0;
+  *(int *)(channel + 0x68) = 0;
+  *(int *)(channel + 0x6c) = 0;
+
+  if (!(type_flags & 8)) {
+    format.samples_per_sec = *(unsigned int *)0x2bcc1c;
+    format.format_tag = 1;
+    format.bits_per_sample = 16;
+    format.channels = 2;
+    format.block_align = 4;
+    format.avg_bytes_per_sec = format.samples_per_sec * format.block_align;
+  } else {
+    format.format_tag = 0x69;
+    format.channels = (type_flags & 2) ? 2 : 1;
+    format.bits_per_sample = 4;
+    format.block_align = format.channels * 36;
+    format.samples_per_sec =
+      sound_dsound_get_sample_rate((short)((type_flags >> 2) & 1));
+    format.avg_bytes_per_sec = format.samples_per_sec / 64 * format.block_align;
+    format.cb_size = 2;
+    format.samples_per_block = 64;
+  }
+
+  csmemset(&desc, 0, sizeof(desc));
+  desc.flags = 0;
+  desc.max_attached_packets = 4;
+  desc.format = &format;
+  desc.callback = (void (*)(void))FUN_001ca970;
+  desc.context = channel_index;
+  if (type_flags & 1) {
+    desc.flags = 0x10;
+  }
+
+  hr = IDirectSound_CreateSoundStream(*(void **)0x50545c, &desc,
+                                      (void **)(channel + 0x70), NULL);
+  if (hr >= 0) {
+    if (type_flags & 1) {
+      /* dsound_channel_set_location location block (0x2c bytes). */
+      struct {
+        float position[3];
+        float forward[3];
+        float velocity[3];
+        char pad_24[8];
+      } location;
+      const float *forward;
+
+      csmemset(&location, 0, sizeof(location));
+      forward = *(const float **)0x31fc3c;
+      location.forward[0] = forward[0];
+      location.forward[1] = forward[1];
+      location.forward[2] = forward[2];
+      dsound_channel_set_location(channel_index, 0, (float *)&location, 0.0f,
+                                  0.0f, 0);
+    } else {
+      int volumes[6];
+
+      IDirectSound_GetSpeakerConfig(*(void **)0x50545c, &speaker_config);
+      if (speaker_config & 0x10000) {
+        if (!(type_flags & 2)) {
+          mix_bins = 7;
+          volumes[0] = sound_dsound_gain_to_volume(0.5f, 0);
+          volumes[1] = sound_dsound_gain_to_volume(0.5f, 0);
+          volumes[2] = sound_dsound_gain_to_volume(0.5f, 0);
+        } else {
+          mix_bins = 0x1833;
+          volumes[0] = sound_dsound_gain_to_volume(1.0f, 0);
+          volumes[1] = sound_dsound_gain_to_volume(1.0f, 0);
+          volumes[2] = sound_dsound_gain_to_volume(0.5f, 0);
+          volumes[3] = sound_dsound_gain_to_volume(0.5f, 0);
+          volumes[4] = sound_dsound_gain_to_volume(0.5f, 0);
+          volumes[5] = sound_dsound_gain_to_volume(0.5f, 0);
+        }
+      } else {
+        if (type_flags & 2) {
+          goto mix_bins_done;
+        }
+        mix_bins = 3;
+        volumes[0] = sound_dsound_gain_to_volume(0.5f, 0);
+        volumes[1] = sound_dsound_gain_to_volume(0.5f, 0);
+      }
+      IDirectSoundStream_SetMixBins(*(void **)(channel + 0x70), mix_bins);
+      IDirectSoundStream_SetMixBinVolumes_12(*(void **)(channel + 0x70),
+                                             mix_bins, volumes);
+    mix_bins_done:;
+    }
+
+    success = true;
+    csmemset(properties, 0, sizeof(properties));
+    properties[0] = 1.0f;
+    properties[1] = 1.0f;
+    sound_dsound_update_channel_properties(properties, channel_index, 0);
+  } else {
+    sound_dsound_log_error(hr, "couldn't create sound stream.");
+    success = false;
+  }
+
+  return success;
+}
+
+/* dsound_initialize (0x1cb4c0)
+ *
+ * Binary: [EBP+8] is a pointer asserted non-NULL as "preferences"
+ * (sound_dsound_xbox.c line 0xea); AL is the return value.  Creates the
+ * DirectSound object into 0x50545c, copies its caps into 0x50544c..0x505458,
+ * sets distance factor 3.048f and rolloff 1.0f, downloads the effects image
+ * (0x2bccf0, 0x3a5c bytes; failure is logged but not fatal), then
+ * initializes virtual channels (per-type counts at preferences[5..8]) and
+ * dsound channels (per-type counts at preferences[1..4], flags from the
+ * short table at 0x32fcf8).  The 0x34-byte block passed to FUN_001ca2b0
+ * and the preferences layout beyond these reads are UNKNOWN. */
+boolean dsound_initialize(short *preferences)
+{
+  uint32_t params[13];
+  uint32_t caps[4];
+  void *image_desc;
+  uint32_t image_loc[2];
+  const uint32_t *source;
+  short *vchannel;
+  short virtual_index;
+  short channel_index;
+  short type_index;
+  short count_index;
+  boolean success;
+  int result;
+
+  success = false;
+  *(char *)0x4fdbc0 = false;
+  *(char *)0x505484 = false;
+  *(float *)0x505488 = 1.0f;
+  *(void **)0x505460 = NULL;
+  if (preferences == NULL) {
+    display_assert("preferences",
+                   "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0xea, 1);
+    system_exit(-1);
+  }
+
+  result = DirectSoundCreate(NULL, (void **)0x50545c, NULL);
+  if (result >= 0) {
+    result = IDirectSound_GetCaps(*(void **)0x50545c, caps);
+    if (result >= 0) {
+      *(uint32_t *)0x50544c = caps[0];
+      *(uint32_t *)0x505450 = caps[1];
+      *(uint32_t *)0x505454 = caps[2];
+      *(uint32_t *)0x505458 = caps[3];
+      result = IDirectSound_SetDistanceFactor(*(void **)0x50545c, 3.048f, 0);
+      if (result >= 0) {
+        result = IDirectSound_SetRolloffFactor(*(void **)0x50545c, 1.0f, 0);
+        if (result >= 0) {
+          csmemset(params, 0, 0x34);
+          source = *(const uint32_t **)0x31fc3c;
+          params[3] = source[0];
+          params[4] = source[1];
+          params[5] = source[2];
+          source = *(const uint32_t **)0x31fc44;
+          params[6] = source[0];
+          params[7] = source[1];
+          params[8] = source[2];
+          params[12] = 0x2c1220;
+          image_loc[0] = 0;
+          image_loc[1] = 1;
+          result = IDirectSound_DownloadEffectsImage(
+            *(void **)0x50545c, (const void *)0x2bccf0, 0x3a5c, image_loc,
+            &image_desc);
+          if (result < 0) {
+            sound_dsound_log_error(result, "could not download effects image.");
+          }
+          IDirectSound_SetMixBinHeadroom(*(void **)0x50545c, 0x7fffffff, 0);
+          DirectSoundUseFullHRTF();
+          FUN_001ca2b0((const float *)params);
+
+          virtual_index = 0;
+          success = true;
+          for (type_index = 0; type_index < 4; type_index++) {
+            for (count_index = 0; count_index < preferences[5 + type_index];
+                 count_index++) {
+              (*(short *)0x4fdbc2)++;
+              if (success) {
+                vchannel = (short *)sound_dsound_vchannel_get(virtual_index);
+                if (type_index < 0 || type_index >= 4) {
+                  display_assert(
+                    "type_index>=0 && type_index<NUMBER_OF_SOUND_CHANNEL_TYPES",
+                    "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x1a6, 1);
+                  system_exit(-1);
+                }
+                vchannel[1] = type_index;
+                vchannel[0] = -1;
+                virtual_index++;
+                success = true;
+              } else {
+                success = false;
+              }
+            }
+          }
+
+          channel_index = 0;
+          for (type_index = 0; type_index < 4; type_index++) {
+            ((short *)0x5053c8)[type_index] = channel_index;
+            for (count_index = 0; count_index < preferences[1 + type_index];
+                 count_index++) {
+              (*(short *)0x4fdfc4)++;
+              success =
+                success && dsound_initialize_channel(
+                             ((short *)0x32fcf8)[type_index], channel_index++);
+            }
+          }
+
+          success = success && dsound_fix_rear_speakers();
+        } else {
+          sound_dsound_log_error(result, "could not adjust rolloff factor");
+        }
+      } else {
+        sound_dsound_log_error(result, "could not adjust distance factor");
+      }
+    } else {
+      sound_dsound_log_error(result, "could not get caps for sound card?");
+    }
+  } else {
+    sound_dsound_log_error(result, "could not create direct sound object");
+  }
+
+  if (success) {
+    *(char *)0x4fdbc0 = true;
+  } else {
+    FUN_001c93f0();
+  }
+  return success;
 }

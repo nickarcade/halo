@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "struct": "director_variable_definition_t",
+  "size": {
+    "value": "0x1c",
+    "evidence": "EDI points +4: 0x8676f/95/b0 word loads -4/-2/+0; 0x867e4 float scale +4; 0x8683d initial dword +8; 0x8684d/5e float bounds +c/+10; 0x86720 height definition byte at 0x2ee610; 0x86874 stride 0x1c; original data 0x2ee5f8"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 2,
+      "name": "negative_bit",
+      "confidence": "typed",
+      "evidence": "EDI points +4: 0x8676f/95/b0 word loads -4/-2/+0; 0x867e4 float scale +4; 0x8683d initial dword +8; 0x8684d/5e float bounds +c/+10; 0x86720 height definition byte at 0x2ee610; 0x86874 stride 0x1c; original data 0x2ee5f8",
+      "signed": true
+    },
+    {
+      "offset": "0x2",
+      "width": 2,
+      "name": "positive_bit",
+      "confidence": "typed",
+      "evidence": "EDI points +4: 0x8676f/95/b0 word loads -4/-2/+0; 0x867e4 float scale +4; 0x8683d initial dword +8; 0x8684d/5e float bounds +c/+10; 0x86720 height definition byte at 0x2ee610; 0x86874 stride 0x1c; original data 0x2ee5f8",
+      "signed": true
+    },
+    {
+      "offset": "0x4",
+      "width": 2,
+      "name": "reset_bit",
+      "confidence": "typed",
+      "evidence": "EDI points +4: 0x8676f/95/b0 word loads -4/-2/+0; 0x867e4 float scale +4; 0x8683d initial dword +8; 0x8684d/5e float bounds +c/+10; 0x86720 height definition byte at 0x2ee610; 0x86874 stride 0x1c; original data 0x2ee5f8",
+      "signed": true
+    },
+    {
+      "offset": "0x8",
+      "width": 4,
+      "name": "scale",
+      "confidence": "typed",
+      "evidence": "EDI points +4: 0x8676f/95/b0 word loads -4/-2/+0; 0x867e4 float scale +4; 0x8683d initial dword +8; 0x8684d/5e float bounds +c/+10; 0x86720 height definition byte at 0x2ee610; 0x86874 stride 0x1c; original data 0x2ee5f8",
+      "kind": "float"
+    },
+    {
+      "offset": "0xc",
+      "width": 4,
+      "name": "initial_value",
+      "confidence": "typed",
+      "evidence": "EDI points +4: 0x8676f/95/b0 word loads -4/-2/+0; 0x867e4 float scale +4; 0x8683d initial dword +8; 0x8684d/5e float bounds +c/+10; 0x86720 height definition byte at 0x2ee610; 0x86874 stride 0x1c; original data 0x2ee5f8",
+      "kind": "float"
+    },
+    {
+      "offset": "0x10",
+      "width": 4,
+      "name": "minimum",
+      "confidence": "typed",
+      "evidence": "EDI points +4: 0x8676f/95/b0 word loads -4/-2/+0; 0x867e4 float scale +4; 0x8683d initial dword +8; 0x8684d/5e float bounds +c/+10; 0x86720 height definition byte at 0x2ee610; 0x86874 stride 0x1c; original data 0x2ee5f8",
+      "kind": "float"
+    },
+    {
+      "offset": "0x14",
+      "width": 4,
+      "name": "maximum",
+      "confidence": "typed",
+      "evidence": "EDI points +4: 0x8676f/95/b0 word loads -4/-2/+0; 0x867e4 float scale +4; 0x8683d initial dword +8; 0x8684d/5e float bounds +c/+10; 0x86720 height definition byte at 0x2ee610; 0x86874 stride 0x1c; original data 0x2ee5f8",
+      "kind": "float"
+    },
+    {
+      "offset": "0x18",
+      "width": 1,
+      "name": "has_hyper_scale",
+      "confidence": "typed",
+      "evidence": "EDI points +4: 0x8676f/95/b0 word loads -4/-2/+0; 0x867e4 float scale +4; 0x8683d initial dword +8; 0x8684d/5e float bounds +c/+10; 0x86720 height definition byte at 0x2ee610; 0x86874 stride 0x1c; original data 0x2ee5f8",
+      "signed": false
+    }
+  ]
+}

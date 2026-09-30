@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: ^(src/.*\.c|tools/verify/function_bounds\.json)$
 # Pre-commit: run vc71_regression.py check on the staged work, then refresh the
 # floor with any improvements or new ports and re-stage scores.
 #
@@ -29,19 +30,70 @@
 #   VC71_NO_MEASURE_MEMO=1 git commit ...
 # or delete artifacts/audit/vc71_measure_cache.json.
 
-STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
-STAGED_SRC=$(echo "$STAGED" | grep -E '^src/.*\.c$')
-STAGED_BOUNDS=$(echo "$STAGED" | grep -Fx 'tools/verify/function_bounds.json')
+# PHASES. The dispatcher runs this gate concurrently with the Unicorn gate, so it
+# splits the work the way the old strictly-serial order did: HALO_VC71_PHASE=check
+# is the read-only verdict (check + raw-byte waiver, nothing staged or written
+# outside the measure memo); HALO_VC71_PHASE=update runs only after EVERY gate has
+# passed and is the only part that rewrites/stages vc71_scores.json -- so a commit
+# that another gate rejects leaves the index exactly as it found it.
+# Unset (standalone run) = both phases back to back.
+# HALO_VC71_STATE carries the resolved source list + waived functions across.
+PHASE="${HALO_VC71_PHASE:-all}"
 
-if [ -z "$STAGED_SRC" ] && [ -z "$STAGED_BOUNDS" ]; then
-    exit 0
-fi
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
 
 ROOT="$(git rev-parse --show-toplevel)"
 REGR="$ROOT/tools/verify/vc71_regression.py"
 SCORES="$ROOT/tools/verify/vc71_scores.json"
 
 if [ ! -f "$REGR" ]; then
+    exit 0
+fi
+
+# Promote any new/improved scores into the committed JSON so the progress
+# dashboard reflects the lift on the same commit. Update failure here is
+# non-blocking — check already validated the floors, this is just a best-effort
+# sync of the dashboard data.  Needs SRC_ARGS and LOWER.
+vc71_update_phase() {
+    local SCORES_BEFORE="" SCORES_AFTER="" LOWER_ARGS=()
+    if [ -f "$SCORES" ]; then
+        SCORES_BEFORE=$(git hash-object "$SCORES")
+    fi
+    [ ${#LOWER[@]} -gt 0 ] && LOWER_ARGS=(--lower "${LOWER[@]}")
+    python3 "$REGR" update --source "${SRC_ARGS[@]}" "${LOWER_ARGS[@]}" >/dev/null 2>&1 || {
+        echo "vc71-regression: update failed (non-blocking); scores not refreshed"
+        return 0
+    }
+    if [ -f "$SCORES" ]; then
+        SCORES_AFTER=$(git hash-object "$SCORES")
+    fi
+    if [ "$SCORES_BEFORE" != "$SCORES_AFTER" ]; then
+        git add "$SCORES"
+        echo "vc71-regression: auto-staged refreshed vc71_scores.json"
+    fi
+    return 0
+}
+
+# Update phase of the split flow: re-read what the check phase resolved.
+if [ "$PHASE" = "update" ]; then
+    { [ -n "${HALO_VC71_STATE:-}" ] && [ -s "$HALO_VC71_STATE" ]; } || exit 0
+    SRC_ARGS=(); LOWER=()
+    while IFS=$'\t' read -r kind val; do
+        case "$kind" in
+            SRC) SRC_ARGS+=("$val") ;;
+            LOW) LOWER+=("$val") ;;
+        esac
+    done < "$HALO_VC71_STATE"
+    [ ${#SRC_ARGS[@]} -gt 0 ] || exit 0
+    vc71_update_phase
+    exit 0
+fi
+
+STAGED=$(staged_list acmr)
+STAGED_SRC=$(echo "$STAGED" | grep -E '^src/.*\.c$')
+STAGED_BOUNDS=$(echo "$STAGED" | grep -Fx 'tools/verify/function_bounds.json')
+
+if [ -z "$STAGED_SRC" ] && [ -z "$STAGED_BOUNDS" ]; then
     exit 0
 fi
 
@@ -117,26 +169,16 @@ if [ $RC -ne 0 ]; then
     exit $RC
 fi
 
-# Check passed: promote any new/improved scores into the committed JSON so
-# the progress dashboard reflects the lift on the same commit. Update failure
-# here is non-blocking — check already validated the floors, this is just a
-# best-effort sync of the dashboard data.
-SCORES_BEFORE=""
-if [ -f "$SCORES" ]; then
-    SCORES_BEFORE=$(git hash-object "$SCORES")
-fi
-LOWER_ARGS=()
-[ ${#LOWER[@]} -gt 0 ] && LOWER_ARGS=(--lower "${LOWER[@]}")
-python3 "$REGR" update --source "${SRC_ARGS[@]}" "${LOWER_ARGS[@]}" >/dev/null 2>&1 || {
-    echo "vc71-regression: update failed (non-blocking); scores not refreshed"
+# Check passed. In the split flow, hand the resolved inputs to the update phase.
+if [ "$PHASE" = "check" ]; then
+    if [ -n "${HALO_VC71_STATE:-}" ]; then
+        {
+            for f in "${SRC_ARGS[@]}"; do printf 'SRC\t%s\n' "$f"; done
+            for f in "${LOWER[@]}"; do printf 'LOW\t%s\n' "$f"; done
+        } > "$HALO_VC71_STATE"
+    fi
     exit 0
-}
-SCORES_AFTER=""
-if [ -f "$SCORES" ]; then
-    SCORES_AFTER=$(git hash-object "$SCORES")
 fi
-if [ "$SCORES_BEFORE" != "$SCORES_AFTER" ]; then
-    git add "$SCORES"
-    echo "vc71-regression: auto-staged refreshed vc71_scores.json"
-fi
+
+vc71_update_phase
 exit 0

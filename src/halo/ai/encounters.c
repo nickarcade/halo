@@ -22,15 +22,16 @@
  *   actor+0x3a = squad_index (int16_t, -1 = NONE)
  *   actor+0x3c = platoon_index (int16_t, -1 = NONE)
  *
- * Ported: FUN_00058a40 (ai_scripting_magically_see_players), encounters_dispose (stub),
- * encounters_dispose_from_old_map (dispose pools),
+ * Ported: FUN_00058a40 (ai_scripting_magically_see_players), encounters_dispose
+ * (stub), encounters_dispose_from_old_map (dispose pools),
  * encounterless_attach_actor (encounter_enter), encounterless_detach_actor
- * (encounter_leave), encounters_create_for_new_map (tally reset), encounters_update
- * (encounter_update), encounter lifecycle stubs (0x5df80–0x5dfb0).
+ * (encounter_leave), encounters_create_for_new_map (tally reset),
+ * encounters_update (encounter_update), encounter lifecycle stubs
+ * (0x5df80–0x5dfb0).
  */
 #include "encounters.h"
 #include "../../common.h"
-
+#include "../../x87_math.h"
 
 /* 0x00053b80 — debug overlay row: collision / line-of-sight / line-of-fire /
  * firing-point tally counters (ai_profile_show_line_of_sight).
@@ -38,8 +39,8 @@
  * One of a family of sibling rows (0x539c0, 0x53a20, 0x53a90, 0x53af0,
  * 0x53bf0, ...) that all format a "%s %d|t..." line into the shared debug
  * scratch buffer at 0x5ab280 and hand it to the column-layout row printer
- * ai_profile_string together with an array of tab-stop x positions.  This row uses
- * three stops {150, 300, 450} for its four fields.
+ * ai_profile_string together with an array of tab-stop x positions.  This row
+ * uses three stops {150, 300, 450} for its four fields.
  *
  * Globals (raw pointer-cast idiom, matching this TU):
  *   0x5ab280 (char[])  : shared debug sprintf scratch buffer
@@ -47,10 +48,10 @@
  *   0x5ac65e (int16)   : line-of-sight tests tally
  *   0x5ac6e6 (int16)   : line-of-fire tests tally
  *   0x5ac906 (int16)   : firing-point tests tally
- *   0x2ee6c4 (void *)  : row-printer context pointer, passed to ai_profile_string
- *                        in EAX.  Confirmed: all six original call sites of
- *                        0x53800 emit MOV EAX,[0x2ee6c4] immediately before
- *                        the CALL (tools/audit/dump_caller_regsetup.py).
+ *   0x2ee6c4 (void *)  : row-printer context pointer, passed to
+ * ai_profile_string in EAX.  Confirmed: all six original call sites of 0x53800
+ * emit MOV EAX,[0x2ee6c4] immediately before the CALL
+ * (tools/audit/dump_caller_regsetup.py).
  *
  * All four tallies are read with MOVSX WORD PTR in the original, i.e. they are
  * signed 16-bit globals sign-extended to int for the varargs call — declaring
@@ -77,17 +78,18 @@ void ai_profile_show_line_of_sight(void)
 /* 0x00053bf0 — debug overlay row: path-flood / path-find / action-change tally
  * counters (ai_profile_show_paths).
  *
- * Sibling of ai_profile_show_line_of_sight above (same family, same shared scratch buffer, same
- * row printer, same three tab stops {150, 300, 450}), differing only in the
- * format string and in having three counters instead of four.
+ * Sibling of ai_profile_show_line_of_sight above (same family, same shared
+ * scratch buffer, same row printer, same three tab stops {150, 300, 450}),
+ * differing only in the format string and in having three counters instead of
+ * four.
  *
  * Globals (raw pointer-cast idiom, matching this TU):
  *   0x5ab280 (char[])  : shared debug sprintf scratch buffer
  *   0x5ac76e (int16)   : path-flood tally
  *   0x5ac7f6 (int16)   : path-find tally
  *   0x5ac87e (int16)   : action-change tally
- *   0x2ee6c4 (void *)  : row-printer context pointer, passed to ai_profile_string
- *                        in EAX (see ai_profile_show_line_of_sight's note).
+ *   0x2ee6c4 (void *)  : row-printer context pointer, passed to
+ * ai_profile_string in EAX (see ai_profile_show_line_of_sight's note).
  *
  * All three tallies are read with MOVSX WORD PTR in the original, i.e. they are
  * signed 16-bit globals sign-extended to int for the varargs call — declaring
@@ -222,11 +224,12 @@ void ai_profile_render_spray(void)
  *
  * Master per-frame update tick for the encounter subsystem.  First recomputes
  * a screen-derived short at 0x5aba80 = (screen_y1 @0x325660) - 0x14, then calls
- * the frame-setup helper ai_profile_render_spray.  If the master gate byte at 0x5abaa4 is
- * set, dispatches the six per-sub-update passes in a fixed order, each guarded
- * by its own byte flag (0x5abaaa..0x5abaa5).  The final pass (0x5abaa5 ->
- * ai_profile_show_stats) carries an early return in the original; reproduced verbatim to
- * preserve control-flow shape (functionally identical to falling through).
+ * the frame-setup helper ai_profile_render_spray.  If the master gate byte at
+ * 0x5abaa4 is set, dispatches the six per-sub-update passes in a fixed order,
+ * each guarded by its own byte flag (0x5abaaa..0x5abaa5).  The final pass
+ * (0x5abaa5 -> ai_profile_show_stats) carries an early return in the original;
+ * reproduced verbatim to preserve control-flow shape (functionally identical to
+ * falling through).
  *
  * Globals (raw pointer-cast idiom, matching this TU):
  *   0x325660 (int16) : screen y1, narrowed to short before the subtract
@@ -262,7 +265,8 @@ void ai_profile_render(void)
   return;
 }
 
-/* 0x00053e20 — scenario_get_encounter_by_name (find scenario tag-block element by name).
+/* 0x00053e20 — scenario_get_encounter_by_name (find scenario tag-block element
+ * by name).
  *
  * Linear "find <thing> by name" scan over a tag_block hanging off the
  * scenario at offset +0x42c.  The tag_block header is the usual
@@ -304,13 +308,14 @@ int scenario_get_encounter_by_name(void *scenario, const char *name)
   return -1;
 }
 
-/* 0x00053e80 — encounter_definition_get_squad_by_name (find sub-block element by name).
+/* 0x00053e80 — encounter_definition_get_squad_by_name (find sub-block element
+ * by name).
  *
- * Direct sibling of scenario_get_encounter_by_name above: the same linear "find <thing> by
- * name" scan, but over the tag_block at +0x80 of the passed record with a
- * 0xe8-byte element stride.  The tag_block header is the usual
- * {int32 count; void *address} pair; each element's leading field (offset 0)
- * is a <=32-byte name string.
+ * Direct sibling of scenario_get_encounter_by_name above: the same linear "find
+ * <thing> by name" scan, but over the tag_block at +0x80 of the passed record
+ * with a 0xe8-byte element stride.  The tag_block header is the usual {int32
+ * count; void *address} pair; each element's leading field (offset 0) is a
+ * <=32-byte name string.
  *
  * Returns the 0-based index of the first element whose name matches (case
  * insensitively, first 0x20 bytes), or -1 if none / empty block.
@@ -338,7 +343,8 @@ int scenario_get_encounter_by_name(void *scenario, const char *name)
  * the shared ADD ESP,0x18 hides the three pushes.  The disassembly above is
  * authoritative: it is a plain 3-arg cdecl case-insensitive compare.
  */
-int encounter_definition_get_squad_by_name(void *ai_profile_element, const char *name)
+int encounter_definition_get_squad_by_name(void *ai_profile_element,
+                                           const char *name)
 {
   char *block;
   int i;
@@ -354,13 +360,15 @@ int encounter_definition_get_squad_by_name(void *ai_profile_element, const char 
   return -1;
 }
 
-/* 0x00053ee0 — encounter_definition_get_platoon_by_name (find sub-block element by name).
+/* 0x00053ee0 — encounter_definition_get_platoon_by_name (find sub-block element
+ * by name).
  *
- * Third sibling of scenario_get_encounter_by_name / encounter_definition_get_squad_by_name above: the identical linear
- * "find <thing> by name" scan, here over the tag_block at +0x8c of the passed
- * record with a 0xac-byte element stride.  The tag_block header is the usual
- * {int32 count; void *address} pair; each element's leading field (offset 0)
- * is a <=32-byte name string (encounters.h: char name[0x20] at +0x00).
+ * Third sibling of scenario_get_encounter_by_name /
+ * encounter_definition_get_squad_by_name above: the identical linear "find
+ * <thing> by name" scan, here over the tag_block at +0x8c of the passed record
+ * with a 0xac-byte element stride.  The tag_block header is the usual {int32
+ * count; void *address} pair; each element's leading field (offset 0) is a
+ * <=32-byte name string (encounters.h: char name[0x20] at +0x00).
  *
  * Returns the 0-based index of the first element whose name matches (case
  * insensitively, first 0x20 bytes), or -1 if none / empty block.
@@ -393,7 +401,8 @@ int encounter_definition_get_squad_by_name(void *ai_profile_element, const char 
  * arg-count audit reports cleanup=6 vs decl=3.  Both are artifacts; the
  * disassembly above is authoritative: a plain 3-arg cdecl compare.
  */
-int encounter_definition_get_platoon_by_name(void *ai_profile_element, const char *name)
+int encounter_definition_get_platoon_by_name(void *ai_profile_element,
+                                             const char *name)
 {
   char *block;
   int i;
@@ -422,8 +431,8 @@ int encounter_definition_get_platoon_by_name(void *ai_profile_element, const cha
  * and returns the index of the element whose running sum first reaches
  * it, or -1 when the list is empty / fully skipped / weightless.
  */
-short choose_random_array_element(void *base, short stride, short count, short first_offset,
-                   uint32_t *skip_flags)
+short choose_random_array_element(void *base, short stride, short count,
+                                  short first_offset, uint32_t *skip_flags)
 {
   float total;
   float running;
@@ -449,8 +458,8 @@ short choose_random_array_element(void *base, short stride, short count, short f
       p += stride;
     } while (--n != 0);
     if (total > 0.0f) {
-      threshold = random_real_range(get_global_random_seed_address(), 0.0f,
-                                    total);
+      threshold =
+        random_real_range(get_global_random_seed_address(), 0.0f, total);
       running = 0.0f;
       p = (char *)base;
       j = 0;
@@ -528,8 +537,8 @@ char *encounter_get_platoon(char *encounter, short platoon_index)
  * before hs_runtime_get_executing_thread_name to match MSVC's argument
  * batching.
  *
- * Finally calls ai_scripting_migrate_internal(encounter_handle_1@<eax>, encounter_handle_2, 0,
- * 0) to perform the actual migration.
+ * Finally calls ai_scripting_migrate_internal(encounter_handle_1@<eax>,
+ * encounter_handle_2, 0, 0) to perform the actual migration.
  *
  * 0x56320 / encounters.obj
  */
@@ -551,21 +560,24 @@ void ai_scripting_migrate(int encounter_handle_1, int encounter_handle_2)
 }
 
 /*
- * ai_scripting_migrate_by_unit_internal — set squad/actor-variant for an actor given an encounter.
+ * ai_scripting_migrate_by_unit_internal — set squad/actor-variant for an actor
+ * given an encounter.
  *
  * Verifies the actor object (type mask 3), retrieves its primary actor handle
  * from [+0x1a4] (fallback [+0x1a8]), then looks up the actor's squad and
- * variant tags. Calls ai_scripting_migrate_find_target_squad to find the best matching squad index
- * given the encounter_handle. If a valid squad is found and conditions allow,
- * updates the actor's squad assignment via actor_change_encounter, and if do_migrate is
- * set, migrates the actor via actor_stimulus_maneuvering.
+ * variant tags. Calls ai_scripting_migrate_find_target_squad to find the best
+ * matching squad index given the encounter_handle. If a valid squad is found
+ * and conditions allow, updates the actor's squad assignment via
+ * actor_change_encounter, and if do_migrate is set, migrates the actor via
+ * actor_stimulus_maneuvering.
  *
  * actor_datum@<eax>: actor object datum handle.
  *
  * 0x563c0 / encounters.obj
  */
-void ai_scripting_migrate_by_unit_internal(int actor_datum, unsigned int encounter_handle,
-                  char do_migrate, int param_3)
+void ai_scripting_migrate_by_unit_internal(int actor_datum,
+                                           unsigned int encounter_handle,
+                                           char do_migrate, int param_3)
 {
   char *obj;
   int iVar4;
@@ -591,22 +603,23 @@ void ai_scripting_migrate_by_unit_internal(int actor_datum, unsigned int encount
              1 :
              0);
 
-  squad_result = ai_scripting_migrate_find_target_squad(encounter_handle, *(int *)(aptr + 0x34),
-                              *(int16_t *)(aptr + 0x3a), actr_tag, actv_tag,
-                              cVar5, (const void *)0x25c8ec);
+  squad_result = ai_scripting_migrate_find_target_squad(
+    encounter_handle, *(int *)(aptr + 0x34), *(int16_t *)(aptr + 0x3a),
+    actr_tag, actv_tag, cVar5, (const void *)0x25c8ec);
   if (squad_result == (int16_t)-1)
     return;
 
   if (cVar5 == 0 || squad_result != *(int16_t *)(aptr + 0x3a)) {
-    actor_change_encounter(iVar4, (int16_t)(encounter_handle & 0xffff), squad_result);
+    actor_change_encounter(iVar4, (int16_t)(encounter_handle & 0xffff),
+                           squad_result);
     if (do_migrate != 0)
       actor_stimulus_maneuvering(iVar4, param_3, 0);
   }
 }
 
 /*
- * ai_scripting_migrate_by_unit — ai_migrate_by_unit: migrate the actors of a unit (and its
- * child objects) into an encounter.
+ * ai_scripting_migrate_by_unit — ai_migrate_by_unit: migrate the actors of a
+ * unit (and its child objects) into an encounter.
  *
  * Name evidence: the trace format string at 0x25c8f4 is
  * "%s: ai_migrate_by_unit <some guys> %s".
@@ -623,9 +636,9 @@ void ai_scripting_migrate_by_unit_internal(int actor_datum, unsigned int encount
  * Both handles must be valid (-1 rejects) before any work happens.  Iterates
  * the units of arg0 via FUN_000ce450/FUN_000ce320 (local_8 is the 4-byte
  * iterator state).  For each biped/vehicle (type mask 3) it calls
- * ai_scripting_migrate_by_unit_internal(handle@<eax>, encounter_handle, 0, 0), then walks that
- * object's child list (first child at object+0xc8, next sibling at
- * object+0xc4) and migrates every child whose object type at +0x64 is a
+ * ai_scripting_migrate_by_unit_internal(handle@<eax>, encounter_handle, 0, 0),
+ * then walks that object's child list (first child at object+0xc8, next sibling
+ * at object+0xc4) and migrates every child whose object type at +0x64 is a
  * biped/vehicle ((1 << (type & 0x1f)) & 3).
  *
  * The child lookup uses object_get_and_verify_type (asserting form, result
@@ -673,7 +686,8 @@ void ai_scripting_migrate_by_unit(int arg0, int arg1)
 }
 
 /*
- * ai_scripting_migrate_and_speak — `ai_migrate_and_speak` HS script command handler.
+ * ai_scripting_migrate_and_speak — `ai_migrate_and_speak` HS script command
+ * handler.
  *
  * Migrates one encounter into another and plays the matching migration
  * speech.  The third argument selects the speech type by name: "advance"
@@ -693,16 +707,18 @@ void ai_scripting_migrate_by_unit(int arg0, int arg1)
  * The speech flag lives at EBP-0x4 and is written as a BYTE but read back as
  * a full DWORD and pushed whole (Ghidra's CONCAT31), so the upper three
  * bytes are whatever the frame happened to hold.  Only the low byte is
- * meaningful to ai_scripting_migrate_internal's fourth parameter; it is modelled as a plain
- * int here (a char local would add a MOVSX at the push that the original
- * does not have).
+ * meaningful to ai_scripting_migrate_internal's fourth parameter; it is
+ * modelled as a plain int here (a char local would add a MOVSX at the push that
+ * the original does not have).
  *
- * Finally calls ai_scripting_migrate_internal(src_encounter@<eax>, dst_encounter, 1, flag).
+ * Finally calls ai_scripting_migrate_internal(src_encounter@<eax>,
+ * dst_encounter, 1, flag).
  *
  * 0x565c0 / encounters.obj
  */
-void ai_scripting_migrate_and_speak(unsigned int src_encounter, unsigned int dst_encounter,
-                  const char *speech_type)
+void ai_scripting_migrate_and_speak(unsigned int src_encounter,
+                                    unsigned int dst_encounter,
+                                    const char *speech_type)
 {
   char buf_src[512];
   char buf_dst[512];
@@ -809,7 +825,8 @@ void ai_scripting_allegiance(int16_t team_a, int16_t team_b)
 }
 
 /*
- * ai_scripting_allegiance_remove — debug-logged wrapper for game_allegiance_remove.
+ * ai_scripting_allegiance_remove — debug-logged wrapper for
+ * game_allegiance_remove.
  *
  * If AI trace flag (0x5aca59) is set, logs the removal using the MSVC
  * pre-push optimization (team_a/team_b pushed before thread_name call).
@@ -828,9 +845,9 @@ void ai_scripting_allegiance_remove(int16_t param_1, int16_t param_2)
 }
 
 /*
- * ai_scripting_allegiance_broken — check that two teams are both allied and friendly.
- * Returns true iff param_1 != -1 AND param_2 != -1 AND game_team_is_ally
- * AND game_allegiance_get_team_is_friendly both return true.
+ * ai_scripting_allegiance_broken — check that two teams are both allied and
+ * friendly. Returns true iff param_1 != -1 AND param_2 != -1 AND
+ * game_team_is_ally AND game_allegiance_get_team_is_friendly both return true.
  * 0x567e0 / encounters.obj
  */
 bool ai_scripting_allegiance_broken(int16_t param_1, int16_t param_2)
@@ -842,9 +859,9 @@ bool ai_scripting_allegiance_broken(int16_t param_1, int16_t param_2)
   return 0;
 }
 
-/* ai_scripting_vehicle_candidate_qsort (0x56830) — Sort comparator for actor distance records.
- * Sorts by "is_fleeing" flag first (non-fleeing before fleeing), then by
- * distance ascending. Used as a qsort callback. */
+/* ai_scripting_vehicle_candidate_qsort (0x56830) — Sort comparator for actor
+ * distance records. Sorts by "is_fleeing" flag first (non-fleeing before
+ * fleeing), then by distance ascending. Used as a qsort callback. */
 int ai_scripting_vehicle_candidate_qsort(int param_1, int param_2)
 {
   if (*(char *)(param_1 + 8) != *(char *)(param_2 + 8)) {
@@ -860,8 +877,8 @@ int ai_scripting_vehicle_candidate_qsort(int param_1, int param_2)
 }
 
 /*
- * ai_scripting_going_to_vehicle — count actors in encounters with squad_type==9 and the
- * given actor handle. Iterates all encounters with flag=1, checks each
+ * ai_scripting_going_to_vehicle — count actors in encounters with squad_type==9
+ * and the given actor handle. Iterates all encounters with flag=1, checks each
  * actor's field_0x6c (squad type) and field_0x9c (actor handle).
  * Returns the count of matching actors.
  *
@@ -886,7 +903,8 @@ short ai_scripting_going_to_vehicle(int param_1)
 }
 
 /*
- * ai_scripting_exit_vehicle — make all actors in an encounter exit their vehicles.
+ * ai_scripting_exit_vehicle — make all actors in an encounter exit their
+ * vehicles.
  *
  * If AI trace (0x5aca59) is set, logs via pre-push pattern:
  *   "[thread]: ai_exit_vehicle [encounter_name]"
@@ -960,14 +978,14 @@ void ai_scripting_braindead(int param_1, char param_2)
 }
 
 /*
- * ai_scripting_braindead_by_unit — ai_braindead_by_unit: set braindead on actors for units.
- * Iterates units via FUN_000ce450/FUN_000ce320 (using local_8 as 4-byte state).
- * For each biped/vehicle (type mask 3), sets braindead on the primary actor
- * (field_0x1a4 or fallback 0x1a8). Then iterates child objects via sibling
- * links (first child at object+0xc8, next sibling at object+0xc4), and for
- * each biped/vehicle child also sets braindead.
- * Logs "[thread]: ai_braindead_by_unit <some units> [true|false]" if trace on.
- * 0x56a20 / encounters.obj
+ * ai_scripting_braindead_by_unit — ai_braindead_by_unit: set braindead on
+ * actors for units. Iterates units via FUN_000ce450/FUN_000ce320 (using local_8
+ * as 4-byte state). For each biped/vehicle (type mask 3), sets braindead on the
+ * primary actor (field_0x1a4 or fallback 0x1a8). Then iterates child objects
+ * via sibling links (first child at object+0xc8, next sibling at object+0xc4),
+ * and for each biped/vehicle child also sets braindead. Logs "[thread]:
+ * ai_braindead_by_unit <some units> [true|false]" if trace on. 0x56a20 /
+ * encounters.obj
  */
 void ai_scripting_braindead_by_unit(int param_1, char param_2)
 {
@@ -977,7 +995,7 @@ void ai_scripting_braindead_by_unit(int param_1, char param_2)
 
   iVar1 = FUN_000ce450(param_1, &local_8);
   if (*(char *)0x5aca59) {
-    error(2, "%s: ai_braindead_by_unit <some units> %s",
+    error(2, "%s: ai_braindead_by_unit <some guys> %s",
           hs_runtime_get_executing_thread_name(),
           param_2 ? (const char *)0x25c530 : (const char *)0x25c52c);
   }
@@ -1007,12 +1025,12 @@ void ai_scripting_braindead_by_unit(int param_1, char param_2)
 }
 
 /*
- * ai_scripting_ignore — set/clear the ai_disregard bit (0x400) on actors by unit.
- * Iterates units in the encounter via FUN_000ce450/FUN_000ce320.
- * For each biped/vehicle (type mask 3), sets or clears field_0x1b4 bit 0x400.
- * param_2 != 0: set (disregard on); param_2 == 0: clear (disregard off).
- * Logs "[thread]: ai_disregard <some guys> [true|false]" if trace is on.
- * 0x56b20 / encounters.obj
+ * ai_scripting_ignore — set/clear the ai_disregard bit (0x400) on actors by
+ * unit. Iterates units in the encounter via FUN_000ce450/FUN_000ce320. For each
+ * biped/vehicle (type mask 3), sets or clears field_0x1b4 bit 0x400. param_2 !=
+ * 0: set (disregard on); param_2 == 0: clear (disregard off). Logs "[thread]:
+ * ai_disregard <some guys> [true|false]" if trace is on. 0x56b20 /
+ * encounters.obj
  */
 void ai_scripting_ignore(int param_1, char param_2)
 {
@@ -1039,10 +1057,10 @@ void ai_scripting_ignore(int param_1, char param_2)
 }
 
 /*
- * ai_scripting_prefer_target — set/clear the ai_prefer_target bit (0x800) on actors by unit.
- * Identical to ai_scripting_ignore but uses bit 0x800 instead of 0x400.
- * Logs "[thread]: ai_prefer_target <some guys> [true|false]" if trace is on.
- * 0x56bc0 / encounters.obj
+ * ai_scripting_prefer_target — set/clear the ai_prefer_target bit (0x800) on
+ * actors by unit. Identical to ai_scripting_ignore but uses bit 0x800 instead
+ * of 0x400. Logs "[thread]: ai_prefer_target <some guys> [true|false]" if trace
+ * is on. 0x56bc0 / encounters.obj
  */
 void ai_scripting_prefer_target(int param_1, char param_2)
 {
@@ -1069,7 +1087,8 @@ void ai_scripting_prefer_target(int param_1, char param_2)
 }
 
 /*
- * ai_scripting_teleport_starting_location_private — teleport actors in an encounter to their starting locations.
+ * ai_scripting_teleport_starting_location_private — teleport actors in an
+ * encounter to their starting locations.
  *
  * Iterates encounter actors. For each actor with a unit (field_0x18) and
  * a valid encounter handle (field_0x34):
@@ -1077,14 +1096,16 @@ void ai_scripting_prefer_target(int param_1, char param_2)
  *     is not in a vehicle (field_0x158 == -1) AND has no surface contact
  *     (biped_approximate_surface_index returns -1).
  *   - Looks up the actor's squad starting location via tag_block_get_element
- *     chains, selects the first starting location via encounter_get_actor_starting_location, then:
- *     vector3d_from_angle → object_set_position → object_reset → actor_move_halt.
+ *     chains, selects the first starting location via
+ * encounter_get_actor_starting_location, then: vector3d_from_angle →
+ * object_set_position → object_reset → actor_move_halt.
  *
  * encounter_handle@<ecx>; local_28[16]=iterator, local_28+0x10=actor handle.
  *
  * 0x56c60 / encounters.obj
  */
-void ai_scripting_teleport_starting_location_private(int encounter_handle, char param_2)
+void ai_scripting_teleport_starting_location_private(int encounter_handle,
+                                                     char param_2)
 {
   char local_28[16]; /* iterator state; local_28+0x10 = actor handle */
   char local_10[12]; /* output buffer for vector3d_from_angle */
@@ -1108,8 +1129,9 @@ void ai_scripting_teleport_starting_location_private(int encounter_handle, char 
           (char *)iVar3 + 0x42c, *(int *)((char *)iVar2 + 0x34) & 0xffff, 0xb0);
         iVar3 = (int)tag_block_get_element(
           (char *)iVar3 + 0x80, (int)*(short *)((char *)iVar2 + 0x3a), 0xe8);
-        sVar1 = encounter_get_actor_starting_location(*(int *)((char *)iVar2 + 0x34),
-                             (int)*(short *)((char *)iVar2 + 0x3a), 1);
+        sVar1 = encounter_get_actor_starting_location(
+          *(int *)((char *)iVar2 + 0x34), (int)*(short *)((char *)iVar2 + 0x3a),
+          1);
         if (sVar1 != (short)-1) {
           iVar3 =
             (int)tag_block_get_element((char *)iVar3 + 0xd0, (int)sVar1, 0x1c);
@@ -1128,10 +1150,11 @@ void ai_scripting_teleport_starting_location_private(int encounter_handle, char 
 }
 
 /*
- * ai_scripting_teleport_starting_location_if_unsupported — teleport actors to starting location if unsupported.
- * Logs "[thread]: ai_teleport_starting_location_if_unsupported [encounter]"
- * then calls ai_scripting_teleport_starting_location_private(param_1, 1) — which checks if_unsupported=true.
- * 0x56d80 / encounters.obj
+ * ai_scripting_teleport_starting_location_if_unsupported — teleport actors to
+ * starting location if unsupported. Logs "[thread]:
+ * ai_teleport_starting_location_if_unsupported [encounter]" then calls
+ * ai_scripting_teleport_starting_location_private(param_1, 1) — which checks
+ * if_unsupported=true. 0x56d80 / encounters.obj
  */
 void ai_scripting_teleport_starting_location_if_unsupported(int param_1)
 {
@@ -1148,10 +1171,10 @@ void ai_scripting_teleport_starting_location_if_unsupported(int param_1)
 }
 
 /*
- * ai_scripting_teleport_starting_location — unconditionally teleport actors to starting location.
- * Logs "[thread]: ai_teleport_starting_location [encounter]"
- * then calls ai_scripting_teleport_starting_location_private(param_1, 0) — which teleports all=true.
- * 0x56de0 / encounters.obj
+ * ai_scripting_teleport_starting_location — unconditionally teleport actors to
+ * starting location. Logs "[thread]: ai_teleport_starting_location [encounter]"
+ * then calls ai_scripting_teleport_starting_location_private(param_1, 0) —
+ * which teleports all=true. 0x56de0 / encounters.obj
  */
 void ai_scripting_teleport_starting_location(int param_1)
 {
@@ -1168,10 +1191,10 @@ void ai_scripting_teleport_starting_location(int param_1)
 }
 
 /*
- * ai_scripting_try_to_fight_nothing — clear the target-selection field (0x1d4) for all actors.
- * Logs "[thread]: ai_try_to_fight_nothing [encounter]", then iterates
- * encounter actors and clears field_0x1d4 (short) to 0.
- * 0x56e40 / encounters.obj
+ * ai_scripting_try_to_fight_nothing — clear the target-selection field (0x1d4)
+ * for all actors. Logs "[thread]: ai_try_to_fight_nothing [encounter]", then
+ * iterates encounter actors and clears field_0x1d4 (short) to 0. 0x56e40 /
+ * encounters.obj
  */
 void ai_scripting_try_to_fight_nothing(int param_1)
 {
@@ -1195,10 +1218,10 @@ void ai_scripting_try_to_fight_nothing(int param_1)
 }
 
 /*
- * ai_scripting_try_to_fight — set all actors to target a given encounter (ai_try_to_fight).
- * Logs "[thread]: ai_try_to_fight [enc1] [enc2]", then iterates encounter
- * actors in param_1 and sets field_0x1d4=1, field_0x1d8=param_2.
- * 0x56ed0 / encounters.obj
+ * ai_scripting_try_to_fight — set all actors to target a given encounter
+ * (ai_try_to_fight). Logs "[thread]: ai_try_to_fight [enc1] [enc2]", then
+ * iterates encounter actors in param_1 and sets field_0x1d4=1,
+ * field_0x1d8=param_2. 0x56ed0 / encounters.obj
  */
 void ai_scripting_try_to_fight(int param_1, int param_2)
 {
@@ -1226,10 +1249,10 @@ void ai_scripting_try_to_fight(int param_1, int param_2)
 }
 
 /*
- * ai_scripting_try_to_fight_player — set target-selection field to 2 (ai_try_to_fight_player).
- * Logs "[thread]: ai_try_to_fight_player [encounter]", then iterates
- * encounter actors and sets field_0x1d4 (short) to 2.
- * 0x56fa0 / encounters.obj
+ * ai_scripting_try_to_fight_player — set target-selection field to 2
+ * (ai_try_to_fight_player). Logs "[thread]: ai_try_to_fight_player
+ * [encounter]", then iterates encounter actors and sets field_0x1d4 (short)
+ * to 2. 0x56fa0 / encounters.obj
  */
 void ai_scripting_try_to_fight_player(int param_1)
 {
@@ -1253,11 +1276,10 @@ void ai_scripting_try_to_fight_player(int param_1)
 }
 
 /*
- * ai_scripting_allow_charge — enable or disable charge for all actors in an encounter.
- * Logs "[thread]: ai_allow_charge [encounter] [true|false]", then sets
- * field_0x1cb (bool) in each actor to (param_2 == 0) — i.e., 1 when
- * charge is being disallowed, 0 when it is being allowed.
- * 0x57030 / encounters.obj
+ * ai_scripting_allow_charge — enable or disable charge for all actors in an
+ * encounter. Logs "[thread]: ai_allow_charge [encounter] [true|false]", then
+ * sets field_0x1cb (bool) in each actor to (param_2 == 0) — i.e., 1 when charge
+ * is being disallowed, 0 when it is being allowed. 0x57030 / encounters.obj
  */
 void ai_scripting_allow_charge(int param_1, char param_2)
 {
@@ -1285,8 +1307,8 @@ void ai_scripting_allow_charge(int param_1, char param_2)
  * ai_scripting_command_list — assign command list to all actors in an encounter
  * (ai_command_list). Logs "[thread]: ai_command_list [enc] [index]", then
  * iterates actors via ai_index_actor_iterator_new/ai_index_actor_iterator_next,
- * calling action_obey_command_list_setup(actor_handle, param_2, buf) and if it returns true,
- * actor_action_change(actor_handle, 0xb, buf). Actor handle is at
+ * calling action_obey_command_list_setup(actor_handle, param_2, buf) and if it
+ * returns true, actor_action_change(actor_handle, 0xb, buf). Actor handle is at
  * local_1c+0x10. 0x570d0 / encounters.obj
  */
 void ai_scripting_command_list(int param_1, int16_t param_2)
@@ -1306,7 +1328,8 @@ void ai_scripting_command_list(int param_1, int16_t param_2)
   ai_index_actor_iterator_new(param_1, local_1c);
   iVar3 = ai_index_actor_iterator_next(local_1c);
   while (iVar3 != 0) {
-    if (action_obey_command_list_setup(*(int *)(local_1c + 0x10), param_2, local_a0))
+    if (action_obey_command_list_setup(*(int *)(local_1c + 0x10), param_2,
+                                       local_a0))
       actor_action_change(*(int *)(local_1c + 0x10), 0xb, (int)local_a0);
     iVar3 = ai_index_actor_iterator_next(local_1c);
   }
@@ -1316,8 +1339,8 @@ void ai_scripting_command_list(int param_1, int16_t param_2)
  * ai_scripting_command_list_by_unit — assign command list to actor via unit
  * (ai_command_list_by_unit). Logs "[thread]: ai_command_list_by_unit <unit>
  * [index]". If param_1 != -1 and the unit has a biped/vehicle actor
- * (field_0x1a4), calls action_obey_command_list_setup and actor_action_change if it succeeds.
- * 0x57190 / encounters.obj
+ * (field_0x1a4), calls action_obey_command_list_setup and actor_action_change
+ * if it succeeds. 0x57190 / encounters.obj
  */
 void ai_scripting_command_list_by_unit(int param_1, int16_t param_2)
 {
@@ -1332,7 +1355,8 @@ void ai_scripting_command_list_by_unit(int param_1, int16_t param_2)
     iVar3 = (int)object_try_and_get_and_verify_type(param_1, 3);
     if (iVar3 != 0 && *(int *)((char *)iVar3 + 0x1a4) != -1) {
       datum_get(actor_data, *(int *)((char *)iVar3 + 0x1a4));
-      if (action_obey_command_list_setup(*(int *)((char *)iVar3 + 0x1a4), param_2, local_88))
+      if (action_obey_command_list_setup(*(int *)((char *)iVar3 + 0x1a4),
+                                         param_2, local_88))
         actor_action_change(*(int *)((char *)iVar3 + 0x1a4), 0xb,
                             (int)local_88);
     }
@@ -1340,10 +1364,11 @@ void ai_scripting_command_list_by_unit(int param_1, int16_t param_2)
 }
 
 /*
- * ai_scripting_command_list_advance — advance command list for all actors in an encounter.
- * Logs "[thread]: ai_command_list_advance [encounter]", then iterates
- * encounter actors via ai_index_actor_iterator_new/ai_index_actor_iterator_next
- * and calls action_obey_advance_command_list(actor_handle) for each. Actor handle is at
+ * ai_scripting_command_list_advance — advance command list for all actors in an
+ * encounter. Logs "[thread]: ai_command_list_advance [encounter]", then
+ * iterates encounter actors via
+ * ai_index_actor_iterator_new/ai_index_actor_iterator_next and calls
+ * action_obey_advance_command_list(actor_handle) for each. Actor handle is at
  * local_1c+0x10. 0x57230 / encounters.obj
  */
 void ai_scripting_command_list_advance(int param_1)
@@ -1368,11 +1393,11 @@ void ai_scripting_command_list_advance(int param_1)
 }
 
 /*
- * ai_scripting_command_list_advance_by_unit — advance command list for the actor attached to a unit.
- * Logs "[thread]: ai_command_list_advance_by_unit <some unit>". If
- * param_1 != -1 and the object has an actor at field_0x1a4 (or 0x1a8),
- * calls action_obey_advance_command_list on that actor handle.
- * 0x572c0 / encounters.obj
+ * ai_scripting_command_list_advance_by_unit — advance command list for the
+ * actor attached to a unit. Logs "[thread]: ai_command_list_advance_by_unit
+ * <some unit>". If param_1 != -1 and the object has an actor at field_0x1a4 (or
+ * 0x1a8), calls action_obey_advance_command_list on that actor handle. 0x572c0
+ * / encounters.obj
  */
 void ai_scripting_command_list_advance_by_unit(int param_1)
 {
@@ -1396,52 +1421,12 @@ void ai_scripting_command_list_advance_by_unit(int param_1)
 }
 
 /*
- * ai_scripting_free — free (detach) all actors from an encounter (ai_free).
- * Logs "[thread]: ai_free [encounter]", then for each actor in the
- * encounter asserts encounter_index != NONE, then calls
- * actor_flush_position_indices, encounter_detach_actor(handle, 0), and
- * encounterless_attach_actor. Finally calls encounters_update_dirty_status.
- * Actor handle is at local_1c+0x10 (iterator offset).
- * 0x575d0 / encounters.obj
- */
-void ai_scripting_free(int param_1)
-{
-  char local_21c[512];
-  char local_1c[24];
-  void *uVar1;
-  int iVar2;
-
-  if (*(char *)0x5aca59) {
-    uVar1 = global_scenario_get();
-    ai_index_to_string(param_1, uVar1, local_21c, 0x200);
-    error(2, "%s: ai_free %s", hs_runtime_get_executing_thread_name(),
-          local_21c);
-  }
-  if (param_1 != -1) {
-    ai_index_actor_iterator_new(param_1, local_1c);
-    iVar2 = ai_index_actor_iterator_next(local_1c);
-    while (iVar2 != 0) {
-      if (*(int *)((char *)iVar2 + 0x34) == -1) {
-        display_assert("actor->meta.encounter_index != NONE",
-                       "c:\\halo\\SOURCE\\ai\\ai_script.c", 0xad1, 1);
-        system_exit(-1);
-      }
-      actor_flush_position_indices(*(int *)(local_1c + 0x10));
-      encounter_detach_actor(*(int *)(local_1c + 0x10), 0);
-      encounterless_attach_actor(*(int *)(local_1c + 0x10));
-      iVar2 = ai_index_actor_iterator_next(local_1c);
-    }
-    encounters_update_dirty_status();
-  }
-}
-
-/*
- * ai_scripting_free_units — free actors from units in an encounter (ai_free_units).
- * Iterates units via FUN_000ce450/FUN_000ce320. For each biped/vehicle
- * (type mask 3) with an actor (field_0x1a4 != -1) whose encounter_index
- * (field_0x34) != -1, frees the actor and increments a count. Calls
- * encounters_update_dirty_status if any actors were freed.
- * 0x576a0 / encounters.obj
+ * ai_scripting_free_units — free actors from units in an encounter
+ * (ai_free_units). Iterates units via FUN_000ce450/FUN_000ce320. For each
+ * biped/vehicle (type mask 3) with an actor (field_0x1a4 != -1) whose
+ * encounter_index (field_0x34) != -1, frees the actor and increments a count.
+ * Calls encounters_update_dirty_status if any actors were freed. 0x576a0 /
+ * encounters.obj
  */
 void ai_scripting_free_units(int param_1)
 {
@@ -1720,8 +1705,8 @@ int ai_scripting_assess_status(int actor_handle)
  * If the AI trace flag (0x5aca59) is set, logs the thread name and encounter
  * name. Then iterates platoons via
  * ai_index_actor_iterator_new/ai_index_actor_iterator_next and calls
- * ai_scripting_assess_status for each actor to get individual status, tracking the maximum.
- * 0x57bc0 / encounters.obj
+ * ai_scripting_assess_status for each actor to get individual status, tracking
+ * the maximum. 0x57bc0 / encounters.obj
  */
 short ai_scripting_status(int encounter_handle)
 {
@@ -1753,8 +1738,9 @@ void ai_scripting_reconnect(void)
 {
 }
 
-/* ai_scripting_playfight (0x57c70) — ai_playfight script command. Sets the playfight
- * flag (encounter+0x60) for an encounter. Logs if AI trace is enabled. */
+/* ai_scripting_playfight (0x57c70) — ai_playfight script command. Sets the
+ * playfight flag (encounter+0x60) for an encounter. Logs if AI trace is
+ * enabled. */
 void ai_scripting_playfight(int encounter_handle, char param_2)
 {
   char *encounter;
@@ -1775,147 +1761,11 @@ void ai_scripting_playfight(int encounter_handle, char param_2)
 }
 
 /*
- * ai_scripting_vehicle_encounter (0x57d00) — ai_vehicle_encounter script command.  Binds a unit
- * (biped/vehicle, object type mask 3) to an encounter+squad by writing the
- * resolved encounter index to unit+0x2e4 and the squad index to unit+0x2e6
- * (both int16, -1 = NONE).  Before overwriting, if the unit already carries an
- * encounter index, every actor of that encounter whose field_0x158 points at
- * this unit is re-bound via actor_change_encounter(actor_handle, encounter_index,
- * squad_index).
- *
- * param_2 is a combined ai index: low 16 bits = signed encounter index into
- * the scenario encounters block (scenario+0x42c, element stride 0xb0), byte 2
- * = squad *name* index (selector 1) or direct squad index (selector 2), bits
- * 30..31 = selector.  Selector 0 means "encounter only" (squad 0); selector 3
- * is unreachable (display_assert at ai_script.c:0xc52 then system_exit(-1)).
- *
- * Confirmed: frame is a direct SUB ESP,0x220 (no _chkstk); the trace name
- * buffer is 512 bytes at EBP-0x220.
- * Confirmed: element sizes 0xb0 (scenario encounters block) and 0xe8
- * (encounter_definition->squads) are literal immediates in the original.
- * Confirmed: [EBP-0x1c] is actor_iter[1] — the actor handle produced by
- * encounter_actor_iterator_next — NOT an independent local (buffer-alias
- * hazard); it is re-read on every iteration.
- * Confirmed: unit+0x2e4/+0x2e6 are 16-bit loads/stores (MOV AX,word / MOV
- * word,CX); byte 2 of param_2 is a MOVZX byte load compared against the
- * uint16 at squad+0x22.
- * 0x57d00 / encounters.obj */
-void ai_scripting_vehicle_encounter(int param_1, int param_2)
-{
-  int out_squad;
-  int saved_encounter_index;
-  char *unit;
-  int out_encounter;
-  encounter_definition *encounter_def;
-  int actor_iter[3];
-  char name_buf[512];
-  char *scenario;
-  unsigned int selector;
-  short encounter_index;
-  int squad_index;
-  int i;
-  void *squad;
-  int actor;
-
-  if (*(char *)0x5aca59 != '\0') {
-    ai_index_to_string(param_2, (void *)global_scenario_get(), name_buf, 0x200);
-    error(2, "%s: ai_vehicle_encounter <some unit> %s",
-          hs_runtime_get_executing_thread_name(), name_buf);
-  }
-  if (param_1 == -1) {
-    return;
-  }
-
-  unit = (char *)object_get_and_verify_type(param_1, 3);
-  out_encounter = -1;
-  out_squad = -1;
-  if (param_2 == -1) {
-    goto store_result;
-  }
-
-  scenario = (char *)global_scenario_get();
-  encounter_index = (short)param_2;
-  if (encounter_index < 0) {
-    goto store_result;
-  }
-  saved_encounter_index = (int)encounter_index;
-  if (saved_encounter_index >= *(int *)(scenario + 0x42c)) {
-    goto store_result;
-  }
-
-  squad_index = 0;
-  encounter_def = (encounter_definition *)tag_block_get_element(
-    (char *)global_scenario_get() + 0x42c, (unsigned short)param_2, 0xb0);
-
-  selector = (unsigned int)param_2 >> 0x1e;
-  switch (selector) {
-  case 0:
-    /* Encounter only: squad 0. */
-    break;
-  case 1:
-    /* Byte 2 is a squad *name* index; scan the squads block for the element
-     * whose name index (squad+0x22) matches. */
-    if (encounter_def->squads.count > 0) {
-      i = 0;
-      do {
-        squad = tag_block_get_element(&encounter_def->squads, i, 0xe8);
-        if (*(unsigned short *)((char *)squad + 0x22) ==
-            (unsigned short)*(unsigned char *)((char *)&param_2 + 2)) {
-          break;
-        }
-        squad_index = squad_index + 1;
-        i = (int)(short)squad_index;
-      } while (i < encounter_def->squads.count);
-    }
-    if ((int)(short)squad_index >= encounter_def->squads.count) {
-      /* No match: fall through with squad 0 (matches the original). */
-      squad_index = 0;
-    }
-    break;
-  case 2:
-    /* Byte 2 is a direct squad index. */
-    squad_index = (int)*(unsigned char *)((char *)&param_2 + 2);
-    break;
-  default:
-    display_assert("!\"unreachable\"", "c:\\halo\\SOURCE\\ai\\ai_script.c",
-                   0xc52, 1);
-    system_exit(-1);
-    break;
-  }
-
-  if ((short)squad_index < 0) {
-    goto store_result;
-  }
-  if ((int)(short)squad_index < encounter_def->squads.count) {
-    out_encounter = param_2;
-    out_squad = squad_index;
-    if (encounter_index != -1 && (short)squad_index != -1 &&
-        *(short *)(unit + 0x2e4) != -1) {
-      /* Re-bind the actors of the unit's PREVIOUS encounter that reference
-       * this unit.  actor_iter[1] is the current actor handle. */
-      encounter_actor_iterator_new(actor_iter, (int)*(short *)(unit + 0x2e4));
-      actor = encounter_actor_iterator_next(actor_iter);
-      while (actor != 0) {
-        if (*(int *)(actor + 0x158) == param_1) {
-          actor_change_encounter(actor_iter[1], saved_encounter_index,
-                       (short)squad_index);
-        }
-        actor = encounter_actor_iterator_next(actor_iter);
-      }
-    }
-  }
-
-store_result:
-  *(short *)(unit + 0x2e4) = (short)out_encounter;
-  *(short *)(unit + 0x2e6) = (short)out_squad;
-}
-
-/*
- * ai_scripting_find_vehicle_enterable — find or create an enterable-vehicle entry for param_1.
- * Searches DAT_00632574+0x3b8 array (stride 0x28, count at +0x3b6) for
- * an entry matching param_1. If found, returns its pointer. If not found
- * and count < 32, creates a new entry (zeroed, param_1 at +0, 0x41000000 at
- * +4), increments count, and returns pointer. Returns NULL if param_1==-1 or
+ * ai_scripting_find_vehicle_enterable — find or create an enterable-vehicle
+ * entry for param_1. Searches DAT_00632574+0x3b8 array (stride 0x28, count at
+ * +0x3b6) for an entry matching param_1. If found, returns its pointer. If not
+ * found and count < 32, creates a new entry (zeroed, param_1 at +0, 0x41000000
+ * at +4), increments count, and returns pointer. Returns NULL if param_1==-1 or
  * overflow. 0x57ef0 / encounters.obj
  */
 int *ai_scripting_find_vehicle_enterable(int param_1)
@@ -1958,11 +1808,11 @@ int *ai_scripting_find_vehicle_enterable(int param_1)
 }
 
 /*
- * ai_scripting_vehicle_enterable_distance — set the enterable-distance for a vehicle entry.
- * Calls ai_scripting_find_vehicle_enterable(param_1) to get/create an entry and sets
- * entry[+4] = param_2 (float distance).
- * Logs "[thread]: ai_vehicle_enterable_distance <some vehicle>" if trace on.
- * 0x57f90 / encounters.obj
+ * ai_scripting_vehicle_enterable_distance — set the enterable-distance for a
+ * vehicle entry. Calls ai_scripting_find_vehicle_enterable(param_1) to
+ * get/create an entry and sets entry[+4] = param_2 (float distance). Logs
+ * "[thread]: ai_vehicle_enterable_distance <some vehicle>" if trace on. 0x57f90
+ * / encounters.obj
  */
 void ai_scripting_vehicle_enterable_distance(int param_1, float param_2)
 {
@@ -1980,9 +1830,9 @@ void ai_scripting_vehicle_enterable_distance(int param_1, float param_2)
 }
 
 /*
- * ai_scripting_vehicle_enterable_team — set a team bit in vehicle enterable entry.
- * Sets bit (1<<param_2) in entry[+8] (team bitmask).
- * 0x57fd0 / encounters.obj
+ * ai_scripting_vehicle_enterable_team — set a team bit in vehicle enterable
+ * entry. Sets bit (1<<param_2) in entry[+8] (team bitmask). 0x57fd0 /
+ * encounters.obj
  */
 void ai_scripting_vehicle_enterable_team(int param_1, short param_2)
 {
@@ -2000,8 +1850,8 @@ void ai_scripting_vehicle_enterable_team(int param_1, short param_2)
 }
 
 /*
- * ai_scripting_vehicle_enterable_actor_type — set an actor-type bit in vehicle enterable entry.
- * Sets bit (1<<param_2) in entry[+10] (actor type bitmask).
+ * ai_scripting_vehicle_enterable_actor_type — set an actor-type bit in vehicle
+ * enterable entry. Sets bit (1<<param_2) in entry[+10] (actor type bitmask).
  * 0x58020 / encounters.obj
  */
 void ai_scripting_vehicle_enterable_actor_type(int param_1, short param_2)
@@ -2020,12 +1870,13 @@ void ai_scripting_vehicle_enterable_actor_type(int param_1, short param_2)
 }
 
 /*
- * ai_scripting_vehicle_enterable_actors — append an encounter to a vehicle's enterable-actors list.
- * Gets/creates a vehicle entry via ai_scripting_find_vehicle_enterable(param_1). If the actor-group
- * count (entry[+0xc] as short) < 6, appends param_2 (encounter handle) to the
- * array at entry[+0x10] and increments the count.
- * Logs "[thread]: ai_vehicle_enterable_actors <some vehicle> [enc]" if trace
- * on. 0x58070 / encounters.obj
+ * ai_scripting_vehicle_enterable_actors — append an encounter to a vehicle's
+ * enterable-actors list. Gets/creates a vehicle entry via
+ * ai_scripting_find_vehicle_enterable(param_1). If the actor-group count
+ * (entry[+0xc] as short) < 6, appends param_2 (encounter handle) to the array
+ * at entry[+0x10] and increments the count. Logs "[thread]:
+ * ai_vehicle_enterable_actors <some vehicle> [enc]" if trace on. 0x58070 /
+ * encounters.obj
  */
 void ai_scripting_vehicle_enterable_actors(int param_1, int param_2)
 {
@@ -2057,11 +1908,11 @@ void ai_scripting_vehicle_enterable_actors(int param_1, int param_2)
 }
 
 /*
- * ai_scripting_vehicle_enterable_disable — remove a vehicle from the enterable-vehicle list.
- * Searches for param_1 in the array. If found, decrements count and if the
- * found entry is not the last, copies the last entry over it (swap-remove,
- * 10-dword copy = 0x28 bytes).
- * 0x58110 / encounters.obj
+ * ai_scripting_vehicle_enterable_disable — remove a vehicle from the
+ * enterable-vehicle list. Searches for param_1 in the array. If found,
+ * decrements count and if the found entry is not the last, copies the last
+ * entry over it (swap-remove, 10-dword copy = 0x28 bytes). 0x58110 /
+ * encounters.obj
  */
 void ai_scripting_vehicle_enterable_disable(int param_1)
 {
@@ -2103,10 +1954,10 @@ void ai_scripting_vehicle_enterable_disable(int param_1)
 }
 
 /*
- * ai_scripting_look_at_object — direct an actor to look at an object (ai_look_at_object).
- * Gets actor from unit (field_0x1a4), builds a look_buf {6, object_handle},
- * calls actor_look_secondary(actor, 0xd, 1, look_buf). Logs if trace on.
- * 0x581b0 / encounters.obj
+ * ai_scripting_look_at_object — direct an actor to look at an object
+ * (ai_look_at_object). Gets actor from unit (field_0x1a4), builds a look_buf
+ * {6, object_handle}, calls actor_look_secondary(actor, 0xd, 1, look_buf). Logs
+ * if trace on. 0x581b0 / encounters.obj
  */
 void ai_scripting_look_at_object(int param_1, int param_2)
 {
@@ -2122,7 +1973,8 @@ void ai_scripting_look_at_object(int param_1, int param_2)
     if (*(int *)((char *)iVar2 + 0x1a4) != -1) {
       *(short *)look_buf = 6;
       look_buf[1] = param_2;
-      actor_look_secondary(*(int *)((char *)iVar2 + 0x1a4), 0xd, 1, (short *)look_buf);
+      actor_look_secondary(*(int *)((char *)iVar2 + 0x1a4), 0xd, 1,
+                           (short *)look_buf);
     }
   }
 }
@@ -2148,8 +2000,8 @@ void ai_scripting_stop_looking(int param_1)
 }
 
 /*
- * ai_scripting_automatic_migration_target — set automatic migration target flag for an encounter's
- * platoons. Iterates platoons via
+ * ai_scripting_automatic_migration_target — set automatic migration target flag
+ * for an encounter's platoons. Iterates platoons via
  * ai_index_squad_iterator_new/ai_index_squad_iterator_next and sets field +0x10
  * = param_2. Logs "[thread]: ai_automatic_migration_target [enc] [true|false]"
  * if trace on. 0x58270 / encounters.obj
@@ -2179,10 +2031,10 @@ void ai_scripting_automatic_migration_target(int param_1, char param_2)
 }
 
 /*
- * ai_scripting_follow_target_disable — disable follow-target mode for an encounter.
- * Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets field +0x62 =
- * 0. Logs "[thread]: ai_follow_target_disable [enc]" if trace on. 0x58310 /
- * encounters.obj
+ * ai_scripting_follow_target_disable — disable follow-target mode for an
+ * encounter. Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets
+ * field +0x62 = 0. Logs "[thread]: ai_follow_target_disable [enc]" if trace on.
+ * 0x58310 / encounters.obj
  */
 void ai_scripting_follow_target_disable(unsigned int param_1)
 {
@@ -2203,10 +2055,10 @@ void ai_scripting_follow_target_disable(unsigned int param_1)
 }
 
 /*
- * ai_scripting_follow_target_players — enable follow-target-players mode for an encounter.
- * Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets field +0x62
- * = 1. Logs "[thread]: ai_follow_target_players [enc]" if trace on. 0x58390 /
- * encounters.obj
+ * ai_scripting_follow_target_players — enable follow-target-players mode for an
+ * encounter. Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets
+ * field +0x62 = 1. Logs "[thread]: ai_follow_target_players [enc]" if trace on.
+ * 0x58390 / encounters.obj
  */
 void ai_scripting_follow_target_players(unsigned int param_1)
 {
@@ -2227,11 +2079,11 @@ void ai_scripting_follow_target_players(unsigned int param_1)
 }
 
 /*
- * ai_scripting_follow_target_unit — set follow-target-unit mode for an encounter.
- * Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets field +0x62
- * = 2, field +0x64 = param_2 (unit datum index). If param_2 == -1, disables
- * follow mode (sets +0x62 = 0). Logs "[thread]: ai_follow_target_unit [enc]
- * <some unit>" if trace on. 0x58410 / encounters.obj
+ * ai_scripting_follow_target_unit — set follow-target-unit mode for an
+ * encounter. Gets encounter datum at (DAT_005ab270, param_1&0xffff) and sets
+ * field +0x62 = 2, field +0x64 = param_2 (unit datum index). If param_2 == -1,
+ * disables follow mode (sets +0x62 = 0). Logs "[thread]: ai_follow_target_unit
+ * [enc] <some unit>" if trace on. 0x58410 / encounters.obj
  */
 void ai_scripting_follow_target_unit(unsigned int param_1, int param_2)
 {
@@ -2368,7 +2220,8 @@ int ai_scripting_conversation(int param_1)
   return ai_conversation(param_1, 1);
 }
 
-/* 0x00058640 — ai_scripting_conversation_stop (ai_conversation_stop script command).
+/* 0x00058640 — ai_scripting_conversation_stop (ai_conversation_stop script
+ * command).
  *
  * Script command handler for "ai_conversation_stop". If the AI trace flag at
  * 0x5aca59 is set, resolves the conversation name from the scenario tag's
@@ -2410,11 +2263,13 @@ void ai_scripting_conversation_stop(int param_1)
   ai_conversation_stop(param_1);
 }
 
-/* 0x000586a0 — ai_scripting_conversation_advance (ai_conversation_advance script command wrapper).
+/* 0x000586a0 — ai_scripting_conversation_advance (ai_conversation_advance
+ * script command wrapper).
  *
  * Logs the conversation advance via error() if debug tracing is enabled,
  * then delegates to ai_conversation_advance to actually step the conversation.
- * Identical pattern to ai_scripting_conversation_stop (ai_conversation_stop wrapper).
+ * Identical pattern to ai_scripting_conversation_stop (ai_conversation_stop
+ * wrapper).
  *
  * Confirmed:
  *   - param_1 is a conversation index (cast to short for bounds check).
@@ -2444,25 +2299,28 @@ void ai_scripting_conversation_advance(int param_1)
   ai_conversation_advance(param_1);
 }
 
-/* ai_scripting_conversation_line (0x58700) — Tail-call wrapper for ai_conversation_line.
- * The original is a JMP to 0x434c0, so the arg is forwarded and the callee's
- * return is this wrapper's return. Disasm at the hs call site 0xc1574 (`xor
- * edx,edx; mov dx,[eax]; push edx; call 0x58700; mov [ebp-4],ax`) confirms one
- * zero-extended uint16 stack arg and a 16-bit AX return. */
+/* ai_scripting_conversation_line (0x58700) — Tail-call wrapper for
+ * ai_conversation_line. The original is a JMP to 0x434c0, so the arg is
+ * forwarded and the callee's return is this wrapper's return. Disasm at the hs
+ * call site 0xc1574 (`xor edx,edx; mov dx,[eax]; push edx; call 0x58700; mov
+ * [ebp-4],ax`) confirms one zero-extended uint16 stack arg and a 16-bit AX
+ * return. */
 int16_t ai_scripting_conversation_line(int16_t param_1)
 {
   return ai_conversation_line(param_1);
 }
 
-/* ai_scripting_conversation_status (0x58710) — Frame-forwarding thunk (PUSH EBP;MOV EBP,ESP;POP
- * EBP;JMP 0x433b0) to ai_conversation_status. Inherits its ABI: a 16-bit stack
- * arg and a 16-bit AX return (mirror of neighbor ai_scripting_conversation_line). */
+/* ai_scripting_conversation_status (0x58710) — Frame-forwarding thunk (PUSH
+ * EBP;MOV EBP,ESP;POP EBP;JMP 0x433b0) to ai_conversation_status. Inherits its
+ * ABI: a 16-bit stack arg and a 16-bit AX return (mirror of neighbor
+ * ai_scripting_conversation_line). */
 int16_t ai_scripting_conversation_status(int16_t param_1)
 {
   return ai_conversation_status(param_1);
 }
 
-/* 0x00058720 — ai_scripting_link_activation (ai_link_activation script command).
+/* 0x00058720 — ai_scripting_link_activation (ai_link_activation script
+ * command).
  *
  * Links two encounter activation states together. If the AI trace flag
  * (0x5aca59) is set, logs both encounter names via error(). Then, if
@@ -2615,13 +2473,15 @@ void ai_scripting_allow_dormant(int param_1, char param_2)
   }
 }
 
-/* 0x00058970 — ai_magically_see_encounter (ai_scripting_magically_see_encounter).
+/* 0x00058970 — ai_magically_see_encounter
+ * (ai_scripting_magically_see_encounter).
  *
  * Makes all actors in param_1 encounter "magically see" the units/vehicles
  * belonging to actors in param_2 encounter.  For each actor in encounter
  * param_2, grabs the actor's unit handle (offset 0x18); if that is NONE,
- * falls back to the vehicle handle (offset 0x24).  Calls ai_scripting_magically_see_unit to
- * register the sighting with encounter param_1.
+ * falls back to the vehicle handle (offset 0x24).  Calls
+ * ai_scripting_magically_see_unit to register the sighting with encounter
+ * param_1.
  *
  * Confirmed:
  *   - param_1, param_2 = encounter handles (int).
@@ -2631,7 +2491,8 @@ void ai_scripting_allow_dormant(int param_1, char param_2)
  * actor iterator init/next.
  *   - Iterator return value is pointer to actor datum.
  *   - actor+0x18 = unit_handle, actor+0x24 = vehicle unit list head handle.
- *   - ai_scripting_magically_see_unit(encounter_handle, unit_handle) registers the sighting.
+ *   - ai_scripting_magically_see_unit(encounter_handle, unit_handle) registers
+ * the sighting.
  */
 void ai_scripting_magically_see_encounter(int param_1, int param_2)
 {
@@ -2677,7 +2538,8 @@ void ai_scripting_magically_see_encounter(int param_1, int param_2)
  *
  * Then, iff combined_handle != -1, walks the player data pool
  * (*(data_t**)0x5aa6d4) using data_iterator_new / data_iterator_next and
- * calls ai_scripting_magically_see_unit(combined_handle, player+0x34) for each live player.
+ * calls ai_scripting_magically_see_unit(combined_handle, player+0x34) for each
+ * live player.
  *
  * Confirmed:
  *   - ESI = param_1 throughout (callee-saved, loaded at 0x58a51).
@@ -2692,7 +2554,8 @@ void ai_scripting_magically_see_encounter(int param_1, int param_2)
  *     tag name from hs_runtime_get_executing_thread_name, second %s = encounter
  * name in name_buf.
  *   - MOV EDX,[0x005aa6d4] dereferences player_data before data_iterator_new.
- *   - player+0x34 is the field passed as arg2 to ai_scripting_magically_see_unit.
+ *   - player+0x34 is the field passed as arg2 to
+ * ai_scripting_magically_see_unit.
  */
 void ai_scripting_magically_see_players(int combined_handle)
 {
@@ -2703,7 +2566,7 @@ void ai_scripting_magically_see_players(int combined_handle)
   if (*(char *)0x5aca59 != '\0') {
     ai_index_to_string((unsigned int)combined_handle,
                        (void *)global_scenario_get(), name_buf, 0x100);
-    console_printf(2, "%s: ai_scripting_magically_see_players %s",
+    console_printf(2, "%s: ai_magically_see_players %s",
                    (const char *)hs_runtime_get_executing_thread_name(),
                    name_buf);
   }
@@ -2717,18 +2580,19 @@ void ai_scripting_magically_see_players(int combined_handle)
   }
 }
 
-/* ai_scripting_retreat (0x58ae0) — Tail-call wrapper for ai_scripting_maneuver (ai_maneuver);
- * forwards combined_index. Dormant (ported=false); the original runs at
- * runtime. Signature follows ai_scripting_maneuver now that it is lifted as 1-arg. */
+/* ai_scripting_retreat (0x58ae0) — Tail-call wrapper for ai_scripting_maneuver
+ * (ai_maneuver); forwards combined_index. Dormant (ported=false); the original
+ * runs at runtime. Signature follows ai_scripting_maneuver now that it is
+ * lifted as 1-arg. */
 void ai_scripting_retreat(unsigned int combined_index)
 {
   ai_scripting_maneuver(combined_index);
 }
 
 /* One entry of the nearest-first candidate table built on the stack by
- * ai_scripting_go_to_vehicle_internal.  Confirmed from the index math at 0x58b5f
- * (MOVSX ECX,SI; LEA ECX,[ECX+ECX*2]; SHL ECX,2 => i*12) and the field stores
- * at +0x0 / +0x4 / +0x8 relative to EBP-0x348. */
+ * ai_scripting_go_to_vehicle_internal.  Confirmed from the index math at
+ * 0x58b5f (MOVSX ECX,SI; LEA ECX,[ECX+ECX*2]; SHL ECX,2 => i*12) and the field
+ * stores at +0x0 / +0x4 / +0x8 relative to EBP-0x348. */
 typedef struct {
   int actor_handle; /* +0x00 */
   float distance_squared; /* +0x04 */
@@ -2743,9 +2607,9 @@ typedef struct {
  * SUB ESP,0x348 / PUSH EDI / PUSH 3 / PUSH EBX / MOV EDI,EAX).  EAX is read
  * into EDI before any write, and EBX is pushed as arg0 of
  * object_try_and_get_and_verify_type with no prior write, so both are implicit
- * register inputs.  Both call sites (0x58ca4 in ai_scripting_go_to_vehicle, 0x58d24 in
- * FUN_00058cc0) do `PUSH <flag>; PUSH ESI; MOV EAX,EDI; CALL` with the vehicle
- * handle already live in EBX.
+ * register inputs.  Both call sites (0x58ca4 in ai_scripting_go_to_vehicle,
+ * 0x58d24 in FUN_00058cc0) do `PUSH <flag>; PUSH ESI; MOV EAX,EDI; CALL` with
+ * the vehicle handle already live in EBX.
  *
  * Frame (SUB ESP,0x348 exactly, 0x300+0x20+0x18+0xc+0x4):
  *   EBP-0x348 candidates[0x40]  stride 0xc, cap enforced by CMP SI,0x40 / JNC
@@ -2771,8 +2635,9 @@ typedef struct {
  * The `return` inside the placement loop is a real early exit to the epilogue
  * (an actor of type 9 blocks the whole order unless the flag allows it); it is
  * not a `break`. */
-void ai_scripting_go_to_vehicle_internal(unsigned int ai_index, int vehicle_handle, int seat_substring,
-                  char allow_type9)
+void ai_scripting_go_to_vehicle_internal(unsigned int ai_index,
+                                         int vehicle_handle, int seat_substring,
+                                         char allow_type9)
 {
   vehicle_enter_candidate_t candidates[0x40];
   int16_t seat_indices[16];
@@ -2811,7 +2676,8 @@ void ai_scripting_go_to_vehicle_internal(unsigned int ai_index, int vehicle_hand
         actor = (char *)ai_index_actor_iterator_next(iter);
       }
       qsort(candidates, (size_t)(int)(short)candidate_count, 0xc,
-            (int (*)(const void *, const void *))ai_scripting_vehicle_candidate_qsort);
+            (int (*)(const void *,
+                     const void *))ai_scripting_vehicle_candidate_qsort);
       for (i = 0; i < (short)candidate_count; i++) {
         if (candidates[i].is_type9 != '\0' && allow_type9 == '\0') {
           return;
@@ -2826,8 +2692,8 @@ void ai_scripting_go_to_vehicle_internal(unsigned int ai_index, int vehicle_hand
 
 /* 0x00058c40 — ai_go_to_vehicle script command entry point.
  * Emits a trace line when the AI script-trace flag at 0x5aca59 is set, then
- * forwards the request to the vehicle-entry order builder ai_scripting_go_to_vehicle_internal with
- * allow_type9 = 0.
+ * forwards the request to the vehicle-entry order builder
+ * ai_scripting_go_to_vehicle_internal with allow_type9 = 0.
  *
  * Parameters come off the stack and are cached in callee-saved registers by
  * the prologue (confirmed at 0x58c51-0x58c59): EDI = [EBP+8] = ai_index,
@@ -2837,10 +2703,11 @@ void ai_scripting_go_to_vehicle_internal(unsigned int ai_index, int vehicle_hand
  * The error() call pushes SIX stack args (ADD ESP,0x18 at 0x58c9c); Ghidra
  * dropped the trailing seat_substring vararg.  Only the low 16 bits of the
  * vehicle handle are logged (MOV ECX,EBX; AND ECX,0xffff at 0x58c79/0x58c7c),
- * while the full 32-bit handle is forwarded to ai_scripting_go_to_vehicle_internal (EBX still live
- * at the tail call, 0x58ca4). */
+ * while the full 32-bit handle is forwarded to
+ * ai_scripting_go_to_vehicle_internal (EBX still live at the tail call,
+ * 0x58ca4). */
 void ai_scripting_go_to_vehicle(unsigned int ai_index, int vehicle_handle,
-                  const char *seat_substring)
+                                const char *seat_substring)
 {
   char local_104[256];
 
@@ -2851,7 +2718,8 @@ void ai_scripting_go_to_vehicle(unsigned int ai_index, int vehicle_handle,
           hs_runtime_get_executing_thread_name(), local_104,
           vehicle_handle & 0xffff, seat_substring);
   }
-  ai_scripting_go_to_vehicle_internal(ai_index, vehicle_handle, (int)seat_substring, 0);
+  ai_scripting_go_to_vehicle_internal(ai_index, vehicle_handle,
+                                      (int)seat_substring, 0);
 }
 
 /* 0x00058eb0 — encounters_initialize.
@@ -2947,8 +2815,11 @@ void encounters_dispose_from_old_map(void)
  *
  * pvs is passed as an integer address of a parallel cluster bit vector; a
  * zero value disables the visibility test. */
-void encounter_compute_activation_cluster_bit_vector(int encounter_handle, char flag, int bit_vector_size, int pvs,
-                  char *out_cluster_bv)
+void encounter_compute_activation_cluster_bit_vector(int encounter_handle,
+                                                     char flag,
+                                                     int bit_vector_size,
+                                                     int pvs,
+                                                     char *out_cluster_bv)
 {
   char *structure_bsp;
   char *encounter;
@@ -3430,8 +3301,8 @@ void encounter_iterator_new(int iter, char param_2)
   }
 }
 
-/* encounter_iterator_next (0x599c0) — Step encounter data iterator, skipping inactive
- * encounters (datum+0xd == 0) when filter flag (iter+0x14) is set.
+/* encounter_iterator_next (0x599c0) — Step encounter data iterator, skipping
+ * inactive encounters (datum+0xd == 0) when filter flag (iter+0x14) is set.
  * Copies iter+0x8 to iter+0x10 after each step. Returns datum or NULL. */
 void *encounter_iterator_next(int iter)
 {
@@ -3755,8 +3626,8 @@ void encounter_clear_pursuit(int encounter_handle /* @<eax> */)
  *   record was created (either create == 0 or the pool was full).
  */
 int encounter_find_pursuit(int encounter_handle /* @<eax> */,
-                 short pursuit_key /* @<bx> */, int threshold,
-                 char create_if_missing)
+                           short pursuit_key /* @<bx> */, int threshold,
+                           char create_if_missing)
 {
   char *encounter;
   char *pursuit;
@@ -3860,11 +3731,123 @@ void encounter_modify_pursuit_desires(int encounter_index, int squad_index,
   }
 }
 
-/* 0x5a050 — squad_initialize_starting_locations (squad_reset_starting_locations).
- * Initializes the starting-location bitfield for a squad. Retrieves the
- * encounter datum and scenario squad definition, then fills the bitfield
- * (at squad_record + 4) with all-ones via csmemset. Finally iterates each
- * starting location element and sets bit i if element+0x13 flag bit 0 is set.
+/* 0x59dd0 — encounter_determine_pursuit_availability.
+ * Walks the actor list of an encounter (or the encounterless list when
+ * encounter_index == -1) and tallies the other actors whose actor+0x1cc byte
+ * equals param_4, then writes the pursuit-availability out flags.
+ *
+ * Confirmed from disassembly:
+ *   - The ai_active byte (ai_globals+0x1) is re-read on every loop iteration.
+ *   - Tallies are word-compared: count_a (<6) counts state 5 with +0xa4 == 0
+ *     and +0x6e < 3; count_b (<4) counts state 7 with +0xa4 == 0; count_c
+ * counts state 5/7 with +0xa4 != 0; count_d counts actor+0x6a == 3.
+ *   - param_3's stack slot is overwritten with the dword limit (DEC/DEC chain:
+ *     1 -> 0, 2 -> 999, else max(count_d / 3, 3)) and read back as a word.
+ *   - out_12 is computed from the out_10/out_11 POINTER values
+ *     (`TEST EBX,EBX` on the out_10 pointer @0x59f34, `TEST EAX,EAX` on the
+ *     out_11 pointer @0x59f3b), not the bytes they point to.
+ *   - out_5 is never accessed.
+ *   - Store order: out_12, out_6, out_7, out_9, out_8.
+ */
+void encounter_determine_pursuit_availability(
+  int encounter_index, int actor_handle, int param_3, char param_4, char *out_5,
+  char *out_6, char *out_7, char *out_8, char *out_9, char *out_10,
+  char *out_11, char *out_12)
+{
+  char *actor;
+  int next;
+  int current;
+  short count_a;
+  short count_b;
+  short count_c;
+  short count_d;
+  short state;
+  char result;
+
+  if (*(char *)(*(char **)0x632574 + 1) != 0) {
+    if (encounter_index == -1) {
+      next = *(int *)(*(char **)0x632574 + 8);
+    } else {
+      next = *(int *)((char *)datum_get(*(data_t **)0x5ab270, encounter_index) +
+                      0x14);
+    }
+  }
+  count_d = 0;
+  count_b = 0;
+  count_c = 0;
+  count_a = 0;
+  while (*(char *)(*(char **)0x632574 + 1) != 0 && next != -1) {
+    current = next;
+    actor = (char *)datum_get(actor_data, next);
+    next = *(int *)(actor + 0x2c);
+    if (current != actor_handle && *(char *)(actor + 0x1cc) == param_4) {
+      state = *(short *)(actor + 0x6c);
+      if (state == 5) {
+        if (*(short *)(actor + 0xa4) != 0) {
+          count_c++;
+        } else if (*(short *)(actor + 0x6e) < 3) {
+          count_a++;
+        }
+      } else if (state == 7) {
+        if (*(short *)(actor + 0xa4) != 0) {
+          count_c++;
+        } else {
+          count_b++;
+        }
+      }
+    }
+    if (*(short *)(actor + 0x6a) == 3) {
+      count_d++;
+    }
+  }
+
+  if ((short)param_3 == 1) {
+    param_3 = 0;
+  } else if ((short)param_3 == 2) {
+    param_3 = 999;
+  } else {
+    param_3 = count_d / 3;
+    if (param_3 < 3) {
+      param_3 = 3;
+    }
+  }
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (param_4 != 0) {
+    result = actor_pursuit_find_nearby_actors(actor_handle, 1) >= 2;
+    *out_10 = result;
+    *(char *)(actor + 0x1cc) = result;
+  } else {
+    actor_pursuit_find_nearby_actors(actor_handle, 0);
+    *out_11 = *(int *)(actor + 0x1d0) != -1;
+    *(char *)(actor + 0x1cc) = 0;
+  }
+  *out_12 = (out_10 != NULL || out_11 != NULL) ? 1 : 0;
+  *out_6 = count_a < 6;
+  *out_7 = count_b < 4;
+  *out_9 = count_c < (short)param_3;
+  *out_8 = count_c < (short)param_3;
+
+  if (*(char *)0x5aca4a != 0 && encounter_index == *(int *)0x5ac9f4 &&
+      (actor_handle == *(int *)0x5ac9f8 || *(int *)0x5ac9f8 == -1)) {
+    actor = (char *)datum_get(actor_data, actor_handle);
+    csprintf((char *)0x5ab100,
+             "%s %04X: coord %d current %d/%d/%d max %d/%d/%d allow %c%c%c",
+             actor_type_get_name(*(short *)(actor + 4)), actor_handle & 0xffff,
+             (unsigned char)param_4, (int)count_a, (int)count_b, (int)count_c,
+             6, 4, (int)(short)param_3, *out_6 ? 'Y' : 'N', *out_7 ? 'Y' : 'N',
+             *out_8 ? 'Y' : 'N');
+    error(2, (char *)0x5ab100);
+    console_printf(0, (char *)0x5ab100);
+  }
+}
+
+/* 0x5a050 —squad_initialize_starting_locations
+ * (squad_reset_starting_locations). Initializes the starting-location bitfield
+ * for a squad. Retrieves the encounter datum and scenario squad definition,
+ * then fills the bitfield (at squad_record + 4) with all-ones via csmemset.
+ * Finally iterates each starting location element and sets bit i if
+ * element+0x13 flag bit 0 is set.
  *
  * Confirmed:
  *   - squad_index via EAX (@<eax>), encounter_handle via ECX (@<ecx>).
@@ -3878,7 +3861,7 @@ void encounter_modify_pursuit_desires(int encounter_index, int squad_index,
  *   - Loop counter is sign-extended to short (MOVSX ESI,AX at 0x5a105).
  */
 void squad_reset_starting_locations(int squad_index /* @<eax> */,
-                  int encounter_handle /* @<ecx> */)
+                                    int encounter_handle /* @<ecx> */)
 {
   char *encounter;
   char *scenario;
@@ -3933,13 +3916,13 @@ void squad_reset_starting_locations(int squad_index /* @<eax> */,
  *   - Platoon accumulator max 0x100 (MAXIMUM_PLATOONS_PER_MAP).
  *   - encounter_get_squad(encounter, squad_index) for squad records.
  *   - encounter_get_platoon(encounter, platoon_index) for platoon records.
- *   - squad_reset_starting_locations(squad_index @EAX, encounter_handle @ECX) initializes
- *     squad starting locations from the definition.
+ *   - squad_reset_starting_locations(squad_index @EAX, encounter_handle @ECX)
+ * initializes squad starting locations from the definition.
  *   - _ftol2 at 0x5a289 = (short)(squad_def->field_0x50 * 30.0f).
  *   - tag_block_get_element sizes: 0xe8 for squads, 0xac for platoons.
  */
 void encounter_new(short *squad_counter /* @<eax> */, void *encounter_def,
-                  short *platoon_counter)
+                   short *platoon_counter)
 {
   int encounter_handle;
   char *encounter;
@@ -4016,7 +3999,8 @@ void encounter_new(short *squad_counter /* @<eax> */, void *encounter_def,
       }
       *(unsigned char *)(squad_record + 0x10) =
         (unsigned char)((*(unsigned int *)(squad_def + 0x28) >> 5) & 1);
-      squad_reset_starting_locations(i /* @<eax> */, encounter_handle /* @<ecx> */);
+      squad_reset_starting_locations(i /* @<eax> */,
+                                     encounter_handle /* @<ecx> */);
       if (*(short *)(squad_def + 0x86) > 0 ||
           *(short *)(squad_def + 0x84) > 0) {
         sVar = 999;
@@ -4298,13 +4282,14 @@ void encounter_deactivate(int encounter_handle /* @<eax> */)
  *       encounter+0x3e timer, g_ai_override).
  *     - Gets scenario encounter def; checks def+0x7e (bsp_index) vs current.
  *     - If bsp match (or -1): builds encounter cluster bit-vector via
- *       encounter_compute_activation_cluster_bit_vector, intersects with pvs via bit_vector_and.
- *       If any visibility → activate via encounter_activate(@<eax>).
- *       Else: goto deactivate path.
+ *       encounter_compute_activation_cluster_bit_vector, intersects with pvs
+ * via bit_vector_and. If any visibility → activate via
+ * encounter_activate(@<eax>). Else: goto deactivate path.
  *     - Deactivate path: if encounter+0xd (active): decrement encounter+0xe
  *       timer, or zero timer and deactivate via encounter_deactivate(@<eax>).
  *     - Activate path: check encounter+0x20 squads for pending actors;
- *       set encounter+0xe=0 and call encounter_activate or encounter_deactivate.
+ *       set encounter+0xe=0 and call encounter_activate or
+ * encounter_deactivate.
  *
  * Confirmed:
  *   - CALL 0x18e3c0 (scenario_get) → [EBP-0x10].
@@ -4325,7 +4310,9 @@ void encounter_deactivate(int encounter_handle /* @<eax> */)
  *   - advance: local_c = actor+0x2c at 0x5a945.
  *   - encounter loop: data_iterator_new([EBP-0x20], 0x5ab270) at 0x5a957.
  *   - [EBP-0x18] = iter.datum_handle = encounter_handle.
- *   - cluster bv build: encounter_compute_activation_cluster_bit_vector(enc_hdl,1,0x200,pvs,local_64) at 0x5a9e4.
+ *   - cluster bv build:
+ * encounter_compute_activation_cluster_bit_vector(enc_hdl,1,0x200,pvs,local_64)
+ * at 0x5a9e4.
  *   - cluster bv intersect: bit_vector_and(*(uint16_t*)(scenario+0x134), pvs,
  * local_64, 0) at 0x5a9fd.
  *   - encounter+0xe = 0x96 on activate-trigger at 0x5aa09.
@@ -4515,7 +4502,8 @@ LAB_encounters:
     if (*(int16_t *)(enc_def + 0x7e) == -1 ||
         *(int16_t *)(enc_def + 0x7e) == *(int16_t *)0x326a0c) {
       /* BSP matches: compute cluster visibility */
-      encounter_compute_activation_cluster_bit_vector(encounter_handle, 1, 0x200, (int)pvs, cluster_bv);
+      encounter_compute_activation_cluster_bit_vector(
+        encounter_handle, 1, 0x200, (int)pvs, cluster_bv);
       vis_result = bit_vector_and(*(int16_t *)(scenario + 0x134), (int)pvs,
                                   (int)cluster_bv, 0);
       if (!((enc_active == '\0' && in_editor == '\0') &&
@@ -4563,7 +4551,8 @@ LAB_encounters:
  *   1. Assert !encounter->enemy_visible (encounter+0x45 == 0).
  *   2. Set encounter+0x42 = 1 (reset/active flag).
  *   3. Clear encounter+0x4c (uint16 tally).
- *   4. Call encounter_clear_pursuit(encounter_handle) to drain the pursuit list.
+ *   4. Call encounter_clear_pursuit(encounter_handle) to drain the pursuit
+ * list.
  *   5. Walk all actors in this encounter (linked list at encounter+0x14,
  *      chained via actor+0x2c).  For each actor:
  *        - Iterate its props via prop_iterator_new / prop_iterator_next.
@@ -4584,8 +4573,8 @@ LAB_encounters:
  * next_actor_handle (actor+0x2c) at both loop-back paths. EBP-0x4 = actor ptr
  * (stored at 0x5ab63 after datum_get). EBP-0xc = prop_iter[2] (2-slot int
  * array: [0]=current handle read at 0x5aba6/0x5ac20/0x5ac2f, [1]=next handle
- * written by prop_iterator_new/prop_iterator_next). encounter_clear_pursuit: @<eax> register
- * convention (encounter_handle in EAX at 0x5aaf4). prop_data  =
+ * written by prop_iterator_new/prop_iterator_next). encounter_clear_pursuit:
+ * @<eax> register convention (encounter_handle in EAX at 0x5aaf4). prop_data  =
  * *(data_t**)0x5ab23c. actor_data = *(data_t**)0x6325a4. assert strings confirm
  * file "c:\\halo\\SOURCE\\ai\\encounters.c" lines 0x97f/0x99a/0x99f.
  */
@@ -4722,8 +4711,9 @@ void encounter_stand_down(int encounter_handle)
  * diverges (79.2% -> 92.0% VC71). The 16-byte `struct entry` assignment
  * reproduces the original's interleaved four-dword integer copy (no FPU).
  */
-bool encounter_post_combat_add_possibility(void *list, int actor_index, float score, int prop_index,
-                  int unit_index)
+bool encounter_post_combat_add_possibility(void *list, int actor_index,
+                                           float score, int prop_index,
+                                           int unit_index)
 {
   struct entry {
     int d0;
@@ -4830,8 +4820,8 @@ void encounter_set_deaf(int encounter_handle, char param_2)
 /* 0x5adc0 — encounter_squad_delay_timer_finished.
  * Called when a squad's delay timer expires (count < 0x10 ticks).
  * Resets the squad's delay counter to 0, then optionally triggers
- * ai_scripting_magically_see_players on the squad (if squad_def flag 0x10 is set),
- * and logs a debug message if the debug flag (0x5aca4b) is set.
+ * ai_scripting_magically_see_players on the squad (if squad_def flag 0x10 is
+ * set), and logs a debug message if the debug flag (0x5aca4b) is set.
  *
  * param_1 = encounter_handle (int, full datum handle)
  * param_2 = squad_index (int16_t, index within encounter)
@@ -4985,7 +4975,8 @@ void encounter_update_squads(int encounter_handle)
  * entries).
  *   - Float constants: 0x25afcc=0.75f, 0x253398=0.5f, 0x25337c=0.25f.
  */
-bool encounter_test_rule(int encounter_handle /* @<eax> */, void *rule /* @<edi> */)
+bool encounter_test_rule(int encounter_handle /* @<eax> */,
+                         void *rule /* @<edi> */)
 {
   char *encounter;
   char *platoon;
@@ -5122,7 +5113,7 @@ void encounters_initialize_for_new_map(void)
       encounter_def =
         tag_block_get_element((void *)(scenario + 0x42c), (int)i, 0xb0);
       encounter_new(&squad_counter /* @<eax> */, encounter_def,
-                   &platoon_counter);
+                    &platoon_counter);
     }
   }
 }
@@ -5423,10 +5414,10 @@ void encounter_build_firing_position_owner_actor_indices(
  *     loaded into AL, i.e. a bool: 0 when the actor was already recorded (or
  *     the record could not be obtained), 1 when a new entry was inserted.
  *     MOV byte ptr [EBP-1],0 at 0x5b5f1 initialises it before the first call.
- *   - encounter_find_pursuit receives encounter_handle in EAX (@<eax>, from [EBP+0x8])
- *     and firing_position_index in BX (@<bx>, from [EBP+0x10]); the pushes are
- *     PUSH 1 then PUSH [EBP+0x14], and ADD ESP,0x8 confirms exactly two stack
- *     args -> (threshold = [EBP+0x14], create_if_missing = 1).  Unlike the
+ *   - encounter_find_pursuit receives encounter_handle in EAX (@<eax>, from
+ * [EBP+0x8]) and firing_position_index in BX (@<bx>, from [EBP+0x10]); the
+ * pushes are PUSH 1 then PUSH [EBP+0x14], and ADD ESP,0x8 confirms exactly two
+ * stack args -> (threshold = [EBP+0x14], create_if_missing = 1).  Unlike the
  *     sibling lookup at 0x5b6e0 this one creates the record.
  *   - datum_get is called as PUSH EAX (handle) ; PUSH ECX (*0x5ab26c), so
  *     datum_get(pursuit_data, pursuit_handle).
@@ -5445,15 +5436,15 @@ void encounter_build_firing_position_owner_actor_indices(
  *     PUSH -1 / CALL system_exit at lines 0x407 and 0x414.
  *
  * Call-site verification:
- *   encounter_find_pursuit | EAX = [EBP+0x8]            | encounter_handle      | match
- *                | BX  = EBX = [EBP+0x10]     | firing_position_index | match
- *                | push [EBP+0x14] (2nd push) | threshold             | match
- *                | push 1          (1st push) | create_if_missing = 1 | match
- *   datum_get    | push ECX = *0x5ab26c       | pursuit data_t        | match
- *                | push EAX = encounter_find_pursuit    | pursuit_handle        | match
- *   game_time_get| no arguments, result in EAX                        | match
- *   display_assert | pushes msg, file, 0x407 / 0x414, 1               | match
- *   system_exit  | push -1                                            | match
+ *   encounter_find_pursuit | EAX = [EBP+0x8]            | encounter_handle |
+ * match | BX  = EBX = [EBP+0x10]     | firing_position_index | match | push
+ * [EBP+0x14] (2nd push) | threshold             | match | push 1          (1st
+ * push) | create_if_missing = 1 | match datum_get    | push ECX = *0x5ab26c |
+ * pursuit data_t        | match | push EAX = encounter_find_pursuit    |
+ * pursuit_handle        | match game_time_get| no arguments, result in EAX |
+ * match display_assert | pushes msg, file, 0x407 / 0x414, 1               |
+ * match system_exit  | push -1                                            |
+ * match
  */
 char encounter_mark_examined_pursuit_position(int enc_idx, int actor_handle,
                                               int16_t firing_pos,
@@ -5465,8 +5456,8 @@ char encounter_mark_examined_pursuit_position(int enc_idx, int actor_handle,
   volatile char inserted;
 
   inserted = 0;
-  pursuit_handle =
-    encounter_find_pursuit(enc_idx /* @<eax> */, firing_pos /* @<bx> */, threat_enc, 1);
+  pursuit_handle = encounter_find_pursuit(
+    enc_idx /* @<eax> */, firing_pos /* @<bx> */, threat_enc, 1);
   if (pursuit_handle == -1) {
     return inserted;
   }
@@ -5508,11 +5499,11 @@ char encounter_mark_examined_pursuit_position(int enc_idx, int actor_handle,
 
 /* encounter_pursuit_position_already_examined (0x5b6e0) — Look up the
  * "examined pursuit position" record for `firing_position_index` inside an
- * encounter (via encounter_find_pursuit, non-creating) and report whether `position`
- * has already been examined by that record.
+ * encounter (via encounter_find_pursuit, non-creating) and report whether
+ * `position` has already been examined by that record.
  *
- * The record layout is the one documented on encounter_find_pursuit (0x28 bytes):
- *   +0x02 int16_t  firing_position_index (asserted to match the argument)
+ * The record layout is the one documented on encounter_find_pursuit (0x28
+ * bytes): +0x02 int16_t  firing_position_index (asserted to match the argument)
  *   +0x04 int      cost/score            (reported through cost_out)
  *   +0x08 int16_t  examined count        (reported through count_out)
  *   +0x0c int[6]   examined positions    (scanned for `position`)
@@ -5544,14 +5535,14 @@ char encounter_mark_examined_pursuit_position(int enc_idx, int actor_handle,
  *     PUSH -1 / CALL system_exit; the merged ADD ESP,0x14 covers both.
  *
  * Call-site verification:
- *   encounter_find_pursuit | EAX = [EBP+0x8]           | encounter_handle       | match
- *                | BX  = EDI = [EBP+0x10]    | firing_position_index  | match
- *                | push [EBP+0x14] (2nd push)| threshold              | match
- *                | push 0          (1st push)| create_if_missing = 0  | match
- *   datum_get    | push ECX = *0x5ab26c      | pursuit data_t         | match
- *                | push EAX = encounter_find_pursuit   | pursuit_handle         | match
- *   display_assert | pushes msg, file, 0x434, 1                       | match
- *   system_exit  | push -1                                            | match
+ *   encounter_find_pursuit | EAX = [EBP+0x8]           | encounter_handle |
+ * match | BX  = EDI = [EBP+0x10]    | firing_position_index  | match | push
+ * [EBP+0x14] (2nd push)| threshold              | match | push 0          (1st
+ * push)| create_if_missing = 0  | match datum_get    | push ECX = *0x5ab26c |
+ * pursuit data_t         | match | push EAX = encounter_find_pursuit   |
+ * pursuit_handle         | match display_assert | pushes msg, file, 0x434, 1 |
+ * match system_exit  | push -1                                            |
+ * match
  *
  * Store-offset table (writes are only through the two out pointers):
  *   *count_out (int16) | CX  = 0, or pursuit+0x08 | MOV word ptr [EAX],CX
@@ -5570,7 +5561,7 @@ bool encounter_pursuit_position_already_examined(
 
   pursuit_handle =
     encounter_find_pursuit(encounter_handle /* @<eax> */,
-                 firing_position_index /* @<bx> */, threshold, 0);
+                           firing_position_index /* @<bx> */, threshold, 0);
   cost = -1;
   count = 0;
   already_examined = 0;
@@ -5630,7 +5621,8 @@ bool encounter_pursuit_position_already_examined(
  *   line 0x623  found_index != NONE   (preferred-location pass)
  *   line 0x665  found_index != NONE   (unused-location pass)
  */
-int16_t encounter_get_actor_starting_location(int encounter_index, int squad_index, int flag)
+int16_t encounter_get_actor_starting_location(int encounter_index,
+                                              int squad_index, int flag)
 {
   char *encounter;
   char *encounter_definition;
@@ -5662,8 +5654,8 @@ int16_t encounter_get_actor_starting_location(int encounter_index, int squad_ind
       count++;
   }
   if (count > 0) {
-    random_index =
-      seed_random_range((unsigned int *)get_global_random_seed_address(), 0, count);
+    random_index = seed_random_range(
+      (unsigned int *)get_global_random_seed_address(), 0, count);
     for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
       if ((*(unsigned long *)(squad + (index >> 5) * 4) &
            (1 << (index & 0x1f))) != 0 &&
@@ -5715,8 +5707,8 @@ int16_t encounter_get_actor_starting_location(int encounter_index, int squad_ind
              ((*(int *)(squad_definition + 0xd0) + 0x1f) >> 5) * 4);
   }
   if (count > 0) {
-    random_index =
-      seed_random_range((unsigned int *)get_global_random_seed_address(), 0, count);
+    random_index = seed_random_range(
+      (unsigned int *)get_global_random_seed_address(), 0, count);
     for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
       if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
            (1 << (index & 0x1f))) != 0 &&
@@ -5885,12 +5877,12 @@ short encounter_post_combat_select_random_behavior(void *behaviors,
  * fight is over, and stamps them onto the chosen actors.
  *
  * Four weighted candidate categories are scored, each holding the best two
- * entries (see encounter_post_combat_add_possibility, stride 0x10, key at +0x4):
- *   category 0 — a nearby prop the actor can reach on foot (base weight 0.7f)
- *   category 1 — the fallback/long-range case (base weight 0.0f)
- *   category 2 — props whose prop+0x60 flag is clear (base weight 0.4f)
- *   category 3 — the actor's own unit, scored from its size at unit+0x3da
- * Up to two primary behaviours are drawn from those categories by
+ * entries (see encounter_post_combat_add_possibility, stride 0x10, key at
+ * +0x4): category 0 — a nearby prop the actor can reach on foot (base weight
+ * 0.7f) category 1 — the fallback/long-range case (base weight 0.0f) category 2
+ * — props whose prop+0x60 flag is clear (base weight 0.4f) category 3 — the
+ * actor's own unit, scored from its size at unit+0x3da Up to two primary
+ * behaviours are drawn from those categories by
  * encounter_post_combat_select_random_behavior, de-duplicated by actor index
  * and by the record's +0xc key, then written to
  * primary_postcombat_behaviors[0..1].  A separate pass picks the
@@ -5957,17 +5949,17 @@ short encounter_post_combat_select_random_behavior(void *behaviors,
  * push [ebp+8]        match 0x5bcaa datum_get          arg1 push [0x6325a4]
  * arg2 push [ebp-0x34]     match 0x5bcc9 tag_get            arg1 push
  * 0x61637472        arg2 push [esi+0x58]     match 0x5bce8 rating             4
- * pushes ([esi+0x18],1,0,0); FSTP [ebp-8] -> ST0     match 0x5bcf6 prop_iterator_new
- * arg1 lea [ebp-0x44]  arg2 push edi (cur actor)       match 0x5bd05
- * prop_iterator_next       arg1 lea [ebp-0x44]                                  match
- *   0x5be2b encounter_post_combat_add_possibility       5 pushes: [prop+0x18], [ebp-0x44], score(FSTP
- * [esp]), edi, lea [ebp+edx-0xe4]; ADD ESP,0x14               match 0x5be69
- * object_get_..type  arg1 push [esi+0x18]        arg2 push 3              match
- *   0x5be9a encounter_post_combat_add_possibility       5 pushes: -1, -1, score(FSTP [esp]), edi,
- *                              lea [ebp-0x84] (= &candidates[3]); ADD ESP,0x14
- * match 0x5bec4 select_random      EBX = lea [ebp-0xe4] (@<ebx>), push lea
- * [ebp-0x64]   match 0x5bfbe select_random      EBX = lea [ebp-0xe4] (@<ebx>),
- * push lea [ebp-0x54]   match 0x5c055 rating             4 pushes
+ * pushes ([esi+0x18],1,0,0); FSTP [ebp-8] -> ST0     match 0x5bcf6
+ * prop_iterator_new arg1 lea [ebp-0x44]  arg2 push edi (cur actor)       match
+ * 0x5bd05 prop_iterator_next       arg1 lea [ebp-0x44] match 0x5be2b
+ * encounter_post_combat_add_possibility       5 pushes: [prop+0x18],
+ * [ebp-0x44], score(FSTP [esp]), edi, lea [ebp+edx-0xe4]; ADD ESP,0x14 match
+ * 0x5be69 object_get_..type  arg1 push [esi+0x18]        arg2 push 3 match
+ *   0x5be9a encounter_post_combat_add_possibility       5 pushes: -1, -1,
+ * score(FSTP [esp]), edi, lea [ebp-0x84] (= &candidates[3]); ADD ESP,0x14 match
+ * 0x5bec4 select_random      EBX = lea [ebp-0xe4] (@<ebx>), push lea [ebp-0x64]
+ * match 0x5bfbe select_random      EBX = lea [ebp-0xe4] (@<ebx>), push lea
+ * [ebp-0x54]   match 0x5c055 rating             4 pushes
  * ([esi+0x18],1,0,0); FSTP [ebp-8]            match 0x5c05e team 1 push EDI
  * (cur actor); ADD ESP,0x14 merges the preceding 4-arg rating cleanup; TEST
  * AX,AX           match 0x5c267 prop_get_active..  arg1 push esi (cur actor)
@@ -5977,21 +5969,17 @@ short encounter_post_combat_select_random_behavior(void *behaviors,
  * arg1 push [0x6325a4]        arg2 push [ebp-0x30]     match 0x5c35b datum_get
  * arg1 push [0x6325a4]        arg2 push [ebp-0x2c]     match
  *
- * Store-offset table (candidate record, stride 0x10, from encounter_post_combat_add_possibility's own
- * disassembly plus this function's pushes — struct not modelled in types.h):
- *   +0x00  actor index      (EDI at both call sites)
- *   +0x04  score            (float, pushed via push-then-FSTP [esp])
- *   +0x08  prop index       (prop_iterator[0], or -1 for category 3)
- *   +0x0c  dedup key        (*(int *)(prop+0x18), or -1 for category 3)
- * Actor stores in the tail:
- *   actor+0x1e4  int16  post-combat state from the 0x25d21c table / leader
- *                       behaviour / literal 6 for the mounted companion
- *   actor+0x1e8  int    prop index from record+0x8, or NONE for the leader
- * Encounter stores in the epilogue:
- *   encounter+0x47  byte  1
- *   encounter+0x48  byte  0
- *   encounter+0x4a  int16 0x78
- *   encounter+0x4c  int16 0
+ * Store-offset table (candidate record, stride 0x10, from
+ * encounter_post_combat_add_possibility's own disassembly plus this function's
+ * pushes — struct not modelled in types.h): +0x00  actor index      (EDI at
+ * both call sites) +0x04  score            (float, pushed via push-then-FSTP
+ * [esp]) +0x08  prop index       (prop_iterator[0], or -1 for category 3) +0x0c
+ * dedup key        (*(int *)(prop+0x18), or -1 for category 3) Actor stores in
+ * the tail: actor+0x1e4  int16  post-combat state from the 0x25d21c table /
+ * leader behaviour / literal 6 for the mounted companion actor+0x1e8  int prop
+ * index from record+0x8, or NONE for the leader Encounter stores in the
+ * epilogue: encounter+0x47  byte  1 encounter+0x48  byte  0 encounter+0x4a
+ * int16 0x78 encounter+0x4c  int16 0
  *
  * Uncertain:
  *   - The meaning of the leader fields at +0x1b8 and +0x3b4 (a ratio and its
@@ -6134,7 +6122,8 @@ void encounter_post_combat(int encounter_handle)
           if (*(char *)(prop + 0x60) != '\0') {
             found_prop_of_interest = 1;
           }
-          if (((bool (*)(void *, int, float, int, int))encounter_post_combat_add_possibility)(
+          if (((bool (*)(void *, int, float, int,
+                         int))encounter_post_combat_add_possibility)(
                 &candidates[category][0], current_actor_index, score,
                 prop_iterator[0], *(int *)(prop + 0x18))) {
             any_behavior_added = 1;
@@ -6146,7 +6135,8 @@ void encounter_post_combat(int encounter_handle)
     if (found_prop_of_interest != 0) {
       unit = (char *)object_get_and_verify_type(*(int *)(actor + 0x18), 3);
       unit_size = *(int16_t *)(unit + 0x3da);
-      if (((bool (*)(void *, int, float, int, int))encounter_post_combat_add_possibility)(
+      if (((bool (*)(void *, int, float, int,
+                     int))encounter_post_combat_add_possibility)(
             &candidates[3][0], current_actor_index,
             (float)unit_size * 0.7f + rating, -1, -1)) {
         any_behavior_added = 1;
@@ -6355,6 +6345,114 @@ void encounter_post_combat(int encounter_handle)
   *(int16_t *)(encounter + 0x4c) = 0;
 }
 
+/* encounter_place_actor (0x5c3a0) — pick a starting location for one actor of
+ * squad `platoon_index` in encounter `encounter_handle`, resolve its actor
+ * variant from the scenario actor palette, and place it via actor_place.
+ * Returns true when actor_place returned a handle other than NONE.
+ *
+ * Confirmed (disassembly, 0x170 bytes, EBP frame, SUB ESP,0x14):
+ *   - encounter_handle arrives in EBX (@<ebx>, comment-form in kb.json); it is
+ *     masked with AND 0xffff for the scenario encounters block (+0x42c,
+ *     stride 0xb0) and pushed whole to encounter_get_actor_starting_location,
+ *     ai_consider_major_upgrade and actor_place.
+ *   - The squad index is MOVSX word [EBP+8] (squads block +0x80, stride 0xe8).
+ *   - encounter_get_actor_starting_location result tested CMP AX,0xffff.
+ *   - Starting location (squad_def+0xd0, stride 0x1c); its int16 +0x18 is the
+ *     actor-palette index, falling back to squad_def+0x20 when NONE. The
+ *     squad_def+0x20 word is read BEFORE the second global_scenario_get call.
+ *   - Palette index must be in [0, scenario+0x420 count); otherwise the
+ *     "cannot spawn actors" warning is emitted with encounter_def and
+ *     squad_def (both start with their name).
+ *   - Palette element (+0x420, stride 0x10) +0xc is the actv tag index; NONE
+ *     returns false without the warning.
+ *   - force_major is zeroed after tag_get('actv'); upgrade chance is only
+ *     consulted when actv+0x30 != NONE.
+ *   - ai_consider_major_upgrade gets the RAW [EBP+8] dword (not MOVSX), and
+ *     its AL result overwrites force_major.
+ *   - actor_place's char arg is pushed as the whole dword at [EBP-5].
+ *
+ * Call-site verification (first PUSH is the last argument):
+ *   0x5c3b5 global_scenario_get | none | match
+ *   0x5c3c0 tag_block_get_element | 0xb0 ; EBX&0xffff ; scen+0x42c | match
+ *   0x5c3d8 tag_block_get_element | 0xe8 ; ESI=(int16)[EBP+8] ; EAX+0x80 |
+ * match 0x5c3e5 encounter_get_actor_starting_location | ECX=[EBP+0x10] ; ESI ;
+ * EBX | match 0x5c404 tag_block_get_element | 0x1c ; EDX=(int16)AX ; EDI+0xd0 |
+ * match 0x5c417 global_scenario_get | none | match 0x5c456
+ * tag_block_get_element | 0x10 ; ECX=(int16)index ; scen+0x420 | match 0x5c473
+ * tag_get | EAX=[pal+0xc] ; 'actv' | match 0x5c4a8 ai_get_major_upgrade_chance
+ * | &[EBP-0xc] ; &[EBP-1] ; &[EBP-5] ; EAX=word [EDI+0x80] -> (..,
+ * &force_major, &is_random, &random_chance) | match 0x5c4c0
+ * ai_consider_major_upgrade | ECX=[EBP-0xc] ; EDX=[EBP+8] ; EBX | match 0x5c4e0
+ * actor_place | EAX=[EBP+0xc] ; ECX=[EBP-5] ; EDX=[EBP-0x10] ; ESI ; EBX ;
+ * ECX=[pal+0xc] | match 0x5c500 error | EDI ; EDX=[EBP-0x14] ; 0x25dc18 ; 2 |
+ * match
+ *
+ * 0x5c3a0 / encounters.obj
+ */
+bool encounter_place_actor(int platoon_index, int delay, int flag,
+                           int encounter_handle)
+{
+  char *encounter_definition;
+  char *squad_definition;
+  char *starting_location;
+  char *palette_entry;
+  char *actor_variant;
+  char *scenario;
+  int squad_index;
+  int16_t location_index;
+  int16_t default_variant;
+  int16_t variant_index;
+  char force_major;
+  char is_random;
+  float random_chance;
+
+  encounter_definition = (char *)tag_block_get_element(
+    (char *)global_scenario_get() + 0x42c, encounter_handle & 0xffff, 0xb0);
+  squad_index = (int16_t)platoon_index;
+  squad_definition = (char *)tag_block_get_element(encounter_definition + 0x80,
+                                                   squad_index, 0xe8);
+  location_index =
+    encounter_get_actor_starting_location(encounter_handle, squad_index, flag);
+  if (location_index != NONE) {
+    starting_location = (char *)tag_block_get_element(squad_definition + 0xd0,
+                                                      location_index, 0x1c);
+    default_variant = *(int16_t *)(squad_definition + 0x20);
+    scenario = (char *)global_scenario_get();
+    variant_index = *(int16_t *)(starting_location + 0x18);
+    if (variant_index == NONE) {
+      variant_index = default_variant;
+    }
+    if (variant_index >= 0 && variant_index < *(int *)(scenario + 0x420)) {
+      palette_entry = (char *)tag_block_get_element(
+        (char *)global_scenario_get() + 0x420, variant_index, 0x10);
+      if (*(int *)(palette_entry + 0xc) != NONE) {
+        actor_variant =
+          (char *)tag_get(0x61637476, *(int *)(palette_entry + 0xc));
+        force_major = 0;
+        if (*(int *)(actor_variant + 0x30) != NONE) {
+          is_random = 0;
+          random_chance = 0.0f;
+          ai_get_major_upgrade_chance(*(int16_t *)(squad_definition + 0x80),
+                                      &force_major, &is_random, &random_chance);
+          if (is_random) {
+            force_major = ai_consider_major_upgrade(
+              encounter_handle, (int16_t)platoon_index, random_chance);
+          }
+        }
+        return actor_place(*(int *)(palette_entry + 0xc), encounter_handle,
+                           squad_index, starting_location, force_major,
+                           (int16_t)delay) != NONE;
+      }
+    } else {
+      error(2,
+            "WARNING: cannot spawn actors in %s/%s because the actor variant "
+            "specified for this squad is NONE or invalid",
+            encounter_definition, squad_definition);
+    }
+  }
+  return false;
+}
+
 /* encounter_spawn_actor (0x5c510) — reserve a starting location for one actor
  * of an encounter's squad and re-arm the two respawn delay timers.
  *
@@ -6419,8 +6517,8 @@ void encounter_post_combat(int encounter_handle)
  *   RET. So this function's caller-visible return is ALWAYS 0/false,
  *   independent of whether a spawn actually happened; modeled here as a
  *   single trailing `return 0` matching that shared epilogue exactly, kept
- *   as `bool` (not void) so callers that check it (encounter_update_respawn) compile
- *   to the same AL-based TEST/JZ shape as the reference. The pre-existing
+ *   as `bool` (not void) so callers that check it (encounter_update_respawn)
+ * compile to the same AL-based TEST/JZ shape as the reference. The pre-existing
  *   caller (ai_profile.c:990) already discards the result as a statement,
  *   so this is behavior-preserving there.
  *
@@ -6436,8 +6534,7 @@ bool encounter_spawn_actor(int profile_index, int squad_index)
   float delay_max;
 
   if (*(char *)(*(char **)0x632574 + 1) != '\0') {
-    if (encounter_place_actor(squad_index, 0, 1,
-                                              profile_index /* @<ebx> */)) {
+    if (encounter_place_actor(squad_index, 0, 1, profile_index /* @<ebx> */)) {
       encounter = (char *)datum_get(*(data_t **)0x5ab270, profile_index);
       encounter_def = (char *)tag_block_get_element(
         (char *)global_scenario_get() + 0x42c,
@@ -6514,8 +6611,8 @@ void encounter_set_respawn(int encounter_handle, char flag)
   }
 }
 
-/* encounter_update_respawn (0x5c680) — per-tick squad recruit-spawn attempt for one
- * encounter. Called from encounters_update's per-encounter dispatch
+/* encounter_update_respawn (0x5c680) — per-tick squad recruit-spawn attempt for
+ * one encounter. Called from encounters_update's per-encounter dispatch
  * (encounters.c:7245).
  *
  * Confirmed (0x18 bytes locals, EBP frame, no _chkstk):
@@ -6710,7 +6807,7 @@ void encounter_update_respawn(int encounter_handle)
     if (recruit_count > 0 && *(int16_t *)(encounter + 0x3e) == 0) {
       recruit_count =
         seed_random_range((unsigned int *)get_global_random_seed_address(), 0,
-                     (int16_t)recruit_count);
+                          (int16_t)recruit_count);
 
       j = 0;
       if (*(int16_t *)(encounter + 0x6) > j) {
@@ -6772,7 +6869,8 @@ void encounter_update_respawn(int encounter_handle)
  *   - Second FUN_0005af70 call: EAX=encounter_handle, EDI=platoon_def+0x30.
  *   - BL = ~(*(uint32_t*)(platoon_def+0x20) >> 2) & 1 (attacking flag).
  *   - Loop counter stored/restored via [EBP-0xc] / DI (16-bit); EBX=[EBP-0x10]
- *     (encounter) restored at bottom; ESI=platoon record from encounter_get_platoon.
+ *     (encounter) restored at bottom; ESI=platoon record from
+ * encounter_get_platoon.
  *
  * Call-site verification (encounters_update @ 0x5df4b):
  *   arg1 | PUSH EAX ([EBP-0x8] = encounter_handle) | encounter_handle | YES
@@ -6810,7 +6908,7 @@ void encounter_update_platoons(int encounter_handle)
       /* Maneuvering rule: evaluate once (platoon[1] is the latch). */
       if (platoon[1] == '\0') {
         result = (char)encounter_test_rule(encounter_handle /* @<eax> */,
-                                    platoon_def + 0x3c /* @<edi> */);
+                                           platoon_def + 0x3c /* @<edi> */);
         platoon[1] = result;
         if (result != '\0' && *(char *)0x5aca4b != '\0') {
           console_printf(0, "%s/%s triggered maneuvering rule", enc_def_elt,
@@ -6824,7 +6922,7 @@ void encounter_update_platoons(int encounter_handle)
         new_flag = (char)(~(flags >> 2) & 1u);
         if (platoon[0] != new_flag) {
           result = (char)encounter_test_rule(encounter_handle /* @<eax> */,
-                                      platoon_def + 0x30 /* @<edi> */);
+                                             platoon_def + 0x30 /* @<edi> */);
           if (result != '\0') {
             platoon[0] = new_flag;
             if (*(char *)0x5aca4b != '\0') {
@@ -6841,6 +6939,315 @@ void encounter_update_platoons(int encounter_handle)
     }
     i = i + 1;
   } while ((short)i < *(short *)(encounter + 0xa));
+}
+
+/* encounter_update_follow (0x5ca80) — move an encounter's actors into the
+ * squad whose firing positions are nearest the thing the encounter follows.
+ *
+ * Dormant (ported:false) body for the standalone build.
+ *
+ * Runtime encounter record (encounter_data datum, raw offsets as in this TU):
+ *   +0x06 int16 squad count, +0x62 int16 follow type, +0x64 int follow handle,
+ *   +0x68 float migrate tolerance.
+ * Confirmed (disassembly):
+ *   - follow type 1: every player's unit (player+0x34) up to 8 targets
+ *     (data_iterator over player_data 0x5aa6d4);
+ *     type 2: the unit at +0x64 (object_try_and_get_and_verify_type mask 3),
+ *     cleared to NONE when it is gone; type 3: the ai index at +0x64, each
+ *     actor's unit (actor+0x18), up to 8; anything else returns.
+ *   - per squad (squads block stride 0xe8, flag byte +0x28 bit 0x20): three
+ *     64-bit masks (squad enabled, runtime squad +0x10 set, squad +0x18 > 0),
+ *     running total of squad+0x18 (int16), and a firing-position group mask
+ *     OR'd from the three dwords at squad_def+0x60 (platoon byte set) or
+ *     +0x54 (otherwise / bad platoon, which warns via error(2, ...)).
+ *   - the encounter actor iterator (0x59a00/0x59a50) is inlined in the
+ *     original; it is called here, same TU and same behavior.
+ *   - the target chosen when several exist is the LAST one with a finite
+ *     nearest-actor distance (no min selection; `test ah,5; jp` at 0x5ce92).
+ *   - firing positions (block +0x98, stride 0x18): group int16 at +0xc,
+ *     26 group distances; best = min over enabled squads, current = max over
+ *     squads that have units; migrate when sqrt(best) < sqrt(current) - tol,
+ *     tol = +0x68 when > 0 else 2.0f; `current == NONE` migrates outright.
+ *   - console_printf args pushed as (0, fmt, def, current_name, current_d,
+ *     best_name, best_d, tol, verdict) with doubles via FSTP QWORD.
+ * Uncertain: meaning of the three OR'd dwords (kept as squad_def raw reads).
+ */
+void encounter_update_follow(int encounter_handle)
+{
+  char *encounter;
+  encounter_definition *encounter_def;
+  int targets[8];
+  short target_count;
+  int follow_target;
+  vector3_t follow_position;
+  int ai_iter[6]; /* Three selector words plus a three-word actor iterator. */
+  data_iter_t player_iter;
+  player_data_t *player;
+  char *index_actor;
+  unsigned int squad_mask[2];
+  unsigned int active_mask[2];
+  unsigned int occupied_mask[2];
+  unsigned int group_masks[MAXIMUM_SQUADS_PER_ENCOUNTER];
+  unsigned int combined_groups;
+  short total_units;
+  short squad_index;
+  char *squad_def;
+  char *squad;
+  unsigned int bit;
+  unsigned int groups;
+  short platoon_index;
+  int i;
+  float target_distances[8];
+  vector3_t target_positions[8];
+  int actor_iter[3];
+  actor_t *actor;
+  float dx, dy, dz, distance;
+  float group_distances[26];
+  void *firing_position;
+  short group;
+  float best_distance, current_distance, squad_distance;
+  short best_squad, current_squad;
+  float best_real, current_real, tolerance;
+  char migrate;
+  char *best_def;
+  char *current_def;
+
+  encounter = (char *)datum_get(encounter_data, encounter_handle);
+  encounter_def = (encounter_definition *)tag_block_get_element(
+    (char *)global_scenario_get() + 0x42c, encounter_handle & 0xffff, 0xb0);
+  follow_target = -1;
+  target_count = 0;
+
+  switch (*(short *)(encounter + 0x62)) {
+  case 1:
+    data_iterator_new(&player_iter, player_data);
+    player = (player_data_t *)data_iterator_next(&player_iter);
+    if (player == NULL) {
+      return;
+    }
+    do {
+      if (player->unit_handle != -1 && target_count < 8) {
+        targets[target_count] = player->unit_handle;
+        target_count++;
+      }
+      player = (player_data_t *)data_iterator_next(&player_iter);
+    } while (player != NULL);
+    break;
+  case 2:
+    if (object_try_and_get_and_verify_type(*(int *)(encounter + 0x64), 3) ==
+        NULL) {
+      *(int *)(encounter + 0x64) = -1;
+      return;
+    }
+    targets[0] = *(int *)(encounter + 0x64);
+    target_count = 1;
+    goto have_targets;
+  case 3:
+    if (*(int *)(encounter + 0x64) == -1) {
+      return;
+    }
+    ai_index_actor_iterator_new(*(int *)(encounter + 0x64), ai_iter);
+    index_actor = (char *)ai_index_actor_iterator_next(ai_iter);
+    if (index_actor == NULL) {
+      return;
+    }
+    do {
+      if (target_count >= 8) {
+        break;
+      }
+      targets[target_count] = ((actor_t *)index_actor)->field_018;
+      target_count++;
+      index_actor = (char *)ai_index_actor_iterator_next(ai_iter);
+    } while (index_actor != NULL);
+    break;
+  default:
+    return;
+  }
+  if (target_count <= 0) {
+    return;
+  }
+
+have_targets:
+  combined_groups = 0;
+  total_units = 0;
+  csmemset(squad_mask, 0, 8);
+  csmemset(active_mask, 0, 8);
+  csmemset(occupied_mask, 0, 8);
+  for (squad_index = 0; squad_index < *(short *)(encounter + 6);
+       squad_index++) {
+    squad_def =
+      (char *)tag_block_get_element(&encounter_def->squads, squad_index, 0xe8);
+    if ((*(unsigned char *)(squad_def + 0x28) & 0x20) == 0) {
+      continue;
+    }
+    squad = encounter_get_squad(encounter, squad_index);
+    bit = 1u << (squad_index & 0x1f);
+    squad_mask[squad_index >> 5] |= bit;
+    total_units += *(short *)(squad + 0x18);
+    if (*(char *)(squad + 0x10) == '\0') {
+      continue;
+    }
+    active_mask[squad_index >> 5] |= bit;
+    groups = 0;
+    platoon_index = *(short *)(squad_def + 0x22);
+    if (platoon_index >= 0 && platoon_index < encounter_def->platoons.count &&
+        *encounter_get_platoon(encounter, platoon_index) != '\0') {
+      for (i = 0; i < 3; i++) {
+        groups |= ((unsigned int *)(squad_def + 0x60))[i];
+      }
+    } else {
+      if (platoon_index < 0 || platoon_index >= encounter_def->platoons.count) {
+        if (platoon_index != -1) {
+          error(2,
+                "WARNING: squad %s/%s has an invalid platoon - %d is "
+                "outside range of [0, %d)",
+                encounter_def, squad_def, (int)platoon_index,
+                encounter_def->platoons.count);
+        }
+      }
+      for (i = 0; i < 3; i++) {
+        groups |= ((unsigned int *)(squad_def + 0x54))[i];
+      }
+    }
+    combined_groups |= groups;
+    group_masks[squad_index] = groups;
+    if (*(short *)(squad + 0x18) > 0) {
+      occupied_mask[squad_index >> 5] |= bit;
+    }
+  }
+  if (total_units <= 0 || combined_groups == 0) {
+    return;
+  }
+
+  if (target_count == 1) {
+    follow_target = targets[0];
+    object_get_world_position(targets[0], &follow_position);
+  } else {
+    if (target_count > 0) {
+      for (i = 0; i < target_count; i++) {
+        target_distances[i] = 3.4028235e+38f;
+      }
+      for (i = 0; i < target_count; i++) {
+        object_get_world_position(targets[i], &target_positions[i]);
+      }
+    }
+    encounter_actor_iterator_new(actor_iter, encounter_handle);
+    while ((actor = (actor_t *)encounter_actor_iterator_next(actor_iter)) !=
+           NULL) {
+      if ((squad_mask[actor->field_03a >> 5] &
+           (1u << (actor->field_03a & 0x1f))) != 0 &&
+          target_count > 0) {
+        for (i = 0; i < target_count; i++) {
+          dx = target_positions[i].x - actor->body_position.x;
+          dy = target_positions[i].y - actor->body_position.y;
+          dz = target_positions[i].z - actor->body_position.z;
+          distance = dx * dx + dy * dy + dz * dz;
+          target_distances[i] =
+            distance < target_distances[i] ? distance : target_distances[i];
+        }
+      }
+    }
+    if (target_count <= 0) {
+      return;
+    }
+    for (i = 0; i < target_count; i++) {
+      if (target_distances[i] < 3.4028235e+38f) {
+        follow_target = targets[i];
+        follow_position = target_positions[i];
+      }
+    }
+  }
+  if (follow_target == -1) {
+    return;
+  }
+
+  for (i = 0; i < 26; i++) {
+    group_distances[i] = 3.4028235e+38f;
+  }
+  best_squad = -1;
+  for (i = 0; (short)i < encounter_def->firing_positions.count; i++) {
+    firing_position =
+      tag_block_get_element(&encounter_def->firing_positions, i, 0x18);
+    group = *(short *)((char *)firing_position + 0xc);
+    if ((combined_groups & (1u << group)) != 0) {
+      dx = follow_position.x - ((float *)firing_position)[0];
+      dy = follow_position.y - ((float *)firing_position)[1];
+      dz = follow_position.z - ((float *)firing_position)[2];
+      distance = dx * dx + dy * dy + dz * dz;
+      group_distances[group] =
+        distance < group_distances[group] ? distance : group_distances[group];
+    }
+  }
+
+  best_distance = 3.4028235e+38f;
+  current_distance = -3.4028235e+38f;
+  current_squad = -1;
+  if (*(short *)(encounter + 6) <= 0) {
+    return;
+  }
+  for (squad_index = 0; squad_index < *(short *)(encounter + 6);
+       squad_index++) {
+    bit = 1u << (squad_index & 0x1f);
+    if ((active_mask[squad_index >> 5] & bit) == 0) {
+      continue;
+    }
+    squad_distance = 3.4028235e+38f;
+    groups = group_masks[squad_index];
+    for (i = 0; i < 26; i++) {
+      if ((groups & (1u << i)) != 0 && squad_distance > group_distances[i]) {
+        squad_distance = group_distances[i];
+      }
+    }
+    if (squad_distance < best_distance) {
+      best_distance = squad_distance;
+      best_squad = squad_index;
+    }
+    if ((occupied_mask[squad_index >> 5] & bit) != 0 &&
+        squad_distance > current_distance) {
+      current_distance = squad_distance;
+      current_squad = squad_index;
+    }
+  }
+  if (best_squad == -1) {
+    return;
+  }
+
+  if (current_squad != -1) {
+    best_real = (float)x87_sqrtd(best_distance);
+    current_real = (float)x87_sqrtd(current_distance);
+    if (*(float *)(encounter + 0x68) > 0.0f) {
+      tolerance = *(float *)(encounter + 0x68);
+    } else {
+      tolerance = 2.0f;
+    }
+    migrate = best_real < current_real - tolerance;
+    if (*(char *)0x5aca58 != '\0') {
+      current_def = (char *)tag_block_get_element(&encounter_def->squads,
+                                                  current_squad, 0xe8);
+      best_def =
+        (char *)tag_block_get_element(&encounter_def->squads, best_squad, 0xe8);
+      console_printf(
+        0, "%s: current %s/%.1f best %s/%.1f tol %.1f -> %s", encounter_def,
+        current_def != NULL ? current_def : "<none>",
+        (double)(current_distance == -3.4028235e+38f ? -1000.0f : current_real),
+        best_def != NULL ? best_def : "<none>",
+        (double)(best_distance == 3.4028235e+38f ? 1000.0f : best_real),
+        (double)tolerance, migrate ? "migrate" : "stay");
+    }
+    if (!migrate) {
+      return;
+    }
+  }
+
+  encounter_actor_iterator_new(actor_iter, encounter_handle);
+  while ((actor = (actor_t *)encounter_actor_iterator_next(actor_iter)) !=
+         NULL) {
+    if ((squad_mask[actor->field_03a >> 5] &
+         (1u << (actor->field_03a & 0x1f))) != 0 &&
+        actor->field_03a != best_squad) {
+      actor_change_encounter(actor_iter[1], encounter_handle, best_squad);
+    }
+  }
 }
 
 /* 0x5d200 — Add actor to encounter/squad/platoon membership.
@@ -6874,8 +7281,8 @@ void encounter_update_platoons(int encounter_handle)
  * Confirmed: 4 cdecl args, ADD ESP,0x10 at caller 0x3bb04.
  * Confirmed: assert string "actor->meta.encounter_index==NONE" at 0x5d2bd,
  *   file "c:\halo\SOURCE\ai\encounters.c", line 0x28a.
- * Confirmed: encounter_activate reads encounter_index from EAX (@<eax> register arg).
- * Confirmed: EBX=encounter_index preserved across all inner calls.
+ * Confirmed: encounter_activate reads encounter_index from EAX (@<eax> register
+ * arg). Confirmed: EBX=encounter_index preserved across all inner calls.
  * Confirmed: ESI=actor record, EDI=encounter record throughout.
  */
 void encounter_attach_actor(int actor_handle, int encounter_index,
@@ -7492,8 +7899,7 @@ void encounter_create(int encounter_handle, short param_2, short param_3)
 
     if ((int16_t)count > 0) {
       for (j = 0; j < (int16_t)count; j++) {
-        encounter_place_actor((int16_t)i, delay, 0,
-                                              encounter_handle);
+        encounter_place_actor((int16_t)i, delay, 0, encounter_handle);
         delay = 0;
       }
     }
@@ -7517,22 +7923,24 @@ void encounter_create(int encounter_handle, short param_2, short param_3)
  *   - If the platoon lookup result indicates a valid squad assignment
  *     (result[1] != 0 and result[2] == 0), reads the target squad index from
  *     squad_def+0x4e, bounds-checks it against the encounter's squad count,
- *     and calls actor_change_encounter to move the actor to that squad, then calls
- *     actor_stimulus_maneuvering to update the actor's firing state from platoon flags.
- * After the actor loop, calls encounters_update_dirty_status for encounter
- * cleanup.
+ *     and calls actor_change_encounter to move the actor to that squad, then
+ * calls actor_stimulus_maneuvering to update the actor's firing state from
+ * platoon flags. After the actor loop, calls encounters_update_dirty_status for
+ * encounter cleanup.
  *
  * Confirmed:
  *   - cdecl, 1 stack arg (encounter_handle), RET (no stack fixup).
  *   - actor linked list: encounter+0x14 = head; actor+0x2c = next handle.
  *   - Loop guard: *(char*)(ai_globals+1) != 0 && handle != -1.
- *   - Batch ADD ESP,0x18 cleanup for actor_change_encounter + actor_stimulus_maneuvering (3+3 args).
+ *   - Batch ADD ESP,0x18 cleanup for actor_change_encounter +
+ * actor_stimulus_maneuvering (3+3 args).
  *   - EDI = encounter record ptr, restored from [EBP-0x8] on loop-back
  * (0x5dc72).
  *   - [EBP-0x10] saves actor_handle for use as arg1 in
  * actor_change_encounter/actor_stimulus_maneuvering.
  *
- * Call-site: encounters_update @ 0x5df5e: PUSH EDX ([EBP-0x8] = encounter_handle).
+ * Call-site: encounters_update @ 0x5df5e: PUSH EDX ([EBP-0x8] =
+ * encounter_handle).
  */
 void encounter_control_actors(int encounter_handle)
 {
@@ -7589,8 +7997,8 @@ void encounter_control_actors(int encounter_handle)
     uVar9 = '\0';
     bVar2 = 0;
     if (*(int16_t *)(actor + 0x3c) != -1) {
-      platoon_entry =
-        (char *)encounter_get_platoon(encounter, (int)*(int16_t *)(actor + 0x3c));
+      platoon_entry = (char *)encounter_get_platoon(
+        encounter, (int)*(int16_t *)(actor + 0x3c));
       uVar9 = platoon_entry[0];
       if (platoon_entry[1] != '\0' && platoon_entry[2] == '\0') {
         bVar2 = 1;
@@ -7608,11 +8016,13 @@ void encounter_control_actors(int encounter_handle)
       squad_target_idx = *(int16_t *)(squad_def + 0x4e);
       squad_count = ((encounter_definition *)encounter_def)->squads.count;
       if ((int)squad_target_idx >= 0 && (int)squad_target_idx < squad_count) {
-        actor_change_encounter(saved_actor_handle, encounter_handle, squad_target_idx);
+        actor_change_encounter(saved_actor_handle, encounter_handle,
+                               squad_target_idx);
         flags_dword = *(unsigned int *)(platoon_def + 0x20);
-        actor_stimulus_maneuvering(saved_actor_handle,
-                     (char)((int)(flags_dword >> 1) & (int)0xffffff01u),
-                     (char)(*(unsigned char *)(platoon_def + 0x20) & 1u));
+        actor_stimulus_maneuvering(
+          saved_actor_handle,
+          (char)((int)(flags_dword >> 1) & (int)0xffffff01u),
+          (char)(*(unsigned char *)(platoon_def + 0x20) & 1u));
       }
     }
 
@@ -7664,9 +8074,9 @@ void encounters_create_for_new_map(void)
 }
 
 /* 0x5de80 — Per-tick encounter update. Every 30 ticks calls
- * encounters_update_dirty_status and encounters_test_activation. Then iterates all
- * encounters; for each dirty encounter whose handle index mod 15 matches the
- * current tick mod 15, runs the full suite of encounter update functions
+ * encounters_update_dirty_status and encounters_test_activation. Then iterates
+ * all encounters; for each dirty encounter whose handle index mod 15 matches
+ * the current tick mod 15, runs the full suite of encounter update functions
  * (tally, perception, squad management, etc.). */
 void encounters_update(void)
 {
@@ -7737,7 +8147,7 @@ void paths_dispose_from_old_map(void)
 }
 
 /* Deferred functions (not yet ported — thunked from XBE):
- *   encounters_update  — encounter_update (needs encounter_update_timers @<eax> audit)
- *   encounters_create_for_new_map  — encounter_tally_reset_pass (shared loop
- * pattern)
+ *   encounters_update  — encounter_update (needs encounter_update_timers @<eax>
+ * audit) encounters_create_for_new_map  — encounter_tally_reset_pass (shared
+ * loop pattern)
  */

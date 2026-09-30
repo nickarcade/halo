@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "struct": "flying_camera_t",
+  "size": {
+    "value": "0x1c",
+    "evidence": "0x894f4/fe/0x89507 position floats +0/4/8; 0x89423/2c facing floats +c/10; 0x89461 roll float +14; 0x8954d fov dword +18; constructor 0x89350 same offsets; PAL sizeof 0x1c"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 4,
+      "name": "position",
+      "confidence": "typed",
+      "evidence": "0x894f4/fe/0x89507 position floats +0/4/8; 0x89423/2c facing floats +c/10; 0x89461 roll float +14; 0x8954d fov dword +18; constructor 0x89350 same offsets; PAL sizeof 0x1c",
+      "array_len": 3,
+      "kind": "float"
+    },
+    {
+      "offset": "0xc",
+      "width": 4,
+      "name": "facing",
+      "confidence": "typed",
+      "evidence": "0x894f4/fe/0x89507 position floats +0/4/8; 0x89423/2c facing floats +c/10; 0x89461 roll float +14; 0x8954d fov dword +18; constructor 0x89350 same offsets; PAL sizeof 0x1c",
+      "array_len": 2,
+      "kind": "float"
+    },
+    {
+      "offset": "0x14",
+      "width": 4,
+      "name": "roll",
+      "confidence": "typed",
+      "evidence": "0x894f4/fe/0x89507 position floats +0/4/8; 0x89423/2c facing floats +c/10; 0x89461 roll float +14; 0x8954d fov dword +18; constructor 0x89350 same offsets; PAL sizeof 0x1c",
+      "kind": "float"
+    },
+    {
+      "offset": "0x18",
+      "width": 4,
+      "name": "field_of_view",
+      "confidence": "typed",
+      "evidence": "0x894f4/fe/0x89507 position floats +0/4/8; 0x89423/2c facing floats +c/10; 0x89461 roll float +14; 0x8954d fov dword +18; constructor 0x89350 same offsets; PAL sizeof 0x1c",
+      "kind": "float"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: \.c$
 # Pre-commit gate: tag_block_get_element element-size consistency.
 #
 # `tag_block_get_element(block, index, element_size)` reads element `index` at
@@ -28,7 +29,8 @@
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-mapfile -t STAGED_C < <(git diff --cached --name-only --diff-filter=ACMR | grep '\.c$')
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+mapfile -t STAGED_C < <(staged_list acmr | grep '\.c$')
 [ ${#STAGED_C[@]} -eq 0 ] && exit 0
 
 # Whole-repo scan by design: a conflict is between TWO sites, and the other

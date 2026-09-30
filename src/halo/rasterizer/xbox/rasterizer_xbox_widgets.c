@@ -743,3 +743,122 @@ void FUN_0017b5c0(float *point, float radius, float *scale,
     D3DDevice_End();
   }
 }
+
+/* 0x17b7d0 — FUN_0017b7d0
+ *
+ * Emits one screen-space quad (D3DPT_QUADLIST) around a world point: the lens
+ * flare reflection billboard, reached from FUN_00181c20 through the
+ * FUN_0017d010 tail thunk.  FUN_0017a8a0 projects `point` into `screen`
+ * (x, y, z) and returns the half-extent of `radius` in `extent`; the extent is
+ * rotated by theta, scaled per axis, and the four corners are emitted at the
+ * projected depth with w = 1.
+ *
+ * Signature (disassembly; Ghidra saw `void(void)`):
+ *   [EBP+0x08] float *point   (ESI; asserted non-NULL)
+ *   [EBP+0x0c] float  radius  (>0 gate, forwarded to FUN_0017a8a0)
+ *   [EBP+0x10] float *scale   (float[2] or NULL)
+ *   [EBP+0x14] float  theta   (multiplied by the float at 0x253d4c first)
+ *   [EBP+0x18] uint   color
+ * Plain `RET` => __cdecl.
+ *
+ * Frame (`SUB ESP,0x20`): screen[3] at EBP-0x20 (LEA EBX, the @<ebx> out
+ * pointer of FUN_0017a8a0), extent[2] at EBP-0x14 (pushed out pointer),
+ * the rotated extent at EBP-0x4 / EBP-0x8.  MSVC reuses the dead parameter
+ * slots +0x8 / +0xc for cos/sin, then x/y scale, then products; the C needs
+ * no help for that.
+ *
+ * Branch senses from FNSTSW:
+ *   radius: `TEST AH,0x41 / JNZ end`  => body only when radius > 0.0f.
+ *   theta:  `TEST AH,0x44 / JNP copy` => trig block when theta != 0.0f.
+ *   identity check: QWORD FCOMP against (double)0.0001f, `TEST AH,0x5 / JNP`
+ *   => assert unless fabs(...) < _real_epsilon (same form as FUN_0017b5c0).
+ * One `FLD ST0` feeds both FCOS and FSIN, so the angle product is computed
+ * once.  Rotation association from 0x17b8be..0x17b8dd:
+ *   rot_x = extent[0]*cos - extent[1]*sin
+ *   rot_y = extent[0]*sin + extent[1]*cos
+ * Each vertex's addend order (point-first vs product-first) is copied from
+ * the FLD/FSUB/FADD order at 0x17b94b, 0x17b98b, 0x17b9b0 and 0x17b9de; the Y
+ * expression is evaluated first (FSTP [ESP+4]) per the MSVC push idiom.
+ */
+void FUN_0017b7d0(float *point, float radius, float *scale, float theta,
+                  unsigned int color)
+{
+  float screen[3];
+  float extent[2];
+  float angle;
+  float cos_theta;
+  float sin_theta;
+  float rot_x;
+  float rot_y;
+  float x_scale;
+  float y_scale;
+
+  if (point == (float *)0) {
+    display_assert("point",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                   "widgets.c",
+                   0x1a9, 1);
+    system_exit(-1);
+  }
+
+  if (*(void **)0x476ab0 == (void *)0) {
+    display_assert("global_d3d_device",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                   "widgets.c",
+                   0x1aa, 1);
+    system_exit(-1);
+  }
+
+  if (radius > 0.0f && FUN_0017a8a0(point, radius, extent, screen)) {
+    if (theta != 0.0f) {
+      angle = theta * *(float *)0x253d4c;
+      cos_theta = x87_fcos(angle);
+      sin_theta = x87_fsin(angle);
+
+      if (!(fabs((double)(sin_theta * sin_theta + cos_theta * cos_theta -
+                          1.0f)) < 0.0001f)) {
+        display_assert("fabs(cos_theta*cos_theta + sin_theta*sin_theta - "
+                       "1.0f)<_real_epsilon",
+                       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                       "widgets.c",
+                       0x1b5, 1);
+        system_exit(-1);
+      }
+
+      rot_x = extent[0] * cos_theta - extent[1] * sin_theta;
+      rot_y = extent[0] * sin_theta + extent[1] * cos_theta;
+    } else {
+      rot_x = extent[0];
+      rot_y = extent[1];
+    }
+
+    if (scale != (float *)0) {
+      x_scale = scale[0];
+      y_scale = scale[1];
+    } else {
+      y_scale = 1.0f;
+      x_scale = 1.0f;
+    }
+
+    D3DDevice_Begin(7);
+    D3DDevice_SetVertexDataColor(9, color);
+
+    D3DDevice_SetVertexData2s(4, 0, 0);
+    D3DDevice_SetVertexData4f(0, screen[0] - x_scale * rot_x,
+                              screen[1] - y_scale * rot_y, screen[2], 1.0f);
+
+    D3DDevice_SetVertexData2s(4, 1, 0);
+    D3DDevice_SetVertexData4f(0, x_scale * rot_y + screen[0],
+                              screen[1] - y_scale * rot_x, screen[2], 1.0f);
+
+    D3DDevice_SetVertexData2s(4, 1, 1);
+    D3DDevice_SetVertexData4f(0, x_scale * rot_x + screen[0],
+                              y_scale * rot_y + screen[1], screen[2], 1.0f);
+
+    D3DDevice_SetVertexData2s(4, 0, 1);
+    D3DDevice_SetVertexData4f(0, screen[0] - x_scale * rot_y,
+                              y_scale * rot_x + screen[1], screen[2], 1.0f);
+
+    D3DDevice_End();
+  }
+}

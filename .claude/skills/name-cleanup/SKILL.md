@@ -36,6 +36,15 @@ not meaning**.
 Semantic names (`player_index`, `damage_scale`) require a T1/T2 citation per
 `naming-confidence`.
 
+**Bungie shape** (binding: `lift-implementation.md` → *Bungie Code Style*):
+- **Datum element pointers.** Name a pointer to a datum element after its
+  element type (`actor`, `prop`, `light`). This is allowed once the pool is
+  named (its `data_new` string is T1).
+- **Handles.** Name a handle `<thing>_index`. Use `_handle` only if 2276
+  proves that spelling.
+- **Slot numbers.** Name a bare slot number `<thing>_absolute_index`.
+- **Mechanical names.** Use plain `index` / `element` when the pool is unknown.
+
 ### Rules
 
 1. **Rename-only diffs.** No type changes, moved declarations, merged/split
@@ -62,10 +71,18 @@ provable) and the **meaning** (what the name claims — often not).
 - Assert/format strings naming the value or state (T1)
 - `switch` cases whose handlers have T1/T2-named callees
 - Flag bit tested at sites with proven behavior
-- Sentinel patterns: datum handles use `0xFFFFFFFF` (NONE)
+- Sentinel patterns: datum handles and null indices use `NONE` (`-1`, `0xFFFFFFFF`)
 - PC/CE symbol mirrors and PDB corpus
 
-Value proven but meaning not → mechanical name: `UNK_MODE_3`, `FLAG_BIT5_UNKNOWN`.
+Name shapes follow Bungie style:
+- **Enum members:** `_<enum>_<member>`.
+- **Bit indices:** `_<thing>_<name>_bit`, tested with `TEST_FLAG`.
+- **Named scalar constants:** `k_<name>`.
+- **Count bounds:** `MAXIMUM_<THINGS>[_PER_<SCOPE>]`.
+- **Enum counts:** `NUMBER_OF_<THINGS>`.
+
+If the value is proven but the meaning is not, use a mechanical name in the
+same shape: `_<enum>_unknown<value>`, or `_<thing>_unknown<bit>_bit`.
 
 ### Rules
 
@@ -75,8 +92,11 @@ Value proven but meaning not → mechanical name: `UNK_MODE_3`, `FLAG_BIT5_UNKNO
 2. **Float literal vs const-pool loads.** VC71 emits `MOV [x],0x3f800000` for literal
    stores but `FCOMP [FLOAT_addr]` for const-pool compares. A named constant must not
    change which form the site compiles to — keep the same syntactic shape.
-3. **Narrow fields: no C enums.** C89 enums are `int`; a mode in `int8_t` must stay
-   `typedef int8_t foo_mode; #define FOO_MODE_IDLE 0`.
+3. **Narrow fields keep their width.** C89 enums are `int`, so a mode stored in
+   `int8_t` keeps its `int8_t` field type. Its constants still use Bungie enum
+   names: `enum foo_mode { _foo_mode_idle, ... };` with an `int8_t mode` field.
+   An enum constant has no storage, so the field width and every immediate
+   stay the same. Never type the field itself as the enum.
 4. **One definition point.** Shared → `src/types.h` near struct; TU-local → top of TU.
    `rtk rg '<value>' src/` first — never mint a synonym.
 5. **Flags document their register of truth** (`/* object_header.flags */`).

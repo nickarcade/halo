@@ -3,6 +3,10 @@ extern void *__cdecl _exception_info(void);
 #define GetExceptionCode _exception_code
 #define GetExceptionInformation() ((void *)_exception_info())
 
+#ifdef HALO_STANDALONE
+void standalone_report_exception(void *exception_pointers);
+#endif
+
 void shell_idle(void)
 {
 }
@@ -76,7 +80,9 @@ void update_loaded_module_section_attributes(void)
 int main(int argc, const char **argv, const char **envp)
 {
   __try {
-#if DEBUG_BUILD && !defined(HALO_RETAIL64)
+#if DEBUG_BUILD && !defined(HALO_RETAIL64) && !defined(HALO_STANDALONE)
+    /* Standalone: the code section also holds the legacy .data/BSS layout
+     * (tools/standalone/gen_legacy_image.py), so it must stay writable. */
     update_loaded_module_section_attributes();
 #endif
     rasterizer_preinitialize();
@@ -93,8 +99,15 @@ int main(int argc, const char **argv, const char **envp)
       shell_dispose();
     }
   }
+#ifdef HALO_STANDALONE
+  /* Bring-up diagnostics only: snapshot the fault before the unwind. */
+  __except (standalone_report_exception(GetExceptionInformation()),
+            FUN_0008e5f0((uint32_t)GetExceptionCode(),
+                         (int)GetExceptionInformation())) {
+#else
   __except (FUN_0008e5f0((uint32_t)GetExceptionCode(),
                          (int)GetExceptionInformation())) {
+#endif
     halt_and_catch_fire();
   }
   return 0;

@@ -19,6 +19,10 @@ Before implementation:
 4. Preserve copied loop parameters, side-effect order, odd branches, and x87
    subtraction/cross-product operand order.
 5. Use C89 and existing types. Never change `@<reg>` assignments or guess fields.
+6. Write in Bungie code style (`lift-implementation.md` → *Bungie Code Style*).
+   Use named pools, typed `_get` macros, `*_index`, `NONE`, `TEST_FLAG`, `k_`
+   constants, and `_enum` members. Change spelling only, and keep every
+   original call.
 
 Escalate on demand:
 

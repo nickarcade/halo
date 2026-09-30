@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -32,9 +33,9 @@ UNICORN_DIFF = ROOT / "tools" / "equivalence" / "unicorn_diff.py"
 DEFAULT_ORACLE = "xbe"
 
 
-def load_function_names() -> dict[str, str]:
+def load_function_names(kb_path=None) -> dict[str, str]:
     """Return current kb.json declaration names keyed by original address."""
-    kb = json.loads(KB_JSON.read_text(encoding="utf-8"))
+    kb = json.loads((kb_path or KB_JSON).read_text(encoding="utf-8"))
     names = {}
     for obj in kb["objects"]:
         for fn in obj["functions"]:
@@ -46,9 +47,9 @@ def load_function_names() -> dict[str, str]:
     return names
 
 
-def load_targets(filter_name=None):
+def load_targets(filter_name=None, kb_path=None):
     data = json.loads(TARGETS_FILE.read_text(encoding="utf-8"))
-    names = load_function_names()
+    names = load_function_names(kb_path)
     targets = []
     for entry in data.get("targets", []):
         addr = entry.get("addr")
@@ -159,7 +160,8 @@ def _label(target):
     return target["name"] + ("[" + scenario + "]" if scenario else "")
 
 
-def run_target(target, seed_override=None, disable_leaf_cache=False):
+def run_target(target, seed_override=None, disable_leaf_cache=False,
+               extra_env=None):
     name = target["name"]
     seeds = seed_override or target.get("seeds", 20)
     flags = target.get("flags", [])
@@ -186,6 +188,8 @@ def run_target(target, seed_override=None, disable_leaf_cache=False):
         cmd.append("--no-leaf-cache")
     child_env = os.environ.copy()
     child_env.update({str(k): str(v) for k, v in target.get("env", {}).items()})
+    if extra_env:
+        child_env.update(extra_env)
 
     try:
         result = subprocess.run(
@@ -220,9 +224,37 @@ def main():
     parser.add_argument("--target", help="Run a single target by name or address")
     parser.add_argument("--jobs", "-j", type=int, default=1,
                         help="Maximum concurrent targets (default: 1)")
+    parser.add_argument("--staged", action="store_true",
+                        help="Test the git INDEX: compile every target TU from a "
+                             "snapshot of the staged tree with the CMake Release "
+                             "flags (never a stale build/ object) and reuse "
+                             "verdicts whose content key is unchanged.")
+    parser.add_argument("--snapshot", metavar="REV",
+                        help="Like --staged but for a tree-ish (e.g. HEAD).")
+    parser.add_argument("--no-cache", action="store_true",
+                        help="With --staged/--snapshot: still build from the "
+                             "snapshot but run every target (true full sweep).")
     args = parser.parse_args()
 
-    targets = load_targets(args.target)
+    snap = None
+    snap_rev = "index" if args.staged else args.snapshot
+    if snap_rev:
+        try:
+            import regression_cache
+            snap = regression_cache.Snapshot(snap_rev)
+        except Exception as exc:  # any doubt: legacy full run, uncached
+            print(f"Snapshot build failed ({exc}); falling back to the full "
+                  f"uncached working-tree run.")
+            snap = None
+    try:
+        return _run(args, parser, snap)
+    finally:
+        if snap is not None:
+            snap.cleanup()
+
+
+def _run(args, parser, snap):
+    targets = load_targets(args.target, snap.kb_path if snap else None)
     if not targets:
         print("No targets found.")
         return 1
@@ -260,22 +292,79 @@ def main():
         else:
             runnable.append((index, target))
 
+    # --- snapshot mode: compile from the staged tree, key and look up verdicts.
+    extra_env = {}          # index -> env overrides for that target's child
+    keys = {}               # index -> cache key (None = not cacheable)
+    cache = None
+    cached_hits = 0
+    if snap is not None and runnable:
+        import regression_cache as rc
+        cache = rc.VerdictCache(enabled=not args.no_cache)
+        kbv = rc.KbView(snap.kb_path)
+        ctx = rc.ToolContext()
+        seeds_of = lambda t: seed_override or t.get("seeds", 20)
+        src_of = {}
+        for index, target in runnable:
+            src_of[index] = kbv.source_of(target["addr"], target["name"])
+        built = rc.compile_tus(snap, [s for s in src_of.values() if s], args.jobs)
+        pre_dir = snap.dir / "pre"
+        pre_dir.mkdir(exist_ok=True)
+        reported = set()
+        for index, target in runnable:
+            source = src_of[index]
+            res = built.get(source) if source else None
+            if not res or res[0] is None:
+                if source and source not in reported:
+                    reported.add(source)
+                    print(f"  note: no snapshot object for {source} "
+                          f"({(res[2] if res else 'no source')!s:.120}); its targets "
+                          f"run uncached through the legacy object lookup")
+                continue
+            obj_path, obj_sha = res[0], res[1]
+            dest = pre_dir / rc.precompiled_name(source)
+            if not dest.exists():
+                shutil.copyfile(obj_path, dest)
+            extra_env[index] = {"HALO_EQUIV_PRECOMPILED_DIR": str(pre_dir),
+                                "HALO_EQUIV_KB_JSON": str(snap.kb_path)}
+            try:
+                key = rc.target_key(ctx, kbv, target, seeds_of(target), obj_sha,
+                                    dest.read_bytes(), target["name"])
+            except Exception:
+                key = None
+            keys[index] = key
+            hit = cache.get(key)
+            if hit is not None:
+                outcomes[index] = ("run", ("pass", hit["detail"] + " [cached]"))
+                cached_hits += 1
+        runnable = [(i, t) for i, t in runnable if outcomes[i] is None]
+
     def execute(item):
         index, target = item
         lock = name_locks.setdefault(target["addr"], threading.Lock())
         with lock:
             return index, run_target(target, seed_override,
-                                     disable_leaf_cache=args.jobs > 1)
+                                     disable_leaf_cache=args.jobs > 1,
+                                     **({"extra_env": extra_env[index]}
+                                        if index in extra_env else {}))
 
     name_locks = {}
     if args.jobs == 1:
         for item in runnable:
             index, target = item
-            outcomes[index] = ("run", run_target(target, seed_override))
+            outcomes[index] = ("run", run_target(
+                target, seed_override,
+                **({"extra_env": extra_env[index]} if index in extra_env else {})))
     else:
         with ThreadPoolExecutor(max_workers=args.jobs) as executor:
             for index, result in executor.map(execute, runnable):
                 outcomes[index] = ("run", result)
+
+    if cache is not None:
+        for index, _t in runnable:
+            status_detail = outcomes[index][1]
+            if status_detail[0] == "pass":
+                cache.put_pass(keys.get(index), status_detail[1])
+        cache.flush()
 
     for t, outcome in zip(targets, outcomes):
         if outcome[0] == "skip":
@@ -335,7 +424,8 @@ def main():
     print()
     print(f"Done in {elapsed:.1f}s: {passed} passed, {failed} failed, "
           f"{errors} errors, {artifacts} known artifacts, "
-          f"{untriaged} awaiting triage, {skipped} skipped")
+          f"{untriaged} awaiting triage, {skipped} skipped"
+          + (f" ({cached_hits} verdicts reused from cache)" if cached_hits else ""))
     if untriaged:
         print("  Targets awaiting triage are NOT excused failures -- they are "
               "unread findings. Triage them and either fix the lift or "

@@ -5207,7 +5207,7 @@ void actors_handle_spatial_effect(int object_handle, short effect_type,
       actor_perception_find_sense_position(actor_handle, position, -1,
                                            input_block);
       audibility = (short)actor_audibility_at_point(
-        actor_handle, input_block, position, location, volume, 0x3f800000, 0);
+        actor_handle, input_block, position, location, volume, 1.0f, 0);
       if (audibility >= 2) {
         if (effect_type == 0) {
           actor_stimulus_environmental_noise(actor_handle, object_handle, position, count);

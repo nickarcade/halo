@@ -151,6 +151,17 @@ void effects_information_get(short *out)
   }
 }
 
+/* effects_disconnect_from_structure_bsp (0x9c990)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is slot 4 of the structure-BSP disconnect table
+ *   at 0x326a44 (walked by 0x18e240 and 0x18eb40); the matching slot of the
+ *   PAL 2342 scenario.c scenario_structure_bsp_disconnect_proc_table is
+ *   effects_disconnect_from_structure_bsp (T2). */
+void effects_disconnect_from_structure_bsp(void)
+{
+}
+
 /* Apply effect part scale modifiers to a scalar. Multiplies base_val by
  * effect_ptr[0x44] (scale_a) and/or effect_ptr[0x48] (scale_b) when the
  * corresponding bit (1<<bit_index) is set in flags_lo / flags_hi respectively.
@@ -2174,4 +2185,145 @@ void material_effect_new(int param_1, short param_2, short param_3, void *param_
   if (*(char *)0x4557e9 != '\0') {
     FUN_00189540(0, param_4, 0.05f, *(void **)0x2ee6dc);
   }
+}
+
+/* 0x9eb40 / effects.obj
+ * Create a new effect linked to an object. Allocates an effect datum via
+ * effect_allocate, stores object handle, marker indices, and optionally
+ * copies the default scale vector from **(float**)0x2ee708. Runs the
+ * marker-resolve callback and optionally the first-person weapon marker
+ * callback, then fires the initial effect_update tick. */
+int effect_new_looping(int definition_index, int object_index,
+                       short marker_index, short secondary_marker,
+                       short unknown)
+{
+  char *iVar4;
+  int iVar3;
+
+  if (object_index == -1) {
+    display_assert("object_index!=NONE", "c:\\halo\\SOURCE\\effects\\effects.c",
+                   0xf9, 1);
+    system_exit(-1);
+  }
+
+  iVar3 = effect_allocate(definition_index, object_index, 1);
+  if (iVar3 != -1) {
+    iVar4 = (char *)datum_get(*(data_t **)0x5aa8b0, iVar3);
+    *(int *)(iVar4 + 0x3c) = object_index;
+    *(short *)(iVar4 + 0x4c) =
+      (short)first_person_weapon_get_local_index(object_index);
+    *(short *)(iVar4 + 0x8) = marker_index;
+    *(short *)(iVar4 + 0xa) = secondary_marker;
+    *(short *)(iVar4 + 0xc) = unknown;
+    *(int *)(iVar4 + 0x34) = 0;
+    *(int *)(iVar4 + 0x38) = 0;
+    if (unknown == -1) {
+      *(vector3_t *)(iVar4 + 0x18) = **(vector3_t **)0x2ee708;
+    }
+    *(uint8_t *)(iVar4 + 2) |= 2;
+    csmemset(iVar4 + 0x5c, -1, 0x80);
+    effect_build_locations((int)iVar4,
+                           (void *)&object_get_marker_by_name);
+    if (*(short *)(iVar4 + 0x4c) != -1) {
+      effect_build_locations((int)iVar4, (void *)0xdd190);
+    }
+    effect_update(iVar3, 0.0f);
+  }
+  return iVar3;
+}
+
+/* effect_new_from_object / effects.obj — create a scaled effect attached to an
+ * object. Validates that object_index is not NONE and that both scale values
+ * are in [0,1]. Allocates an effect datum, applies scale/colour via
+ * impulse_effect_initialize, stores the attached object handle and
+ * first-person-weapon index, optionally marks as "violent" (via
+ * effects_object_is_corpse), performs debug logging if enabled, memsets the
+ * per-event slot array, runs marker-resolve callbacks, and fires the initial
+ * effect_update tick. Returns the new datum index or NONE (-1).
+ *
+ * VC71 ceiling 82.9% (180 compiled vs 165 ref insns) is STRUCTURAL, not a
+ * defect: the delinked boundary is correct (Ghidra body 0x9ec30-0x9ee32 =
+ * 514 bytes vs the 528-byte next-FUN span is only 14 bytes of NOP padding),
+ * and the +15 insns come from a callee our monolithic objects.c inlines that
+ * the original kept out-of-line as a separate-TU CALL. The residual diffs are
+ * FPU compare-direction (jnp/jne) and 16-bit store (orb/orw) idioms. Verified
+ * 2026-06-23; do not chase — no re-bounded export will close it. */
+int effect_new_from_object(int param_1, int param_2, int param_3, short param_4,
+                           float param_5, float param_6, int param_7,
+                           int param_8)
+{
+  int iVar3;
+  char *iVar4;
+  short fpw_index;
+  int violent_flag;
+
+  if (param_3 == -1) {
+    display_assert("object_index!=NONE", "c:\\halo\\SOURCE\\effects\\effects.c",
+                   0x131, 1);
+    system_exit(-1);
+  }
+  if (!(param_5 >= 0.0f && param_5 <= 1.0f)) {
+    csprintf((char *)0x5ab100, "scale_a %f not in [0,1]", (double)param_5);
+    display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\effects\\effects.c",
+                   0x132, 1);
+    system_exit(-1);
+  }
+  if (!(param_6 >= 0.0f && param_6 <= 1.0f)) {
+    csprintf((char *)0x5ab100, "scale_b %f not in [0,1]", (double)param_6);
+    display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\effects\\effects.c",
+                   0x133, 1);
+    system_exit(-1);
+  }
+
+  iVar3 = effect_allocate(param_1, param_2, 1);
+  if (iVar3 != -1) {
+    iVar4 = (char *)datum_get(*(data_t **)0x5aa8b0, iVar3);
+    impulse_effect_initialize((int)iVar4, param_7, param_8, param_5, param_6);
+    *(int *)(iVar4 + 0x3c) = param_3;
+    fpw_index = (short)first_person_weapon_get_local_index(param_3);
+    *(short *)(iVar4 + 0x4c) = fpw_index;
+
+    violent_flag = 0x40;
+    if (*(char *)0x2eebe0 != '\0') {
+      if (effects_object_is_corpse(*(int *)(iVar4 + 0x3c))) {
+        *(unsigned short *)(iVar4 + 2) |= (short)violent_flag;
+      }
+    }
+
+    if (*(char *)0x4557e8 != '\0') {
+      int *obj_data;
+      const char *object_name;
+      const char *effect_name;
+      const char *violent_str;
+
+      obj_data = (int *)object_try_and_get_and_verify_type(param_3, -1);
+      if (obj_data == NULL) {
+        object_name = "<none>";
+      } else {
+        object_name = tag_name_strip_path(tag_get_name(*obj_data));
+      }
+
+      if (*(unsigned short *)(iVar4 + 2) & violent_flag) {
+        violent_str = "non";
+      } else {
+        violent_str = "";
+      }
+
+      effect_name = tag_name_strip_path(tag_get_name(param_1));
+      error(2, "created %sviolent %s on %s", violent_str, effect_name,
+            object_name);
+    }
+
+    csmemset(iVar4 + 0x5c, -1, 0x80);
+    effect_build_locations((int)iVar4,
+                           (void *)&object_get_marker_by_name);
+    if (*(short *)(iVar4 + 0x4c) != -1) {
+      effect_build_locations((int)iVar4, (void *)0xdd190);
+    }
+    if (param_4 != -1) {
+      *(short *)(iVar4 + 0x4c) = param_4;
+    }
+    effect_update(iVar3, 0.0f);
+  }
+  return iVar3;
 }

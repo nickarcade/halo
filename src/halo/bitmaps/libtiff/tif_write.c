@@ -1610,6 +1610,81 @@ void FUN_00071400(void *block, unsigned int *out_pixels)
   }
 }
 
+/* 0x715c0 -- single-pixel variant of FUN_00071400: builds the same four-color
+ * table (word 0 inline 0x715e4-0x71630, word 1 via RGBToColor(EAX=block+2,
+ * &colors[1]) 0x71627-0x71638), asserts (short)x and (short)y are in [0,4]
+ * (s3tc.c 0x305/0x306), then stores colors[(bits >> ((x + y*4)*2)) & 3] as a
+ * dword to *pixel (0x71790-0x717a7). NULL block memsets 0x40 bytes of pixel
+ * (0x715ce-0x715da). cdecl, four stack args. */
+void DecodeBlockRGB__single_pixel(void *block, uint32_t *pixel, int x, int y)
+{
+  unsigned short *words;
+  unsigned char colors[4][4];
+  unsigned short word0;
+  unsigned short c0;
+  unsigned short c1;
+  unsigned long value;
+  unsigned char b;
+  unsigned char g;
+  unsigned char r;
+  short u;
+  short v;
+  int i;
+
+  words = (unsigned short *)block;
+  if (words == NULL) {
+    csmemset(pixel, 0, 0x40);
+    return;
+  }
+  word0 = words[0];
+  value = word0;
+  b = (unsigned char)(((unsigned char *)&value)[0] << 3);
+  b |= b >> 5;
+  *(unsigned short *)&value >>= 5;
+  g = (unsigned char)(((unsigned char *)&value)[0] << 2);
+  g |= g >> 6;
+  r = (unsigned char)((unsigned char)(value >> 6) << 3);
+  r |= r >> 5;
+  ((unsigned char *)&value)[0] = b;
+  ((unsigned char *)&value)[1] = g;
+  ((unsigned char *)&value)[2] = r;
+  *(unsigned long *)colors[0] = value;
+  RGBToColor(&words[1], colors[1]);
+  colors[2][3] = 0xff;
+  colors[1][3] = 0xff;
+  colors[0][3] = 0xff;
+  if (word0 > words[1]) {
+    c0 = colors[0][0];
+    c1 = colors[1][0];
+    colors[2][0] = (unsigned char)((c1 + c0 * 2 + 1) / 3);
+    colors[3][0] = (unsigned char)((c0 + c1 * 2 + 1) / 3);
+    c0 = colors[0][1];
+    c1 = colors[1][1];
+    colors[2][1] = (unsigned char)((c1 + c0 * 2 + 1) / 3);
+    colors[3][1] = (unsigned char)((c0 + c1 * 2 + 1) / 3);
+    c0 = colors[0][2];
+    c1 = colors[1][2];
+    colors[2][2] = (unsigned char)((c1 + c0 * 2 + 1) / 3);
+    colors[3][2] = (unsigned char)((c0 + c1 * 2 + 1) / 3);
+    colors[3][3] = 0xff;
+  } else {
+    for (i = 0; i < 3; i++) {
+      colors[2][i] =
+        (unsigned char)(((int)colors[0][i] + (int)colors[1][i]) / 2);
+      colors[3][i] = 0;
+    }
+    colors[3][3] = 0;
+  }
+  u = (short)x;
+  assert_halt_msg_at("u>=0 && u<=4", "c:\\halo\\SOURCE\\bitmaps\\s3tc\\s3tc.c",
+                     0x305, u >= 0 && u <= 4);
+  v = (short)y;
+  assert_halt_msg_at("v>=0 && v<=4", "c:\\halo\\SOURCE\\bitmaps\\s3tc\\s3tc.c",
+                     0x306, v >= 0 && v <= 4);
+  *pixel = *(
+    uint32_t *)colors[(*(unsigned long *)(words + 2) >> ((x + y * 4) * 2)) & 3];
+}
+
 /* 0x717b0 -- decode a 16-byte block whose first 8 bytes are four 16-bit
  * rows of 4-bit values: FUN_00071400 decodes block+8 into out_pixels
  * (0x717bc-0x717c1), then each 4-bit value n becomes byte (n | n << 4) at
@@ -2618,14 +2693,13 @@ bool extract_plateless_cube_map(void *bitmap)
         temporary = bitmap_2d_new(face_size, face_size, 0, 0xb);
         *(void **)entry = temporary;
         if (temporary != NULL) {
-          for (destination_y = 0; destination_y < face_size;
-               destination_y++) {
+          for (destination_y = 0; destination_y < face_size; destination_y++) {
             source_x = (short)((unsigned short)(face[0] * face_size) +
-                        (unsigned short)(face[2] * (face_size - 1)) +
-                        (unsigned short)(face[6] * destination_y));
+                               (unsigned short)(face[2] * (face_size - 1)) +
+                               (unsigned short)(face[6] * destination_y));
             source_y = (short)((unsigned short)(face[1] * face_size) +
-                        (unsigned short)(face[3] * (face_size - 1)) +
-                        (unsigned short)(face[7] * destination_y));
+                               (unsigned short)(face[3] * (face_size - 1)) +
+                               (unsigned short)(face[7] * destination_y));
             for (destination_x = 0; destination_x < face_size;
                  destination_x++) {
               source = bitmap_2d_address(bitmap, source_x, source_y, 0);

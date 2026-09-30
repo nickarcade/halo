@@ -1125,7 +1125,7 @@ int16_t model_animation_choose_random(int update_kind,
   } else {
     random_value = random_math_real(random_math_get_local_seed_address());
     if (update_kind != 0) {
-      display_assert("ASSERTION_SERIES(update_kind, 2)",
+      display_assert("(animation_update_kind_affects_game_state==render_or_affects_game_state) || (animation_update_kind_render_only==render_or_affects_game_state)",
                      "c:\\halo\\SOURCE\\models\\model_animations.c", 0x3f0, 1);
       system_exit(-1);
     }
@@ -1138,6 +1138,119 @@ int16_t model_animation_choose_random(int update_kind,
     animation_index = *(int16_t *)(element + 0x38);
   }
   return animation_index;
+}
+
+/* inverse_kinematics_adjust_matrices (0x120fd0) — Two-bone IK solve.
+ *
+ * Confirmed (disassembly): cdecl, 4 stack args, void return. All four args are
+ * real_matrix4x3 pointers (0x34 bytes: rep movsd ECX=0xd at 0x121316); the
+ * existing caller (objects.c) passes them as ints, so the kb decl keeps `int`.
+ *   b = node_matrix_b (EBX), c = node_matrix_c (EDI), d = node_matrix_d.
+ * Confirmed: len_bc = |c.pos - b.pos|, len_cd = |d.pos - c.pos|,
+ *   len_ab = |b.pos - composed.pos|; axis = (composed.pos - b.pos) * (1/len_ab)
+ *   (1.0f at 0x2533c8); bend = normalize(cross(axis, c.pos - b.pos)).
+ * Confirmed: reach = (len_cd + len_bc) * 0.98f (0x291060); when reach < len_ab
+ *   (FCOM + TEST AH,5 + JP) the target is pulled in to b.pos + axis * reach.
+ * Confirmed: law-of-cosines split x = (len_ab^2 + len_bc^2 - len_cd^2) /
+ *   (2 * len_ab), h = sqrt(len_bc^2 - x^2); b.forward = axis*x + perp*h,
+ *   c.forward = axis*(len_ab - x) - perp*h; both bases re-orthonormalized with
+ *   normalize3d (return value discarded, FSTP ST0); c.position = b.pos +
+ *   b.forward * len_bc; finally *d = *composed.
+ * Inferred: multiply operand orders in each cross product transcribed from the
+ *   FLD/FMUL pairs; the b and c `up` products differ in operand order.
+ * Dormant (ported:false) body for the standalone build.
+ */
+void inverse_kinematics_adjust_matrices(float *composed_matrix,
+                                        int node_matrix_b, int node_matrix_c,
+                                        int node_matrix_d)
+{
+  real_matrix4x3 *composed = (real_matrix4x3 *)composed_matrix;
+  real_matrix4x3 *b = (real_matrix4x3 *)node_matrix_b;
+  real_matrix4x3 *c = (real_matrix4x3 *)node_matrix_c;
+  real_matrix4x3 *d = (real_matrix4x3 *)node_matrix_d;
+  vector3_t *c_position = &c->position;
+  float dx, dy, dz;
+  float len_bc, len_cd, len_ab;
+  float inv_len_ab, reach, split, height;
+  vector3_t axis, bend, perp, offset, new_position;
+
+  dx = c->position.x - b->position.x;
+  dy = c->position.y - b->position.y;
+  dz = c->position.z - b->position.z;
+  len_bc = (float)x87_sqrtd(dx * dx + dy * dy + dz * dz);
+
+  dx = d->position.x - c_position->x;
+  dy = d->position.y - c_position->y;
+  dz = d->position.z - c_position->z;
+  len_cd = (float)x87_sqrtd(dx * dx + dy * dy + dz * dz);
+
+  dx = b->position.x - composed->position.x;
+  dy = b->position.y - composed->position.y;
+  dz = b->position.z - composed->position.z;
+  len_ab = (float)x87_sqrtd(dx * dx + dy * dy + dz * dz);
+
+  dx = c_position->x - b->position.x;
+  dy = c->position.y - b->position.y;
+  dz = c->position.z - b->position.z;
+  inv_len_ab = 1.0f / len_ab;
+  axis.x = (composed->position.x - b->position.x) * inv_len_ab;
+  axis.y = (composed->position.y - b->position.y) * inv_len_ab;
+  axis.z = (composed->position.z - b->position.z) * inv_len_ab;
+  bend.x = axis.y * dz - axis.z * dy;
+  bend.y = axis.z * dx - axis.x * dz;
+  bend.z = axis.x * dy - axis.y * dx;
+  normalize3d((float *)&bend);
+  perp.x = bend.y * axis.z - bend.z * axis.y;
+  perp.y = bend.z * axis.x - bend.x * axis.z;
+  perp.z = bend.x * axis.y - bend.y * axis.x;
+
+  reach = (len_cd + len_bc) * 0.98f;
+  if (reach < len_ab) {
+    composed->position.x = axis.x * reach + b->position.x;
+    composed->position.y = axis.y * reach + b->position.y;
+    composed->position.z = axis.z * reach + b->position.z;
+    len_ab = reach;
+  }
+
+  split = (len_ab * len_ab + len_bc * len_bc - len_cd * len_cd) /
+          (len_ab + len_ab);
+  len_ab = len_ab - split;
+  height = (float)x87_sqrtd(len_bc * len_bc - split * split);
+  offset.x = perp.x * height;
+  b->forward.x = split * axis.x + offset.x;
+  offset.y = perp.y * height;
+  b->forward.y = split * axis.y + offset.y;
+  offset.z = perp.z * height;
+  b->forward.z = split * axis.z + offset.z;
+  normalize3d((float *)&b->forward);
+
+  b->up.x = b->forward.y * b->left.z - b->forward.z * b->left.y;
+  b->up.y = b->forward.z * b->left.x - b->forward.x * b->left.z;
+  b->up.z = b->forward.x * b->left.y - b->left.x * b->forward.y;
+  normalize3d((float *)&b->up);
+  b->left.x = b->forward.z * b->up.y - b->forward.y * b->up.z;
+  b->left.y = b->forward.x * b->up.z - b->forward.z * b->up.x;
+  b->left.z = b->up.x * b->forward.y - b->up.y * b->forward.x;
+
+  new_position.x = len_bc * b->forward.x + b->position.x;
+  new_position.y = len_bc * b->forward.y + b->position.y;
+  new_position.z = len_bc * b->forward.z + b->position.z;
+
+  c->forward.x = len_ab * axis.x - offset.x;
+  c->forward.y = len_ab * axis.y - offset.y;
+  c->forward.z = len_ab * axis.z - offset.z;
+  normalize3d((float *)&c->forward);
+
+  c->up.x = c->left.z * c->forward.y - c->left.y * c->forward.z;
+  c->up.y = c->left.x * c->forward.z - c->left.z * c->forward.x;
+  c->up.z = c->left.y * c->forward.x - c->left.x * c->forward.y;
+  normalize3d((float *)&c->up);
+  c->left.x = c->up.y * c->forward.z - c->up.z * c->forward.y;
+  c->left.y = c->up.z * c->forward.x - c->up.x * c->forward.z;
+  c->left.z = c->up.x * c->forward.y - c->up.y * c->forward.x;
+
+  *c_position = new_position;
+  *d = *composed;
 }
 
 /* floor: the original calls MSVC CRT floor (0x1d9c2b).
@@ -1814,18 +1927,18 @@ void FUN_00121d60(void *mode_tag, void *animation, int animation_index,
  *   +0x5c[]: translation channel present
  *   +0x6c[]: rotation channel present
  *   +0x7c[]: scale channel present
- * When the animation is not compressed (animation_is_compressed == 0) the values are
- * read sequentially out of the frame data returned by FUN_00120500; when it
- * is compressed each present channel is evaluated from the keyframe streams
- * with a per-channel running component index.
+ * When the animation is not compressed (animation_is_compressed == 0) the
+ * values are read sequentially out of the frame data returned by FUN_00120500;
+ * when it is compressed each present channel is evaluated from the keyframe
+ * streams with a per-channel running component index.
  *
  * Output stride is 0x20 per node: +0x00 rotation quaternion (4 floats),
  * +0x10 translation (3 floats), +0x1c scale (1 float).
  *
  * Confirmed: cdecl, 3 args, void return (MOV ESP,EBP epilogue at 0x12222d).
- * Confirmed: CALL animation_is_compressed(animation@<esi>) at 0x12208f — no stack args,
- * result byte stored to [EBP+0xb]. Confirmed: CALL FUN_00120500 at 0x122099
- * and 0x1221f5 (2 args: animation, frame_index). Confirmed: CALL
+ * Confirmed: CALL animation_is_compressed(animation@<esi>) at 0x12208f — no
+ * stack args, result byte stored to [EBP+0xb]. Confirmed: CALL FUN_00120500 at
+ * 0x122099 and 0x1221f5 (2 args: animation, frame_index). Confirmed: CALL
  * quaternion_decompress_8byte at 0x12211d (2 args: src_shorts, dest_floats).
  * Confirmed: CALL FUN_00121330 at 0x122108, animation_get_node_orientations
  * at 0x12215c, animation_get_keyframe_scale at 0x1221b7 — each 5
@@ -1958,9 +2071,9 @@ void replacement_animation_apply(void *animation, short frame_index,
  * Confirmed: cdecl, 3 args, void return (MOV ESP,EBP epilogue at 0x122442).
  * Confirmed: frame_index is read as a 16-bit value (CMP DI,BX at 0x12225c;
  * MOVSX EAX,word ptr [EBP+0xc] at 0x1222d7).
- * Confirmed: CALL animation_is_compressed(animation@<esi>) at 0x12226f — no stack args,
- * result byte stored to [EBP+0xb]. Confirmed: CALL FUN_00120500 at 0x122279
- * and 0x12240a (2 args: animation, frame_index). Confirmed: CALL
+ * Confirmed: CALL animation_is_compressed(animation@<esi>) at 0x12226f — no
+ * stack args, result byte stored to [EBP+0xb]. Confirmed: CALL FUN_00120500 at
+ * 0x122279 and 0x12240a (2 args: animation, frame_index). Confirmed: CALL
  * quaternion_decompress_8byte at 0x122300 (2 args: src_shorts, dest_floats;
  * last push EDX=data is arg0). Confirmed: CALL FUN_0010b9c0 at 0x122317 with
  * pushes EDI,EDI,LEA[EBP-0x40] — args (rotation, node, node).
@@ -2083,6 +2196,288 @@ void overlay_animation_apply(void *anim_entry, int frame, void *node_data)
                          1);
           system_exit(-1);
         }
+      }
+    }
+  }
+}
+
+/* overlay_animation_apply_scaled (0x122450) -- overlay_animation_apply with
+ * every per-node delta weighted by animation_scale: the rotation is first
+ * interpolated from the identity quaternion (*(float **)0x31fc5c) by
+ * animation_scale (FUN_0010ba90 = PAL quaternions_interpolate), then composed
+ * onto the node (FUN_0010b9c0); translation += delta * scale; node scale *=
+ * scale_delta * animation_scale + (1 - animation_scale).
+ *
+ * Confirmed params (callers 0x141e29, 0x1aff19, 0xdd98d..): [EBP+0xc] is a
+ * 16-bit frame index (CMP DI,BX / CMP DI,[ESI+0x22]); [EBP+0x10] is a float
+ * (FMUL [EBP+0x10], and first_person_weapon_update pushes it with FSTP
+ * [ESP]); [EBP+0x14] is the node orientation array (stride 0x20).  The old
+ * kb decl (int frame, void *in_node_data, void *out_node_data) was wrong.
+ * Assert: model_animations.c 0x22a, same text as overlay_animation_apply.
+ * Shape: PAL 2342 overlay_animation_apply_scaled (T2). */
+void overlay_animation_apply_scaled(void *animation, int16_t frame_index,
+                                    real animation_scale,
+                                    void *node_orientations)
+{
+  char *anim;
+  real inverse_animation_scale;
+  char compressed;
+  char *data;
+  int rotation_index;
+  int translation_index;
+  int scale_index;
+  unsigned int rotation_flags;
+  unsigned int translation_flags;
+  unsigned int scale_flags;
+  int16_t node_index;
+  float rotation[4];
+  float translation[3];
+  float scale;
+
+  anim = (char *)animation;
+  inverse_animation_scale = *(float *)0x2533c8 - animation_scale;
+  if (*(short *)(anim + 0x20) == 1 && frame_index >= 0 &&
+      frame_index < *(short *)(anim + 0x22)) {
+    compressed = FUN_00120620((int)anim);
+    data = (char *)FUN_00120500(animation, frame_index);
+    rotation_index = 0;
+    translation_index = 0;
+    scale_index = 0;
+
+    for (node_index = 0; node_index < *(short *)(anim + 0x2c); node_index++) {
+      float *orientation = (float *)node_orientations + node_index * 8;
+
+      if ((node_index & 0x1f) == 0) {
+        short long_index = (short)(node_index >> 5);
+
+        translation_flags = *(unsigned int *)(anim + long_index * 4 + 0x5c);
+        rotation_flags = *(unsigned int *)(anim + long_index * 4 + 0x6c);
+        scale_flags = *(unsigned int *)(anim + long_index * 4 + 0x7c);
+      }
+
+      if ((rotation_flags & 1) != 0) {
+        if (compressed) {
+          FUN_00121330(animation, (float)frame_index,
+                       (unsigned short)rotation_index++, node_index, rotation);
+        } else {
+          quaternion_decompress_8byte((short *)data, rotation);
+          data += 8;
+        }
+        FUN_0010ba90(*(float **)0x31fc5c, rotation, animation_scale, rotation);
+        FUN_0010b9c0(rotation, orientation, orientation);
+      }
+      rotation_flags >>= 1;
+
+      if ((translation_flags & 1) != 0) {
+        if (compressed) {
+          animation_get_node_orientations(animation, (float)frame_index,
+                                          (unsigned short)translation_index++,
+                                          node_index, translation);
+        } else {
+          *(int *)&translation[0] = ((int *)data)[0];
+          *(int *)&translation[1] = ((int *)data)[1];
+          *(int *)&translation[2] = ((int *)data)[2];
+          data += 0xc;
+        }
+        orientation[4] += translation[0] * animation_scale;
+        orientation[5] += translation[1] * animation_scale;
+        orientation[6] += translation[2] * animation_scale;
+      }
+      translation_flags >>= 1;
+
+      if ((scale_flags & 1) != 0) {
+        if (compressed) {
+          animation_get_keyframe_scale(animation, (float)frame_index,
+                                       (unsigned short)scale_index++,
+                                       node_index, &scale);
+        } else {
+          *(int *)&scale = *(int *)data;
+          data += 4;
+        }
+        orientation[7] *= scale * animation_scale + inverse_animation_scale;
+      }
+      scale_flags >>= 1;
+    }
+
+    if (!compressed && data - (char *)FUN_00120500(animation, frame_index) !=
+                         *(short *)(anim + 0x24)) {
+      display_assert("compressed || ((byte *)data-(byte "
+                     "*)animation_get_frame_data(animation, "
+                     "frame_index)==animation->frame_size)",
+                     "c:\\halo\\SOURCE\\models\\model_animations.c", 0x22a, 1);
+      system_exit(-1);
+    }
+  }
+}
+
+/* overlay_animation_apply_continuous (0x122690) -- overlay animation sampled
+ * at a fractional frame: each node delta is interpolated between frame
+ * floor(|real_frame_index|) and the next frame (wrapping to 0 after the last)
+ * by fraction = fmod(real_frame_index, 1.0), then applied like
+ * overlay_animation_apply (rotation composed via FUN_0010b9c0, translation
+ * added, scale multiplied).
+ *
+ * Name: PAL 2342 overlay_animation_apply_continuous (T2), corroborated by the
+ * XBE's own error string "### ERROR animation frame index out of bounds
+ * A(%f,%x) -- tell Bernie!!" (0x291388) that PAL places in this function, and
+ * by the two frame-size asserts on data / next_data (model_animations.c
+ * 0x2b5 / 0x2b6).  Was FUN_00122690.
+ *
+ * Confirmed from 0x122690..0x122a48: fmod is the CRT __CIfmod (0x1daf7e) with
+ * the double 1.0 at 0x2573d8; floor is CRT 0x1d9c2b (anim_floor here); the
+ * float->int is a bare FISTP (fast_ftol).  animation_is_compressed
+ * (animation_is_compressed) is expanded inline WITHOUT its null assert:
+ * (anim+0x3a & 1) && (*(char *)0x322600 || *(int *)(anim+0x88) == 0).
+ * Compressed rotation samples at (real)frame_index; compressed translation
+ * and scale sample at real_frame_index (PUSH [EBP+0xc] at 0x1228fe /
+ * 0x122964). */
+void overlay_animation_apply_continuous(void *animation, float real_frame_index,
+                                        void *node_orientations)
+{
+#if defined(_MSC_VER) && !defined(__clang__)
+  double __cdecl fmod(double, double);
+#endif
+  char *anim;
+  real fraction;
+  real frame_floor;
+  int16_t frame_index;
+  char compressed;
+  int next_frame_index;
+  char *data;
+  char *next_data;
+  int rotation_index;
+  int translation_index;
+  int scale_index;
+  unsigned int rotation_flags;
+  unsigned int translation_flags;
+  unsigned int scale_flags;
+  int16_t node_index;
+  float rotation[4];
+  float this_rotation[4];
+  float next_rotation[4];
+  float translation[3];
+  float scale;
+
+  anim = (char *)animation;
+#if defined(_MSC_VER) && !defined(__clang__)
+  fraction = (real)fmod((double)real_frame_index, 1.0);
+#else
+  fraction = x87_fmod(real_frame_index, 1.0);
+#endif
+  frame_floor = (real)anim_floor(fabs(real_frame_index));
+  frame_index = (int16_t)x87_round_to_int(frame_floor);
+
+  if (real_frame_index < *(float *)0x2533c0 ||
+      real_frame_index > (real) * (short *)(anim + 0x22)) {
+    error(2,
+          "### ERROR animation frame index out of bounds A(%f,%x) -- tell "
+          "Bernie!!",
+          (double)real_frame_index, *(long *)&real_frame_index);
+  }
+
+  if (frame_index >= *(short *)(anim + 0x22)) {
+    frame_index = (int16_t)(*(short *)(anim + 0x22) - 1);
+    fraction = 1.0f;
+    real_frame_index = (real)frame_index;
+  }
+
+  if (*(short *)(anim + 0x20) == 1) {
+    compressed = (*(uint8_t *)(anim + 0x3a) & 1) &&
+                 (*(char *)0x322600 || *(int *)(anim + 0x88) == 0);
+    next_frame_index =
+      frame_index == *(short *)(anim + 0x22) - 1 ? 0 : frame_index + 1;
+    data = (char *)FUN_00120500(animation, frame_index);
+    next_data = (char *)FUN_00120500(animation, (short)next_frame_index);
+    rotation_index = 0;
+    translation_index = 0;
+    scale_index = 0;
+
+    for (node_index = 0; node_index < *(short *)(anim + 0x2c); node_index++) {
+      float *orientation = (float *)node_orientations + node_index * 8;
+
+      if ((node_index & 0x1f) == 0) {
+        short long_index = (short)(node_index >> 5);
+
+        translation_flags = *(unsigned int *)(anim + long_index * 4 + 0x5c);
+        rotation_flags = *(unsigned int *)(anim + long_index * 4 + 0x6c);
+        scale_flags = *(unsigned int *)(anim + long_index * 4 + 0x7c);
+      }
+
+      if ((rotation_flags & 1) != 0) {
+        if (compressed) {
+          FUN_00121330(animation, (float)frame_index,
+                       (unsigned short)rotation_index++, node_index, rotation);
+        } else {
+          quaternion_decompress_8byte((short *)data, this_rotation);
+          data += 8;
+          quaternion_decompress_8byte((short *)next_data, next_rotation);
+          next_data += 8;
+          quaternions_interpolate_and_normalize(this_rotation, next_rotation,
+                                                fraction, rotation);
+        }
+        FUN_0010b9c0(rotation, orientation, orientation);
+      }
+      rotation_flags >>= 1;
+
+      if ((translation_flags & 1) != 0) {
+        if (compressed) {
+          animation_get_node_orientations(animation, real_frame_index,
+                                          (unsigned short)translation_index++,
+                                          node_index, translation);
+        } else {
+          float *this_translation = (float *)data;
+          float *next_translation = (float *)next_data;
+
+          data += 0xc;
+          next_data += 0xc;
+          points_interpolate(this_translation, next_translation, fraction,
+                             translation);
+        }
+        orientation[4] += translation[0];
+        orientation[5] += translation[1];
+        orientation[6] += translation[2];
+      }
+      translation_flags >>= 1;
+
+      if ((scale_flags & 1) != 0) {
+        if (compressed) {
+          animation_get_keyframe_scale(animation, real_frame_index,
+                                       (unsigned short)scale_index++,
+                                       node_index, &scale);
+        } else {
+          float this_scale;
+          float next_scale;
+
+          *(int *)&this_scale = *(int *)data;
+          data += 4;
+          *(int *)&next_scale = *(int *)next_data;
+          next_data += 4;
+          scalars_interpolate(this_scale, next_scale, fraction, &scale);
+        }
+        orientation[7] *= scale;
+      }
+      scale_flags >>= 1;
+    }
+
+    if (!compressed) {
+      if (data - (char *)FUN_00120500(animation, frame_index) !=
+          *(short *)(anim + 0x24)) {
+        display_assert("compressed || ((byte *)data-(byte "
+                       "*)animation_get_frame_data(animation, "
+                       "frame_index)==animation->frame_size)",
+                       "c:\\halo\\SOURCE\\models\\model_animations.c", 0x2b5,
+                       1);
+        system_exit(-1);
+      }
+      if (next_data -
+            (char *)FUN_00120500(animation, (short)next_frame_index) !=
+          *(short *)(anim + 0x24)) {
+        display_assert("compressed || ((byte *)next_data-(byte "
+                       "*)animation_get_frame_data(animation, "
+                       "next_frame_index)==animation->frame_size)",
+                       "c:\\halo\\SOURCE\\models\\model_animations.c", 0x2b6,
+                       1);
+        system_exit(-1);
       }
     }
   }
@@ -2391,4 +2786,916 @@ short FUN_00123e50(int tag_index, const char *name)
     }
   }
   return -1;
+}
+
+
+typedef struct render_model_skinning_data {
+  real_matrix4x3 *node_matrices;
+  short node_matrix_count;
+  short pad_06;
+} render_model_skinning_data;
+
+typedef struct render_model_begin_data {
+  unsigned int geometry_flags;
+  int unique_identifier;
+  render_model_skinning_data skinning;
+  unsigned char lighting[0x74];
+  struct {
+    void *colors;
+    void *values;
+  } animation;
+  unsigned char effect[0x28];
+  float centroid[3];
+  float radius;
+  float base_map_scale[2];
+} render_model_begin_data;
+
+cs(render_model_skinning_data, 0x08);
+cs(render_model_begin_data, 0xcc);
+co(render_model_begin_data, skinning, 0x08);
+co(render_model_begin_data, lighting, 0x10);
+co(render_model_begin_data, animation, 0x84);
+co(render_model_begin_data, effect, 0x8c);
+co(render_model_begin_data, centroid, 0xb4);
+co(render_model_begin_data, radius, 0xc0);
+co(render_model_begin_data, base_map_scale, 0xc4);
+
+/* render_model (0x123ed0) — Prepare model skinning and render state, then
+ * dispatch the selected geometry detail level through render_model_parts.
+ *
+ * The 0xcc-byte begin record and 64-entry matrix workspace are fixed by the
+ * 2276 frame stores at 0x1245e5..0x1246dd. PAL 2342 models.c supplies the T2
+ * field names; all offsets, flags, constants, call targets and assert lines
+ * below were checked against the 2276 disassembly.
+ */
+void render_model(int model_ref, float distance, void *node_matrices,
+                  void *region_permutation_indices, void *change_colors,
+                  void *function_values, int lighting, void *centroid,
+                  int radius, void *model_effect, int object_handle,
+                  int forced_shader_permutation_index, int flags)
+{
+  char *model;
+  real_matrix4x3 relative_node_matrices[64];
+  render_model_begin_data parameters;
+  short detail_level;
+  short node_index;
+  int profiling;
+
+  model = (char *)tag_get(0x6d6f6465, model_ref);
+  profiling = *(char *)0x449ef1 && *(char *)0x322610;
+  if (profiling) {
+    profile_enter_private((void *)0x322608);
+  }
+
+  if (!lighting) {
+    display_assert("lighting", "c:\\halo\\SOURCE\\models\\models.c", 0x52, 1);
+    system_exit(-1);
+  }
+
+  if (*(int *)(model + 4) == 0x0769c097 &&
+      (*(unsigned char *)((char *)global_scenario_get() + 0x3e) & 1)) {
+    *(char *)0x5a5570 = 1;
+  } else {
+    *(char *)0x5a5570 = 0;
+  }
+
+  if (distance >= *(float *)(model + 8) || (flags & 2)) {
+    int node_count;
+
+    if (!region_permutation_indices) {
+      region_permutation_indices = (void *)0x46e898;
+    }
+    if (!model_effect) {
+      model_effect = (void *)0x46e870;
+    }
+    if (!change_colors) {
+      change_colors = (void *)0x46e840;
+    }
+    if (!function_values) {
+      function_values = (void *)0x46e830;
+    }
+    if (!centroid) {
+      centroid = (char *)node_matrices + 0x28;
+    }
+
+    node_count = *(int *)(model + 0xb8);
+    if (node_matrices) {
+      for (node_index = 0; node_index < node_count; node_index++) {
+        char *node;
+
+        node = (char *)tag_block_get_element((void *)(model + 0xb8), node_index,
+                                             0x9c);
+        matrix4x3_multiply((float *)((char *)node_matrices + node_index * 0x34),
+                           (float *)(node + 0x68),
+                           (float *)&relative_node_matrices[node_index]);
+      }
+    } else {
+      for (node_index = 0; node_index < node_count; node_index++) {
+        relative_node_matrices[node_index] = *(real_matrix4x3 *)0x5065b4;
+      }
+    }
+
+    detail_level = 4;
+    while (detail_level > 0 &&
+           distance < *(float *)(model + 8 + detail_level * 4)) {
+      detail_level--;
+    }
+    if (*(short *)0x3256c0 != -1) {
+      if (*(short *)0x3256c0 < 0) {
+        detail_level = 0;
+      } else if (*(short *)0x3256c0 > 4) {
+        detail_level = 4;
+      } else {
+        detail_level = *(short *)0x3256c0;
+      }
+    }
+    if (detail_level < 0 || detail_level >= 5) {
+      display_assert(
+        "geometry_detail_level_index>=0 && "
+        "geometry_detail_level_index<NUMBER_OF_DETAIL_LEVELS_PER_MODEL",
+        "c:\\halo\\SOURCE\\models\\models.c", 0xa9, 1);
+      system_exit(-1);
+    }
+
+    if (!(flags & 2)) {
+      if (*(char *)0x5aa254) {
+        for (node_index = 0; node_index < node_count; node_index++) {
+          char *node;
+          short parent_node_index;
+
+          node = (char *)tag_block_get_element((void *)(model + 0xb8),
+                                               node_index, 0x9c);
+          parent_node_index = *(short *)(node + 0x24);
+          if (parent_node_index != -1) {
+            FUN_00189270(
+              1, (float *)((char *)node_matrices + node_index * 0x34 + 0x28),
+              (float *)((char *)node_matrices + parent_node_index * 0x34 +
+                        0x28),
+              *(void **)0x2ee6c4);
+          }
+          FUN_001894d0(1, (float *)((char *)node_matrices + node_index * 0x34),
+                       0.05f);
+        }
+      }
+
+      if (*(char *)0x5aa251) {
+        short marker_index;
+        int marker_count;
+
+        marker_count = *(int *)(model + 0xac);
+        for (marker_index = 0; marker_index < marker_count; marker_index++) {
+          char *marker;
+          short instance_index;
+          int instance_count;
+
+          marker = (char *)tag_block_get_element((void *)(model + 0xac),
+                                                 marker_index, 0x40);
+          instance_count = *(int *)(marker + 0x34);
+          for (instance_index = 0; instance_index < instance_count;
+               instance_index++) {
+            unsigned char *instance;
+
+            instance = (unsigned char *)tag_block_get_element(
+              (void *)(marker + 0x34), instance_index, 0x20);
+            if (*(char *)((char *)region_permutation_indices + instance[0]) ==
+                (char)instance[1]) {
+              real_matrix4x3 marker_matrix;
+
+              component_vectors_from_normal3d((float *)&marker_matrix,
+                                              (float *)(instance + 4),
+                                              (float *)(instance + 0x10));
+              matrix4x3_multiply(
+                (float *)((char *)node_matrices + instance[2] * 0x34),
+                (float *)&marker_matrix, (float *)&marker_matrix);
+              FUN_001894d0(0, (float *)&marker_matrix, 0.05f);
+              FUN_00189cb0(0, &marker_matrix.position, marker,
+                           (int)*(void **)0x2ee6c4);
+            }
+          }
+        }
+      }
+
+      if (*(char *)0x5aa253 || *(char *)0x5aa252) {
+        short maximum_detail_level;
+        short vertex_count;
+        short index_count;
+        short region_index;
+        char has_unstripped_parts;
+        int region_count;
+        float screen_offset;
+
+        maximum_detail_level = detail_level;
+        vertex_count = 0;
+        index_count = 0;
+        has_unstripped_parts = 0;
+        region_count = *(int *)(model + 0xc4);
+        for (region_index = 0; region_index < region_count; region_index++) {
+          char *region;
+          char permutation_index;
+
+          region = (char *)tag_block_get_element((void *)(model + 0xc4),
+                                                 region_index, 0x4c);
+          permutation_index =
+            *(char *)((char *)region_permutation_indices + region_index);
+          if (permutation_index != -1) {
+            char *permutation;
+            short actual_detail_level;
+            short geometry_index;
+
+            permutation = (char *)tag_block_get_element(
+              (void *)(region + 0x40), permutation_index, 0x58);
+            actual_detail_level = detail_level + 1;
+            while (actual_detail_level < 5 &&
+                   *(short *)(permutation + 0x40 + actual_detail_level * 2) ==
+                     *(short *)(permutation + 0x40 + detail_level * 2)) {
+              actual_detail_level++;
+            }
+            if (actual_detail_level <= 0) {
+              display_assert("actual_detail_level_index > 0",
+                             "c:\\halo\\SOURCE\\models\\models.c", 0xf7, 1);
+              system_exit(-1);
+            }
+            actual_detail_level--;
+            if (actual_detail_level < 0 || actual_detail_level >= 5) {
+              display_assert("(actual_detail_level_index >= 0) && "
+                             "(actual_detail_level_index < "
+                             "NUMBER_OF_DETAIL_LEVELS_PER_MODEL)",
+                             "c:\\halo\\SOURCE\\models\\models.c", 0xf9, 1);
+              system_exit(-1);
+            }
+            if (maximum_detail_level < actual_detail_level) {
+              maximum_detail_level = actual_detail_level;
+            }
+
+            geometry_index = *(short *)(permutation + 0x40 + detail_level * 2);
+            if (geometry_index != -1) {
+              char *geometry;
+              short part_index;
+              int part_count;
+
+              geometry = (char *)tag_block_get_element((void *)(model + 0xd0),
+                                                       geometry_index, 0x30);
+              part_count = *(int *)(geometry + 0x24);
+              for (part_index = 0; part_index < part_count; part_index++) {
+                char *part;
+                short triangle_count;
+
+                part = (char *)tag_block_get_element((void *)(geometry + 0x24),
+                                                     part_index, 0x68);
+                vertex_count = (short)(vertex_count + *(short *)(part + 0x58));
+                triangle_count = *(short *)(part + 0x48);
+                if (*(short *)(part + 0x44) == 0) {
+                  index_count = (short)(index_count + triangle_count * 3);
+                  has_unstripped_parts = 1;
+                } else if (*(short *)(part + 0x44) == 1) {
+                  index_count =
+                    (short)(index_count + (unsigned short)(triangle_count + 2));
+                } else {
+                  display_assert("!\"unreachable\"",
+                                 "c:\\halo\\SOURCE\\models\\models.c", 0x114,
+                                 1);
+                  system_exit(-1);
+                }
+              }
+            }
+          }
+        }
+
+        screen_offset =
+          (float)fabs(*(float *)0x5065c0 * *(float *)centroid +
+                      *(float *)0x5065d8 * *((float *)centroid + 2) +
+                      *(float *)0x5065cc * *((float *)centroid + 1) +
+                      *(float *)0x5065e4) /
+          *(float *)0x50672c * distance * *(float *)0x253398;
+        if (screen_offset > *(float *)0x253f44) {
+          void *detail_colors[5];
+          void *color;
+          char text[256];
+          float point[3];
+          int length;
+
+          detail_colors[0] = *(void **)0x2ee6d8;
+          detail_colors[1] = *(void **)0x2ee6d4;
+          detail_colors[2] = *(void **)0x2ee6e0;
+          detail_colors[3] = *(void **)0x2ee6f0;
+          detail_colors[4] = *(void **)0x2ee6d0;
+          color = detail_colors[maximum_detail_level];
+          if (has_unstripped_parts && (game_time_get() + model_ref) % 30 < 15) {
+            color = *(void **)0x2ee6c4;
+          }
+
+          csstrcpy(text, "");
+          if (*(char *)0x5aa253) {
+            length = csstrlen(text);
+            snprintf(text + length, 0x100 - length, "%d", vertex_count);
+          }
+          if (*(char *)0x5aa253 && *(char *)0x5aa252) {
+            length = csstrlen(text);
+            snprintf(text + length, 0x100 - length, "/");
+          }
+          if (*(char *)0x5aa252) {
+            length = csstrlen(text);
+            snprintf(text + length, 0x100 - length, "%d", index_count);
+          }
+
+          point[0] = *(float *)centroid;
+          point[1] = *((float *)centroid + 1);
+          point[2] = *((float *)centroid + 2) + screen_offset;
+          FUN_00189cb0(0, point, text, (int)color);
+        }
+      }
+    }
+
+    parameters.unique_identifier = object_handle;
+    csmemcpy(parameters.lighting, (void *)lighting, 0x74);
+    parameters.centroid[0] = *(float *)centroid;
+    parameters.centroid[1] = *((float *)centroid + 1);
+    parameters.centroid[2] = *((float *)centroid + 2);
+    parameters.radius = *(float *)&radius;
+    csmemcpy(parameters.effect, model_effect, 0x28);
+    parameters.animation.colors = change_colors;
+    parameters.animation.values = function_values;
+    parameters.skinning.node_matrices = relative_node_matrices;
+    parameters.skinning.node_matrix_count = (short)node_count;
+    parameters.skinning.pad_06 = 0;
+    parameters.geometry_flags = 0;
+    parameters.base_map_scale[0] = *(float *)(model + 0x30);
+    parameters.base_map_scale[1] = *(float *)(model + 0x34);
+
+    if (flags & 1) {
+      parameters.geometry_flags = 0x1f;
+    }
+    if (flags & 4) {
+      parameters.geometry_flags |= 0x40;
+    }
+    if (flags & 8) {
+      parameters.geometry_flags |= 0x80;
+    }
+
+    if (flags & 2) {
+      FUN_0017ccc0((int)&parameters);
+    } else {
+      FUN_0017cbb0(&parameters, 0);
+    }
+    render_model_parts((int)model, (int)region_permutation_indices,
+                       (int *)&parameters.skinning, object_handle, detail_level,
+                       (short)forced_shader_permutation_index,
+                       (unsigned char)flags);
+    if (flags & 2) {
+      FUN_00172640();
+    } else {
+      FUN_0016b1c0();
+    }
+  }
+
+  *(char *)0x5a5570 = 0;
+  if (profiling) {
+    profile_exit_private((void *)0x322608);
+  }
+}
+
+/* -----------------------------------------------------------------------
+ * overlay_animation_apply_continuous_scaled — animation 1D overlay frame apply
+ *
+ * For animation type 1 (overlay), interpolates rotation, translation, and
+ * scale between the current frame and next frame for each node.  The result
+ * is blended into the node output buffer using blend_weight.
+ *
+ * Disassembly range: 0x122a50 – 0x122e43.
+ * Source: c:\halo\SOURCE\models\model_animations.c
+ * ----------------------------------------------------------------------- */
+void overlay_animation_apply_continuous_scaled(int animation, float frame_pos, float blend_weight,
+                  int node_output)
+{
+  short *data;
+  short *next_data;
+  unsigned short frame_count_u;
+  int compressed;
+  short *data_cursor;
+  short *next_cursor;
+  int frame_index;
+  int next_frame_index;
+  int node_output_ptr;
+  float weight_complement;
+  float frac;
+  float floor_val;
+  int frame_idx_int;
+  int rotation_counter;
+  int translation_counter;
+  int scale_counter;
+  unsigned int node_idx;
+  unsigned int has_translation;
+  unsigned int has_rotation;
+  unsigned int has_scale;
+  float rot_a[4];
+  float rot_b[4];
+  float interp_rot[4];
+  float interp_trans[3];
+  float interp_scale;
+  int temp_scale_a;
+  int temp_scale_b;
+
+  weight_complement = *(float *)0x2533c8 - blend_weight;
+#if defined(_MSC_VER) && !defined(__clang__)
+  frac = (float)fmod((double)frame_pos, *(const double *)0x2573d8);
+#else
+  frac = (float)x87_fmod(frame_pos, *(const double *)0x2573d8);
+#endif
+  floor_val = (float)floor((double)frame_pos);
+  frame_idx_int = x87_round_to_int(floor_val);
+
+  if (frame_pos < *(float *)0x2533c0 ||
+      (float)*(short *)(animation + 0x22) < frame_pos) {
+    error(
+      2,
+      "### ERROR animation frame index out of bounds B(%f,%x) -- tell Bernie!!",
+      (double)frame_pos, *(int *)&frame_pos);
+  }
+
+  frame_count_u = *(unsigned short *)(animation + 0x22);
+  if ((short)frame_idx_int >= (short)frame_count_u) {
+    frame_idx_int = (int)(unsigned short)(frame_count_u - 1);
+    frac = 1.0f;
+    frame_pos = (float)(int)(short)frame_idx_int;
+  }
+
+  if (*(short *)(animation + 0x20) == 1) {
+    if ((*(unsigned char *)(animation + 0x3a) & 1) == 0 ||
+        (*(char *)0x322600 == '\0' && *(int *)(animation + 0x88) != 0)) {
+      compressed = 0;
+    } else {
+      compressed = 1;
+    }
+
+    frame_index = (int)(short)frame_idx_int;
+    if (frame_index == (int)(short)frame_count_u - 1) {
+      next_frame_index = 0;
+    } else {
+      next_frame_index = frame_index + 1;
+    }
+
+    data = (short *)FUN_00120500((void *)animation, (short)frame_idx_int);
+    next_data =
+      (short *)FUN_00120500((void *)animation, (short)next_frame_index);
+
+    rotation_counter = 0;
+    translation_counter = 0;
+    scale_counter = 0;
+    node_idx = 0;
+    if (0 < *(short *)(animation + 0x2c)) {
+      do {
+        node_output_ptr = (short)node_idx * 0x20 + node_output;
+        if ((node_idx & 0x1f) == 0) {
+          int bit_idx = (int)(short)((short)node_idx >> 5);
+          has_translation = *(unsigned int *)(animation + 0x5c + bit_idx * 4);
+          has_rotation = *(unsigned int *)(animation + 0x6c + bit_idx * 4);
+          has_scale = *(unsigned int *)(animation + 0x7c + bit_idx * 4);
+        }
+
+        data_cursor = data;
+        next_cursor = next_data;
+
+        if ((has_rotation & 1) != 0) {
+          if (compressed) {
+            FUN_00121330((void *)animation, (float)frame_index,
+                         (unsigned short)rotation_counter, (short)node_idx,
+                         interp_rot);
+            rotation_counter = rotation_counter + 1;
+          } else {
+            rot_a[0] = (float)data[0] * *(float *)0x290dd8;
+            rot_a[1] = (float)data[1] * *(float *)0x290dd8;
+            rot_a[2] = (float)data[2] * *(float *)0x290dd8;
+            rot_a[3] = (float)data[3] * *(float *)0x290dd8;
+            data += 4;
+            rot_b[0] = (float)next_data[0] * *(float *)0x290dd8;
+            rot_b[1] = (float)next_data[1] * *(float *)0x290dd8;
+            rot_b[2] = (float)next_data[2] * *(float *)0x290dd8;
+            rot_b[3] = (float)next_data[3] * *(float *)0x290dd8;
+            next_data += 4;
+            quaternions_interpolate_and_normalize(rot_a, rot_b, frac,
+                                                  interp_rot);
+          }
+          quaternions_interpolate_and_normalize(*(float **)0x31fc5c, interp_rot,
+                                                blend_weight, interp_rot);
+          FUN_0010b9c0(interp_rot, (float *)node_output_ptr,
+                       (float *)node_output_ptr);
+          data_cursor = data;
+        }
+        has_rotation = has_rotation >> 1;
+        next_cursor = next_data;
+        data = data_cursor;
+
+        if ((has_translation & 1) != 0) {
+          if (compressed) {
+            animation_get_node_orientations((void *)animation, frame_pos,
+                                            (unsigned short)translation_counter,
+                                            (short)node_idx, interp_trans);
+            translation_counter = translation_counter + 1;
+          } else {
+            points_interpolate((float *)data_cursor, (float *)next_cursor, frac,
+                               interp_trans);
+            data = data_cursor + 6;
+            next_data = next_cursor + 6;
+          }
+          *(float *)(node_output_ptr + 0x10) =
+            interp_trans[0] * blend_weight + *(float *)(node_output_ptr + 0x10);
+          *(float *)(node_output_ptr + 0x14) =
+            interp_trans[1] * blend_weight + *(float *)(node_output_ptr + 0x14);
+          *(float *)(node_output_ptr + 0x18) =
+            interp_trans[2] * blend_weight + *(float *)(node_output_ptr + 0x18);
+        }
+        has_translation = has_translation >> 1;
+
+        if ((has_scale & 1) != 0) {
+          if (compressed) {
+            animation_get_keyframe_scale(
+              (void *)animation, frame_pos, (unsigned short)scale_counter,
+              (short)node_idx, &interp_scale);
+            scale_counter = scale_counter + 1;
+          } else {
+            temp_scale_a = *(int *)data;
+            temp_scale_b = *(int *)next_data;
+            data = data + 2;
+            next_data = next_data + 2;
+            scalars_interpolate(*(float *)&temp_scale_a,
+                                *(float *)&temp_scale_b, frac, &interp_scale);
+          }
+          *(float *)(node_output_ptr + 0x1c) =
+            (interp_scale * blend_weight + weight_complement) *
+            *(float *)(node_output_ptr + 0x1c);
+        }
+        has_scale = has_scale >> 1;
+        node_idx = node_idx + 1;
+      } while ((short)node_idx < *(short *)(animation + 0x2c));
+    }
+
+    if (!compressed) {
+      int check_base;
+      check_base = (int)FUN_00120500((void *)animation, (short)frame_idx_int);
+      if ((int)data - check_base != (int)*(short *)(animation + 0x24)) {
+        display_assert(
+          "compressed || ((byte *)data-(byte *)animation_get_frame_data"
+          "(animation, frame_index)==animation->frame_size)",
+          "c:\\halo\\SOURCE\\models\\model_animations.c", 0x334, 1);
+        system_exit(-1);
+      }
+      check_base =
+        (int)FUN_00120500((void *)animation, (short)next_frame_index);
+      if ((int)next_data - check_base != (int)*(short *)(animation + 0x24)) {
+        display_assert("compressed || ((byte *)next_data-(byte *)"
+                       "animation_get_frame_data(animation, next_frame_index)"
+                       "==animation->frame_size)",
+                       "c:\\halo\\SOURCE\\models\\model_animations.c", 0x335,
+                       1);
+        system_exit(-1);
+      }
+    }
+  }
+}
+
+/* -----------------------------------------------------------------------
+ * aiming_screen_apply — animation 2D blend
+ *
+ * Performs 2D bilinear interpolation of 4 corner animation frames,
+ * blending rotation (quaternion slerp) and translation for each node
+ * based on direction and throttle parameters.
+ *
+ * Disassembly range: 0x122e50 – 0x123462.
+ * Source: c:\halo\SOURCE\models\model_animations.c
+ * ----------------------------------------------------------------------- */
+void aiming_screen_apply(int animation, float *blend_params, float direction,
+                  float throttle, int node_output)
+{
+  int direction_count;
+  int throttle_count;
+  int throttle_count_s;
+  short dir_count_s;
+  char is_compressed;
+  float yaw_range;
+  float ratio;
+  int dir_frame;
+  float dir_frac;
+  unsigned short neg_dir_offset;
+  unsigned short neg_thr_offset;
+  int thr_frame;
+  float thr_frac;
+  short thr_s;
+  short dir_s;
+  int frame_00;
+  int frame_10;
+  int frame_01;
+  int frame_11;
+  short *data_00;
+  short *data_10;
+  short *data_01;
+  short *data_11;
+  int rotation_counter;
+  unsigned int node_idx;
+  int node_out_ptr;
+  unsigned int has_translation;
+  unsigned int has_rotation;
+  int translation_counter;
+  volatile float dir_complement;
+  volatile float thr_complement;
+  float rot_00[4];
+  float rot_10[4];
+  float rot_01[4];
+  float rot_11[4];
+  float blend_a[4];
+  float blend_b[4];
+  float final_rot[4];
+  float trans_00[3];
+  float trans_10[3];
+  float trans_01[3];
+  float trans_11[3];
+  int temp_int;
+
+  direction_count = (unsigned short)(*(short *)(blend_params + 2) +
+                                     *(short *)((int)blend_params + 10)) +
+                    1;
+  throttle_count = (unsigned short)(*(short *)(blend_params + 5) +
+                                    *(short *)((int)blend_params + 0x16)) +
+                   1;
+
+  if (*(short *)(animation + 0x20) != 1) {
+    return;
+  }
+
+  throttle_count_s = (int)(short)throttle_count;
+  dir_count_s = (short)direction_count;
+  if (dir_count_s * throttle_count_s > (int)*(short *)(animation + 0x22)) {
+    return;
+  }
+
+  is_compressed = FUN_00120620(animation);
+
+  /* Direction axis */
+  if (direction >= *(float *)0x2533c0) {
+    yaw_range = blend_params[1];
+  } else {
+    yaw_range = blend_params[0];
+  }
+  if (yaw_range == *(float *)0x2533c0) {
+    ratio = 0.0f;
+  } else {
+    ratio = direction / yaw_range;
+  }
+
+  dir_frame = (int)ratio;
+  /* 0x122ed8: ratio is narrowed before fmod and frame conversion. */
+  HALO_FLT_ROUNDTRIP(ratio);
+  dir_frac = (float)x87_fmod(ratio, 1.0);
+  /* 0x122ef5 stores before the negative check; later uses reload float32. */
+  HALO_FLT_ROUNDTRIP(dir_frac);
+  if (dir_frac < *(float *)0x2533c0) {
+    dir_frame = dir_frame - 1;
+    dir_frac = dir_frac + *(float *)0x2533c8;
+  }
+
+  neg_dir_offset = *(unsigned short *)((int)blend_params + 10);
+  if ((short)dir_frame >= (short)neg_dir_offset) {
+    dir_frame = (int)(unsigned short)(neg_dir_offset - 1);
+    dir_frac = 1.0f;
+  }
+
+  neg_dir_offset = *(unsigned short *)(blend_params + 2);
+  if ((int)(short)dir_frame < -(int)(short)neg_dir_offset) {
+    dir_frame = -(int)(unsigned int)neg_dir_offset;
+    dir_frac = 0.0f;
+  }
+  dir_frame = dir_frame + (unsigned int)neg_dir_offset;
+
+  if (dir_frac < *(float *)0x2533c0 ||
+      !(dir_frac < *(float *)0x2533c8 || dir_frac == *(float *)0x2533c8)) {
+    csprintf((char *)0x5ab100, "d0==%f direction(%f) yaw_delta(%f,%f)",
+             (double)dir_frac, (double)direction, (double)blend_params[0],
+             (double)blend_params[1]);
+    display_assert((char *)0x5ab100,
+                   "c:\\halo\\SOURCE\\models\\model_animations.c", 0x365, 1);
+    system_exit(-1);
+  }
+
+  /* Throttle axis */
+  if (throttle >= *(float *)0x2533c0) {
+    yaw_range = blend_params[4];
+  } else {
+    yaw_range = blend_params[3];
+  }
+  if (yaw_range == *(float *)0x2533c0) {
+    ratio = 0.0f;
+  } else {
+    ratio = throttle / yaw_range;
+  }
+
+  thr_frame = (int)ratio;
+  /* 0x122ff0: ratio is narrowed before fmod and frame conversion. */
+  HALO_FLT_ROUNDTRIP(ratio);
+  thr_frac = (float)x87_fmod(ratio, 1.0);
+  /* 0x12300e stores before the negative check; later uses reload float32. */
+  HALO_FLT_ROUNDTRIP(thr_frac);
+  if (thr_frac < *(float *)0x2533c0) {
+    thr_frame = thr_frame - 1;
+    thr_frac = thr_frac + *(float *)0x2533c8;
+  }
+
+  neg_thr_offset = *(unsigned short *)((int)blend_params + 0x16);
+  if ((short)thr_frame >= (short)neg_thr_offset) {
+    thr_frame = (int)(unsigned short)(neg_thr_offset - 1);
+    thr_frac = 1.0f;
+  }
+
+  neg_thr_offset = *(unsigned short *)(blend_params + 5);
+  if ((int)(short)thr_frame < -(int)(short)neg_thr_offset) {
+    thr_frame = -(int)(unsigned int)neg_thr_offset;
+    thr_frac = 0.0f;
+  }
+  thr_frame = thr_frame + (unsigned int)neg_thr_offset;
+
+  thr_s = (short)thr_frame;
+  dir_s = (short)dir_frame;
+
+  if (thr_s < 0 || thr_s >= (short)throttle_count || dir_s < 0 ||
+      dir_s >= dir_count_s) {
+    return;
+  }
+
+  {
+    int next_dir;
+    int next_thr;
+    next_dir = (int)(short)dir_s + 1;
+    if (next_dir == (int)(short)dir_count_s) {
+      next_dir = (int)(short)dir_s;
+    }
+    next_thr = (int)(short)thr_s + 1;
+    if (next_thr == throttle_count_s) {
+      next_thr = (int)(short)thr_s;
+    }
+
+    frame_00 = thr_frame * direction_count + dir_frame;
+    frame_10 = thr_frame * direction_count + next_dir;
+    frame_01 = dir_frame + next_thr * direction_count;
+    frame_11 = next_thr * direction_count + next_dir;
+
+    data_00 = (short *)FUN_00120500((void *)animation, (short)frame_00);
+    data_10 = (short *)FUN_00120500((void *)animation, (short)frame_10);
+    data_01 = (short *)FUN_00120500((void *)animation, (short)frame_01);
+    data_11 = (short *)FUN_00120500((void *)animation, (short)frame_11);
+
+    translation_counter = 0;
+    node_idx = 0;
+    rotation_counter = 0;
+
+    if (0 >= *(short *)(animation + 0x2c)) {
+      return;
+    }
+
+    do {
+      node_out_ptr = (short)node_idx * 0x20 + node_output;
+      if ((node_idx & 0x1f) == 0) {
+        int bit_idx = (int)(short)((short)node_idx >> 5);
+        has_translation = *(unsigned int *)(animation + 0x5c + bit_idx * 4);
+        has_rotation = *(unsigned int *)(animation + 0x6c + bit_idx * 4);
+      }
+
+      if ((has_rotation & 1) != 0) {
+        if (is_compressed != '\0') {
+          temp_int = (int)(short)frame_00;
+          FUN_00121330((void *)animation, (float)temp_int,
+                       (unsigned short)rotation_counter, (short)node_idx,
+                       rot_00);
+          temp_int = (int)(short)frame_10;
+          FUN_00121330((void *)animation, (float)temp_int,
+                       (unsigned short)rotation_counter, (short)node_idx,
+                       rot_10);
+          temp_int = (int)(short)frame_01;
+          FUN_00121330((void *)animation, (float)temp_int,
+                       (unsigned short)rotation_counter, (short)node_idx,
+                       rot_01);
+          temp_int = (int)(short)frame_11;
+          FUN_00121330((void *)animation, (float)temp_int,
+                       (unsigned short)rotation_counter, (short)node_idx,
+                       rot_11);
+          rotation_counter = rotation_counter + 1;
+        } else {
+          quaternion_decompress_8byte(data_00, rot_00);
+          data_00 = data_00 + 4;
+          quaternion_decompress_8byte(data_10, rot_10);
+          data_10 = data_10 + 4;
+          quaternion_decompress_8byte(data_01, rot_01);
+          data_01 = data_01 + 4;
+          quaternion_decompress_8byte(data_11, rot_11);
+          data_11 = data_11 + 4;
+        }
+        quaternions_interpolate_and_normalize(rot_00, rot_10, dir_frac,
+                                              blend_a);
+        quaternions_interpolate_and_normalize(rot_01, rot_11, dir_frac,
+                                              blend_b);
+        quaternions_interpolate_and_normalize(blend_a, blend_b, thr_frac,
+                                              final_rot);
+        FUN_0010b9c0(final_rot, (float *)node_out_ptr, (float *)node_out_ptr);
+      }
+      has_rotation = has_rotation >> 1;
+
+      if ((has_translation & 1) != 0) {
+        dir_complement = *(float *)0x2533c8 - dir_frac;
+        /* 0x1232d0: blend weight is reloaded after a float32 store. */
+        thr_complement = *(float *)0x2533c8 - thr_frac;
+        /* 0x1232dc: blend weight is reloaded after a float32 store. */
+
+        if (is_compressed != '\0') {
+          temp_int = (int)(short)frame_00;
+          animation_get_node_orientations((void *)animation, (float)temp_int,
+                                          (unsigned short)translation_counter,
+                                          (short)node_idx, trans_00);
+          temp_int = (int)(short)frame_10;
+          animation_get_node_orientations((void *)animation, (float)temp_int,
+                                          (unsigned short)translation_counter,
+                                          (short)node_idx, trans_10);
+          temp_int = (int)(short)frame_01;
+          animation_get_node_orientations((void *)animation, (float)temp_int,
+                                          (unsigned short)translation_counter,
+                                          (short)node_idx, trans_01);
+          temp_int = (int)(short)frame_11;
+          animation_get_node_orientations((void *)animation, (float)temp_int,
+                                          (unsigned short)translation_counter,
+                                          (short)node_idx, trans_11);
+          translation_counter = translation_counter + 1;
+        } else {
+          trans_00[0] = *(float *)data_00;
+          trans_00[1] = *((float *)data_00 + 1);
+          trans_00[2] = *((float *)data_00 + 2);
+          data_00 = data_00 + 6;
+          trans_10[0] = *(float *)data_10;
+          trans_10[1] = *((float *)data_10 + 1);
+          trans_10[2] = *((float *)data_10 + 2);
+          data_10 = data_10 + 6;
+          trans_01[0] = *(float *)data_01;
+          trans_01[1] = *((float *)data_01 + 1);
+          trans_01[2] = *((float *)data_01 + 2);
+          data_01 = data_01 + 6;
+          trans_11[0] = *(float *)data_11;
+          trans_11[1] = *((float *)data_11 + 1);
+          trans_11[2] = *((float *)data_11 + 2);
+          data_11 = data_11 + 6;
+        }
+
+        *(float *)(node_out_ptr + 0x10) =
+          (trans_10[0] * dir_frac + trans_00[0] * dir_complement) *
+            thr_complement +
+          (trans_11[0] * dir_frac + trans_01[0] * dir_complement) * thr_frac +
+          *(float *)(node_out_ptr + 0x10);
+        *(float *)(node_out_ptr + 0x14) =
+          (trans_10[1] * dir_frac + trans_00[1] * dir_complement) *
+            thr_complement +
+          (trans_11[1] * dir_frac + trans_01[1] * dir_complement) * thr_frac +
+          *(float *)(node_out_ptr + 0x14);
+        *(float *)(node_out_ptr + 0x18) =
+          (trans_10[2] * dir_frac + trans_00[2] * dir_complement) *
+            thr_complement +
+          (trans_11[2] * dir_frac + trans_01[2] * dir_complement) * thr_frac +
+          *(float *)(node_out_ptr + 0x18);
+      }
+      has_translation = has_translation >> 1;
+      node_idx = node_idx + 1;
+    } while ((short)node_idx < *(short *)(animation + 0x2c));
+  }
+}
+
+/* animation_get_root_velocity (0x1234b0) - animation_get_root_delta
+ *
+ * Computes the delta position between frame param_3 and frame (param_3-1)
+ * of an animation. Uses _chkstk for 0x1000 bytes of stack.
+ * Two 0x800-byte node data buffers are filled via FUN_00121d60.
+ * The translation component (offset 0x10 from each buffer base) is
+ * subtracted to produce the frame delta in param_4[0..2].
+ *
+ * Confirmed: 4 cdecl params, void return. _chkstk 0x1000 frame.
+ */
+void animation_get_root_velocity(void *mode_tag, void *animation, int frame_index,
+                  float *out_delta)
+{
+  uint8_t frame_data[0x800];
+  uint8_t prev_frame_data[0x800];
+  int frame;
+
+  if (*(short *)((char *)animation + 0x22) < 2) {
+    display_assert("animation->frame_count>1",
+                   "c:\\halo\\SOURCE\\models\\model_animations.c", 0xdd, true);
+    system_exit(-1);
+  }
+
+  frame = frame_index;
+  if ((short)frame == 0) {
+    frame = 1;
+  }
+
+  FUN_00121d60(mode_tag, animation, frame, frame_data);
+  FUN_00121d60(mode_tag, animation, frame - 1, prev_frame_data);
+
+  out_delta[0] =
+    *(float *)(frame_data + 0x10) - *(float *)(prev_frame_data + 0x10);
+  out_delta[1] =
+    *(float *)(frame_data + 0x14) - *(float *)(prev_frame_data + 0x14);
+  out_delta[2] =
+    *(float *)(frame_data + 0x18) - *(float *)(prev_frame_data + 0x18);
 }

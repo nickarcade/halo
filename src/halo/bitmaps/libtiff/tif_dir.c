@@ -169,7 +169,10 @@ typedef struct tiff_s {
    * different values (TIFF_ISTILED == 0x400) -- do NOT import upstream's
    * numbering, and keep the field mechanical rather than named tif_flags. */
   char field_0a; /* 0x0a */
-  unsigned char pad_0b[0x05]; /* 0x0b */
+  unsigned char pad_0b[0x01]; /* 0x0b */
+  /* FUN_00066e70 copies tif_nextdiroff here (`MOV dword ptr [EBX+0xc],EAX` at
+   * 0x66e8a) and compares __lseek's result against it (0x66eb0). */
+  unsigned long tif_diroff; /* 0x0c */
   /* TIFFSetDirectory stores the next directory offset here
    * (`MOV dword ptr [ESI+0x10],EAX` at 0x662c2); tif_open.c names the same
    * offset tif_nextdiroff from independent evidence. */
@@ -237,7 +240,11 @@ typedef struct tiff_s {
   char *td_model; /* 0xa8 */
   char *td_software; /* 0xac */
   char *td_pagename; /* 0xb0 */
-  unsigned char pad_b4[0x08]; /* 0xb4 */
+  /* FUN_00066e70 stores the strip/tile count per image here (0x671ba) and
+   * copies it into 0xb8, multiplied by td_samplesperpixel when
+   * td_planarconfig == 2 (0x671e8-0x67202). */
+  unsigned long td_stripsperimage; /* 0xb4 */
+  unsigned long td_nstrips; /* 0xb8 */
   /* The two per-strip arrays, proven by EstimateStripByteCounts: the malloc'd
    * block is stored to +0xc0 (`MOV dword ptr [ESI+0xc0],EBX` at 0x6646a) and
    * then indexed at [0], and +0xbc is loaded and dereferenced once
@@ -269,16 +276,26 @@ typedef struct tiff_s {
    * load; signedness is unobservable, so upstream's unsigned typing is kept. */
   const unsigned long *tif_typeshift; /* 0xcc */
   const unsigned long *tif_typemask; /* 0xd0 */
-  unsigned char pad_d4[0x04]; /* 0xd4 */
+  /* 0xd4/0xdc/0xe4/0xe8: only ever observed receiving -1 (0x67648-0x6765e). */
+  unsigned long field_d4; /* 0xd4 */
   /* Dword store `MOV dword ptr [ESI+0xd8],EDI` at 0x662c5 in TIFFSetDirectory;
    * tif_open.c names the same offset tif_curdir (32-bit in this build). */
   unsigned long tif_curdir; /* 0xd8 */
-  unsigned char pad_dc[0x40]; /* 0xdc */
+  unsigned long field_dc; /* 0xdc */
+  unsigned char pad_e0[0x04]; /* 0xe0 */
+  unsigned long field_e4; /* 0xe4 */
+  unsigned long field_e8; /* 0xe8 */
+  /* Receives FUN_0006f910's result (0x6766a). */
+  unsigned long field_ec; /* 0xec */
+  unsigned char pad_f0[0x2c]; /* 0xf0 */
   /* Codec teardown hook, called before a new compression scheme replaces the
    * current one (`MOV EAX,dword ptr [EAX+0x11c]` / `CALL EAX` at
    * 0x65399-0x653a6, one pushed argument). tif_open.c proves the identity: the
    * slot is loaded with LZWCleanup (0x6cac0) by the codec installer. */
   tiff_void_method_t tif_cleanup; /* 0x11c */
+  unsigned char pad_120[0x04]; /* 0x120 */
+  /* Receives TIFFScanlineSize's result (0x67679). */
+  long tif_scanlinesize; /* 0x124 */
 } tiff_t;
 
 /* One row of the tag descriptor table. _TIFFVSetField only ever reads two
@@ -296,7 +313,11 @@ typedef struct tiff_field_info_s {
    * TIFFFieldInfo::field_tag as a 32-bit ttag_t; this build only ever reads
    * the low word, so the width of the rest is unproven and stays padding. */
   unsigned short field_tag; /* 0x00 */
-  unsigned char pad_02[6]; /* 0x02 */
+  /* Read as a signed word by FUN_00066e70 (`MOV AX,word ptr [ESI+0x2]` /
+   * `MOVSX EAX,AX` at 0x670aa-0x670dd): -1 skips the count check, -2 means
+   * td_samplesperpixel, anything else is the required tdir_count. */
+  short field_readcount; /* 0x02 */
+  unsigned char pad_04[4]; /* 0x04 */
   /* Compared as a full dword against TIFFFindFieldInfo's second argument
    * (`CMP EDX,dword ptr [EAX+0x8]` at 0x6633d, `CMP dword ptr [EAX+0x8],EDX`
    * at 0x6635b). Upstream's TIFFFieldInfo::field_type (TIFFDataType). */
@@ -802,6 +823,100 @@ badvalue:
 }
 
 /* ---------------------------------------------------------------------------
+ * FUN_000659c0 (0x659c0) -- out-of-line copy of the OkToChangeTag test that
+ * TIFFSetField (0x659f0) and TIFFVSetField (0x65a70) carry inline. No callers
+ * are known.
+ *
+ * ABI (0x659c0-0x659eb):
+ *   - `tag` arrives in EAX (`CMP EAX,0x101` at 0x659c0, then `PUSH EAX` at
+ *     0x659cf) and the tif handle in ECX (`TEST byte ptr [ECX+0xa],0x8` at
+ *     0x659c7); neither is written first, so both are register arguments.
+ *   - TIFFFindFieldInfo takes two cdecl arguments: `PUSH 0x0` (dt) then
+ *     `PUSH EAX` (tag), `ADD ESP,0x8`.
+ *   - Only a found row whose field_0e word is zero returns 0 (`XOR EAX,EAX`
+ *     at 0x659e3); a NULL row returns 1, as in the inline copies.
+ * ------------------------------------------------------------------------- */
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth(0)
+#endif
+/* 0x659c0 */
+int FUN_000659c0(int tag, void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_field_info_t *fip;
+
+  if (tag != TIFFTAG_IMAGELENGTH && (tif->field_0a & TIFF_BEENWRITING)) {
+    fip = (tiff_field_info_t *)TIFFFindFieldInfo(tag, TIFF_NOTYPE);
+    if (fip != 0 && fip->field_0e == 0)
+      return 0;
+  }
+  return 1;
+}
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth()
+#endif
+
+/* ---------------------------------------------------------------------------
+ * TIFFSetField (0x659f0) -- upstream libtiff tif_dir.c.
+ *
+ * Upstream's TIFFSetField is va_start + TIFFVSetField; here the TIFFVSetField
+ * body (0x65a70) is inlined in full: the same IMAGELENGTH (0x101) exemption,
+ * the TIFF_BEENWRITING test (`TEST byte ptr [EBX+0xa],0x8` at 0x65a06), two
+ * separate TIFFFindFieldInfo(tag, 0) calls (0x65a0e and 0x65a36), and the tail
+ * CALL 0x652f0 with `LEA EAX,[EBP+0x10]` as the va_list (0x65a20-0x65a26).
+ * The diagnostic module is the literal "TIFFSetField" (0x25f678) with the
+ * shared format at 0x25f688. The error path returns EDI (still zero).
+ * ------------------------------------------------------------------------- */
+
+/* TIFFFindFieldInfo is a real out-of-line CALL in the reference (0x65a0e,
+ * 0x65a36); keep cl.exe /Ob2 from inlining it into the VC71 scoring build,
+ * as for TIFFGetField below. The production clang build is unaffected. */
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth(0)
+#endif
+/* 0x659f0 */
+int TIFFSetField(int file, int field, ...)
+{
+  tiff_t *tif = (tiff_t *)file;
+  tiff_field_info_t *fip;
+  int status = 0;
+  int ok = 1;
+  va_list ap;
+
+  /* 0x659fe-0x65a1c: the OkToChangeTag test. Only a found row whose
+   * field_0e is zero refuses the change (JZ 0x65a33 at 0x65a1e). */
+  if (field != TIFFTAG_IMAGELENGTH && (tif->field_0a & TIFF_BEENWRITING)) {
+    fip = (tiff_field_info_t *)TIFFFindFieldInfo(field, TIFF_NOTYPE);
+    if (fip != 0 && fip->field_0e == 0)
+      ok = 0;
+  }
+  /* The reference lays the va tail (0x65a20-0x65a32) out BEFORE the error
+   * block, falling through from the CMP at 0x65a1a; the ok flag with an
+   * if/else is what gives cl.exe that order (a goto or an early return
+   * sinks the va tail to the end instead). */
+  if (ok) {
+    /* 0x65a20-0x65a2b. */
+    va_start(ap, field);
+    status = _TIFFVSetField(tif, field, ap);
+    va_end(ap);
+  } else {
+    /* 0x65a33-0x65a58. */
+    fip = (tiff_field_info_t *)TIFFFindFieldInfo(field, TIFF_NOTYPE);
+    if (fip != 0)
+      FUN_00068a30("TIFFSetField",
+                   "%s: Cannot modify tag \"%s\" while writing",
+                   tif->tif_name, fip->field_name);
+  }
+  /* 0x65a5b, MOV EAX,EDI with EDI still zero on the error path: `status`
+   * keeps 0 live in EDI (also the `CMP word [EAX+0xe],DI`). */
+  return status;
+}
+#if defined(_MSC_VER) && !defined(__clang__)
+#pragma inline_depth()
+#endif
+
+/* ---------------------------------------------------------------------------
  * TIFFVSetField (0x65a70) -- upstream libtiff tif_dir.c.
  *
  * Identification: upstream splits this into TIFFVSetField plus a static
@@ -1265,6 +1380,51 @@ void *TIFFFindFieldInfo(int tag, int dt)
   }
   /* 0x6636c. */
   return NULL;
+}
+
+/* ---------------------------------------------------------------------------
+ * FUN_00066380 (0x66380) -- upstream libtiff's _TIFFFieldWithTag, with the
+ * TIFFFindFieldInfo(tag, TIFF_ANY) lookup expanded in place (the body has no
+ * CALL to 0x66320; the wildcard type makes both type tests vanish).
+ *
+ * Confirmed from 0x66380-0x663e1:
+ *   - One cdecl stack argument read 16 bits wide (`MOV DX,word ptr [EBP+0x8]`
+ *     at 0x6638a).
+ *   - Cache test on 0x3340ac (0x66383-0x66393), then the 0x2c9a98 table walk
+ *     with stride 0x14 ending on a zero tag (0x66395-0x663b5). A table hit
+ *     stores the row back into the cache (0x663b7).
+ *   - Miss: `MOVZX EAX,DX`, PUSH 0x25fabc (format), PUSH 0x25faa8 (module),
+ *     CALL 0x68a30, `ADD ESP,0xc`, then `PUSH -0x1; CALL 0x1d980b`.
+ *   - Hit: the row is returned in EAX (0x663e0).
+ * ------------------------------------------------------------------------- */
+
+/* 0x66380 */
+void *FUN_00066380(unsigned short tag)
+{
+  tiff_field_info_t *fip;
+  tiff_field_info_t *p;
+
+  /* 0x66383-0x66393. */
+  fip = (tiff_field_info_t *)tiff_find_field_info_last;
+  if (fip == NULL || fip->field_tag != tag) {
+    fip = NULL;
+    /* 0x66395-0x663b5. */
+    for (p = (tiff_field_info_t *)tiffFieldInfo; p->field_tag != 0; p++) {
+      if (p->field_tag == tag) {
+        /* 0x663b7. */
+        tiff_find_field_info_last = p;
+        fip = p;
+        break;
+      }
+    }
+  }
+  /* 0x663bf-0x663e0. */
+  if (fip == NULL) {
+    FUN_00068a30("TIFFFieldWithTag", "Internal error, unknown tag 0x%x",
+                 (unsigned int)tag);
+    FUN_001d980b(-1);
+  }
+  return fip;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1856,4 +2016,403 @@ long TIFFFetchRationalArray(void *tif_, void *dp_, float *v)
   /* 0x669c2-0x669de. */
   debug_free(l, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c", 0x345);
   return ok;
+}
+
+/* ---------------------------------------------------------------------------
+ * FUN_00066e70 (0x66e70) -- upstream libtiff's TIFFReadDirectory, unmapped-I/O
+ * build. Every debug_free names "...\libtiff\tif_dirread.c" (0x194, 0x1fe,
+ * 0x212), so like its helpers above it belongs to tif_dirread.c.
+ *
+ * Confirmed from 0x66e70-0x67689:
+ *   - One cdecl argument, kept in EBX. Returns 0 on every failure path
+ *     (`XOR EAX,EAX` at 0x66ecc/0x66efd/0x6759e; the empty-directory exit at
+ *     0x66e8f reuses the zero just tested) and 1 on success (0x67680).
+ *   - The next-directory link is read straight into tif_nextdiroff (`PUSH ESI`
+ *     with ESI = EBX+0x10, 0x66f79) and zeroed on a short read (0x66f88).
+ *   - First pass (0x66fd1-0x6704a): swab, sorted tiffFieldInfo walk with a
+ *     one-shot TIFFWarning, silent drop of unknown tags (no warning call),
+ *     FIELD_IGNORE / type-retry / count checks, then setting the strip/tile
+ *     field bits and fetching the geometry tags (jump table 0x6768c/0x67698,
+ *     plus 0x142-0x145 and 0x80e5-0x80e6). A zero TIFFFetchNormalTag return
+ *     is fatal here (0x6717b) but ignored in the second pass (0x674f4).
+ *   - Second pass (0x67252-0x67538): tables 0x676b0/0x676cc (0xff-0x129) and
+ *     0x676f8 (0x140-0x145). The colormap/transfer arm passes FOUR arrays to
+ *     TIFFSetField (six pushes, `ADD ESP,0x18` at 0x67474).
+ *   - dir is freed unconditionally on both exits (0x67603, 0x67586).
+ * ------------------------------------------------------------------------- */
+
+#define TIFFTAG_OSUBFILETYPE 255 /* 0xff, slot 0 of the table at 0x676cc */
+#define TIFFTAG_STRIPOFFSETS 273 /* 0x111, first-pass field-bit arm */
+#define TIFFTAG_STRIPBYTECOUNTS 279 /* 0x117, PUSH 0x117 at 0x675a5 */
+#define TIFFTAG_TRANSFERFUNCTION 301 /* 0x12d, JZ at 0x67278 */
+#define TIFFTAG_TILEOFFSETS 324 /* 0x144, slot 4 of the table at 0x676f8 */
+#define TIFFTAG_TILEBYTECOUNTS 325 /* 0x145, slot 5 of the table at 0x676f8 */
+
+/* A consumed/dropped directory entry has its tag zeroed (0x67039) and the
+ * second pass skips it (`TEST AX,AX` at 0x6725c). */
+#define TIFF_DIR_IGNORE 0
+/* field_readcount sentinels compared at 0x670ae / 0x670b4. */
+#define TIFF_VARIABLE (-1)
+#define TIFF_SPP (-2)
+#define PHOTOMETRIC_PALETTE 3 /* CMP word ptr [EBX+0x3c],0x3 at 0x6753e */
+/* Old-style subfile type mapping (0x67355-0x67368). */
+#define OFILETYPE_REDUCEDIMAGE 2
+#define OFILETYPE_PAGE 3
+#define FILETYPE_REDUCEDIMAGE 1
+#define FILETYPE_PAGE 2
+
+/* Field bits tested or set by FUN_00066e70. */
+#define FIELD_IMAGEDIMENSIONS 0 /* TEST AL,0x1 at 0x6704f, "ImageLength" */
+#define FIELD_MAXSAMPLEVALUE 19 /* TEST EAX,0x80000 at 0x6761c */
+#define FIELD_PLANARCONFIG 20 /* TEST EAX,0x100000 at 0x67186 */
+#define FIELD_PAGENUMBER 25 /* OR [EBX+0x14],0x2000000 at 0x67303 */
+#define FIELD_STRIPBYTECOUNTS 26 /* TEST [EBX+0x14],0x4000000 at 0x6755d */
+#define FIELD_STRIPOFFSETS 27 /* TEST [EBX+0x14],0x8000000 at 0x67212 */
+#define FIELD_COLORMAP 28 /* TEST [EBX+0x14],0x10000000 at 0x67545 */
+#define FIELD_HALFTONEHINTS 43 /* OR [EBX+0x18],0x800 at 0x674ab */
+
+/* 0x66e70 */
+int FUN_00066e70(void *tif_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_dir_entry_t *dp;
+  int n;
+  tiff_dir_entry_t *dir;
+  int v;
+  tiff_field_info_t *fip;
+  unsigned short dircount;
+  char *cp;
+  int diroutoforderwarning;
+  unsigned long expected;
+
+  diroutoforderwarning = 0;
+  /* 0x66e7a-0x66e8d. */
+  tif->tif_diroff = tif->tif_nextdiroff;
+  if (tif->tif_diroff == 0) {
+    return 0;
+  }
+  tif->tif_curdir++;
+  /* 0x66e96-0x66ed2. */
+  if (__lseek(tif->tif_fd, (long)tif->tif_diroff, 0) != (long)tif->tif_diroff) {
+    FUN_00068a30(tif->tif_name, "Seek error accessing TIFF directory");
+    return 0;
+  }
+  /* 0x66ed3-0x66f03. */
+  if (__read(tif->tif_fd, &dircount, sizeof(unsigned short)) != 2) {
+    FUN_00068a30(tif->tif_name, "Can not read TIFF directory count");
+    return 0;
+  }
+  if ((tif->field_0a & TIFF_SWAB_BIT) != 0) {
+    FUN_0006f1b0(&dircount);
+  }
+  /* 0x66f16-0x66f35. */
+  dir = (tiff_dir_entry_t *)CheckMalloc(dircount * sizeof(tiff_dir_entry_t),
+                                        tif, "to read TIFF directory");
+  if (dir == NULL) {
+    return 0;
+  }
+  /* 0x66f37-0x66f6e. */
+  if (__read(tif->tif_fd, dir, dircount * sizeof(tiff_dir_entry_t)) !=
+      (int)(dircount * sizeof(tiff_dir_entry_t))) {
+    FUN_00068a30(tif->tif_name, "Can not read TIFF directory");
+    goto bad;
+  }
+  /* 0x66f73-0x66f9a. */
+  if (__read(tif->tif_fd, &tif->tif_nextdiroff, sizeof(unsigned long)) != 4) {
+    tif->tif_nextdiroff = 0;
+  }
+  if ((tif->field_0a & TIFF_SWAB_BIT) != 0) {
+    FUN_0006f1d0(&tif->tif_nextdiroff);
+  }
+
+  /* 0x66f9d-0x66fb5. */
+  tif->field_0a &= ~TIFF_BEENWRITING;
+  TIFFFreeDirectory((int)tif);
+  TIFFDefaultDirectory(tif);
+  TIFFSetField((int)tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+
+  /* First pass, 0x66fba-0x6704a. */
+  fip = (tiff_field_info_t *)tiffFieldInfo;
+  for (dp = dir, n = dircount; n > 0; n--, dp++) {
+    if ((tif->field_0a & TIFF_SWAB_BIT) != 0) {
+      FUN_0006f1f0(&dp->tdir_tag, 2);
+      FUN_0006f220(&dp->tdir_count, 2);
+    }
+    if (dp->tdir_tag < fip->field_tag) {
+      if (!diroutoforderwarning) {
+        FUN_0006f9d0(
+          tif->tif_name,
+          "invalid TIFF directory; tags are not sorted in ascending order");
+        diroutoforderwarning = 1;
+      }
+      fip = (tiff_field_info_t *)tiffFieldInfo;
+    }
+    while (fip->field_tag != 0 && fip->field_tag < dp->tdir_tag) {
+      fip++;
+    }
+    if (fip->field_tag == 0 || fip->field_tag != dp->tdir_tag) {
+      /* 0x67034: unknown tag, dropped without a diagnostic. */
+      fip = (tiff_field_info_t *)tiffFieldInfo;
+      goto ignore;
+    }
+    if (fip->field_bit == FIELD_IGNORE) {
+      goto ignore;
+    }
+    /* 0x6707e-0x670d8. */
+    while (dp->tdir_type != (unsigned short)fip->field_type) {
+      if (fip->field_type == TIFF_ANY) {
+        break;
+      }
+      fip++;
+      if (fip->field_tag == 0 || fip->field_tag != dp->tdir_tag) {
+        FUN_0006f9d0(tif->tif_name,
+                     "wrong data type %d for \"%s\"; tag ignored",
+                     dp->tdir_type, fip[-1].field_name);
+        goto ignore;
+      }
+    }
+    /* 0x670aa-0x670e3. */
+    if (fip->field_readcount != TIFF_VARIABLE) {
+      expected = (fip->field_readcount == TIFF_SPP) ?
+                   (unsigned long)tif->td_samplesperpixel :
+                   (unsigned long)fip->field_readcount;
+      if (expected != dp->tdir_count) {
+        goto ignore;
+      }
+    }
+    /* 0x670e9-0x67181. */
+    switch (dp->tdir_tag) {
+    case TIFFTAG_STRIPOFFSETS:
+    case TIFFTAG_STRIPBYTECOUNTS:
+    case TIFFTAG_TILEOFFSETS:
+    case TIFFTAG_TILEBYTECOUNTS:
+      TIFFSetFieldBit(tif, fip->field_bit);
+      break;
+    case TIFFTAG_IMAGEWIDTH:
+    case TIFFTAG_IMAGELENGTH:
+    case TIFFTAG_IMAGEDEPTH:
+    case TIFFTAG_TILELENGTH:
+    case TIFFTAG_TILEWIDTH:
+    case TIFFTAG_TILEDEPTH:
+    case TIFFTAG_PLANARCONFIG:
+    case TIFFTAG_SAMPLESPERPIXEL:
+    case TIFFTAG_ROWSPERSTRIP:
+      if (!TIFFFetchNormalTag(tif, dp)) {
+        goto bad;
+      }
+      break;
+    }
+    continue;
+  ignore:
+    dp->tdir_tag = TIFF_DIR_IGNORE;
+  }
+
+  /* 0x6704c-0x67197. */
+  if (!TIFFFieldSet(tif, FIELD_IMAGEDIMENSIONS)) {
+    FUN_00068a30(tif->tif_name,
+                 "TIFF directory is missing required \"%s\" field",
+                 "ImageLength");
+    goto bad;
+  }
+  if (!TIFFFieldSet(tif, FIELD_PLANARCONFIG)) {
+    FUN_00068a30(tif->tif_name,
+                 "TIFF directory is missing required \"%s\" field",
+                 "PlanarConfiguration");
+    goto bad;
+  }
+  /* 0x67197-0x671e4. */
+  if (!TIFFFieldSet(tif, FIELD_TILEDIMENSIONS)) {
+    tif->td_stripsperimage =
+      (tif->td_rowsperstrip == 0xffffffff ?
+         (tif->td_imagelength != 0 ? 1 : 0) :
+         (tif->td_imagelength + tif->td_rowsperstrip - 1) /
+           tif->td_rowsperstrip);
+    tif->td_tilewidth = tif->td_imagewidth;
+    tif->td_tilelength = tif->td_rowsperstrip;
+    tif->td_tiledepth = tif->td_imagedepth;
+    tif->field_0a &= ~TIFF_ISTILED;
+  } else {
+    tif->td_stripsperimage = TIFFNumberOfTiles(tif);
+    tif->field_0a |= TIFF_ISTILED;
+  }
+  /* 0x671e8-0x67202. */
+  tif->td_nstrips = tif->td_stripsperimage;
+  if (tif->td_planarconfig == PLANARCONFIG_SEPARATE) {
+    tif->td_nstrips *= tif->td_samplesperpixel;
+  }
+  /* 0x67208-0x67235. */
+  if (tif->td_nstrips != 0 && !TIFFFieldSet(tif, FIELD_STRIPOFFSETS)) {
+    FUN_00068a30(
+      tif->tif_name, "TIFF directory is missing required \"%s\" field",
+      (tif->field_0a & TIFF_ISTILED) != 0 ? "TileOffsets" : "StripOffsets");
+    goto bad;
+  }
+
+  /* Second pass, 0x6723a-0x67538. */
+  for (dp = dir, n = dircount; n > 0; n--, dp++) {
+    if (dp->tdir_tag == TIFF_DIR_IGNORE) {
+      continue;
+    }
+    switch (dp->tdir_tag) {
+    case TIFFTAG_IMAGELENGTH:
+    case TIFFTAG_SAMPLESPERPIXEL:
+    case TIFFTAG_ROWSPERSTRIP:
+    case TIFFTAG_PLANARCONFIG:
+    case TIFFTAG_TILEWIDTH:
+    case TIFFTAG_TILELENGTH:
+    case TIFFTAG_TILEDEPTH:
+      break;
+    case TIFFTAG_MINSAMPLEVALUE:
+    case TIFFTAG_MAXSAMPLEVALUE:
+    case TIFFTAG_BITSPERSAMPLE:
+    case TIFFTAG_COMPRESSION:
+      /* 0x6729a-0x672ea. */
+      if (dp->tdir_count == 1) {
+        v = (int)TIFFExtractData(tif, dp->tdir_type, dp->tdir_offset);
+        if (!TIFFSetField((int)tif, dp->tdir_tag, v)) {
+          goto bad;
+        }
+        break;
+      }
+      /* fall through */
+    case TIFFTAG_SAMPLEFORMAT:
+    case TIFFTAG_DATATYPE:
+      /* 0x674ff-0x67524. */
+      if (!TIFFFetchPerSampleShorts(tif, dp, &v) ||
+          !TIFFSetField((int)tif, dp->tdir_tag, v)) {
+        goto bad;
+      }
+      break;
+    case TIFFTAG_STRIPOFFSETS:
+    case TIFFTAG_TILEOFFSETS:
+      /* 0x673aa. */
+      if (!TIFFFetchStripThing(tif, dp, (long)tif->td_nstrips,
+                               &tif->td_stripoffset)) {
+        goto bad;
+      }
+      break;
+    case TIFFTAG_STRIPBYTECOUNTS:
+    case TIFFTAG_TILEBYTECOUNTS:
+      /* 0x673c7. */
+      if (!TIFFFetchStripThing(tif, dp, (long)tif->td_nstrips,
+                               &tif->td_stripbytecount)) {
+        goto bad;
+      }
+      break;
+    case TIFFTAG_COLORMAP:
+      /* 0x673e4-0x673f9. */
+      if (dp->tdir_count != 3 * (1UL << tif->td_bitspersample)) {
+        break;
+      }
+      /* fall through */
+    case TIFFTAG_TRANSFERFUNCTION:
+      /* 0x673ff-0x6748f. */
+      v = (int)((1UL << tif->td_bitspersample) * sizeof(unsigned short));
+      cp = (char *)CheckMalloc(dp->tdir_count * sizeof(unsigned short), tif,
+                               "to read \"TransferFunction\" tag");
+      if (cp != NULL) {
+        if (TIFFFetchData(tif, dp, cp)) {
+          if (dp->tdir_count == 1UL << tif->td_bitspersample) {
+            v = 0;
+          }
+          TIFFSetField((int)tif, dp->tdir_tag, cp, cp + v, cp + 2 * v,
+                       cp + 3 * v);
+        }
+        debug_free(cp, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c",
+                   0x194);
+      }
+      break;
+    case TIFFTAG_OSUBFILETYPE:
+      /* 0x6730f-0x6737f. */
+      v = 0;
+      switch (TIFFExtractData(tif, dp->tdir_type, dp->tdir_offset)) {
+      case OFILETYPE_REDUCEDIMAGE:
+        v = FILETYPE_REDUCEDIMAGE;
+        break;
+      case OFILETYPE_PAGE:
+        v = FILETYPE_PAGE;
+        break;
+      }
+      if (v) {
+        TIFFSetField((int)tif, TIFFTAG_SUBFILETYPE, v);
+      }
+      break;
+    case TIFFTAG_PAGENUMBER:
+      /* 0x672ef-0x6730a. */
+      if (TIFFFetchShortArray(tif, dp, tif->td_pagenumber)) {
+        TIFFSetFieldBit(tif, FIELD_PAGENUMBER);
+      }
+      break;
+    case TIFFTAG_HALFTONEHINTS:
+      /* 0x67494-0x674b2. */
+      if (TIFFFetchShortArray(tif, dp, tif->td_halftonehints)) {
+        TIFFSetFieldBit(tif, FIELD_HALFTONEHINTS);
+      }
+      break;
+    case TIFFTAG_EXTRASAMPLES:
+      /* 0x674b4-0x674df. */
+      if (dp->tdir_count != 1) {
+        FUN_00068a30(tif->tif_name,
+                     "Can not handle more than 1 extra sample/pixel");
+      } else {
+        TIFFSetField((int)tif, TIFFTAG_MATTEING, 1);
+      }
+      break;
+    default:
+      /* 0x674f4: return value discarded. */
+      TIFFFetchNormalTag(tif, dp);
+      break;
+    }
+  }
+
+  /* 0x6753e-0x6755b. */
+  if (tif->td_photometric == PHOTOMETRIC_PALETTE &&
+      !TIFFFieldSet(tif, FIELD_COLORMAP)) {
+    FUN_00068a30(tif->tif_name,
+                 "TIFF directory is missing required \"%s\" field", "Colormap");
+    goto bad;
+  }
+  /* 0x6755d-0x67600. */
+  if (!TIFFFieldSet(tif, FIELD_STRIPBYTECOUNTS)) {
+    if (tif->td_nstrips > 1) {
+      FUN_00068a30(tif->tif_name,
+                   "TIFF directory is missing required \"%s\" field",
+                   "StripByteCounts");
+      goto bad;
+    }
+    FUN_0006f9d0(
+      tif->tif_name,
+      "TIFF directory is missing required \"%s\" field, "
+      "calculating from imagelength",
+      ((tiff_field_info_t *)FUN_00066380(TIFFTAG_STRIPBYTECOUNTS))->field_name);
+    EstimateStripByteCounts(dircount, tif, dir);
+  } else if (tif->td_nstrips == 1 && tif->td_stripbytecount[0] == 0) {
+    FUN_0006f9d0(
+      tif->tif_name,
+      "Bogus \"%s\" field, ignoring and calculating from imagelength",
+      ((tiff_field_info_t *)FUN_00066380(TIFFTAG_STRIPBYTECOUNTS))->field_name);
+    EstimateStripByteCounts(dircount, tif, dir);
+  }
+  /* 0x67603. */
+  debug_free(dir, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c", 0x1fe);
+  /* 0x67616-0x67645. */
+  if (!TIFFFieldSet(tif, FIELD_MAXSAMPLEVALUE)) {
+    tif->td_maxsamplevalue = (1UL << tif->td_bitspersample) - 1;
+  }
+  if (!TIFFFieldSet(tif, FIELD_COMPRESSION)) {
+    TIFFSetField((int)tif, TIFFTAG_COMPRESSION, COMPRESSION_NONE);
+  }
+  /* 0x67648-0x6767f. */
+  tif->field_d4 = (unsigned long)-1;
+  tif->field_dc = (unsigned long)-1;
+  tif->field_e4 = (unsigned long)-1;
+  tif->field_e8 = (unsigned long)-1;
+  tif->field_ec = FUN_0006f910(tif);
+  tif->tif_scanlinesize = TIFFScanlineSize((int)tif);
+  return 1;
+
+bad:
+  /* 0x67586-0x675a4. */
+  debug_free(dir, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c", 0x212);
+  return 0;
 }

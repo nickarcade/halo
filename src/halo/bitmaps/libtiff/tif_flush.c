@@ -4394,6 +4394,43 @@ void *FUN_0006b780(void *img)
   return (void *)put;
 }
 
+/* Separate-planar dispatch signature, shared with FUN_0006ba70 below; the
+ * nine-slot argument list is carried over from the lifted writers
+ * FUN_0006b190 / FUN_0006b2d0. */
+typedef void (*tiff_put_separate_proc)(unsigned long *cp, unsigned char *r,
+                                       unsigned char *g, unsigned char *b,
+                                       unsigned char *map, unsigned long w,
+                                       unsigned long h, long fromskew,
+                                       long toskew);
+
+/* FUN_0006b8a0 -- 0x6b8a0, the separate-planar sibling of FUN_0006b780
+ * (upstream pickTileSeparateCase). No stack argument is read and the artifact
+ * lists no callers, so the parameter list stays void. Return is EAX
+ * (`mov eax,esi` at 0x6b8da), ESI zeroed at 0x6b8a8.
+ *   0x6b8aa `sub eax,2; jnz` -- only PHOTOMETRIC_RGB is handled;
+ *   0x6b8af `cmp word ptr [0x3340fc],8` -- 8-bit -> FUN_0006b190, every other
+ *   depth -> FUN_0006b2d0 (no 16-bit check in this build).
+ *   0x6b8c7-0x6b8d7 `mov eax,[0x3340dc]; push 0x2602d0; push eax`, `add esp,8`.
+ */
+void *FUN_0006b8a0(void)
+{
+  tiff_put_separate_proc put = NULL;
+
+  switch (photometric) {
+  case PHOTOMETRIC_RGB:
+    if (bitspersample == 8)
+      put = (tiff_put_separate_proc)FUN_0006b190;
+    else
+      put = (tiff_put_separate_proc)FUN_0006b2d0;
+    break;
+  }
+
+  if (put == NULL)
+    FUN_00068a30(filename, "Can not handle format");
+
+  return (void *)put;
+}
+
 /* The abort-on-error flag, the same file static tif_open.c recovered from the
  * dword store at 0x6c4f0. Read here as a full dword (`mov eax,[0x3340e0]` at
  * 0x6b9da), so the `int` width is proven on both sides. Upstream keeps this in
@@ -4583,12 +4620,6 @@ int FUN_0006b8e0(void *tif, unsigned long *raster, void *img,
  * Return is EAX: `mov eax,1` at 0x6bc9f on the normal exit, `xor eax,eax`
  * at 0x6bb09 (alloc failure) and the implicit 0 at 0x6bac2 (bad format).
  */
-typedef void (*tiff_put_separate_proc)(unsigned long *cp, unsigned char *r,
-                                       unsigned char *g, unsigned char *b,
-                                       unsigned char *map, unsigned long w,
-                                       unsigned long h, long fromskew,
-                                       long toskew);
-
 int FUN_0006ba70(void *tif, unsigned long *raster, void *img,
                  unsigned long w /* @<edi> */, unsigned long h)
 {

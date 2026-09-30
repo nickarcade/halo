@@ -30,154 +30,6 @@ extern void *__cdecl memset(void *, int, unsigned int);
 #define main_zero_bytes(p, n) csmemset((p), 0, (n))
 #endif
 
-/* Close all UI widgets and display the "damaged media" fatal error screen.
- *
- * Loads the "error_abort_to_dashboard_you_have_no_choice" widget by name,
- * asserts that it is a text box widget (type 1), sets its string_list_index
- * and the global error_string_index to 0x23, marks the widget as needing
- * a text update, then flushes input and enters the halt loop forever.
- * If the widget fails to load, logs an error and enters the halt loop
- * anyway. This function never returns. */
-void display_error_damaged_media(void)
-{
-  void *widget;
-
-  ui_widgets_close_all();
-  widget = ui_widget_load_by_name_or_tag(
-    "ui\\shell\\error\\error_abort_to_dashboard_you_have_no_choice", -1, 0, -1,
-    -1, -1, -1);
-  if (widget != NULL) {
-    if (*(int16_t *)((char *)widget + 0xe) != 1) {
-      display_assert("expected a text box widget",
-                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x90f, 1);
-      system_exit(-1);
-    }
-    *(int16_t *)((char *)widget + 0x40) = 0x23;
-    *(uint8_t *)((char *)widget + 0x15) = 1;
-    *(int16_t *)0x31e054 = 0x23;
-    input_frame_end();
-    main_halt_entry();
-  }
-  error(2, "failed to load '%s' widget",
-        "ui\\shell\\error\\error_abort_to_dashboard_you_have_no_choice");
-  input_frame_end();
-  main_halt_entry();
-}
-
-/* ui_widget_display_deferred_errors — flushes the deferred-for-cinematic error
- * queue (4 records at 0x46cc6c, one per local-player slot, 4 bytes each:
- * int16 error_handle @+0, uint8 is_modal @+2, uint8 pause_game @+3). Must run
- * only outside a cinematic; asserts otherwise ("Noooooooooooooooooo!!!",
- * ui_widget.c line 0x93f, system_exit(-1) flavor). For each valid record
- * (0 <= handle < 0x28) it re-issues ui_widget_display_error(handle, slot,
- * is_modal, pause_game), then clears the slot to -1. Ref 0xe8db0. */
-void ui_widget_display_deferred_errors(void)
-{
-  int16_t error_handle;
-  int local_player_index;
-  int16_t *record;
-
-  if (cinematic_in_progress()) {
-    display_assert("Noooooooooooooooooo!!!",
-                   "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x93f, true);
-    system_exit(-1);
-  }
-
-  local_player_index = 0;
-  record = (int16_t *)0x46cc6c;
-  do {
-    error_handle = *record;
-    if (error_handle >= 0 && error_handle < 0x28) {
-      ui_widget_display_error(error_handle, local_player_index, (char)record[1],
-                              *(char *)((int)record + 3));
-    }
-    *record = -1;
-    local_player_index = local_player_index + 1;
-    record = record + 2;
-  } while ((int16_t)local_player_index < 4);
-}
-
-/* ui_widget_display_scenario_help — displays the in-game player-help dialog for
- * the scenario that is currently loaded. Copies the scenario tag name into a
- * 256-byte buffer, lowercases it, and matches it against ten level codes
- * ("a10".."d40") to select the matching player_help_screen widget tag. The
- * screen is loaded for the single-player local controller; string_index is then
- * written into the first child widget of type 1 (text box) at +0x40.
- * Asserts: "string_index>=0" (ui_widget.c 0x967) and "expected text box widget
- * in player help screen" (0x986), both system_exit(-1) flavor. Global
- * 0x326a08 is global_scenario_index (NONE when no scenario is loaded).
- * Ref 0xe8e20. */
-void ui_widget_display_scenario_help(int16_t string_index)
-{
-  const char *screen_name;
-  void *screen;
-  int widget;
-  char scenario_name[256];
-
-  if (string_index < 0) {
-    display_assert("string_index>=0",
-                   "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x967, true);
-    system_exit(-1);
-  }
-
-  if (*(int *)0x326a08 == NONE) {
-    error(2, "can't display scenario help because no scenario is loaded");
-  } else {
-    csstrncpy(scenario_name, tag_get_name(*(int *)0x326a08), 0xff);
-    scenario_name[255] = 0;
-    csstr_tolower(scenario_name);
-
-    if (crt_strstr(scenario_name, "a10") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_a10";
-    } else if (crt_strstr(scenario_name, "a30") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_a30";
-    } else if (crt_strstr(scenario_name, "a50") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_a50";
-    } else if (crt_strstr(scenario_name, "b30") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_b30";
-    } else if (crt_strstr(scenario_name, "b40") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_b40";
-    } else if (crt_strstr(scenario_name, "c10") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_c10";
-    } else if (crt_strstr(scenario_name, "c20") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_c20";
-    } else if (crt_strstr(scenario_name, "c40") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_c40";
-    } else if (crt_strstr(scenario_name, "d20") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_d20";
-    } else if (crt_strstr(scenario_name, "d40") != NULL) {
-      screen_name = "ui\\shell\\solo_game\\player_help\\player_help_screen_d40";
-    } else {
-      error(2, "can't display scenario help; unknown scenario is active '%s'",
-            scenario_name);
-      return;
-    }
-
-    screen = ui_widget_load_by_name_or_tag(
-      screen_name, NONE, 0,
-      (int)player_ui_get_single_player_local_player_controller(0), NONE, NONE,
-      NONE);
-    if (screen != NULL) {
-      widget = *(int *)((int)screen + 0x34);
-      while (1) {
-        if (widget == 0) {
-          display_assert("expected text box widget in player help screen",
-                         "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x986,
-                         true);
-          system_exit(-1);
-        }
-        if (*(int16_t *)(widget + 0xe) == 1) {
-          break;
-        }
-        widget = *(int *)(widget + 0x2c);
-      }
-      *(int16_t *)(widget + 0x40) = string_index;
-    } else {
-      error(2, "failed to load in-game help dialog");
-    }
-  }
-}
-
 /* Guard wrapper: if param_1 is nonzero, change the selected AI encounter
  * by calling ai_debug_change_selected_encounter with direction 0. */
 void FUN_000ffe10(char param_1)
@@ -4682,7 +4534,6 @@ void FUN_001034e0(int *param_1)
  *   0x103530  FUN_00103530  — depth-first marking walk over a node graph
  */
 
-
 /*
  * FUN_00103530 — depth-first walk of a node graph.
  *
@@ -5909,7 +5760,7 @@ void FUN_00104710(int width, int height, float *points, float *texcoords)
         if (width > 1) {
           do {
             crt_fprintf(*(void **)0x46e394, "\t\t\t");
-            crt_fprintf(*(void **)0x46e394, "%d,%d,%d,%d,-1, ", row0 + col,
+            crt_fprintf(*(void **)0x46e394, "%d,%d,%d,%d,-1,", row0 + col,
                         row0 + col + 1, row1 + col, row1 + col - 1);
             crt_fprintf(*(void **)0x46e394, "\n");
             col = col + 1;

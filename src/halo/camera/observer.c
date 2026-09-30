@@ -1,6 +1,141 @@
+#include "camera_internal.h"
+#include "x87_math.h"
 #include "x87_math.h"
 
 /* Camera observer — tracks camera position/orientation per player. */
+
+/* Build a first-person camera command for a unit looking along a vector
+ * (0x88d50). Register ABI: vector @<eax>, unit_index @<ecx>, result @<esi>
+ * (callers 0x8925d first_person_camera_fake, 0x892f0
+ * first_person_camera_update).
+ * [TU: c:\halo\SOURCE\camera\first_person_camera.c -- asserts at 0x52/0x85]
+ * The result block is the same camera-command layout observer_set_camera
+ * validates: flags +0x00, position +0x04, +0x10 (seeded from the vector
+ * pointed to by 0x31fc38), +0x1c, field of view +0x20, forward +0x24, up
+ * +0x30, +0x3c (filled by object_get_root_location), timer +0x48.
+ * With a unit, the position comes from 0x1a9240; when the unit's parent is a
+ * vehicle the seat (vehi +0x2e4 block, 0x11c stride, index unit +0x2a0) either
+ * snaps to the vehicle's "primary trigger" marker (seat flag bit 7) or rotates
+ * forward/up into the vehicle's frame. */
+void first_person_camera_for_unit_and_vector(float *vector, int32_t unit_index,
+                                             void *result)
+{
+  char *camera;
+  char *unit;
+  char *vehicle;
+  char *seat;
+  uint32_t flags;
+  float matrix[13];
+  char marker[0x6c];
+
+  camera = (char *)result;
+  *(float *)(camera + 0x48) = 0.0f;
+  *(uint32_t *)camera = 0;
+  *(vector3_t *)(camera + 0x10) = **(vector3_t **)0x31fc38;
+  *(float *)(camera + 0x1c) = 0.0f;
+  *(vector3_t *)(camera + 0x24) = *(vector3_t *)vector;
+  *(float *)(camera + 0x20) = 1.22173047f; /* 0x3f9c61aa, 70 degrees */
+  observer_up_from_forward((float *)(camera + 0x24), (float *)(camera + 0x30));
+  if (!valid_real_normal3d_perpendicular((float *)(camera + 0x24),
+                                         (float *)(camera + 0x30))) {
+    display_assert("valid_real_vector3d_axes2(&result->forward, &result->up)",
+                   "c:\\halo\\SOURCE\\camera\\first_person_camera.c", 0x52, 1);
+    system_exit(-1);
+  }
+
+  if (unit_index != -1) {
+    unit = (char *)object_get_and_verify_type(unit_index, 3);
+    unit_get_camera_position(unit_index, (float *)(camera + 0x4));
+    object_get_root_location(unit_index, (float *)(camera + 0x3c), NULL);
+    if (*(int *)(unit + 0xcc) != -1) {
+      vehicle =
+        (char *)object_try_and_get_and_verify_type(*(int *)(unit + 0xcc), 2);
+      if (vehicle != NULL) {
+        seat = (char *)tag_block_get_element(
+          (char *)tag_get(0x76656869, *(int *)vehicle) + 0x2e4,
+          (int)*(int16_t *)(unit + 0x2a0), 0x11c);
+        if (*seat < 0) {
+          if (object_get_marker_by_name(*(int *)(unit + 0xcc),
+                                        "primary trigger", marker, 1)) {
+            *(vector3_t *)(camera + 0x4) = *(vector3_t *)(marker + 0x60);
+            *(vector3_t *)(camera + 0x24) = *(vector3_t *)(marker + 0x3c);
+            *(vector3_t *)(camera + 0x30) = *(vector3_t *)(marker + 0x54);
+          }
+        } else {
+          /* in-place transforms: 0x88edc/0x88ef4 PUSH EDI twice, 0x88f02
+           * PUSH EBX twice (same buffer as input and output) */
+          matrix4x3_from_forward_up_position(matrix, (float *)(vehicle + 0xc),
+                                             (float *)(vehicle + 0x24),
+                                             (float *)(vehicle + 0x30));
+          real_matrix4x3_transform_point(
+            matrix, camera + 0x24, camera + 0x24); /* dup-args-ok: in-place */
+          observer_up_from_forward((float *)(camera + 0x24),
+                                   (float *)(camera + 0x30));
+          matrix_transform_vector(
+            matrix, (float *)(camera + 0x24),
+            (float *)(camera + 0x24)); /* dup-args-ok: in-place */
+          matrix_transform_vector(
+            matrix, (float *)(camera + 0x30),
+            (float *)(camera + 0x30)); /* dup-args-ok: in-place */
+        }
+      }
+    }
+    *(uint32_t *)camera = 1;
+  }
+
+  flags = *(uint32_t *)camera;
+  if ((flags & 1) &&
+      (!valid_real_normal3d_perpendicular((float *)(camera + 0x24),
+                                          (float *)(camera + 0x30)) ||
+       (*(uint32_t *)(camera + 0x4) & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)(camera + 0x4) >= *(float *)0x266e98) ||
+       !(*(float *)(camera + 0x4) <= *(float *)0x266e94) ||
+       (*(uint32_t *)(camera + 0x8) & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)(camera + 0x8) >= *(float *)0x266e98) ||
+       !(*(float *)(camera + 0x8) <= *(float *)0x266e94) ||
+       (*(uint32_t *)(camera + 0xc) & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)(camera + 0xc) >= *(float *)0x266e98) ||
+       !(*(float *)(camera + 0xc) <= *(float *)0x266e94) ||
+       (*(uint32_t *)(camera + 0x10) & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)(camera + 0x10) >= *(float *)0x266e98) ||
+       !(*(float *)(camera + 0x10) <= *(float *)0x266e94) ||
+       (*(uint32_t *)(camera + 0x14) & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)(camera + 0x14) >= *(float *)0x266e98) ||
+       !(*(float *)(camera + 0x14) <= *(float *)0x266e94) ||
+       (*(uint32_t *)(camera + 0x18) & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)(camera + 0x18) >= *(float *)0x266e98) ||
+       !(*(float *)(camera + 0x18) <= *(float *)0x266e94) ||
+       !real_vector3d_valid((float *)(camera + 0x3c)) ||
+       (*(uint32_t *)(camera + 0x1c) & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)(camera + 0x1c) >= *(float *)0x2533c0) ||
+       !(*(float *)(camera + 0x1c) <= *(float *)0x266e94) ||
+       (*(uint32_t *)(camera + 0x20) & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)(camera + 0x20) >= *(float *)0x255ef8) ||
+       !(*(float *)(camera + 0x20) <= *(float *)0x2568bc) ||
+       (*(uint32_t *)(camera + 0x48) & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)(camera + 0x48) >= *(float *)0x2533c0) ||
+       !(*(float *)(camera + 0x48) <= *(float *)0x266e90))) {
+    char *msg = csprintf(
+      (char *)0x5ab100,
+      "Invalid camera command.\n"
+      "F: (%f, %f, %f) U: (%f, %f, %f)\n"
+      "P: (%f, %f, %f) O: (%f, %f, %f)\n"
+      "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
+      (double)*(float *)(camera + 0x24), (double)*(float *)(camera + 0x28),
+      (double)*(float *)(camera + 0x2c), (double)*(float *)(camera + 0x30),
+      (double)*(float *)(camera + 0x34), (double)*(float *)(camera + 0x38),
+      (double)*(float *)(camera + 0x04), (double)*(float *)(camera + 0x08),
+      (double)*(float *)(camera + 0x0c), (double)*(float *)(camera + 0x10),
+      (double)*(float *)(camera + 0x14), (double)*(float *)(camera + 0x18),
+      (double)*(float *)(camera + 0x1c), (double)*(float *)(camera + 0x3c),
+      (double)*(float *)(camera + 0x40), (double)*(float *)(camera + 0x44),
+      (double)*(float *)(camera + 0x20), (double)*(float *)(camera + 0x48),
+      flags);
+    display_assert(msg, "c:\\halo\\SOURCE\\camera\\first_person_camera.c", 0x85,
+                   1);
+    system_exit(-1);
+  }
+}
 
 /* Per-tick update for the first-person camera mode (0x89270).
  * [TU: c:\halo\SOURCE\camera\first_person_camera.c — __FILE__ assert xref]
@@ -75,6 +210,114 @@ void FUN_00089350(void *camera_data, float *position, float *forward)
   vector_to_angles((float *)(camera + 0xc), forward);
 }
 
+/* flying_camera_update (0x893a0): the second entry of the gameplay cycle. */
+void flying_camera_update(void *camera_data, void *control_data,
+                          void *result_data)
+{
+  flying_camera_t *camera;
+  camera_action_t *controls;
+  camera_command_t *result;
+  real cosine_yaw;
+  real sine_yaw;
+  real_vector3d translation;
+  real_point3d position;
+
+  camera = (flying_camera_t *)camera_data;
+  controls = (camera_action_t *)control_data;
+  result = (camera_command_t *)result_data;
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\flying_camera.c", 0x29, camera);
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\flying_camera.c", 0x2a, controls);
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\flying_camera.c", 0x2b, result);
+  if (controls->active) {
+    camera->facing.yaw += controls->facing_delta.yaw;
+    camera->facing.pitch += controls->facing_delta.pitch;
+    camera->facing.pitch =
+      camera->facing.pitch < -1.56765485f ?
+        -1.56765485f :
+        (camera->facing.pitch > 1.56765485f ? 1.56765485f :
+                                              camera->facing.pitch);
+    camera->roll += controls->facing_delta.roll;
+  }
+  if (*(int16_t *)0x325716 > 0) {
+    camera->facing.yaw = 0.0f;
+    camera->facing.pitch = 0.0f;
+    camera->roll = 0.0f;
+    --*(int16_t *)0x325716;
+  }
+  result->timer = 0.3f;
+  angles_to_vector((float *)&result->forward, (float *)&camera->facing);
+  observer_up_from_forward((float *)&result->forward, (float *)&result->up);
+  rotate_vector3d_by_sincos((float *)&result->up, (float *)&result->forward,
+                            x87_fsin(camera->roll), x87_fcos(camera->roll));
+  if (controls->active) {
+    cosine_yaw = x87_fcos(camera->facing.yaw);
+    sine_yaw = x87_fsin(camera->facing.yaw);
+    translation.i =
+      cosine_yaw * controls->translation.i - sine_yaw * controls->translation.j;
+    translation.j =
+      cosine_yaw * controls->translation.j + sine_yaw * controls->translation.i;
+    translation.k = controls->translation.k;
+    position.x = camera->position.x + translation.i;
+    position.y = camera->position.y + translation.j;
+    position.z = camera->position.z + translation.k;
+    camera->position = position;
+  }
+  result->position = camera->position;
+  result->offset = **(real_vector3d **)0x31fc38;
+  result->depth = 0.0f;
+  result->field_of_view = camera->field_of_view;
+  result->flags = 1;
+  if ((result->flags & 1) &&
+      (!valid_real_normal3d_perpendicular((float *)&result->forward,
+                                          (float *)&result->up) ||
+       (*(uint32_t *)&result->position.x & 0x7f800000) == 0x7f800000 ||
+       !(result->position.x >= *(float *)0x266e98) ||
+       !(result->position.x <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->position.y & 0x7f800000) == 0x7f800000 ||
+       !(result->position.y >= *(float *)0x266e98) ||
+       !(result->position.y <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->position.z & 0x7f800000) == 0x7f800000 ||
+       !(result->position.z >= *(float *)0x266e98) ||
+       !(result->position.z <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.i & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.i >= *(float *)0x266e98) ||
+       !(result->offset.i <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.j & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.j >= *(float *)0x266e98) ||
+       !(result->offset.j <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.k & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.k >= *(float *)0x266e98) ||
+       !(result->offset.k <= *(float *)0x266e94) ||
+       !real_vector3d_valid((float *)&result->velocity) ||
+       (*(uint32_t *)&result->depth & 0x7f800000) == 0x7f800000 ||
+       !(result->depth >= *(float *)0x2533c0) ||
+       !(result->depth <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->field_of_view & 0x7f800000) == 0x7f800000 ||
+       !(result->field_of_view >= *(float *)0x255ef8) ||
+       !(result->field_of_view <= *(float *)0x2568bc) ||
+       (*(uint32_t *)&result->timer & 0x7f800000) == 0x7f800000 ||
+       !(result->timer >= *(float *)0x2533c0) ||
+       !(result->timer <= *(float *)0x266e90))) {
+    char *msg = csprintf((char *)0x5ab100,
+                         "Invalid camera command.\n"
+                         "F: (%f, %f, %f) U: (%f, %f, %f)\n"
+                         "P: (%f, %f, %f) O: (%f, %f, %f)\n"
+                         "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
+                         (double)result->forward.i, (double)result->forward.j,
+                         (double)result->forward.k, (double)result->up.i,
+                         (double)result->up.j, (double)result->up.k,
+                         (double)result->position.x, (double)result->position.y,
+                         (double)result->position.z, (double)result->offset.i,
+                         (double)result->offset.j, (double)result->offset.k,
+                         (double)result->depth, (double)result->velocity.i,
+                         (double)result->velocity.j, (double)result->velocity.k,
+                         (double)result->field_of_view, (double)result->timer,
+                         result->flags);
+    display_assert(msg, "c:\\halo\\SOURCE\\camera\\flying_camera.c", 0x95, 1);
+    system_exit(-1);
+  }
+}
+
 /* Initialize following-camera state (0x89850). The independently accessed
  * fields remain mechanical because the state layout has not been recovered. */
 void following_camera_new(void *camera_data)
@@ -146,6 +389,39 @@ float arcsine(float x)
 #else
   return (float)asin((double)x);
 #endif
+}
+
+/* uniform_cubic_spline (0x89940, ..\math\real_math.h inline emitted out of
+ * line in this object) -- cubic through four samples f0..f3 at uniformly
+ * spaced knots t0, t0+h, t0+2h, t0+3h, evaluated at t by Newton forward
+ * differences.  Asserts are real_math.h lines 0x5e4/0x5e5 with the XBE's own
+ * strings "h > 0.0f" and "t >= t0 && t <= t0 + 3.0f*h".  The differences are
+ * written back into the f1/f3 parameter slots (FSTP [EBP+0xc] / [EBP+0x14] at
+ * 0x899c8 / 0x899cf), i.e. in-place parameter updates.  Body matches PAL 2342
+ * real_math.h uniform_cubic_spline (T2) term for term; 3.0f is the pool
+ * constant at 0x254644. */
+float uniform_cubic_spline(float f0, float f1, float f2, float f3, float t0,
+                           float h, float t)
+{
+  assert_halt_msg_at("h > 0.0f", "..\\math\\real_math.h", 0x5e4,
+                     h > *(float *)0x2533c0);
+  assert_halt_msg_at("t >= t0 && t <= t0 + 3.0f*h", "..\\math\\real_math.h",
+                     0x5e5, t >= t0 && t <= t0 + 3.0f * h);
+
+  f3 -= f2;
+  f2 -= f1;
+  f1 -= f0;
+  /* 0x899c8 / 0x899cf: f1 and the second f3 are FSTP'd to their dword
+   * parameter slots (narrowed to float); f2 stays in ST(i). */
+  HALO_FLT_ROUNDTRIP(f1);
+  f3 -= f2;
+  HALO_FLT_ROUNDTRIP(f3);
+  f2 -= f1;
+
+  return f0 + (t - t0) / h *
+                (f1 + (t - (t0 + h)) *
+                        (f2 + (t - (t0 + 2.0f * h)) * (f3 - f2) / (3.0f * h)) /
+                        (2.0f * h));
 }
 
 /* Evaluate the scalar interpolator uniform_cubic_spline once per component of a
@@ -232,6 +508,141 @@ have_track:
     (float *)tag_block_get_element(points, index + 2, 0x3c),
     (float *)tag_block_get_element((char *)tag_data + 4, index + 3, 0x3c),
     (float)index * step, step, t);
+}
+
+/* following_camera_update (0x89cd0): restore the vehicle/following command,
+ * including unit/seat transitions and the crouch and look blend channels. */
+void following_camera_update(void *camera_data, void *control_data,
+                             void *result_data)
+{
+  following_camera_t *camera;
+  camera_action_t *controls;
+  camera_command_t *result;
+  player_control_unit_camera_info_t info;
+  real_euler_angles2d facing;
+  real_vector3d track;
+  real depth;
+  real magnitude;
+  uint8_t crouched;
+  char *unit;
+
+  camera = (following_camera_t *)camera_data;
+  controls = (camera_action_t *)control_data;
+  result = (camera_command_t *)result_data;
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\following_camera.c", 0x8a, camera);
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\following_camera.c", 0x8b, result);
+  player_control_get_unit_camera_info(controls->local_player_index, &info);
+  result->position = info.position;
+  result->timer = 0.0f;
+  result->flags = 0;
+  result->field_of_view = 1.22173047f;
+  if (camera->initialized && (camera->unit_index != info.unit_index ||
+                              camera->seat_index != info.seat_index))
+    result->timer = 1.0f;
+  camera->unit_index = info.unit_index;
+  camera->seat_index = info.seat_index;
+  if (info.camera != NULL) {
+    unit = (char *)object_get_and_verify_type(info.unit_index, 3);
+    /* 0x89d9d loads only the low byte of unit control flags at +0x1b8. */
+    crouched = (*(uint8_t *)(unit + 0x1b8) & 3) != 0;
+    if (crouched != camera->crouched) {
+      result->field_4c[1] = 1;
+      result->field_54[1] =
+        0.5f > result->field_54[1] ? 0.5f : result->field_54[1];
+      camera->crouched = crouched;
+    }
+    if (controls->active) {
+      camera->facing_offset.yaw += controls->facing_delta.yaw;
+      camera->facing_offset.pitch += controls->facing_delta.pitch;
+      result->field_4c[4] = 1;
+      result->field_54[4] =
+        0.4f > result->field_54[4] ? 0.4f : result->field_54[4];
+    } else if (camera->facing_offset.yaw != 0.0f ||
+               camera->facing_offset.pitch != 0.0f) {
+      camera->facing_offset.pitch = 0.0f;
+      camera->facing_offset.yaw = 0.0f;
+    }
+    facing = *(real_euler_angles2d *)player_control_get_facing_angles(
+      controls->local_player_index);
+    facing.yaw += camera->facing_offset.yaw;
+    facing.pitch += camera->facing_offset.pitch;
+    facing.pitch = facing.pitch < -1.57079637f ?
+                     -1.57079637f :
+                     (facing.pitch > 1.57079637f ? 1.57079637f : facing.pitch);
+    angles_to_vector((float *)&result->forward, (float *)&facing);
+    magnitude = (real)x87_sqrtd(result->forward.i * result->forward.i +
+                               result->forward.j * result->forward.j +
+                               result->forward.k * result->forward.k);
+    assert_halt_msg_at("magnitude3d(&result->forward) > 0.9999f && "
+                       "magnitude3d(&result->forward) < 1.0001f",
+                       "c:\\halo\\SOURCE\\camera\\following_camera.c", 0xd4,
+                       magnitude > 0.999899983f && magnitude < 1.00010002f);
+    camera_track_splut(info.camera, facing.pitch, (float *)&track);
+    depth =
+      (real)x87_sqrtd(track.k * track.k + track.j * track.j + track.i * track.i);
+    result->depth = depth;
+    result->offset.i =
+      (depth * x87_fcos(facing.pitch) + track.i) * camera->distance_scale;
+    result->offset.j = -track.j * camera->distance_scale;
+    result->offset.k =
+      (depth * x87_fsin(facing.pitch) + track.k) * camera->distance_scale;
+    depth = (depth - 0.6f) * camera->distance_scale + 0.6f;
+    result->depth = depth > 0.6f ? depth : 0.6f;
+    object_get_root_location(info.unit_index, (float *)&result->velocity, NULL);
+    result->flags |= 1;
+  }
+  observer_up_from_forward((float *)&result->forward, (float *)&result->up);
+  if ((result->flags & 1) &&
+      (!valid_real_normal3d_perpendicular((float *)&result->forward,
+                                          (float *)&result->up) ||
+       (*(uint32_t *)&result->position.x & 0x7f800000) == 0x7f800000 ||
+       !(result->position.x >= *(float *)0x266e98) ||
+       !(result->position.x <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->position.y & 0x7f800000) == 0x7f800000 ||
+       !(result->position.y >= *(float *)0x266e98) ||
+       !(result->position.y <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->position.z & 0x7f800000) == 0x7f800000 ||
+       !(result->position.z >= *(float *)0x266e98) ||
+       !(result->position.z <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.i & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.i >= *(float *)0x266e98) ||
+       !(result->offset.i <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.j & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.j >= *(float *)0x266e98) ||
+       !(result->offset.j <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.k & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.k >= *(float *)0x266e98) ||
+       !(result->offset.k <= *(float *)0x266e94) ||
+       !real_vector3d_valid((float *)&result->velocity) ||
+       (*(uint32_t *)&result->depth & 0x7f800000) == 0x7f800000 ||
+       !(result->depth >= *(float *)0x2533c0) ||
+       !(result->depth <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->field_of_view & 0x7f800000) == 0x7f800000 ||
+       !(result->field_of_view >= *(float *)0x255ef8) ||
+       !(result->field_of_view <= *(float *)0x2568bc) ||
+       (*(uint32_t *)&result->timer & 0x7f800000) == 0x7f800000 ||
+       !(result->timer >= *(float *)0x2533c0) ||
+       !(result->timer <= *(float *)0x266e90))) {
+    char *msg = csprintf((char *)0x5ab100,
+                         "Invalid camera command.\n"
+                         "F: (%f, %f, %f) U: (%f, %f, %f)\n"
+                         "P: (%f, %f, %f) O: (%f, %f, %f)\n"
+                         "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
+                         (double)result->forward.i, (double)result->forward.j,
+                         (double)result->forward.k, (double)result->up.i,
+                         (double)result->up.j, (double)result->up.k,
+                         (double)result->position.x, (double)result->position.y,
+                         (double)result->position.z, (double)result->offset.i,
+                         (double)result->offset.j, (double)result->offset.k,
+                         (double)result->depth, (double)result->velocity.i,
+                         (double)result->velocity.j, (double)result->velocity.k,
+                         (double)result->field_of_view, (double)result->timer,
+                         result->flags);
+    display_assert(msg, "c:\\halo\\SOURCE\\camera\\following_camera.c", 0xee,
+                   1);
+    system_exit(-1);
+  }
+  camera->initialized = 1;
 }
 
 void observer_initialize(void)
@@ -352,8 +763,11 @@ boolean observer_command_has_finished(int16_t local_player_index)
   char *observer;
   int16_t component_index;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
   if (*(float *)(observer + 0x50) != 0.0f)
@@ -404,8 +818,11 @@ void observer_apply_acceleration(int16_t local_player_index)
   float *thresholds;
   int16_t comp;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
   snap_ptr = (float *)(observer + 0x158);
@@ -473,8 +890,11 @@ void observer_integrate(int16_t local_player_index)
   float ratio;
   int count;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   ratio = (float)(*(double *)0x2573d8 / *(float *)0x335718);
 
@@ -544,6 +964,35 @@ void observer_obsolete_position(int16_t local_player_index)
   observer_result_initialize((char *)0x33571c + local_player_index * 0x29c);
 }
 
+/* Derive a camera up vector from a forward vector (0x8aa80), cdecl, 2 args.
+ * right = (forward.y, -forward.x, 0) is normalized with normalize3d; if its
+ * length is 0.0f (forward is vertical) right falls back to (1, 0, 0).
+ * up = right x forward. */
+void observer_up_from_forward(float *forward, float *up)
+{
+  float right[3];
+  float i;
+  float j;
+  float k;
+
+  /* PAL 2342 observer_up_from_forward; the cross product is the inlined
+   * cross_product3d(&right, forward, up), which computes k, j, i into
+   * temporaries before storing i, j, k. */
+  right[0] = forward[1];
+  right[1] = -forward[0];
+  right[2] = 0.0f;
+  if (normalize3d(right) == 0.0f) {
+    right[0] = 1.0f;
+    right[1] = right[2] = 0.0f;
+  }
+  k = right[0] * forward[1] - right[1] * forward[0];
+  j = right[2] * forward[0] - right[0] * forward[2];
+  i = right[1] * forward[2] - right[2] * forward[1];
+  up[0] = i;
+  up[1] = j;
+  up[2] = k;
+}
+
 /* Rotate two vectors about a rotational-displacement axis (0x8ab10).
  * The EAX argument is a rotation vector whose direction is the axis and whose
  * magnitude is the angle in radians. A local copy is normalized in place by
@@ -564,7 +1013,7 @@ void observer_apply_rotational_displacement(float *rotation, float *vector_a,
   axis[2] = rotation[2];
 
   angle = normalize3d(axis);
-  if (angle != *(float *)0x2533c0) {
+  if (angle != REAL_ZERO_POOL) {
     sin_angle = x87_fsin(angle);
     cos_angle = x87_fcos(angle);
     rotate_vector3d_by_sincos(vector_a, axis, sin_angle, cos_angle);
@@ -622,29 +1071,31 @@ bool FUN_0008ab90(float *out_fraction, bool indoor, float *ray_origin,
   return result;
 }
 
-/* Copy/stage camera command block from director into observer state (0x8b060).
- * Validates the command struct (pointed to by observer+0x4): checks forward/up
- * perpendicular, position/orientation in range, velocity valid, distance/FOV/
- * timer bounded. Then adjusts 5 component timers in the command based on the
- * observer's current timers and mode bytes, and finally copies the command
- * struct (0x68 bytes) into the observer at offset +0x8. */
-void observer_update_command(int16_t local_player_index)
+/* Hand a camera command block to a local player's observer (0x8acb0).
+ * Sole caller: director_update (0x877a3, cdecl, `push eax; push esi`, ADD
+ * ESP,8) passing the player index and the per-player command block at
+ * director slot +0x54. A command with bit 0 set is validated the same way as
+ * observer_update_command (the "Invalid camera command" assert, line 0xe9);
+ * a NULL command always fails. The command pointer is stored at observer+0x4
+ * and updated_for_frame (+0x70) is cleared -- the only store that clears it.
+ * On the first command (+0x71 still 0) the flag is set, the command's +0x48
+ * timer is zeroed, bit 3 of its flags is raised and the 0x14 bytes at +0x54
+ * are cleared. PAL 2342 names (T2): +0x4 pending_command, +0x70
+ * updated_for_frame, +0x71 first_command; command +0x48 timer, flag bit 3
+ * _observer_command_force_time_bit, +0x54 parameter_timers. */
+void observer_set_camera(int16_t local_player_index, void *camera_command)
 {
   char *observer;
   char *command;
-  float *timer_out;
-  uint8_t *mode_bytes;
-  float *obs_timers;
-  int i;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
-  command = *(char **)(observer + 0x4);
-  timer_out = (float *)(command + 0x54);
-  mode_bytes = (uint8_t *)(command + 0x4c);
-  obs_timers = (float *)(observer + 0x5c);
+  command = (char *)camera_command;
 
   if (command == NULL ||
       ((*(uint8_t *)command & 1) &&
@@ -694,6 +1145,103 @@ void observer_update_command(int16_t local_player_index)
       (double)*(float *)(command + 0x40), (double)*(float *)(command + 0x44),
       (double)*(float *)(command + 0x20), (double)*(float *)(command + 0x48),
       *(uint32_t *)command);
+    display_assert(msg, "c:\\halo\\SOURCE\\camera\\observer.c", 0xe9, 1);
+    system_exit(-1);
+  }
+
+  *(char **)(observer + 0x4) = command;
+  *(uint8_t *)(observer + 0x70) = 0; /* updated_for_frame */
+  if (*(uint8_t *)(observer + 0x71) == 0) {
+    *(uint8_t *)(observer + 0x71) = 1;
+    *(float *)(command + 0x48) = 0.0f;
+    **(uint32_t **)(observer + 0x4) |= 8;
+    csmemset(*(char **)(observer + 0x4) + 0x54, 0, 0x14);
+  }
+}
+
+/* Copy/stage camera command block from director into observer state (0x8b060).
+ * Validates the command struct (pointed to by observer+0x4): checks forward/up
+ * perpendicular, position/orientation in range, velocity valid, distance/FOV/
+ * timer bounded. Then adjusts 5 component timers in the command based on the
+ * observer's current timers and mode bytes, and finally copies the command
+ * struct (0x68 bytes) into the observer at offset +0x8. */
+void observer_update_command(int16_t local_player_index)
+{
+  char *observer;
+  char *command;
+  float *timer_out;
+  uint8_t *mode_bytes;
+  float *obs_timers;
+  int i;
+
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
+  command = *(char **)(observer + 0x4);
+  timer_out = (float *)(command + 0x54);
+  mode_bytes = (uint8_t *)(command + 0x4c);
+  obs_timers = (float *)(observer + 0x5c);
+
+  if (command == NULL ||
+      ((*(uint8_t *)command & 1) &&
+       (!valid_real_normal3d_perpendicular((float *)(command + 0x24),
+                                           (float *)(command + 0x30)) ||
+        (*(uint32_t *)(command + 0x4) & 0x7f800000) == 0x7f800000 ||
+        !(((camera_command_t *)command)->position.x >= REAL_NEG_5000_POOL) ||
+        !(((camera_command_t *)command)->position.x <= REAL_5000_POOL) ||
+        (*(uint32_t *)(command + 0x8) & 0x7f800000) == 0x7f800000 ||
+        !(((camera_command_t *)command)->position.y >= REAL_NEG_5000_POOL) ||
+        !(((camera_command_t *)command)->position.y <= REAL_5000_POOL) ||
+        (*(uint32_t *)(command + 0xc) & 0x7f800000) == 0x7f800000 ||
+        !(((camera_command_t *)command)->position.z >= REAL_NEG_5000_POOL) ||
+        !(((camera_command_t *)command)->position.z <= REAL_5000_POOL) ||
+        (*(uint32_t *)(command + 0x10) & 0x7f800000) == 0x7f800000 ||
+        !(((camera_command_t *)command)->offset.i >= REAL_NEG_5000_POOL) ||
+        !(((camera_command_t *)command)->offset.i <= REAL_5000_POOL) ||
+        (*(uint32_t *)(command + 0x14) & 0x7f800000) == 0x7f800000 ||
+        !(((camera_command_t *)command)->offset.j >= REAL_NEG_5000_POOL) ||
+        !(((camera_command_t *)command)->offset.j <= REAL_5000_POOL) ||
+        (*(uint32_t *)(command + 0x18) & 0x7f800000) == 0x7f800000 ||
+        !(((camera_command_t *)command)->offset.k >= REAL_NEG_5000_POOL) ||
+        !(((camera_command_t *)command)->offset.k <= REAL_5000_POOL) ||
+        !real_vector3d_valid((float *)(command + 0x3c)) ||
+        (*(uint32_t *)(command + 0x1c) & 0x7f800000) == 0x7f800000 ||
+        !(((camera_command_t *)command)->depth >= REAL_ZERO_POOL) ||
+        !(((camera_command_t *)command)->depth <= REAL_5000_POOL) ||
+        (*(uint32_t *)(command + 0x20) & 0x7f800000) == 0x7f800000 ||
+        !(((camera_command_t *)command)->field_of_view >= REAL_0_001_POOL) ||
+        !(((camera_command_t *)command)->field_of_view <= REAL_HALF_PI_POOL) ||
+        (*(uint32_t *)(command + 0x48) & 0x7f800000) == 0x7f800000 ||
+        !(((camera_command_t *)command)->timer >= REAL_ZERO_POOL) ||
+        !(((camera_command_t *)command)->timer <= REAL_3600_POOL)))) {
+    char *msg = csprintf((char *)0x5ab100,
+                         "Invalid camera command.\n"
+                         "F: (%f, %f, %f) U: (%f, %f, %f)\n"
+                         "P: (%f, %f, %f) O: (%f, %f, %f)\n"
+                         "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
+                         (double)((camera_command_t *)command)->forward.i,
+                         (double)((camera_command_t *)command)->forward.j,
+                         (double)((camera_command_t *)command)->forward.k,
+                         (double)((camera_command_t *)command)->up.i,
+                         (double)((camera_command_t *)command)->up.j,
+                         (double)((camera_command_t *)command)->up.k,
+                         (double)((camera_command_t *)command)->position.x,
+                         (double)((camera_command_t *)command)->position.y,
+                         (double)((camera_command_t *)command)->position.z,
+                         (double)((camera_command_t *)command)->offset.i,
+                         (double)((camera_command_t *)command)->offset.j,
+                         (double)((camera_command_t *)command)->offset.k,
+                         (double)((camera_command_t *)command)->depth,
+                         (double)((camera_command_t *)command)->velocity.i,
+                         (double)((camera_command_t *)command)->velocity.j,
+                         (double)((camera_command_t *)command)->velocity.k,
+                         (double)((camera_command_t *)command)->field_of_view,
+                         (double)((camera_command_t *)command)->timer,
+                         *(uint32_t *)command);
     display_assert(msg, "c:\\halo\\SOURCE\\camera\\observer.c", 0x172, 1);
     system_exit(-1);
   }
@@ -702,16 +1250,16 @@ void observer_update_command(int16_t local_player_index)
     for (i = 5; i != 0; i--) {
       if ((*mode_bytes & 1) == 0) {
         command = *(char **)(observer + 0x4);
-        if (*(float *)(command + 0x48) < *obs_timers &&
+        if (((camera_command_t *)command)->timer < *obs_timers &&
             (*(uint8_t *)command & 8) == 0)
           goto clamp_timer;
-        *timer_out = *(float *)(command + 0x48);
+        *timer_out = ((camera_command_t *)command)->timer;
       } else if ((*mode_bytes & 2) == 0 && *timer_out < *obs_timers) {
       clamp_timer:
-        if (*obs_timers <= *(float *)0x253f40)
+        if (*obs_timers <= REAL_2_0_POOL)
           *timer_out = *obs_timers;
         else
-          *timer_out = *(float *)0x253f40;
+          *timer_out = REAL_2_0_POOL;
       }
 
       timer_out++;
@@ -743,8 +1291,11 @@ void observer_compute_accelerations(int16_t local_player_index)
   float *timers;
   int16_t comp;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
 
@@ -767,33 +1318,33 @@ void observer_compute_accelerations(int16_t local_player_index)
        (!valid_real_normal3d_perpendicular((float *)(observer + 0x2c),
                                            (float *)(observer + 0x38)) ||
         (*(uint32_t *)(observer + 0xc) & 0x7f800000) == 0x7f800000 ||
-        !(*(float *)(observer + 0xc) >= *(float *)0x266e98) ||
-        !(*(float *)(observer + 0xc) <= *(float *)0x266e94) ||
+        !(*(float *)(observer + 0xc) >= REAL_NEG_5000_POOL) ||
+        !(*(float *)(observer + 0xc) <= REAL_5000_POOL) ||
         (*(uint32_t *)(observer + 0x10) & 0x7f800000) == 0x7f800000 ||
-        !(*(float *)(observer + 0x10) >= *(float *)0x266e98) ||
-        !(*(float *)(observer + 0x10) <= *(float *)0x266e94) ||
+        !(*(float *)(observer + 0x10) >= REAL_NEG_5000_POOL) ||
+        !(*(float *)(observer + 0x10) <= REAL_5000_POOL) ||
         (*(uint32_t *)(observer + 0x14) & 0x7f800000) == 0x7f800000 ||
-        !(*(float *)(observer + 0x14) >= *(float *)0x266e98) ||
-        !(*(float *)(observer + 0x14) <= *(float *)0x266e94) ||
+        !(*(float *)(observer + 0x14) >= REAL_NEG_5000_POOL) ||
+        !(*(float *)(observer + 0x14) <= REAL_5000_POOL) ||
         (*(uint32_t *)(observer + 0x18) & 0x7f800000) == 0x7f800000 ||
-        !(*(float *)(observer + 0x18) >= *(float *)0x266e98) ||
-        !(*(float *)(observer + 0x18) <= *(float *)0x266e94) ||
+        !(*(float *)(observer + 0x18) >= REAL_NEG_5000_POOL) ||
+        !(*(float *)(observer + 0x18) <= REAL_5000_POOL) ||
         (*(uint32_t *)(observer + 0x1c) & 0x7f800000) == 0x7f800000 ||
-        !(*(float *)(observer + 0x1c) >= *(float *)0x266e98) ||
-        !(*(float *)(observer + 0x1c) <= *(float *)0x266e94) ||
+        !(*(float *)(observer + 0x1c) >= REAL_NEG_5000_POOL) ||
+        !(*(float *)(observer + 0x1c) <= REAL_5000_POOL) ||
         (*(uint32_t *)(observer + 0x20) & 0x7f800000) == 0x7f800000 ||
-        !(*(float *)(observer + 0x20) >= *(float *)0x266e98) ||
-        !(*(float *)(observer + 0x20) <= *(float *)0x266e94) ||
+        !(*(float *)(observer + 0x20) >= REAL_NEG_5000_POOL) ||
+        !(*(float *)(observer + 0x20) <= REAL_5000_POOL) ||
         !real_vector3d_valid((float *)(observer + 0x44)) ||
         (*(uint32_t *)(observer + 0x24) & 0x7f800000) == 0x7f800000 ||
-        !(*(float *)(observer + 0x24) >= *(float *)0x2533c0) ||
-        !(*(float *)(observer + 0x24) <= *(float *)0x266e94) ||
+        !(*(float *)(observer + 0x24) >= REAL_ZERO_POOL) ||
+        !(*(float *)(observer + 0x24) <= REAL_5000_POOL) ||
         (*(uint32_t *)(observer + 0x28) & 0x7f800000) == 0x7f800000 ||
-        !(*(float *)(observer + 0x28) >= *(float *)0x255ef8) ||
-        !(*(float *)(observer + 0x28) <= *(float *)0x2568bc) ||
+        !(*(float *)(observer + 0x28) >= REAL_0_001_POOL) ||
+        !(*(float *)(observer + 0x28) <= REAL_HALF_PI_POOL) ||
         (*(uint32_t *)(observer + 0x50) & 0x7f800000) == 0x7f800000 ||
-        !(*(float *)(observer + 0x50) >= *(float *)0x2533c0) ||
-        !(*(float *)(observer + 0x50) <= *(float *)0x266e90)))) {
+        !(*(float *)(observer + 0x50) >= REAL_ZERO_POOL) ||
+        !(*(float *)(observer + 0x50) <= REAL_3600_POOL)))) {
     char *msg = csprintf(
       (char *)0x5ab100,
       "Invalid camera command.\n"
@@ -899,8 +1450,11 @@ void observer_compute_update(int16_t local_player_index)
   float *scratch_ptr;
   int16_t comp;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
 
@@ -937,7 +1491,7 @@ void observer_compute_update(int16_t local_player_index)
   for (comp = 0; comp < 5; comp++) {
     float elapsed = *timers - *(float *)0x335718;
 
-    if (elapsed <= *(float *)0x2533c0 && (*(uint8_t *)(observer + 0x8) & 1)) {
+    if (elapsed <= REAL_ZERO_POOL && (*(uint8_t *)(observer + 0x8) & 1)) {
       /* Timer expired and mode active: copy defaults */
       int16_t j = 0;
       if (j < ((int16_t *)0x2ee6ac)[comp]) {
@@ -949,7 +1503,7 @@ void observer_compute_update(int16_t local_player_index)
       }
     } else {
       /* Compute update values */
-      if (elapsed <= *(float *)0x2533c0) {
+      if (elapsed <= REAL_ZERO_POOL) {
         /* Timer expired, mode not active: negate velocity*delta_time */
         int16_t j = 0;
         if (j < ((int16_t *)0x2ee6b8)[comp]) {
@@ -1009,7 +1563,7 @@ void observer_compute_update(int16_t local_player_index)
           axis[1] = axis[1] * inv_mag;
           axis[2] = axis[2] * inv_mag;
 
-          if (mag != *(float *)0x2533c0) {
+          if (mag != REAL_ZERO_POOL) {
             float sin_val = x87_fsin(mag);
             float cos_val = x87_fcos(mag);
             rotate_vector3d_by_sincos((float *)result_ptr, axis, sin_val,
@@ -1296,10 +1850,10 @@ void FUN_0008c150(float *up, float *focus_distance, float near_plane_dist,
     if (fraction < best_frac) {
       value = offset;
     } else {
-      value = (float)(int)(refinement_scale >= *(float *)0x2533c0);
+      value = (float)(int)(refinement_scale >= REAL_ZERO_POOL);
     }
 
-    if (value == *(float *)0x2533c0) {
+    if (value == REAL_ZERO_POOL) {
       /* Negate path */
       if (fraction < best_frac) {
         final_scale = -offset;
@@ -1378,8 +1932,11 @@ void observer_update_result(int16_t local_player_index)
   float height_diff;
   int location[2]; /* {leaf_index, cluster_index(int16 at +4)} */
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
 
@@ -1391,7 +1948,7 @@ void observer_update_result(int16_t local_player_index)
   /* Clamp focus distance to [0, max_distance], or FLT_MAX if over */
   {
     float fd = *(float *)(observer + 0xc8);
-    if (fd < *(float *)0x2533c0) {
+    if (fd < REAL_ZERO_POOL) {
       focus_distance = 0.0f;
     } else if (fd > *(float *)0x2548fc) {
       focus_distance = 3.4028235e+38f;
@@ -1402,14 +1959,14 @@ void observer_update_result(int16_t local_player_index)
 
   /* assert: valid_world_real_point3d(&focus_position) */
   if ((*(uint32_t *)&focus_position[0] & 0x7f800000u) == 0x7f800000u ||
-      focus_position[0] < *(float *)0x266e98 ||
-      focus_position[0] > *(float *)0x266e94 ||
+      focus_position[0] < REAL_NEG_5000_POOL ||
+      focus_position[0] > REAL_5000_POOL ||
       (*(uint32_t *)&focus_position[1] & 0x7f800000u) == 0x7f800000u ||
-      focus_position[1] < *(float *)0x266e98 ||
-      focus_position[1] > *(float *)0x266e94 ||
+      focus_position[1] < REAL_NEG_5000_POOL ||
+      focus_position[1] > REAL_5000_POOL ||
       (*(uint32_t *)&focus_position[2] & 0x7f800000u) == 0x7f800000u ||
-      focus_position[2] < *(float *)0x266e98 ||
-      focus_position[2] > *(float *)0x266e94) {
+      focus_position[2] < REAL_NEG_5000_POOL ||
+      focus_position[2] > REAL_5000_POOL) {
     display_assert("valid_world_real_point3d(&focus_position)",
                    "c:\\halo\\SOURCE\\camera\\observer.c", 0x3af, 1);
     system_exit(-1);
@@ -1432,14 +1989,14 @@ void observer_update_result(int16_t local_player_index)
 
   /* assert: valid_world_real_point3d(&observer->focus_offset) */
   if ((*(uint32_t *)(observer + 0xbc) & 0x7f800000u) == 0x7f800000u ||
-      *(float *)(observer + 0xbc) < *(float *)0x266e98 ||
-      *(float *)(observer + 0xbc) > *(float *)0x266e94 ||
+      *(float *)(observer + 0xbc) < REAL_NEG_5000_POOL ||
+      *(float *)(observer + 0xbc) > REAL_5000_POOL ||
       (*(uint32_t *)(observer + 0xc0) & 0x7f800000u) == 0x7f800000u ||
-      *(float *)(observer + 0xc0) < *(float *)0x266e98 ||
-      *(float *)(observer + 0xc0) > *(float *)0x266e94 ||
+      *(float *)(observer + 0xc0) < REAL_NEG_5000_POOL ||
+      *(float *)(observer + 0xc0) > REAL_5000_POOL ||
       (*(uint32_t *)(observer + 0xc4) & 0x7f800000u) == 0x7f800000u ||
-      *(float *)(observer + 0xc4) < *(float *)0x266e98 ||
-      *(float *)(observer + 0xc4) > *(float *)0x266e94) {
+      *(float *)(observer + 0xc4) < REAL_NEG_5000_POOL ||
+      *(float *)(observer + 0xc4) > REAL_5000_POOL) {
     display_assert(
       "valid_world_real_point3d((real_point3d *) &observer->focus_offset)",
       "c:\\halo\\SOURCE\\camera\\observer.c", 0x3b1, 1);
@@ -1448,8 +2005,7 @@ void observer_update_result(int16_t local_player_index)
 
   /* assert: valid_focus_distance(focus_distance) */
   if ((*(uint32_t *)&focus_distance & 0x7f800000u) == 0x7f800000u ||
-      focus_distance < *(float *)0x2533c0 ||
-      focus_distance > *(float *)0x266e94) {
+      focus_distance < REAL_ZERO_POOL || focus_distance > REAL_5000_POOL) {
     display_assert("valid_focus_distance(focus_distance)",
                    "c:\\halo\\SOURCE\\camera\\observer.c", 0x3b2, 1);
     system_exit(-1);
@@ -1458,10 +2014,10 @@ void observer_update_result(int16_t local_player_index)
   /* Clamp field_of_view to [fov_min, fov_max] */
   {
     float f = *(float *)(observer + 0xcc);
-    if (f < *(float *)0x255ef8) {
-      fov = *(float *)0x255ef8;
-    } else if (f > *(float *)0x2568bc) {
-      fov = *(float *)0x2568bc;
+    if (f < REAL_0_001_POOL) {
+      fov = REAL_0_001_POOL;
+    } else if (f > REAL_HALF_PI_POOL) {
+      fov = REAL_HALF_PI_POOL;
     } else {
       fov = f;
     }
@@ -1469,28 +2025,28 @@ void observer_update_result(int16_t local_player_index)
   }
 
   /* Clamp focus_position components to [-5000, 5000] */
-  if (focus_position[0] < *(float *)0x266e98) {
+  if (focus_position[0] < REAL_NEG_5000_POOL) {
     focus_position[0] = -5000.0f;
-  } else if (focus_position[0] > *(float *)0x266e94) {
+  } else if (focus_position[0] > REAL_5000_POOL) {
     focus_position[0] = 5000.0f;
   }
 
-  if (focus_position[1] < *(float *)0x266e98) {
+  if (focus_position[1] < REAL_NEG_5000_POOL) {
     focus_position[1] = -5000.0f;
-  } else if (focus_position[1] > *(float *)0x266e94) {
+  } else if (focus_position[1] > REAL_5000_POOL) {
     focus_position[1] = 5000.0f;
   }
 
-  if (focus_position[2] < *(float *)0x266e98) {
+  if (focus_position[2] < REAL_NEG_5000_POOL) {
     focus_position[2] = -5000.0f;
-  } else if (focus_position[2] > *(float *)0x266e94) {
+  } else if (focus_position[2] > REAL_5000_POOL) {
     focus_position[2] = 5000.0f;
   }
 
   /* Clamp focus_distance to [0, 5000] */
-  if (focus_distance < *(float *)0x2533c0) {
+  if (focus_distance < REAL_ZERO_POOL) {
     focus_distance = 0.0f;
-  } else if (focus_distance > *(float *)0x266e94) {
+  } else if (focus_distance > REAL_5000_POOL) {
     focus_distance = 5000.0f;
   }
 
@@ -1515,7 +2071,7 @@ void observer_update_result(int16_t local_player_index)
   /* Near-plane collision fix (skip if mode bit 0x10 set or focus_distance == 0)
    */
   if ((*(uint8_t *)(observer + 0x8) & 0x10) == 0 &&
-      focus_distance != *(float *)0x2533c0) {
+      focus_distance != REAL_ZERO_POOL) {
     FUN_0008c150(up, &focus_distance, 0.02f, forward, focus_position);
   }
 
@@ -1546,7 +2102,7 @@ void observer_update_result(int16_t local_player_index)
     float h = FUN_0018f510(observer + 0x80, observer + 0x74);
     height_diff = h;
     if (fabsf(height_diff) < (float)*(double *)0x25f0c8) {
-      if (height_diff <= *(float *)0x2533c0) {
+      if (height_diff <= REAL_ZERO_POOL) {
         *(float *)(observer + 0x7c) =
           height_diff + *(float *)(observer + 0x7c) + *(float *)0x2533e8;
       } else {
@@ -1558,14 +2114,14 @@ void observer_update_result(int16_t local_player_index)
 
   /* assert: valid_world_real_point3d(&observer->result.position) */
   if ((*(uint32_t *)(observer + 0x74) & 0x7f800000u) == 0x7f800000u ||
-      *(float *)(observer + 0x74) < *(float *)0x266e98 ||
-      *(float *)(observer + 0x74) > *(float *)0x266e94 ||
+      *(float *)(observer + 0x74) < REAL_NEG_5000_POOL ||
+      *(float *)(observer + 0x74) > REAL_5000_POOL ||
       (*(uint32_t *)(observer + 0x78) & 0x7f800000u) == 0x7f800000u ||
-      *(float *)(observer + 0x78) < *(float *)0x266e98 ||
-      *(float *)(observer + 0x78) > *(float *)0x266e94 ||
+      *(float *)(observer + 0x78) < REAL_NEG_5000_POOL ||
+      *(float *)(observer + 0x78) > REAL_5000_POOL ||
       (*(uint32_t *)(observer + 0x7c) & 0x7f800000u) == 0x7f800000u ||
-      *(float *)(observer + 0x7c) < *(float *)0x266e98 ||
-      *(float *)(observer + 0x7c) > *(float *)0x266e94) {
+      *(float *)(observer + 0x7c) < REAL_NEG_5000_POOL ||
+      *(float *)(observer + 0x7c) > REAL_5000_POOL) {
     display_assert("valid_world_real_point3d(&observer->result.position)",
                    "c:\\halo\\SOURCE\\camera\\observer.c", 0x41f, 1);
     system_exit(-1);
@@ -1586,8 +2142,8 @@ void observer_update_result(int16_t local_player_index)
 
   /* assert: valid_field_of_view(observer->field_of_view) */
   if ((*(uint32_t *)(observer + 0xcc) & 0x7f800000u) == 0x7f800000u ||
-      *(float *)(observer + 0xcc) < *(float *)0x255ef8 ||
-      *(float *)(observer + 0xcc) > *(float *)0x2568bc) {
+      *(float *)(observer + 0xcc) < REAL_0_001_POOL ||
+      *(float *)(observer + 0xcc) > REAL_HALF_PI_POOL) {
     display_assert("valid_field_of_view(observer->field_of_view)",
                    "c:\\halo\\SOURCE\\camera\\observer.c", 0x421, 1);
     system_exit(-1);
@@ -1597,26 +2153,26 @@ void observer_update_result(int16_t local_player_index)
   {
     float v;
     v = *(float *)(observer + 0x74);
-    if (v < *(float *)0x266e98) {
-      v = *(float *)0x266e98;
-    } else if (v > *(float *)0x266e94) {
-      v = *(float *)0x266e94;
+    if (v < REAL_NEG_5000_POOL) {
+      v = REAL_NEG_5000_POOL;
+    } else if (v > REAL_5000_POOL) {
+      v = REAL_5000_POOL;
     }
     *(float *)(observer + 0x74) = v;
 
     v = *(float *)(observer + 0x78);
-    if (v < *(float *)0x266e98) {
-      v = *(float *)0x266e98;
-    } else if (v > *(float *)0x266e94) {
-      v = *(float *)0x266e94;
+    if (v < REAL_NEG_5000_POOL) {
+      v = REAL_NEG_5000_POOL;
+    } else if (v > REAL_5000_POOL) {
+      v = REAL_5000_POOL;
     }
     *(float *)(observer + 0x78) = v;
 
     v = *(float *)(observer + 0x7c);
-    if (v < *(float *)0x266e98) {
-      v = *(float *)0x266e98;
-    } else if (v > *(float *)0x266e94) {
-      v = *(float *)0x266e94;
+    if (v < REAL_NEG_5000_POOL) {
+      v = REAL_NEG_5000_POOL;
+    } else if (v > REAL_5000_POOL) {
+      v = REAL_5000_POOL;
     }
     *(float *)(observer + 0x7c) = v;
   }
@@ -1642,8 +2198,11 @@ void observer_compute_velocities(int16_t local_player_index)
 {
   char *observer;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)local_player_index * 0x29c;
   FUN_0008c440(observer + 0xc, observer + 0x260, observer + 0xb0);
@@ -1660,8 +2219,11 @@ void observer_update_positions(int16_t local_player_index)
   float *timers;
   float val;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\observer.c", 0x72,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   observer = (char *)0x33571c + (int)(int16_t)local_player_index * 0x29c;
   timers = (float *)(observer + 0x5c);
@@ -1675,8 +2237,8 @@ void observer_update_positions(int16_t local_player_index)
 
     for (i = 5; i != 0; i--) {
       val = *timers - *(float *)0x335718;
-      if (!(val > *(float *)0x2533c0)) {
-        val = *(float *)0x2533c0;
+      if (!(val > REAL_ZERO_POOL)) {
+        val = REAL_ZERO_POOL;
       }
       *timers = val;
       timers++;
@@ -1732,7 +2294,7 @@ void observer_update(float delta_time)
 
     observer_update_command(i);
 
-    if (*(float *)0x335718 != *(float *)0x2533c0) {
+    if (*(float *)0x335718 != REAL_ZERO_POOL) {
       observer_update_positions(i);
     }
 
@@ -1757,6 +2319,93 @@ void orbiting_camera_new(float *orbiting_camera, float distance, float *vector)
 {
   orbiting_camera[2] = distance;
   vector_to_angles(orbiting_camera, vector);
+}
+
+/* orbiting_camera_update (0x8cf30): replay mode's fourth cycle entry. */
+void orbiting_camera_update(void *camera_data, void *control_data,
+                            void *result_data)
+{
+  orbiting_camera_t *camera;
+  camera_action_t *controls;
+  camera_command_t *result;
+  player_control_unit_camera_info_t info;
+
+  camera = (orbiting_camera_t *)camera_data;
+  controls = (camera_action_t *)control_data;
+  result = (camera_command_t *)result_data;
+  player_control_get_unit_camera_info(controls->local_player_index, &info);
+  result->position = info.position;
+  if (controls->active) {
+    camera->facing.yaw -= controls->facing_delta.yaw;
+    camera->facing.pitch -= controls->facing_delta.pitch;
+    camera->facing.pitch =
+      camera->facing.pitch < -1.2566371f ?
+        -1.2566371f :
+        (camera->facing.pitch > 1.2566371f ? 1.2566371f : camera->facing.pitch);
+    director_set_local_player_context(controls->local_player_index);
+  }
+  camera->distance -= controls->wheel_delta * 0.333333343f;
+  camera->distance = camera->distance > 0.6f ? camera->distance : 0.6f;
+  if (info.unit_index != -1) {
+    angles_to_vector((float *)&result->forward, (float *)&camera->facing);
+    observer_up_from_forward((float *)&result->forward, (float *)&result->up);
+    object_get_root_location(info.unit_index, (float *)&result->velocity, NULL);
+    result->position.z += *(real *)0x2676ac;
+    result->flags = 1;
+  }
+  result->offset = **(real_vector3d **)0x31fc38;
+  result->depth = camera->distance;
+  result->field_of_view = *(real *)0x26769c;
+  result->timer = *(real *)0x2676a8;
+  if ((result->flags & 1) &&
+      (!valid_real_normal3d_perpendicular((float *)&result->forward,
+                                          (float *)&result->up) ||
+       (*(uint32_t *)&result->position.x & 0x7f800000) == 0x7f800000 ||
+       !(result->position.x >= *(float *)0x266e98) ||
+       !(result->position.x <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->position.y & 0x7f800000) == 0x7f800000 ||
+       !(result->position.y >= *(float *)0x266e98) ||
+       !(result->position.y <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->position.z & 0x7f800000) == 0x7f800000 ||
+       !(result->position.z >= *(float *)0x266e98) ||
+       !(result->position.z <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.i & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.i >= *(float *)0x266e98) ||
+       !(result->offset.i <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.j & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.j >= *(float *)0x266e98) ||
+       !(result->offset.j <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.k & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.k >= *(float *)0x266e98) ||
+       !(result->offset.k <= *(float *)0x266e94) ||
+       !real_vector3d_valid((float *)&result->velocity) ||
+       (*(uint32_t *)&result->depth & 0x7f800000) == 0x7f800000 ||
+       !(result->depth >= *(float *)0x2533c0) ||
+       !(result->depth <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->field_of_view & 0x7f800000) == 0x7f800000 ||
+       !(result->field_of_view >= *(float *)0x255ef8) ||
+       !(result->field_of_view <= *(float *)0x2568bc) ||
+       (*(uint32_t *)&result->timer & 0x7f800000) == 0x7f800000 ||
+       !(result->timer >= *(float *)0x2533c0) ||
+       !(result->timer <= *(float *)0x266e90))) {
+    char *msg = csprintf((char *)0x5ab100,
+                         "Invalid camera command.\n"
+                         "F: (%f, %f, %f) U: (%f, %f, %f)\n"
+                         "P: (%f, %f, %f) O: (%f, %f, %f)\n"
+                         "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
+                         (double)result->forward.i, (double)result->forward.j,
+                         (double)result->forward.k, (double)result->up.i,
+                         (double)result->up.j, (double)result->up.k,
+                         (double)result->position.x, (double)result->position.y,
+                         (double)result->position.z, (double)result->offset.i,
+                         (double)result->offset.j, (double)result->offset.k,
+                         (double)result->depth, (double)result->velocity.i,
+                         (double)result->velocity.j, (double)result->velocity.k,
+                         (double)result->field_of_view, (double)result->timer,
+                         result->flags);
+    display_assert(msg, "c:\\halo\\SOURCE\\camera\\orbiting_camera.c", 0x47, 1);
+    system_exit(-1);
+  }
 }
 
 /* Fill in a static (scripted) camera command block (0x8d3a0).

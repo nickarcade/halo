@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "struct": "dead_camera_t",
+  "size": {
+    "value": "0x30",
+    "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30"
+  },
+  "sources": [
+    "2276 pristine cachebeta.xbe disassembly",
+    "PAL 2342 source/camera"
+  ],
+  "notes": [
+    "Names T2 from PAL; offsets and access widths verified from 2276. Unaccessed padding remains unnamed."
+  ],
+  "fields": [
+    {
+      "offset": "0x0",
+      "width": 4,
+      "name": "position",
+      "confidence": "typed",
+      "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30",
+      "array_len": 3,
+      "kind": "float"
+    },
+    {
+      "offset": "0xc",
+      "width": 4,
+      "name": "facing",
+      "confidence": "typed",
+      "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30",
+      "array_len": 2,
+      "kind": "float"
+    },
+    {
+      "offset": "0x14",
+      "width": 4,
+      "name": "distance",
+      "confidence": "typed",
+      "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30",
+      "kind": "float"
+    },
+    {
+      "offset": "0x18",
+      "width": 4,
+      "name": "field_of_view",
+      "confidence": "typed",
+      "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30",
+      "kind": "float"
+    },
+    {
+      "offset": "0x1c",
+      "width": 4,
+      "name": "timer",
+      "confidence": "typed",
+      "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30",
+      "kind": "float"
+    },
+    {
+      "offset": "0x20",
+      "width": 4,
+      "name": "player_index",
+      "confidence": "typed",
+      "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30",
+      "signed": true
+    },
+    {
+      "offset": "0x24",
+      "width": 4,
+      "name": "current_player_index",
+      "confidence": "typed",
+      "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30",
+      "signed": true
+    },
+    {
+      "offset": "0x28",
+      "width": 4,
+      "name": "unit_index",
+      "confidence": "typed",
+      "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30",
+      "signed": true
+    },
+    {
+      "offset": "0x2c",
+      "width": 4,
+      "name": "switch_timer",
+      "confidence": "typed",
+      "evidence": "dead_camera_new 0x85b60 fills state through +2c; update 0x85cc0/c7/cd copies position; 0x85cd6 angles pointer +c; 0x85cd3 distance dword +14; 0x85cf6 fov dword +18; 0x85d34 float +1c; 0x85dbc player dword +20; 0x85dc4 current player dword +24; 0x85c87 unit dword +28; 0x85d82 switch float +2c; PAL sizeof 0x30",
+      "kind": "float"
+    }
+  ]
+}

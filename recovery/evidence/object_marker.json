@@ -16,7 +16,8 @@
   ],
   "notes": [
     "matrix is a real_matrix4x3 (scale, forward, left, up, position) at +0x38; only forward/up/position are observed accessed here.",
-    "Offsets 0x00-0x3b are not accessed by glow code and stay padding until another consumer proves them."
+    "Offsets 0x00-0x3b are not accessed by glow code and stay padding until another consumer proves them.",
+    "src/types.h renders this struct by hand as {pad_00[0x38]; real_matrix4x3 matrix;}: the schema cannot express the nested matrix. lightning_submit (0x135510) passes marker+0x38 as the real_matrix4x3 and copies matrix.position from +0x60."
   ],
   "fields": [
     {

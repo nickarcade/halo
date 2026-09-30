@@ -285,9 +285,13 @@ void rasterizer_vertex_shaders_dispose(void)
   }
 }
 
-/* 0x178840 — IDirect3DDevice8_DeleteVertexShader */
-unsigned int __stdcall IDirect3DDevice8_DeleteVertexShader(unsigned int handle)
+/* 0x178840 — IDirect3DDevice8_DeleteVertexShader
+ * RET 4 with the stack slot (device) unused; the shader handle arrives in EAX
+ * and is pushed straight to D3DDevice_DeleteVertexShader (0x178840 PUSH EAX). */
+unsigned int IDirect3DDevice8_DeleteVertexShader(void *device,
+                                                unsigned int handle)
 {
+  (void)device;
   D3DDevice_DeleteVertexShader(handle);
   return 0;
 }

@@ -517,7 +517,8 @@ void message_decrypt(unsigned short *msgptr, unsigned int *key)
 void build_message_header(unsigned short *header, unsigned short length,
                           unsigned char type, unsigned char flags)
 {
-  assert_halt_msg(header != (unsigned short *)0, "header != NULL");
+  assert_halt_msg_at("msg", "c:\\halo\\SOURCE\\bungie_net\\common\\message_header.c", 0x43,
+      header != (unsigned short *)0);
   assert_halt_msg_at("(0<=(length)) && ((length)<=MAXIMUM_MESSAGE_SIZE)", "c:\\halo\\SOURCE\\bungie_net\\common\\message_header.c", 0x45,
       (0 <= (int)length) && ((int)length <= 0xfff));
 

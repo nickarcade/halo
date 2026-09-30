@@ -1836,3 +1836,78 @@ int32_t FUN_000921c0(const char *name, int32_t *table)
 
   return result;
 }
+
+/* -----------------------------------------------------------------------
+ * FUN_000922a0 (0x922a0) — walk EBP chain and collect return addresses.
+ *
+ * Custom register ABI: ECX = skip, EDX = frames[]; max and count are stack
+ * arguments and the caller cleans them after the call.
+ *
+ * Same EBP-chain walk as FUN_00092370 (0x92370, stack_walk_windows.obj),
+ * minus that function's "capture the caller's own EBP" preamble: this
+ * helper starts from whatever g_sw_frame/g_sw_base (0x449ef8/0x449efc) the
+ * caller already established.
+ *
+ * NOTE (uncertain, out of this lift's scope): the validity check here is
+ * `frame>=base` treated as VALID (0x922bc `JNC` after `CMP EAX,EDI`),
+ * confirmed identically in 0x92370's own disassembly (0x92398 `JNC`). The
+ * existing FUN_00092370 lift in stack_walk_windows.c instead treats
+ * `frame>=base` as INVALID, which looks inverted relative to both
+ * functions' disassembly. This function is written to match the
+ * disassembly directly rather than propagate that possible inversion. */
+void FUN_000922a0(int skip, int32_t *frames, uint32_t max, uint32_t *count)
+{
+  uint32_t *frame;
+  uint32_t *base;
+  uint32_t return_address;
+  uint32_t i;
+
+  frame = *(uint32_t **)0x449ef8;
+  base = *(uint32_t **)0x449efc;
+
+  if (((uint32_t)frame & 3) != 0 || (uint32_t)frame < (uint32_t)base) {
+    frame = NULL;
+    *(uint32_t **)0x449ef8 = frame;
+  }
+
+  while (skip != 0) {
+    skip--;
+    if (skip == 0)
+      break;
+    if (frame != NULL) {
+      frame = (uint32_t *)*frame;
+      *(uint32_t **)0x449ef8 = frame;
+      if (((uint32_t)frame & 3) != 0 || (uint32_t)frame < (uint32_t)base) {
+        frame = NULL;
+        *(uint32_t **)0x449ef8 = frame;
+      }
+      base = frame;
+      *(uint32_t **)0x449efc = base;
+    }
+  }
+
+  i = 0;
+  if (max != 0) {
+    for (;;) {
+      return_address = 0;
+      if (frame != NULL) {
+        return_address = frame[1];
+        frame = (uint32_t *)frame[0];
+        *(uint32_t **)0x449ef8 = frame;
+        if (((uint32_t)frame & 3) != 0 || (uint32_t)frame < (uint32_t)base) {
+          frame = NULL;
+          *(uint32_t **)0x449ef8 = frame;
+        }
+        base = frame;
+        *(uint32_t **)0x449efc = base;
+      }
+      frames[i] = (int32_t)return_address;
+      if (return_address == 0)
+        break;
+      i++;
+      if (i >= max)
+        break;
+    }
+  }
+  *count = i;
+}

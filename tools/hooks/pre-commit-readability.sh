@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: \.c$
 # Pre-commit readability gate (readable-lift Phase 3).
 #
 #   HARD  -- block if a staged .c file ADDS a raw function-pointer cast to a
@@ -17,34 +18,15 @@
 #
 # Bypass with --no-verify in an emergency.
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
 
-staged_c="$(git diff --cached --name-only --diff-filter=ACMR | grep '\.c$' || true)"
-if [ -z "$staged_c" ]; then
+if ! staged_list acmr | grep -q '\.c$'; then
     exit 0
 fi
 
-# HARD: newly-added raw fn-ptr casts in the staged diff (added lines only).
-# [+] char class = a literal leading '+' portably (ugrep/BRE/ERE all agree); the
-# '+++ path' diff header can never match the cast pattern, so no separate exclude.
-added_raw="$(git diff --cached --unified=0 -- $staged_c \
-    | grep -E '^[+].*\(\(.*\(\*\).*\)0x[0-9a-fA-F]' || true)"
-
-# SOFT advisory (non-blocking): per-file findings across touched files.
-python3 "$REPO_ROOT/tools/audit/check_readability.py" --changed-only || true
-
-if [ -n "$added_raw" ]; then
-    echo ""
-    echo "pre-commit BLOCKED: a staged change adds a raw function-pointer cast:"
-    echo "$added_raw" | sed 's/^[+]/    /'
-    echo ""
-    echo "Add the callee to kb.json with its signature (and @<reg> if register-"
-    echo "passed) and call it by name instead. Bypass with --no-verify."
-    exit 1
-fi
-
-# HARD: newly-added offset derefs on a pointer from an untyped producer.
-if ! python3 "$REPO_ROOT/tools/audit/check_readability.py" \
-        --untyped-producer-added; then
-    exit 1
-fi
-exit 0
+# One process runs all three checks (advisory staged findings, added raw
+# function-pointer casts, added raw-offset derefs) -- see
+# check_readability.py --pre-commit. It used to be two interpreter starts, two
+# `git diff --cached` calls and a worktree-wide `git diff HEAD` (2.5 s of the 3.3 s).
+python3 "$REPO_ROOT/tools/audit/check_readability.py" --pre-commit
+exit $?

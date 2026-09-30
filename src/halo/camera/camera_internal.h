@@ -67,17 +67,17 @@ static __inline void camera_internal_cycle_mode(int player, int16_t *mode_table,
   FUN_00086a50(player, mode_table, count);
 }
 
-/* 0x86be0  re-evaluate camera state (@eax=player, @bl=force_flag, no stack).
+/* 0x86be0  director_choose_game_perspective (@eax=player, @bl=force_flag, no stack).
  * 0x86be0 only ever reads BL (five `testb %bl,%bl`, never written first), so
  * the annotation is @<bl> and the generated thunk loads the byte. */
 static __inline void camera_internal_reevaluate(int16_t player, char force_flag)
 {
-  FUN_00086be0(player, force_flag);
+  director_choose_game_perspective(player, force_flag);
 }
 
 /* 0x86670  per-player look/walk integrator (@ax=player, cdecl: mode_flags
- * byte, fwd float). Updates per-player camera-state floats; large helper
- * not yet ported. */
+ * flags dword, fwd float). Updates per-player camera-state variables;
+ * now ported. */
 static __inline void camera_internal_integrate(int16_t player,
                                                uint8_t mode_flags, float fwd)
 {
@@ -89,5 +89,6 @@ static __inline uint8_t camera_internal_poll_input(void *out_buf, int player)
 {
   return (uint8_t)director_compute_camera_input((short *)out_buf, player);
 }
+
 
 #endif

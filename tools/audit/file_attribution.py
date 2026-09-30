@@ -454,9 +454,10 @@ def object_verdicts(funcs: Dict[int, FuncInfo], br: Bracketing,
 
     Never "fix" a disagreement by editing `source` to the proven TU: if no
     repo file of that name exists, vc71_verify silently stops scoring every
-    function in the object.  files_windows.obj records tag_files/files.c and
-    its 27 functions do live in src/halo/tag_files/files.c, even though 24 of
-    them were compiled from files_windows.c -- which is not a repo file.
+    function in the object.  Move the code into that repo file first, then
+    retarget `source` (and the vc71_scores.json `source` rows) in the same
+    commit -- as 28e02dfeb did when it split files_windows.obj out of
+    tag_files/files.c into a new tag_files/files_windows.c.
 
     Three rules keep this from manufacturing claims:
 

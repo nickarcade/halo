@@ -577,7 +577,7 @@ void network_connection_delete(int connection)
  * block is dead in shipping builds (no log file is ever opened) but is
  * preserved faithfully: _DAT_00265d40 (2^32) folds the signed tick delta back
  * to unsigned before scaling by _DAT_00294bf0, and the record is emitted with
- * fwprintf/fflush. */
+ * fprintf/fflush (narrow format at 0x294b90). */
 bool network_connection_write(void *connection, void *message,
                               unsigned short size, int dest_address,
                               bool reliable)
@@ -591,10 +591,10 @@ bool network_connection_write(void *connection, void *message,
   result = 0;
 
   assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x170, message);
-  assert_halt(size);
+  assert_halt_msg_at("buffer_size", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x171, size);
   assert_halt_at("c:\\halo\\SOURCE\\networking\\network_connection.c", 0x172, connection);
-  assert_halt_msg((*(unsigned short *)message >> 4) == size,
-                  "(message->message_size >> 4) == buffer_size");
+  assert_halt_msg_at("bad message or buffer_size parameter", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x174,
+      (*(unsigned short *)message >> 4) == size);
 
   byte_swap_message_header((unsigned short *)message, 1);
 
@@ -617,10 +617,11 @@ bool network_connection_write(void *connection, void *message,
   if (reliable != 0) {
     /* normal reliable path */
     assert_halt_msg_at("message size exceeds maximum allowed size", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x18e, size <= 0x800);
-    assert_halt_msg((*(uint8_t *)&conn->flags &
-                     (FLAG(_connection_create_clientside_client_bit) |
-                      FLAG(_connection_create_serverside_client_bit))) != 0,
-                    "(flags & clientside) || (flags & serverside)");
+    assert_halt_msg_at("(connection->flags&FLAG(_connection_create_clientside_client_bit)) || (connection->flags&FLAG(_connection_create_serverside_client_bit))",
+        "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x190,
+        (*(uint8_t *)&conn->flags &
+         (FLAG(_connection_create_clientside_client_bit) |
+          FLAG(_connection_create_serverside_client_bit))) != 0);
     do {
       send_result = send_endpoint((int *)conn->reliable_endpoint,
                                   (const char *)message, size);
@@ -640,7 +641,7 @@ bool network_connection_write(void *connection, void *message,
         }
         elapsed = elapsed * *(double *)0x294bf0;
         crt_fprintf(conn->traffic_log_file,
-                    (const char *)L"%g\t%ld\t%ld\t%ld\t%ld\n", elapsed, 0, 0,
+                    "%g\t%ld\t%ld\t%ld\t%ld\n", elapsed, 0, 0,
                     send_result, 0);
         crt_fflush(conn->traffic_log_file);
       }
@@ -847,7 +848,7 @@ bool network_connection_idle_client_reliable_endpoint(int connection)
       }
       elapsed = elapsed * *(double *)0x294bf0;
       crt_fprintf(conn->traffic_log_file,
-                  (const char *)L"%g\t%ld\t%ld\t%ld\t%ld\n", elapsed, 0, 0, 0,
+                  "%g\t%ld\t%ld\t%ld\t%ld\n", elapsed, 0, 0, 0,
                   received);
       crt_fflush(conn->traffic_log_file);
     }
@@ -1138,4 +1139,106 @@ bool network_connection_idle_server_reliable_endpoint(int connection, int *outpu
 /* 0x1282e0 — network_connection_initialize */
 void network_connection_initialize(void)
 {
+}
+
+/* network_server_close_client_connection (0x129130)
+ * Disconnect a client connection from a server connection's client list.
+ * Removes the client's endpoint from the server's endpoint set, disposes the
+ * client connection, and clears the slot.
+ *
+ * NOTE: __FILE__ string references network_connection.c, but this function
+ * is linked into network_game_globals.obj.
+ */
+bool network_server_close_client_connection(int server_connection, int client_connection)
+{
+  short result;
+  network_server_connection *server;
+  network_connection *client;
+  network_connection **slot;
+  int i;
+
+  server = (network_server_connection *)server_connection;
+  client = (network_connection *)client_connection;
+
+  if (server == NULL) {
+    display_assert("server_connection", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1f7, true);
+    system_exit(-1);
+  }
+  if (client == NULL) {
+    display_assert("client_connection", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1f8, true);
+    system_exit(-1);
+  }
+  if ((server->connection.flags & FLAG(_connection_create_server_bit)) == 0) {
+    display_assert("server_connection->flags & FLAG(_connection_create_server_bit)",
+                   "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1f9, true);
+    system_exit(-1);
+  }
+  if (server->endpoint_set == 0) {
+    display_assert("server->endpoint_set", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1fa, true);
+    system_exit(-1);
+  }
+  slot = server->client_list;
+  if (slot == NULL) {
+    display_assert("server->client_list", "c:\\halo\\SOURCE\\networking\\network_connection.c", 0x1fb, true);
+    system_exit(-1);
+  }
+
+  i = 0;
+  while (*slot == NULL || *slot != client) {
+    i++;
+    slot++;
+    if (i >= 5) {
+      return false;
+    }
+  }
+
+  if (client->reliable_endpoint != 0) {
+    result = remove_endpoint_from_set(
+      (int *)(*slot)->reliable_endpoint,
+      (uint32_t *)server->endpoint_set);
+    if (result != 0) {
+      error(2,
+            "failed to remove a client endpoint from the server's endpoint set "
+            "(maybe it was already removed)");
+    }
+  }
+
+  network_connection_delete((int)*slot);
+  *slot = NULL;
+  return true;
+}
+
+/* network_connection_read (0x1298f0)
+ *
+ * Read a message from a network connection. If the connection is a server,
+ * reads from the unreliable incoming queue. If the connection is a client,
+ * tries the reliable queue first, then falls back to unreliable if the
+ * connection is a clientside client.
+ *
+ * NOTE: __FILE__ string references network_connection.c, but this function
+ * is linked into network_game_globals.obj.
+ */
+bool network_connection_read(int connection, void *buffer, int *size, void *addr)
+{
+  network_connection *conn;
+  bool result;
+
+  conn = (network_connection *)connection;
+
+  if ((conn->flags & FLAG(_connection_create_server_bit)) != 0) {
+    return network_client_unreliable_connection_read(connection, buffer, size, addr);
+  }
+
+  if ((conn->flags & (FLAG(_connection_create_clientside_client_bit) |
+                      FLAG(_connection_create_serverside_client_bit))) == 0) {
+    assert_halt_msg(
+      0, "connection->flags&FLAG(_connection_create_clientside_client_bit) || "
+         "connection->flags&FLAG(_connection_create_serverside_client_bit)");
+  }
+
+  result = network_client_reliable_connection_read(connection, buffer, size, addr);
+  if (!result && (conn->flags & FLAG(_connection_create_clientside_client_bit)) != 0) {
+    result = network_client_unreliable_connection_read(connection, buffer, size, addr);
+  }
+  return result;
 }

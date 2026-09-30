@@ -244,7 +244,7 @@ void pre_evaluator_combatmove(int actor_handle, char *eval_state,
               *(short *)(aim_record + 0x25c) == 1) {
             blockage = actor_perception_aiming_vector_test_blockage(
               (float *)(aim_record + 0x260), (float *)(aim_record + 0x26c),
-              *(int *)firing_position, 0);
+              (int)*(float **)firing_position, 0);
             if (*(short *)(aim_record + 0x25c) == 0)
               worst_kind0 = MAX(worst_kind0, blockage);
             else if (*(short *)(aim_record + 0x25c) == 1)

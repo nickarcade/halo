@@ -2455,3 +2455,367 @@ void hs_compile_recompile_scripts(void)
                  "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x16d, 1);
   system_exit(-1);
 }
+
+/* 0xc8720 — Compile-time argument type-checker for the HaloScript arithmetic
+ * calls (`+', `-', `*', `/', min, max).
+ *
+ * ABI — the kb.json placeholder `void hs_parse_arithmetic(void)' was WRONG;
+ * both stack slots are read and a byte is returned:
+ *   - [EBP+0x8] is loaded at 0xc8748 and compared as SI (CMP SI,0x7 at
+ *     0xc8751, CMP SI,0xc at 0xc8757), so argument 1 is the 16-bit
+ *     function_index.  It is reloaded from [EBP+0x8] at 0xc8818 on every
+ *     iteration and pushed to hs_function_table_get at 0xc8860.
+ *   - [EBP+0xc] is loaded at 0xc8724 and again at 0xc887c, both times handed
+ *     to datum_get, so argument 2 is the expression datum index.
+ *   - Both exits return a byte in AL (MOV AL,BL at 0xc8846 for the accept
+ *     tail, XOR AL,AL at 0xc88a3 for the arity-error tail), so the return
+ *     type is bool.  Plain RET with the caller doing the cleanup => __cdecl.
+ *   - Installed six times in the function-definition table (data xrefs at
+ *     0x26f514/0x26f530/0x26f54c/0x26f568/0x26f584/0x26f5a0, stride 0x1c),
+ *     exactly the six indices 7..0xc that the assert admits.
+ *
+ * hs_type_check is INLINED here rather than called (as in hs_parse_logical and
+ * hs_parse_debug_string): the body carries its own copy of the
+ * !hs_compile_globals.error assert (hs_compile.c line 0x48e) and dispatches
+ * straight to hs_parse_primitive (@EDI, constant-flag nodes, which also get
+ * constant_type=6 at +0x2) or hs_parse_nonprimitive (@EBX).  Note EBX is loaded
+ * with the literal 6 at 0xc87d1 purely to feed the two word stores — the MOV
+ * EBX,EDI at 0xc87fd is what supplies hs_parse_nonprimitive's register
+ * argument, and hs_parse_primitive needs no move because EDI already holds the
+ * argument index. Arguments that already carry a type (+0x4 != 0) are skipped
+ * and leave the running result untouched; BL is re-seeded to true at the top of
+ * every iteration (0xc8795), so only the LAST argument's outcome can end the
+ * walk.
+ *
+ * Arity: all six calls need at least two arguments (CMP word [EBP-0x4],0x2 /
+ * JL at 0xc8830); `/' (index 0xa) needs exactly two, so it additionally
+ * rejects more than two (CMP word [EBP-0x4],0x2 / JG at 0xc883d).  The
+ * qualifier spliced into "the %s call requires %s2 arguments." (0x27cfac) is
+ * the pooled empty literal at 0x25386f for `/' and "at least " (0x27cfd0,
+ * trailing space) for the other five.
+ *
+ * Globals:
+ *   0x5aa6c8 = hs_syntax_data (data_t *)
+ *   0x46b6fc = hs_compile_globals.error_message
+ *   0x46b700 = hs_compile_globals.error_offset
+ *   0x46b704 = hs_compile_globals.error_message buffer
+ *
+ * The name stays hs_parse_arithmetic: the assert string proves which function
+ * indices reach this callback, not the callback's own symbol name. */
+bool hs_parse_arithmetic(int16_t function_index, int expression_index)
+{
+  bool valid;
+  char *node;
+  char *argument;
+  int argument_index;
+  /* Held in a dword slot and incremented 32-bit (MOV ECX,[EBP-0x4] / INC ECX
+   * at 0xc8812/0xc881e) but every compare against it is 16-bit, hence the
+   * int16_t casts below rather than an int16_t local. */
+  int argument_count;
+  const char *qualifier;
+
+  valid = true;
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, expression_index);
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+  argument_index = *(int *)(node + 0x8);
+
+  if (function_index < 7 || function_index > 0xc) {
+    display_assert("function_index>=_hs_function_plus && "
+                   "function_index<=_hs_function_max",
+                   "c:\\halo\\source\\hs\\hs_library_internal_compile.h", 0x17d,
+                   true);
+    system_exit(-1);
+  }
+
+  argument_count = 0;
+  while (argument_index != -1) {
+    valid = true;
+    argument = (char *)datum_get(*(data_t **)0x5aa6c8, argument_index);
+
+    if (*(int *)0x46b6fc != 0) {
+      display_assert("!hs_compile_globals.error",
+                     "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x48e, true);
+      system_exit(-1);
+    }
+
+    if (*(int16_t *)(argument + 0x4) == 0) {
+      *(int16_t *)(argument + 0x4) = 6; /* _hs_type_real */
+      node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_index);
+      if (*(uint8_t *)(node + 0x6) & 1) {
+        *(int16_t *)(argument + 0x2) = 6;
+        valid = hs_parse_primitive(argument_index);
+      } else {
+        valid = hs_parse_nonprimitive(argument_index);
+      }
+    }
+
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_index);
+    argument_index = *(int *)(node + 0x8);
+    argument_count++;
+    if (!valid)
+      break;
+  }
+
+  /* One `||' test, not an if/else-if chain: the reference emits the accept
+   * tail (POP EDI/POP ESI/MOV AL,BL at 0xc8844) BETWEEN the too-many test at
+   * 0xc883d and the qualifier selection at 0xc884d, which is exactly the
+   * short-circuit layout.  The !valid loop exit at 0xc8824 jumps past the
+   * too-few test straight to the 0xc8837 too-many test, reproduced by the
+   * inner && short-circuit; and JG 0xc8853 skipping the CMP SI,0xa is the
+   * compiler threading the ternary on the path where SI is already 0xa. */
+  if ((valid && (int16_t)argument_count < 2) ||
+      (function_index == 0xa && (int16_t)argument_count > 2)) {
+    qualifier = (function_index == 0xa) ? "" : "at least ";
+    node = (char *)hs_function_table_get(function_index);
+    crt_sprintf((char *)0x46b704, "the %s call requires %s2 arguments.",
+                *(char **)(node + 0x4), qualifier);
+    *(const char **)0x46b6fc = (const char *)0x46b704;
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, expression_index);
+    *(int *)0x46b700 = *(int *)(node + 0xc);
+    return false;
+  }
+
+  return valid;
+}
+
+/* 0xc8f40 — Type-check the arguments of a debug-string function call.
+ *
+ * The syntax node at expression_index is the function-call node; +0x10 is
+ * the index of its function-name node, whose +0x08 (next) is the first
+ * argument. Each untyped argument (+0x04 == 0) is assigned the
+ * debug-string type (9) and dispatched by its constant flag (+0x06 bit 0)
+ * to hs_parse_primitive (@EDI) or hs_parse_nonprimitive (@EBX). The walk stops
+ * at the first failed check and returns false; the return value is BL, which
+ * the epilogue moves to AL (MOV AL,BL at 0xc903e).
+ *
+ * Both asserts are in binary order: the function_index range check
+ * (hs_library_internal_compile.h line 0x2ae) runs after the two
+ * datum_get calls, and the !hs_compile_globals.error check
+ * (hs_compile.c line 0x48e) runs inside the loop after the per-argument
+ * datum_get, matching the inlined hs_type_check body at 0xc7d80.
+ *
+ * Globals:
+ *   0x5aa6c8 = hs_syntax_data (data_t*)
+ *   0x46b6fc = hs_compile_globals.error_message
+ */
+bool hs_parse_debug_string(int16_t function_index, int expression_index)
+{
+  bool valid;
+  int argument_index;
+  char *node;
+  char *node2;
+
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, expression_index);
+  node = (char *)datum_get(*(data_t **)0x5aa6c8, *(int *)(node + 0x10));
+  argument_index = *(int *)(node + 0x8);
+
+  if (function_index < 0x18 || function_index > 0x1a) {
+    display_assert("(function_index>=_hs_function_debug_string__first) && "
+                   "(function_index<=_hs_function_debug_string__last)",
+                   "c:\\halo\\source\\hs\\hs_library_internal_compile.h", 0x2ae,
+                   true);
+    system_exit(-1);
+  }
+
+  while (argument_index != -1) {
+    valid = true;
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_index);
+
+    if (*(int *)0x46b6fc != 0) {
+      display_assert("!hs_compile_globals.error",
+                     "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x48e, true);
+      system_exit(-1);
+    }
+
+    if (*(int16_t *)(node + 0x4) == 0) {
+      *(int16_t *)(node + 0x4) = 9; /* _hs_type_string */
+      node2 = (char *)datum_get(*(data_t **)0x5aa6c8, argument_index);
+      if (*(uint8_t *)(node2 + 0x6) & 1) {
+        *(int16_t *)(node + 0x2) = 9;
+        valid = hs_parse_primitive(argument_index);
+      } else {
+        valid = hs_parse_nonprimitive(argument_index);
+      }
+    }
+
+    node = (char *)datum_get(*(data_t **)0x5aa6c8, argument_index);
+    argument_index = *(int *)(node + 0x8);
+    if (!valid)
+      return false;
+  }
+
+  return true;
+}
+
+/* Compile a HaloScript expression from source text. Allocates syntax nodes,
+ * copies source into the compiled source buffer, parses one expression,
+ * and wraps it in a begin/void node pair for execution. Returns the root
+ * syntax datum index on success, or -1 on failure.
+ *
+ * If no scenario is loaded, allocates a temporary buffer for the source
+ * (freed later by hs_compile_cleanup). Otherwise uses the scenario's
+ * string constants area offset by 0x400 bytes.
+ *
+ * Globals:
+ *   0x326a08 = global_scenario_index
+ *   0x5aa6c8 = hs_syntax_data (data_t*)
+ *   0x46b6e4 = hs_compile_globals.source_size
+ *   0x46b6e8 = hs_compile_globals.compiled_source
+ *   0x46b6fc = hs_compile_globals.error_message
+ *   0x46b700 = hs_compile_globals.error_offset
+ *   0x46b804 = hs_compile_globals.source_allocated
+ */
+int hs_compile(int source_length, const char *source, int *error_info,
+               char **error_text)
+{
+  bool ok;
+  void *node1_ptr;
+  int expr_datum;
+  int node1;
+  int node2;
+  void *node2_ptr;
+  void *expr_ptr;
+  int base_offset;
+  char *cursor;
+
+  if (source_length < 0x400) {
+    if (*(int *)0x326a08 == -1) {
+      base_offset = 0;
+      *(void **)0x46b6e8 = debug_malloc(
+        source_length + 1, false, "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xaf);
+      *(uint8_t *)0x46b804 = 1;
+      if (*(void **)0x46b6e8 == NULL) {
+        display_assert("hs_compile_globals.compiled_source",
+                       "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xb2, true);
+        system_exit(-1);
+      }
+    } else {
+      void *scenario = global_scenario_get();
+      if (*(int *)((char *)scenario + 0x488) < 0x400) {
+        display_assert("global_scenario_get()->hs_string_constants.size>="
+                       "HS_MAXIMUM_DYNAMIC_SOURCE_DATA_BYTES",
+                       "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xa6, true);
+        system_exit(-1);
+      }
+      scenario = global_scenario_get();
+      base_offset = *(int *)((char *)scenario + 0x488) - 0x400;
+      scenario = global_scenario_get();
+      *(void **)0x46b6e8 = *(void **)((char *)scenario + 0x494);
+    }
+    csmemcpy((void *)((int)*(void **)0x46b6e8 + base_offset), (void *)source,
+             source_length);
+    *(int *)0x46b6e4 = base_offset + source_length;
+    *(uint8_t *)(*(int *)0x46b6e4 + (int)*(void **)0x46b6e8) = 0;
+    node1_ptr = *(void **)0x46b6e8;
+    *(int *)0x46b6fc = 0;
+    *error_info = 0;
+    *error_text = NULL;
+    cursor = (char *)((int)node1_ptr + base_offset);
+    *(int *)0x46b700 = -1;
+    hs_skip_whitespace(&cursor);
+    if (*cursor != '\0') {
+      expr_datum = hs_tokenize(&cursor);
+      if (*(int *)0x46b6fc == 0) {
+        node1 = data_new_at_index(*(data_t **)0x5aa6c8);
+        node2 = data_new_at_index(*(data_t **)0x5aa6c8);
+        if (node1 != -1 && node2 != -1) {
+          node1_ptr = datum_get(*(data_t **)0x5aa6c8, node1);
+          node2_ptr = datum_get(*(data_t **)0x5aa6c8, node2);
+          *(int *)((char *)node1_ptr + 0x10) = node2;
+          *(int *)((char *)node1_ptr + 8) = -1;
+          expr_ptr = datum_get(*(data_t **)0x5aa6c8, expr_datum);
+          *(int *)((char *)node1_ptr + 0xc) = *(int *)((char *)expr_ptr + 0xc);
+          *(int16_t *)((char *)node1_ptr + 6) = 0;
+          *(int *)((char *)node2_ptr + 8) = expr_datum;
+          *(int *)((char *)node2_ptr + 0xc) = -1;
+          *(int16_t *)((char *)node2_ptr + 2) = 0x16;
+          *(int16_t *)((char *)node2_ptr + 6) = 1;
+          *(int16_t *)((char *)node2_ptr + 4) = 2;
+          ok = hs_type_check(node1, 4);
+          if (ok) {
+            return node1;
+          }
+        }
+      }
+      *error_info = *(int *)0x46b6fc;
+      if (*(int *)0x46b700 != -1) {
+        *(int *)0x46b700 = *(int *)0x46b700 - base_offset;
+        if (*(int *)0x46b700 < 0 || *(int *)0x46b700 >= source_length) {
+          display_assert("hs_compile_globals.error_offset>=0 && "
+                         "hs_compile_globals.error_offset<source_size",
+                         "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0xeb, true);
+          system_exit(-1);
+        }
+        *error_text = (char *)source + *(int *)0x46b700;
+      }
+    }
+  }
+  return -1;
+}
+
+/* Compile a source file into the syntax tree. Parses multiple top-level
+ * expressions from the source, checking each with hs_type_check. On
+ * failure, reports error info and adjusts error offset relative to the
+ * source file.
+ *
+ * 0xc5730 = hs_compile_source_setup (@EDI=source_file_size, stack: source_ptr)
+ * 0xc72b0 = hs_skip_whitespace (@ESI=&cursor)
+ * 0xc7be0 = hs_parse_expression (@EAX=&cursor, returns datum index)
+ */
+bool hs_compile_source(int source_file_size, void *source_ptr,
+                       char **error_info, char **error_text)
+{
+  char *cursor;
+  bool ok;
+  int expr_datum;
+
+  cursor = hs_compile_initialize(source_file_size, source_ptr);
+
+  if (cursor == NULL) {
+    *error_info = "couldn't allocate memory for compiled source.";
+    return false;
+  }
+
+  *(char **)0x46b6fc = NULL;
+  *error_info = NULL;
+  *error_text = NULL;
+  *(int *)0x46b700 = -1;
+
+  hs_skip_whitespace(&cursor);
+
+  do {
+    if (*cursor == '\0')
+      return true;
+
+    expr_datum = hs_tokenize(&cursor);
+    hs_skip_whitespace(&cursor);
+
+    if (*(char **)0x46b6fc != NULL)
+      break;
+
+    ok = hs_type_check(expr_datum, 1);
+  } while (ok);
+
+  if (*(char **)0x46b6fc == NULL) {
+    display_assert("tell matt that somebody failed to correctly report a "
+                   "parsing error.",
+                   "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x131, true);
+    system_exit(-1);
+  }
+
+  *error_info = *(char **)0x46b6fc;
+  *(uint8_t *)0x46b6f8 = 1;
+
+  if (*(int *)0x46b700 != -1) {
+    *(int *)0x46b700 = *(int *)0x46b700 + (source_file_size - *(int *)0x46b6e4);
+    if (*(int *)0x46b700 < 0 || *(int *)0x46b700 >= source_file_size) {
+      display_assert("hs_compile_globals.error_offset>=0 && "
+                     "hs_compile_globals.error_offset<source_file_size",
+                     "c:\\halo\\SOURCE\\hs\\hs_compile.c", 0x13b, true);
+      system_exit(-1);
+    }
+    *error_text = (char *)(*(int *)0x46b700 + (int)source_ptr);
+  }
+
+  return false;
+}

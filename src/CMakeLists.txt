@@ -182,11 +182,13 @@ halo/rasterizer/rasterizer_text.c
 	halo/objects/object_lights.c
 	halo/objects/widgets/widgets.c
 	halo/objects/widgets/glow.c
+	halo/objects/widgets/light_volumes.c
 	halo/objects/widgets/lightning.c
 	halo/text/draw_string.c
 	halo/text/international_strings.c
 	halo/text/unicode.c
 	halo/tag_files/files.c
+	halo/tag_files/files_windows.c
 	halo/tag_files/tag_groups.c
 	halo/shell.c
 	halo/shell_xbox.c

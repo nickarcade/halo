@@ -77,7 +77,7 @@ in that list before screening — this is a hard filter, not a preference.
 Preferred target areas (in order): `game_engine.obj`, `lruv_cache.obj`, `hud.obj`, `items.obj`, `input_xbox.obj`.
 If `--criteria` was given, weigh candidate choice by it ahead of this default order.
 
-Avoid: `prior_fail` candidates unless queue is otherwise empty.
+Avoid: `hs_runtime.c` (C99/VC71 violations unfixed), `prior_fail` candidates unless queue is otherwise empty.
 
 ## Pre-screen (skip immediately if any apply)
 
@@ -163,8 +163,9 @@ rtk python3 tools/lift_pipeline.py --target FUNCNAME --no-metadata-update --veri
 
 ```bash
 rtk git add -- <source_file> kb.json tools/kb_reg_baseline.json
-rtk python3 tools/audit/generate_lift_commit.py --batch-name "FUNCNAME" > /tmp/commit_msg.txt
-rtk git commit -F /tmp/commit_msg.txt
+MSG=$(mktemp /tmp/halo-commit-msg.XXXXXX)
+rtk python3 tools/audit/generate_lift_commit.py --batch-name "FUNCNAME" > "$MSG"
+rtk git commit -F "$MSG" && rm -f "$MSG"
 ```
 
 ## Revert procedure

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: kb\.json|stdcall_ret_baseline\.json
 # Pre-commit gate: stdcall-decl mismatch sweep (lift-learnings §30).
 # kb.json decls are checked against each function's RET immediate in the
 # pristine XBE — a cdecl/plain decl over a `RET n` body makes every lifted
@@ -9,7 +10,8 @@
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
-STAGED=$(git diff --cached --name-only)
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+STAGED=$(staged_list all)
 case "$STAGED" in
     *kb.json*|*stdcall_ret_baseline.json*) ;;
     *) exit 0 ;;

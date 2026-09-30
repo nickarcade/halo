@@ -50,7 +50,7 @@ void FUN_00092370(int skip, int32_t *frames, uint32_t max, uint32_t *count)
   *(uint32_t **)0x449efc = (uint32_t *)((char *)frame - 0xc);
 
   if (((uint32_t)frame & 3) != 0 ||
-      (uint32_t)frame >= (uint32_t)*(uint32_t **)0x449efc) {
+      (uint32_t)frame < (uint32_t)*(uint32_t **)0x449efc) {
     frame = NULL;
     *(uint32_t **)0x449ef8 = frame;
   }
@@ -63,7 +63,7 @@ void FUN_00092370(int skip, int32_t *frames, uint32_t max, uint32_t *count)
       frame = (uint32_t *)*frame;
       *(uint32_t **)0x449ef8 = frame;
       if (((uint32_t)frame & 3) != 0 ||
-          (uint32_t)frame >= (uint32_t)*(uint32_t **)0x449efc) {
+          (uint32_t)frame < (uint32_t)*(uint32_t **)0x449efc) {
         frame = NULL;
         *(uint32_t **)0x449ef8 = frame;
       }
@@ -80,7 +80,7 @@ void FUN_00092370(int skip, int32_t *frames, uint32_t max, uint32_t *count)
         frame = (uint32_t *)frame[0];
         *(uint32_t **)0x449ef8 = frame;
         if (((uint32_t)frame & 3) != 0 ||
-            (uint32_t)frame >= (uint32_t)*(uint32_t **)0x449efc) {
+            (uint32_t)frame < (uint32_t)*(uint32_t **)0x449efc) {
           frame = NULL;
           *(uint32_t **)0x449ef8 = frame;
         }

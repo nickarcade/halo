@@ -1,6 +1,19 @@
 #include "xbox.h" /* Xbox kernel/XAPI decls (Mm*, XPhysicalAlloc) */
 
-#ifdef HALO_RETAIL64
+/* Standalone keeps the build-2276 cache sizes: tag 0x1600000, texture
+ * 0x1600000, sound 0x400000. The texture
+ * cache must stay 0x1600000 because bink_playback_start steals a 16MB pool
+ * from it for hi-res movies (intro.bik, flags 0xe6); an 8MB cache leaves
+ * 382 stealable pages against the 1025 requested and trips
+ * xbox_texture_cache.c:319 remaining_page_count>0. The sound cache must stay
+ * 0x400000 because sound_cache_new builds its LRU over 0x400 pages of 4KB;
+ * a smaller backing lets sounds overwrite the texture cache allocated right
+ * before it. */
+#if defined(HALO_STANDALONE)
+#define HALO_TAG_CACHE_SIZE 0x1600000
+#define HALO_TEXTURE_CACHE_SIZE 0x1600000
+#define HALO_SOUND_CACHE_SIZE 0x400000
+#elif defined(HALO_RETAIL64)
 #define HALO_TAG_CACHE_SIZE 0x1600000
 #define HALO_TEXTURE_CACHE_SIZE 0x800000
 #define HALO_SOUND_CACHE_SIZE 0x200000

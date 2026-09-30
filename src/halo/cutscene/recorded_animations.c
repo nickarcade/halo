@@ -1074,6 +1074,127 @@ void recorded_animation_kill(int unit_handle)
   }
 }
 
+/* recorded_animation_play_internal (0x95330)
+ *
+ * Shared worker behind recorded_animation_play (flags=0),
+ * recorded_animation_play_and_delete (flags=8), and FUN_00095680
+ * (flags=0x10). Actor unit handle arrives in EAX (@<eax>); anim_idx and
+ * flags are plain cdecl stack args. Returns AL=1 on success; every
+ * early-exit returns AL=0 (the original threads a never-mutated result byte
+ * at [ebp-1]/BL through the early exits, e.g. MOV AL,BL at 0x95587/0x9559f
+ * and MOV AL,[EBP-1] at 0x953ea/0x95550/0x95569 — an explicit `return 0` is
+ * byte-identical since that local is never written after its initial zero).
+ *
+ * Reuses an existing thread for this unit (from FUN_00095050) when one
+ * exists and does not already actively control the unit; otherwise
+ * allocates a fresh datum with data_new_at_index/datum_get. `version` =
+ * anim_def->+0x20 selects the codec: 0x2eebac[version] validates existence
+ * (0x95409-0x95415), and 0x2eebb0[version-1] — the same array read one
+ * stride over — supplies the primer/ticker pair used by
+ * recorded_animation_verify and recorded_animations_update. Store order to
+ * the +0x54/+0x14/+0x10/+0xc/+0x08/+0x04/+0x0a/+0x60 thread fields and to
+ * the debug slot at 0x44df0c follows the disassembly at 0x9543a-0x954b7
+ * exactly; several stack-arg calls in the success path share one combined
+ * ADD ESP,0x28 cleanup (0x954c7) because none of their args are re-read from
+ * the stack.
+ */
+char recorded_animation_play_internal(int actor, short anim_idx, short flags)
+{
+  scenario_t *scenario;
+  char *anim_def;
+  char *thread;
+  int32_t datum_handle;
+  unsigned char version;
+  void **vtable;
+  char *dbg_slot;
+  char *currently_playing;
+
+  if (actor == -1) {
+    error(2, "unit doesn't exist");
+    return 0;
+  }
+  if (anim_idx == -1 ||
+      anim_idx >= *(int *)((char *)global_scenario_get() + 0x36c)) {
+    error(2, "this animation doesn't exist");
+    return 0;
+  }
+
+  object_get_and_verify_type(actor, 3);
+  player_index_from_unit_index(actor);
+  thread = (char *)FUN_00095050(actor, &datum_handle);
+
+  scenario = global_scenario_get();
+  anim_def =
+    (char *)tag_block_get_element((char *)scenario + 0x36c, anim_idx, 0x40);
+
+  if (recorded_animation_controlling_unit(actor)) {
+    if (thread == NULL) {
+      error(2, "can't play animation on unit");
+      return 0;
+    }
+    dbg_slot = (char *)((datum_handle & 0xffff) * 0x10 + *(int *)0x44df0c);
+    currently_playing = (char *)0x25b724;
+    if (*dbg_slot != 0) {
+      currently_playing =
+        (char *)tag_block_get_element((char *)global_scenario_get() + 0x36c,
+                                      *(short *)(dbg_slot + 0xc), 0x40);
+    }
+    error(2, "trying to play %s while %s is playing", anim_def,
+          currently_playing);
+    return 0;
+  }
+
+  if (thread == NULL) {
+    datum_handle = data_new_at_index(*(data_t **)0x44df04);
+    if (datum_handle == -1 || (thread = (char *)datum_get(
+                                 *(data_t **)0x44df04, datum_handle)) == NULL) {
+      error(2, "Could not allocate space for a new animation");
+      return 0;
+    }
+  }
+
+  version = *(unsigned char *)(anim_def + 0x20);
+  if (version == 0 || version > 4 || ((void **)0x2eebac)[version] == NULL) {
+    display_assert(
+      "animation->version>0&&animation->version<=RECORDED_ANIMATION_VERSION&&"
+      "playback_codec[animation->version-1]",
+      "c:\\halo\\SOURCE\\cutscene\\recorded_animations.c", 0xe9, 1);
+    system_exit(-1);
+  }
+
+  *(int *)(thread + 4) = actor;
+  *(int *)(thread + 0xc) = 0;
+  *(uint16_t *)(thread + 8) = *(uint16_t *)(anim_def + 0x24);
+  *(int *)(thread + 0x10) =
+    (int)tag_data_get_pointer(anim_def + 0x2c, 0, *(int *)(anim_def + 0x2c));
+
+  dbg_slot = (char *)((datum_handle & 0xffff) * 0x10 + *(int *)0x44df0c);
+  *dbg_slot = 1;
+  *(int *)(dbg_slot + 4) = *(int *)(thread + 0x10);
+  *(short *)(dbg_slot + 0xc) = anim_idx;
+  *(int *)(dbg_slot + 8) = *(int *)(anim_def + 0x2c);
+
+  version = *(unsigned char *)(anim_def + 0x20);
+  *(uint8_t *)(thread + 0xa) &= 0xfe;
+  *(int16_t *)(thread + 0x60) = version - 1;
+  vtable = (void **)((void **)0x2eebb0)[version - 1];
+  ((void (*)(char *, char *, int *, unsigned char))vtable[0])(
+    thread + 0x54, thread + 0x14, (int *)(thread + 0x10),
+    *(unsigned char *)(anim_def + 0x22));
+
+  unit_set_actively_controlled(actor, 1);
+  if (unit_is_alive(actor)) {
+    *(uint8_t *)(thread + 0xa) |= 4;
+  } else {
+    *(uint8_t *)(thread + 0xa) &= 0xfb;
+  }
+  unit_set_controllable(actor, 0);
+  unit_set_possessed(actor, 1);
+  object_set_automatic_deactivation(actor, 0);
+  *(uint16_t *)(thread + 0xa) |= (uint16_t)flags;
+  return 1;
+}
+
 /* recorded_animation_get_time_left (0x955b0)
  *
  * Scans the thread pool for the record whose +0x04 unit handle matches, then
@@ -1141,6 +1262,25 @@ char recorded_animation_play_and_delete(int actor, short anim_idx)
 char FUN_00095680(int actor, short anim_idx)
 {
   return recorded_animation_play_internal(actor, anim_idx, 0x10);
+}
+
+/* controls_initialize_for_new_map (0x956c0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the control object_type_definition table at
+ *   0x324428, slot +0x18 (initialize_for_new_map); name from PAL 2342
+ *   objects/object_types.c control_data_definition (T2). */
+void controls_initialize_for_new_map(void)
+{
+}
+
+/* controls_dispose_from_old_map (0x956d0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the control object_type_definition table at
+ *   0x324428, slot +0x1c (dispose_from_old_map); name from PAL 2342 (T2). */
+void controls_dispose_from_old_map(void)
+{
 }
 
 /* FUN_000956e0 @ 0x000956e0
@@ -1337,6 +1477,26 @@ void FUN_00095930(int object_handle)
   }
 }
 
+/* light_fixtures_initialize_for_new_map (0x95990)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the light_fixture object_type_definition
+ *   table at 0x3244c8, slot +0x18 (initialize_for_new_map); name from PAL
+ *   2342 objects/object_types.c light_fixture_data_definition (T2). */
+void light_fixtures_initialize_for_new_map(void)
+{
+}
+
+/* light_fixtures_dispose_from_old_map (0x959a0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the light_fixture object_type_definition
+ *   table at 0x3244c8, slot +0x1c (dispose_from_old_map); name from PAL 2342
+ *   (T2). */
+void light_fixtures_dispose_from_old_map(void)
+{
+}
+
 /* FUN_000959b0 @ 0x000959b0
  *
  * Load machine object (type mask 0x200), look up its 'life' tag, call
@@ -1385,6 +1545,25 @@ char FUN_00095a60(int object_handle)
   object = (int *)object_get_and_verify_type(object_handle, 0x200);
   tag_get(0x6c696669, *object);
   return 1;
+}
+
+/* machines_initialize_for_new_map (0x95ab0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the machine object_type_definition table at
+ *   0x324388, slot +0x18 (initialize_for_new_map); name from PAL 2342
+ *   objects/object_types.c machine_data_definition (T2). */
+void machines_initialize_for_new_map(void)
+{
+}
+
+/* machines_dispose_from_old_map (0x95ac0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the machine object_type_definition table at
+ *   0x324388, slot +0x1c (dispose_from_old_map); name from PAL 2342 (T2). */
+void machines_dispose_from_old_map(void)
+{
 }
 
 /* FUN_00095ad0 @ 0x00095ad0
@@ -1472,4 +1651,175 @@ void FUN_00095c10(int object_handle)
   if ((*(unsigned char *)((char *)object + 0x1c4) & 8) != 0) {
     FUN_00097040(object_handle, 1.0f);
   }
+}
+
+/* machine_update @ 0x00095c60
+ *
+ * Confirmed: sole reference is the machine object_type_definition table at
+ *   0x324388, slot +0x30 (datum update; abs ref at 0x3243b8). Name from PAL
+ *   2342 devices/device_machines.c machine_update (T2); body follows the
+ *   PAL control flow block for block.
+ * Confirmed: cdecl, one stack arg ([ebp+8] -> EBX); returns AL=1 (MOV AL,1 at
+ *   0x9604a). Frame 0x2068 via _chkstk: 2048-dword elevator buffer at
+ *   [ebp-0x2068], 16-dword door buffer at [ebp-0x68].
+ * Confirmed offsets (machine object, mask 0x80, 'mach' definition):
+ *   obj +0x0c position, +0x24 forward, +0x48 location, +0x50 bounding center,
+ *   +0x5c bounding radius, +0x1a4 device flags (bit 2 = position changed),
+ *   +0x1ac power, +0x1b4 position group index (short), +0x1b8 position,
+ *   +0x1bc position velocity, +0x1c4 machine flags byte (bit0 = does not
+ *   operate automatically, bit1 = one sided), +0x1c8 door open ticks,
+ *   +0x1cc elevator position;
+ *   def +0x21c automatic activation radius, +0x280/+0x288 depowered/powered
+ *   position velocity, +0x290 machine type (short; 0 door, 2 platform),
+ *   +0x292 flags (bit 2 = elevator), +0x2ea elevator node index (short),
+ *   +0x320 door open ticks limit.
+ * Inferred: unit +0xb6 bit 2 and unit-definition +0x17c bit 14 block door
+ *   opening (PAL names: object function2 active / cannot open doors
+ *   automatically); biped +0x42c is the biped's elevator object index.
+ * Confirmed: the dot product is accumulated as (k*fk + j*fj) + i*fi
+ *   (x87 order at 0x95e1d-0x95e3e); written in that association.
+ * Confirmed: 0xa7a30 is called as (1, unit team) and a nonzero return skips
+ *   the one-sided facing test (PAL: game_team_is_enemy(_game_team_player,..)).
+ */
+bool machine_update(int machine_index)
+{
+  char *machine;
+  char *definition;
+  char *unit;
+  char *unit_definition;
+  char *biped;
+  int *object_index;
+  real_point3d *node_position;
+  int remaining_object_count;
+  int16_t object_count;
+  char activate;
+  char can_open;
+  float radius;
+  float di;
+  float dj;
+  float dk;
+  real_vector3d elevator_offset;
+  real_point3d new_position;
+  int object_indices[16];
+  int elevator_object_indices[2048];
+
+  machine = (char *)object_get_and_verify_type(machine_index, 0x80);
+  definition = (char *)tag_get(0x6d616368, *(int *)machine);
+
+  if (*(short *)(definition + 0x290) == 2) {
+    *(float *)(machine + 0x1b8) =
+        (1.0f - *(float *)(machine + 0x1ac)) * *(float *)(definition + 0x280) +
+        *(float *)(definition + 0x288) * *(float *)(machine + 0x1ac) +
+        *(float *)(machine + 0x1b8);
+    if (*(float *)(machine + 0x1b8) >= 1.0f) {
+      *(float *)(machine + 0x1b8) = *(float *)(machine + 0x1b8) - 1.0f;
+    }
+    *(float *)(machine + 0x1bc) = 0.0f;
+    *(unsigned int *)(machine + 0x1a4) |= 4;
+    if (*(short *)(machine + 0x1b4) != -1) {
+      *(float *)((char *)datum_get(device_groups_data,
+                                   *(short *)(machine + 0x1b4)) + 4) =
+          *(float *)(machine + 0x1b8);
+    }
+  }
+
+  if ((*(unsigned char *)(machine + 0x1c4) & 1) == 0 &&
+      *(short *)(definition + 0x290) == 0 &&
+      ((game_time_get() + machine_index) & 3) == 0) {
+    activate = 0;
+    if (*(float *)(definition + 0x21c) < 0.0001f) {
+      radius = *(float *)(machine + 0x5c);
+    } else {
+      radius = *(float *)(definition + 0x21c);
+    }
+    object_count = object_find_in_radius(1, 1, machine + 0x48,
+                                         (float *)(machine + 0x50), radius,
+                                         object_indices, 16);
+    if (object_count > 0) {
+      object_index = object_indices;
+      remaining_object_count = (unsigned short)object_count;
+      do {
+        unit = (char *)object_get_and_verify_type(*object_index, 3);
+        unit_definition = (char *)tag_get(0x756e6974, *(int *)unit);
+        can_open = 1;
+        if ((*(unsigned char *)(unit + 0xb6) & 4) != 0 ||
+            (*(unsigned int *)(unit_definition + 0x17c) & 0x4000) != 0) {
+          can_open = 0;
+        }
+        if ((*(unsigned char *)(machine + 0x1c4) & 2) != 0 &&
+            *(float *)(machine + 0x1b8) == 0.0f &&
+            !game_allegiance_get_team_is_friendly(1, *(int16_t *)(unit + 0x68))) {
+          di = *(float *)(unit + 0x50) - *(float *)(machine + 0x50);
+          dj = *(float *)(unit + 0x54) - *(float *)(machine + 0x54);
+          dk = *(float *)(unit + 0x58) - *(float *)(machine + 0x58);
+          if (dk * *(float *)(machine + 0x2c) + dj * *(float *)(machine + 0x28) +
+                  di * *(float *)(machine + 0x24) > 0.0f) {
+            goto next_unit;
+          }
+        }
+        if (can_open) {
+          activate = 1;
+        }
+      next_unit:
+        object_index++;
+      } while (--remaining_object_count);
+    }
+    if (activate) {
+      if (*(short *)(machine + 0x1b4) != -1) {
+        FUN_00096f20((int)*(unsigned short *)(machine + 0x1b4), 1.0f);
+      }
+      *(int *)(machine + 0x1c8) = -3;
+    }
+  }
+
+  if (*(short *)(definition + 0x290) == 0) {
+    if (*(float *)(machine + 0x1b8) == 1.0f) {
+      *(int *)(machine + 0x1c8) = *(int *)(machine + 0x1c8) + 1;
+      if (*(int *)(machine + 0x1c8) > *(int *)(definition + 0x320) &&
+          *(short *)(machine + 0x1b4) != -1) {
+        FUN_00096f20((int)*(unsigned short *)(machine + 0x1b4), 0.0f);
+      }
+    } else {
+      *(int *)(machine + 0x1c8) = 0;
+    }
+  }
+
+  if ((*(unsigned char *)(definition + 0x292) & 4) != 0 &&
+      *(short *)(definition + 0x2ea) != -1) {
+    node_position = (real_point3d *)((char *)object_get_node_matrix(
+                                         machine_index,
+                                         *(int16_t *)(definition + 0x2ea)) +
+                                     0x28);
+    elevator_offset.i = node_position->x - *(float *)(machine + 0x1cc);
+    elevator_offset.j = node_position->y - *(float *)(machine + 0x1d0);
+    elevator_offset.k = node_position->z - *(float *)(machine + 0x1d4);
+    if (elevator_offset.i != 0.0f || elevator_offset.j != 0.0f ||
+        elevator_offset.k != 0.0f) {
+      object_count = object_find_in_radius(
+          1, 1, machine + 0x48, (float *)(machine + 0x50),
+          *(float *)(machine + 0x5c), elevator_object_indices, 2048);
+      if (object_count > 0) {
+        object_index = elevator_object_indices;
+        remaining_object_count = (unsigned short)object_count;
+        do {
+          biped = (char *)object_get_and_verify_type(*object_index, 1);
+          if (*(int *)(biped + 0x42c) == machine_index) {
+            new_position.x = elevator_offset.i + *(float *)(biped + 0x0c);
+            new_position.y = elevator_offset.j + *(float *)(biped + 0x10);
+            new_position.z = elevator_offset.k + *(float *)(biped + 0x14);
+            object_translate(*object_index, &new_position.x, NULL);
+          }
+          object_index++;
+        } while (--remaining_object_count);
+      }
+    }
+    *(real_point3d *)(machine + 0x1cc) = *node_position;
+  }
+
+  if ((*(unsigned char *)(machine + 0x1a4) & 4) != 0) {
+    object_translate(machine_index, (float *)(machine + 0x0c), NULL);
+    *(unsigned int *)(machine + 0x1a4) &= ~4u;
+  }
+
+  return 1;
 }

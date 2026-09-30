@@ -50,3 +50,12 @@ ui_widget_search_and_replace_invoke(void *widget,
   }
   return L"<invalid>";
 }
+
+/* widget_replace_function_null (0xf52e0)
+ *
+ * text_search_and_replace_function_table[0].  MOV EAX,0x26cdf0; RET: returns
+ * the shared empty wide string; the widget argument is ignored. */
+wchar_t *widget_replace_function_null(void *widget)
+{
+  return L"";
+}

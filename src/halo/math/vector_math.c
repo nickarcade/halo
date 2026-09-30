@@ -973,6 +973,446 @@ bool FUN_000130d0(uint32_t collision_flags, float *point_a, float *point_b,
                       collision_result);
 }
 
+
+/* action_charge_perform (0x13120)
+ * Per-tick evaluation of an actor's charge action: decides whether to keep
+ * advancing on the target prop, handles melee / leaping-melee / stalking /
+ * close-range goals, launches melee attacks and leaps, keeps the actor
+ * moving toward the prop, and returns whether the action is finished.
+ *
+ * Confirmed TU: asserts "!actor->meta.swarm" with
+ *   "c:\halo\SOURCE\ai\action_charge.c" (lines 0x120 and 0x1e7). The kb
+ *   object here (vector_math.obj) lumps the action_* code of 0x12000-0x13dce.
+ * Confirmed: cdecl, one stack arg [EBP+0x8] (actor index; EBX), result in
+ *   AL from the byte at [EBP-3] (bool, not void as previously declared).
+ * Confirmed: EDI = actor + 0x9c is the charge state block; all state
+ *   offsets below are relative to it.
+ * Confirmed: callee FUN_00012ad0 takes the actor index in EBX and the goal
+ *   in ESI (kb @<reg>), third arg pushed = the state block.
+ * Unknown: most actor/prop/definition field meanings; kept as raw offsets
+ *   like the rest of this TU. */
+bool action_charge_perform(int actor_index)
+{
+  char *actor;
+  unsigned int *definition;
+  char *variant_definition;
+  char *firing_variant_definition;
+  char *state;
+  char *prop;
+  bool result;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_index);
+  definition = (unsigned int *)tag_get(0x61637472, *(int *)(actor + 0x58));
+  variant_definition = (char *)tag_get(0x61637476, *(int *)(actor + 0x5c));
+  firing_variant_definition =
+    actor_combat_get_firing_variant_definition(actor_index);
+  state = actor + 0x9c;
+  prop = NULL;
+  result = false;
+
+  if (*(int *)(actor + 0x270) != -1) {
+    prop = (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x270));
+
+    if (*(int *)(actor + 0x1b0) != -1) {
+      *(char *)(state + 0x28) = 1;
+    } else if (*(short *)(state + 4) == 5 || *(short *)(state + 4) == 4) {
+      *(char *)(state + 0x28) = 1;
+    } else if (*(short *)(state + 4) == 2 || *(short *)(state + 4) == 3) {
+      float abort_range = 3.4028235e38f;
+      char check_range = 1;
+      char berserk_ranges = *(char *)(actor + 0x378);
+
+      if (!actor_has_ranged_weapon(actor_index)) {
+        berserk_ranges = 1;
+      }
+
+      if (*(char *)(actor + 6)) {
+        display_assert("!actor->meta.swarm",
+                       "c:\\halo\\SOURCE\\ai\\action_charge.c", 0x120, true);
+        system_exit(-1);
+      }
+
+      if (*(char *)(state + 6) || *(char *)(state + 0xb) ||
+          *(char *)(state + 0xc)) {
+        check_range = 0;
+      } else if (*(char *)(actor + 0x378) ||
+                 !actor_has_ranged_weapon(actor_index)) {
+        abort_range = berserk_ranges
+                        ? *(float *)(variant_definition + 0x174)
+                        : *(float *)(variant_definition + 0x164);
+      }
+
+      if (*(char *)(actor + 0x1cb)) {
+        float maximum_abort_range =
+          (0.0f > *(float *)&definition[0xdf] ? 0.0f
+                                              : *(float *)&definition[0xdf]) +
+          0.8f;
+
+        abort_range =
+          abort_range < maximum_abort_range ? abort_range : maximum_abort_range;
+      }
+
+      if (check_range && *(float *)(prop + 0x11c) > abort_range) {
+        *(char *)(state + 8) = 1;
+      } else {
+        *(int *)(actor + 0x380) = game_time_get();
+        *(char *)(state + 0x28) = 1;
+
+        if (check_range) {
+          if (*(short *)(state + 4) == 2) {
+            if (*(float *)&definition[0xe2] == 0.0f ||
+                *(float *)&definition[0xe4] == 0.0f) {
+              *(char *)(state + 0xa) = 0;
+            } else if (*(char *)(prop + 0x130) ||
+                       *(short *)(prop + 0x9c) > 0) {
+              *(char *)(state + 0xa) = 1;
+            }
+
+            if (*(char *)(state + 0xa) &&
+                (*(short *)(prop + 0x9c) > 0 ||
+                 *(float *)(prop + 0x11c) >
+                   *(float *)&definition[0xe1] * 1.5f)) {
+              *(short *)(state + 4) = 3;
+            }
+          } else if (*(float *)(prop + 0x11c) < *(float *)&definition[0xe1]) {
+            *(short *)(state + 4) = 2;
+            *(char *)(state + 0xa) = 1;
+          }
+        }
+      }
+    } else {
+      char stalking = (definition[0] & 0x20000) &&
+                      *(short *)(actor + 0x6e) >= 5 &&
+                      !*(char *)(actor + 0x378);
+
+      *(short *)(state + 4) = stalking ? 1 : 0;
+      if (*(short *)(state + 4) == 1) {
+        *(char *)(state + 0x24) =
+          (*(short *)(prop + 0x38) == 0 || *(short *)(prop + 0x38) == 1) &&
+          *(signed char *)(prop + 0x122) <= 2;
+        if (*(char *)(state + 0x24) && (definition[0] & 0x40000)) {
+          *(char *)(state + 0x28) = 0;
+        } else {
+          *(char *)(state + 0x28) = 1;
+        }
+        if (*(char *)(state + 0x24)) {
+          (*(short *)(state + 0x26))++;
+        }
+
+        *(char *)(state + 0x25) = 0;
+        if (!*(char *)(state + 0x24) && *(signed char *)(prop + 0x124) <= 1) {
+          *(char *)(state + 0x25) = 1;
+        } else if (*(float *)&definition[0xcb] > 0.0f &&
+                   *(float *)(prop + 0x11c) >= *(float *)&definition[0xcb]) {
+          *(char *)(state + 0x25) = 1;
+        }
+      } else if (!actor_has_ranged_weapon(actor_index) ||
+                 *(char *)(actor + 0x15d)) {
+        *(char *)(state + 0x28) = 1;
+      } else {
+        float minimum_range;
+        float maximum_range;
+        char *weapon;
+
+        if (*(char *)(actor + 0x378)) {
+          minimum_range = *(float *)(firing_variant_definition + 0x168);
+          maximum_range = *(float *)(firing_variant_definition + 0x16c);
+        } else {
+          minimum_range = *(float *)(firing_variant_definition + 0x9c);
+          maximum_range = *(float *)(firing_variant_definition + 0xa0);
+        }
+
+        weapon = actor_get_weapon_definition(actor_index);
+        if (weapon && *(float *)(weapon + 0x40c) > 0.0f) {
+          minimum_range = minimum_range > *(float *)(weapon + 0x40c)
+                            ? minimum_range
+                            : *(float *)(weapon + 0x40c);
+        }
+
+        if (*(char *)(state + 0x28)) {
+          if (*(float *)(prop + 0x11c) < minimum_range) {
+            *(char *)(state + 0x28) = 0;
+          }
+        } else {
+          if (*(float *)(prop + 0x11c) > maximum_range) {
+            *(char *)(state + 0x28) = 1;
+          }
+        }
+
+        if (*(float *)(prop + 0x11c) > 0.7f && *(short *)(prop + 0x38) != 0 &&
+            *(short *)(prop + 0x38) != 1) {
+          *(char *)(state + 0x28) = 1;
+        }
+      }
+    }
+  } else {
+    *(char *)(state + 0x28) = 0;
+  }
+
+  if (*(char *)(state + 6)) {
+    int unit_index = *(int *)(actor + 0x18);
+
+    *(char *)(state + 7) = unit_index == -1 || !unit_is_busy(unit_index);
+  } else if (!*(char *)(state + 0xc) &&
+             (*(short *)(state + 4) == 2 || *(short *)(state + 4) == 3) &&
+             prop) {
+    char melee = 0;
+    char *debug_info =
+      (char *)(*(int *)0x331f58 + (actor_index & 0xffff) * 0x657c);
+    real_vector3d direction;
+    float distance;
+
+    *(int *)(debug_info + 0x104) = game_time_get();
+    vector3d_scale_add((float *)(actor + 0x12c), *(float **)0x31fc44, 0.05f,
+                       (float *)(debug_info + 0x108));
+    *(real_vector3d *)(debug_info + 0x114) = *(real_vector3d *)(actor + 0x174);
+    vector3d_scale_add((float *)(prop + 0xbc), *(float **)0x31fc44, 0.05f,
+                       (float *)(debug_info + 0x120));
+
+    if (*(char *)(actor + 6)) {
+      display_assert("!actor->meta.swarm",
+                     "c:\\halo\\SOURCE\\ai\\action_charge.c", 0x1e7, true);
+      system_exit(-1);
+    }
+
+    if (*(float *)(prop + 0x11c) < 0.8f) {
+      *(char *)(debug_info + 0x139) = 1;
+      direction = *(real_vector3d *)(prop + 0xe0);
+      melee = 1;
+    } else {
+      char *unit =
+        (char *)object_get_and_verify_type(*(int *)(actor + 0x18), 3);
+      float lead_fraction;
+      float speed;
+      real_vector3d target_point;
+
+      *(char *)(debug_info + 0x139) = 0;
+      lead_fraction = 0.0f;
+      speed = FUN_00012fe0((float *)(prop + 0xd4));
+      if (speed > 0.0f) {
+        lead_fraction = (FUN_00013070((float *)(prop + 0xd4),
+                                      (float *)(prop + 0xe0)) /
+                           speed +
+                         1.0f) *
+                        0.5f;
+      }
+
+      vector3d_scale_add((float *)(prop + 0xbc), (float *)(prop + 0xd4),
+                         lead_fraction * *(short *)(state + 0x32),
+                         &target_point.i);
+      direction.i = target_point.i - *(float *)(actor + 0x12c);
+      direction.j = target_point.j - *(float *)(actor + 0x130);
+      direction.k = target_point.k - *(float *)(actor + 0x134);
+      vector3d_scale_add(&target_point.i, *(float **)0x31fc44, 0.05f,
+                         (float *)(debug_info + 0x13c));
+
+      if (direction.i * *(float *)(prop + 0xe0) +
+            direction.j * *(float *)(prop + 0xe4) +
+            direction.k * *(float *)(prop + 0xe8) <
+          0.0f) {
+        distance = 0.0f;
+        direction = *(real_vector3d *)(prop + 0xe0);
+      } else {
+        distance = normalize3d(&direction.i);
+        if (distance == 0.0f) {
+          direction = *(real_vector3d *)(prop + 0xe0);
+        }
+      }
+
+      if (*(short *)(state + 4) == 3 && !*(char *)(state + 0xb)) {
+        *(float *)(debug_info + 0x148) = *(float *)&definition[0xe1];
+        *(float *)(debug_info + 0x14c) = *(float *)&definition[0xe2];
+
+        if (distance < *(float *)&definition[0xe1] &&
+            *(short *)(prop + 0x9c) == 0 && !*(char *)(prop + 0x130)) {
+          *(char *)(state + 8) = 1;
+          *(int *)(actor + 0x380) = -1;
+        } else if (distance < *(float *)&definition[0xe2]) {
+          float target_velocity_minimum = *(float *)&definition[0xe3] * 0.3f;
+          real_vector3d aim_vector;
+          float horizontal_velocity;
+          float vertical_velocity;
+
+          if (projectile_aim_ballistic(
+                *(float *)&definition[0xe3], 1.0f, (float *)(actor + 0x12c),
+                (float *)(prop + 0xbc), (int)&target_velocity_minimum,
+                (float *)&definition[0xe5], NULL, 0, &aim_vector.i, NULL, NULL,
+                NULL, &vertical_velocity, &horizontal_velocity)) {
+            if (normalize2d(&aim_vector.i) == 0.0f) {
+              aim_vector = *(real_vector3d *)(actor + 0x174);
+              if (normalize2d(&aim_vector.i) == 0.0f) {
+                aim_vector = **(real_vector3d **)0x31fc3c;
+              }
+            }
+
+            *(char *)(state + 0xc) = 1;
+            *(float *)(state + 0x14) = aim_vector.i;
+            *(float *)(state + 0x18) = aim_vector.j;
+            *(float *)(state + 0x1c) = horizontal_velocity;
+            *(float *)(state + 0x20) = vertical_velocity;
+          }
+        }
+      } else if (*(char *)(state + 0x30)) {
+        *(float *)(debug_info + 0x148) = 0.0f;
+        *(float *)(debug_info + 0x14c) = *(float *)&definition[0xdf];
+
+        if (distance < *(float *)&definition[0xdf]) {
+          melee = 1;
+        } else if (distance < *(float *)&definition[0xe9]) {
+          real_vector3d relative_velocity;
+
+          FUN_00013090((float *)(prop + 0xd4), (float *)(unit + 0x18),
+                       &relative_velocity.i);
+          if (relative_velocity.i * direction.i +
+                relative_velocity.j * direction.j +
+                relative_velocity.k * direction.k >
+              0.023333333f) {
+            melee = 1;
+          }
+        }
+      } else {
+        if (*(short *)(state + 4) == 3 && *(char *)(state + 0xb)) {
+          distance -= (direction.i * *(float *)(unit + 0x18) +
+                       direction.j * *(float *)(unit + 0x1c) +
+                       direction.k * *(float *)(unit + 0x20)) *
+                      *(short *)(state + 0x32);
+        }
+
+        *(float *)(debug_info + 0x148) = *(float *)(state + 0x34);
+        *(float *)(debug_info + 0x14c) =
+          *(float *)(state + 0x34) + *(float *)&definition[0xdf];
+        if (distance < *(float *)(state + 0x34) + *(float *)&definition[0xdf]) {
+          melee = 1;
+        }
+      }
+    }
+
+    if (*(char *)(state + 0xc) || (melee && !*(char *)(state + 0x30))) {
+      float facing_direction[2];
+
+      facing_direction[0] = direction.i;
+      facing_direction[1] = direction.j;
+      if (normalize2d(facing_direction) > 0.0f) {
+        float minimum_alignment = *(char *)(state + 0xb) ? 0.0f : 0.8660254f;
+
+        if (FUN_00012f60(facing_direction, (float *)(actor + 0x174)) <
+            minimum_alignment) {
+          melee = 0;
+          *(char *)(state + 0xc) = 0;
+          *(char *)(state + 9) = 1;
+        }
+      }
+    }
+
+    *(real_vector3d *)(debug_info + 0x12c) = direction;
+    *(char *)(debug_info + 0x138) = melee;
+
+    if (melee) {
+      float melee_direction[2];
+
+      melee_direction[0] = direction.i;
+      melee_direction[1] = direction.j;
+      if (normalize2d(melee_direction) == 0.0f) {
+        melee_direction[0] = *(float *)(actor + 0x174);
+        melee_direction[1] = *(float *)(actor + 0x178);
+      }
+
+      if (unit_melee_attack_begin(*(int *)(actor + 0x18), 0,
+                                  (int)melee_direction)) {
+        ai_communication_event(0x2b, *(int *)(actor + 0x18),
+                               *(int *)(prop + 0x18), 3, -1, -1, NULL);
+        *(char *)(state + 6) = 1;
+      }
+    }
+  }
+
+  {
+    int time = game_time_get();
+    float target_range;
+
+    if ((*(short *)(state + 4) == 2 || *(short *)(state + 4) == 3) &&
+        !*(char *)(state + 6) && !*(char *)(state + 0xc)) {
+      if (*(char *)(state + 0xb)) {
+        if (*(short *)(state + 0xe) > 15) {
+          *(char *)(state + 8) = 1;
+        }
+      } else if (*(float *)&definition[0xe0] > 0.0f &&
+                 time >= *(int *)state + *(float *)&definition[0xe0] * 30.0f) {
+        *(char *)(state + 8) = 1;
+      }
+    }
+
+    if (*(short *)(state + 4) == 4 || *(short *)(state + 4) == 5) {
+      *(int *)(actor + 0x388) = time;
+    }
+
+    target_range = FUN_00012ad0(actor_index, *(short *)(state + 4), state);
+    *(float *)(state + 0x2c) = target_range;
+
+    if (!*(char *)(actor + 6) && *(char *)(actor + 0x4c)) {
+      char moving = 0;
+
+      *(char *)(state + 0x29) = 0;
+      if (!*(char *)(state + 6) && !*(char *)(state + 0xb) &&
+          !*(char *)(state + 0xc) && *(char *)(state + 0x28)) {
+        float minimum_move_range = *(short *)(state + 4) == 3 ? 4.0f : 1.5f;
+        float move_range = minimum_move_range > target_range
+                             ? minimum_move_range
+                             : target_range;
+
+        if (actor_move_to_prop(actor_index, *(int *)(actor + 0x270),
+                               move_range)) {
+          actor_move_keep_moving_past_destination(actor_index);
+          moving = 1;
+        } else {
+          *(char *)(state + 0x29) = 1;
+          *(char *)(state + 0x28) = 0;
+        }
+      }
+
+      if (!moving) {
+        actor_move_halt(actor_index);
+      }
+
+      if (*(short *)(actor + 0x268) >= 7) {
+        char *target_prop =
+          (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x270));
+        char unreachable = 0;
+        char out_of_range = 0;
+
+        if (*(float *)(target_prop + 0x11c) > *(float *)(state + 0x2c)) {
+          out_of_range = 1;
+        }
+
+        if ((*(short *)(state + 4) == 2 || *(short *)(state + 4) == 3) &&
+            (*(char *)(state + 0xb) || *(char *)(state + 0xc) ||
+             *(char *)(state + 6))) {
+          out_of_range = 0;
+        }
+
+        if (out_of_range) {
+          if (*(char *)(state + 0x29) || !actor_path_has_path(actor_index)) {
+            unreachable = 1;
+          } else if (*(float *)(actor + 0x4bc) > *(float *)(state + 0x2c)) {
+            unreachable = 1;
+          }
+        }
+
+        actor_perception_unreachable(actor_index, *(int *)(actor + 0x270),
+                                     unreachable);
+      }
+    }
+  }
+
+  if (*(short *)(state + 4) == 2 || *(short *)(state + 4) == 3) {
+    result = *(char *)(state + 8) || *(char *)(state + 7) ||
+             *(char *)(state + 0x29);
+  } else if (*(short *)(state + 4) == 4 || *(short *)(state + 4) == 5) {
+    result = *(char *)(state + 0x29);
+  }
+
+  return result;
+}
 /* 0x21370 — Sine of a float (x87 FSIN). */
 float FUN_00021370(float x)
 {

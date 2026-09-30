@@ -467,3 +467,32 @@ not_equal:
     return 1;
   return -1;
 }
+
+char *csstrcat(char *destination, const char *source)
+{
+  const char *source_cursor;
+  char *destination_cursor;
+  unsigned int source_size;
+  char c;
+
+  if (destination == NULL || source == NULL) {
+    display_assert("s1 && s2", "c:\\halo\\SOURCE\\cseries\\cseries.c", 0x122,
+                   true);
+    system_exit(-1);
+  }
+
+  source_cursor = source;
+  do {
+    c = *source_cursor++;
+  } while (c != '\0');
+  source_size = (unsigned int)(source_cursor - source);
+
+  destination_cursor = destination - 1;
+  do {
+    destination_cursor += 1;
+  } while (*destination_cursor != '\0');
+
+  memcpy(destination_cursor, source, source_size);
+
+  return destination;
+}

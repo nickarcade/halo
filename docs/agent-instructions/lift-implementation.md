@@ -22,6 +22,89 @@ types, structs, or Ghidra work.
 - Register every new `.c` file in `src/CMakeLists.txt`.
 - Keep logic changes separate from cleanup and formatting.
 
+## Bungie Code Style
+
+Lifted code must read like Bungie's own source. The style is taken from the
+`bungie_datum_access.c` example in `surreptitiousresearch/halocea`. Our own
+2276 assert strings confirm it: `actor->meta.unit_index == NONE`,
+`TEST_FLAG(bitmap->flags, _bitmap_swizzled_bit)`, `MAXIMUM_SQUADS_PER_MAP`,
+`_actor_danger_zone_none`. Treat that file as a style guide only. Its function
+bodies, its `data_array` layout, and helpers that 2276 does not have (for example
+`datum_try_and_get`) are not evidence.
+
+These rules apply to every lift and to every edit of lifted code. **All of them
+change spelling only.** When a rule would add, remove, or reorder a call,
+change an operand width or signedness, or move bytes under the lift's gate, the
+original codegen wins. Keep the raw form and add a one-line comment.
+
+### Naming
+
+- Functions, locals, fields, and globals use `lower_snake_case`. Name each
+  function `<subsystem>_<verb>` or `<subsystem>_<noun>_<verb>`
+  (`data_make_valid`, `datum_delete`, `actor_get`). Every name still needs a
+  `naming-confidence` tier.
+- Macros use `UPPER_SNAKE_CASE`: `FLAG`, `TEST_FLAG`, `DATUM_INDEX_TO_IDENTIFIER`.
+- A named constant is `k_<name>` (`k_maximum_number_of_actors`,
+  `k_data_array_signature`). A count bound is `MAXIMUM_<THINGS>[_PER_<SCOPE>]`.
+  An enum count is `NUMBER_OF_<THINGS>`. Both are T1 shapes in 2276 strings.
+- Enum members start with an underscore and the enum's name:
+  `_field_real`, `_actor_danger_zone_none`. Name bit indices `_<thing>_<name>_bit`
+  and test them with `TEST_FLAG`.
+- Name a handle `<thing>_index`, never `<thing>_handle`. Name a bare slot
+  number `<thing>_absolute_index`. Name a tag-definition index
+  `<thing>_definition_index`.
+- Name an element pointer after its type (`actor`, `prop`, `unit`), not `p`,
+  `ent`, or `ptr`.
+
+### Types
+
+- Use the cseries typedefs from `src/types.h`: `real`, `boolean`, `byte`,
+  `word`, `dword`, `datum_index`. Use `int16_t` / `int32_t` where Bungie writes
+  `int16` / `int32`, because the repo does not define those typedefs. Use the
+  exact width the original operand uses.
+- Return typed pointers from accessors. Access members through `->`. Do not
+  write `char *` element pointers plus `*(T *)(p + 0xNN)` when a struct exists.
+  When no struct exists, `struct-recovery` applies (3+ offsets rule in `halo-lift`).
+- Keep existing type names (`data_t`, `actor_t`, and so on). Do not rename types
+  to Bungie spellings. That is a repo-wide rename and belongs in its own commit.
+
+### Idioms
+
+- Write the null handle and the null index as `NONE`, never as `-1` or `0xffffffff`.
+  Never test a handle against `0`.
+- Write flags as `FLAG(bit)`, `TEST_FLAG(flags, bit)`, and
+  `SET_FLAG(flags, bit, value)`, not as raw masks. `FLAG` is in `common.h`.
+  Add `TEST_FLAG` and `SET_FLAG` there on first use. Do not add another copy
+  inside a TU.
+- Write asserts as `assert_halt(cond)`, with the same expression text as the
+  2276 assert string.
+- Use `/* */` comments in new code. Comments state intent and evidence, not the
+  decompiler's view.
+
+### Datums
+
+- Name the pool by its kb.json global (`actor_data`, `prop_data`). Never write
+  `*(data_t **)0x…`.
+- Give each pool a typed accessor macro, `<element>_get(<element>_index)`,
+  that casts `datum_get` (`light_get` in `objects.h` is an example). Add it in
+  the owning header when the element struct exists.
+- Replace `& 0xffff`, `>> 16`, and `(salt << 16) | index` on handles with
+  `DATUM_INDEX_TO_ABSOLUTE_INDEX`, `DATUM_INDEX_TO_IDENTIFIER`, and
+  `BUILD_DATUM_INDEX`. Add those macros beside `data_t` on first use. Each
+  macro must reproduce the original's zero- or sign-extension.
+- Every element struct starts with `int16_t datum_salt` at +0x00.
+  `sizeof` equals the `data_new` stride, and a `cs()` assert pins it.
+- Iterate with a real `data_iter_t` local, `data_iterator_new`, and
+  `data_iterator_next`, keeping the original loop shape.
+- 2276 is a debug build, so `datum_get` is a real CALL. Never convert raw index
+  arithmetic into `datum_get`, or `datum_get` into raw arithmetic.
+
+### Not yet adoptable
+
+- Four-character tag literals (`'actr'`). The build is `-Werror` without
+  `-Wno-multichar`. Use a named `k_<group>_tag` constant and put the
+  characters in a comment.
+
 ## ABI and kb.json
 
 - `@<reg>` annotations are immutable. Never remove or change register
@@ -72,7 +155,8 @@ A raw offset often indicates an untyped producer rather than a missing field.
 For example, a `char *` return declaration on `object_get_and_verify_type`
 forces every caller into offsets. Correct a proven producer return type when
 codegen-neutral. Generic accessors such as `datum_get` and `tag_get` genuinely
-return `void *`; create typed wrappers instead. Census command:
+return `void *`; create typed wrappers instead (see Bungie Code Style,
+Datums). Census command:
 
 ```bash
 rtk python3 tools/audit/check_readability.py --untyped-producer

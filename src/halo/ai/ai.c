@@ -6,6 +6,7 @@
  * unit_vehicle_board_notify, ai_initialize_for_new_map,
  * ai_update, ai_clump, and enemies_can_see_player entry points.
  */
+#include "../../x87_math.h"
 
 /* actors_update: per-tick AI actor activation sweep.
  * Called from ai_update on the first-frame/map-load branch.
@@ -1495,7 +1496,7 @@ void ai_disconnect_from_structure_bsp(void)
   char *swarm;
   char *object;
   int *pvs;
-  int actor_iter[2];
+  int actor_iter[3];
   int prop_iter[2];
   int actor_handle;
   int next_handle;
@@ -2128,6 +2129,220 @@ bool ai_test_line_of_fire(int actor_handle, int excluded_handle, float *origin,
     *result_out = result_datum;
   }
   return (bool)success;
+}
+
+/* 0x416e0 — ai_test_line_of_sight: cast a collision ray from `origin` to
+ * `target` and classify the result.  Returns a small code (0..4) in AX.
+ *
+ * Confirmed (XBE 0x416e0): EDI = origin, EBX = bsp word, ESI = target.  If the
+ *   debug flag byte 0x5aca6a is set, ai_debug_lineofsight(origin, bsp,
+ *   target, param_4) is called first (ADD ESP,0x10).
+ * Confirmed: the collision-user stack push/pop around the body uses the
+ *   ai.c assert lines 0x349 / 0x3f0, pushes user id 2, and also bumps the
+ *   word counter 0x5ac65c.  Every ray cast bumps the word counter 0x5ac5d4.
+ * Confirmed: if both the bsp word and the param_4 word are not -1 and
+ *   scenario_ensure_point_within_world(bsp, param_4) returns 0, the result
+ *   is 4.
+ * Confirmed: collision flags start at 0xc2a3, or 0x23 when game_connection()
+ *   returns 0 and byte 0x5ac9c4 is set; param_6 ORs 0x10 (else 0x4) and
+ *   param_8 clears bit 0x200.
+ * Confirmed: FUN_0014df70's zero return sets `no_hit` (byte at [EBP+0xf]);
+ *   a nonzero return copies collision_result.t (EBP-0x6c) into `t`.
+ *   FUN_0018e690 is called either way with collision_result+4 and +0x18.
+ * Confirmed: FUN_0018e690's ST0 result: > 0.8f goes straight to the distance
+ *   test, > 0.6f returns 1.  param_5 == 0 skips the side rays.
+ * Confirmed: the side vector is (origin.y - target.y, target.x - origin.x, 0)
+ *   normalized, falling back to *(float**)0x31fc3c when normalize3d returns
+ *   0.0f.  param_5 == 1 casts two rays from origin +/- 0.25*side to target;
+ *   any other param_5 casts three rays from target + 0.1*side,
+ *   target - 0.1*side and target + 0.1 * *(float**)0x31fc50 back to origin.
+ * Confirmed: distance classification (TEST AH,5 / JP senses): dist < 1.0f is
+ *   4; dist * t < 1.0f is 2; (1.0f - t) * dist < 4.0f is 3; otherwise 4.
+ * Uncertain: `t` is uninitialised on paths where FUN_0014df70 returned 0
+ *   (same in the original, which reads [EBP-0xc] without a store).  It is
+ *   zero-initialised here to avoid reading an indeterminate value.
+ * Uncertain: collision_result+4 lies inside struct collision_result's
+ *   pad_02; that offset is accessed here but the field is not recovered.
+ * Uncertain: the meaning of each result code (0..4). */
+int ai_test_line_of_sight(float *origin, int bsp, float *target, int param_4,
+                          short param_5, char param_6, int param_7,
+                          char param_8)
+{
+  struct collision_result collision;
+  float direction[3];
+  float side[3];
+  float point_a[3];
+  float point_b[3];
+  float scaled_z;
+  float t;
+  float distance;
+  float dx;
+  float dy;
+  float dz;
+  uint32_t flags;
+  short result;
+  short depth;
+  char no_hit;
+
+  t = 0.0f;
+  if (*(char *)0x5aca6a) {
+    ai_debug_lineofsight((int)origin, bsp, (int)target, param_4);
+  }
+  if (*(volatile short *)0x4761d8 >= 0x20) {
+    display_assert("global_current_collision_user_depth < "
+                   "MAXIMUM_COLLISION_USER_STACK_DEPTH",
+                   "c:\\halo\\SOURCE\\ai\\ai.c", 0x349, 1);
+    system_exit(-1);
+  }
+  depth = *(volatile short *)0x4761d8;
+  ++*(short *)0x5ac65c;
+  *(int16_t *)(0x5a8c80 + (int)depth * 2) = 2;
+  *(volatile short *)0x4761d8 = depth + 1;
+
+  if ((short)bsp != -1 && (short)param_4 != -1 &&
+      !scenario_ensure_point_within_world(bsp, (int16_t)param_4)) {
+    result = 4;
+    goto done;
+  }
+
+  flags = 0xc2a3;
+  if (game_connection() == 0 && *(char *)0x5ac9c4) {
+    flags = 0x23;
+  }
+  if (param_6) {
+    flags |= 0x10;
+  } else {
+    flags |= 4;
+  }
+  if (param_8) {
+    flags &= ~0x200u;
+  }
+
+  ++*(short *)0x5ac5d4;
+  direction[0] = target[0] - origin[0];
+  direction[1] = target[1] - origin[1];
+  direction[2] = target[2] - origin[2];
+  if (!FUN_0014df70(flags, origin, direction, param_7,
+                    (int16_t *)&collision)) {
+    no_hit = 1;
+  } else {
+    no_hit = 0;
+    t = collision.t;
+  }
+
+  {
+    float along;
+
+    along = FUN_0018e690((float *)((char *)&collision + 4), origin,
+                         (float *)&collision.point);
+    if (along > *(float *)0x2533f0) {
+      goto distance_test;
+    }
+    if (along > *(float *)0x253f3c) {
+      goto visible;
+    }
+  }
+  if (param_5 == 0) {
+    goto check_hit;
+  }
+
+  side[0] = origin[1] - target[1];
+  side[2] = 0.0f;
+  side[1] = target[0] - origin[0];
+  if (normalize3d(side) == *(float *)0x2533c0) {
+    *(vector3_t *)side = **(vector3_t **)0x31fc3c;
+  }
+
+  if (param_5 == 1) {
+    float sx;
+    float sy;
+
+    sx = side[0] * *(float *)0x25337c;
+    point_a[0] = sx + origin[0];
+    sy = side[1] * *(float *)0x25337c;
+    point_a[1] = sy + origin[1];
+    scaled_z = side[2] * *(float *)0x25337c;
+    point_a[2] = scaled_z + origin[2];
+    side[0] = origin[0] - sx;
+    side[1] = origin[1] - sy;
+    ++*(short *)0x5ac5d4;
+    side[2] = origin[2] - scaled_z;
+    if (no_hit) {
+      if (FUN_000130d0(flags, point_a, target, param_7,
+                       (int16_t *)&collision)) {
+        goto visible;
+      }
+      ++*(short *)0x5ac5d4;
+      if (FUN_000130d0(flags, side, target, param_7,
+                       (int16_t *)&collision)) {
+        goto visible;
+      }
+    } else {
+      if (!FUN_000130d0(flags, point_a, target, param_7,
+                        (int16_t *)&collision)) {
+        goto visible;
+      }
+      ++*(short *)0x5ac5d4;
+      if (!FUN_000130d0(flags, side, target, param_7,
+                        (int16_t *)&collision)) {
+        goto visible;
+      }
+    }
+    goto check_hit;
+  }
+
+  if (!no_hit) {
+    goto distance_test;
+  }
+  vector3d_scale_add(target, side, 0.1f, point_a);
+  vector3d_scale_add(target, side, -0.1f, point_b);
+  vector3d_scale_add(target, *(float **)0x31fc50, 0.1f, side);
+  ++*(short *)0x5ac5d4;
+  if (FUN_000130d0(flags, point_a, origin, param_7, (int16_t *)&collision)) {
+    goto visible;
+  }
+  ++*(short *)0x5ac5d4;
+  if (FUN_000130d0(flags, point_b, origin, param_7, (int16_t *)&collision)) {
+    goto visible;
+  }
+  ++*(short *)0x5ac5d4;
+  if (FUN_000130d0(flags, side, origin, param_7, (int16_t *)&collision)) {
+    goto visible;
+  }
+
+check_hit:
+  if (no_hit) {
+    result = 0;
+    goto done;
+  }
+
+distance_test:
+  dx = target[0] - origin[0];
+  dy = target[1] - origin[1];
+  dz = target[2] - origin[2];
+  distance = x87_sqrt(dz * dz + dy * dy + dx * dx);
+  if (distance < *(float *)0x2533c8) {
+    result = 4;
+  } else if (distance * t < *(float *)0x2533c8) {
+    result = 2;
+  } else if ((*(float *)0x2533c8 - t) * distance < *(float *)0x2533d8) {
+    result = 3;
+  } else {
+    result = 4;
+  }
+  goto done;
+
+visible:
+  result = 1;
+
+done:
+  if (*(volatile short *)0x4761d8 <= 1) {
+    display_assert("global_current_collision_user_depth > 1",
+                   "c:\\halo\\SOURCE\\ai\\ai.c", 0x3f0, 1);
+    system_exit(-1);
+  }
+  --*(short *)0x4761d8;
+  return result;
 }
 
 /* 0x41e80 — ai_handle_editing: re-synchronise runtime AI encounter state

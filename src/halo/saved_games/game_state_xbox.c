@@ -474,6 +474,72 @@ read_error:
   return result;
 }
 
+/* 0x1c0ac0
+ * Write the game-state buffer to persistent storage; the inverse of
+ * game_state_read_header_from_persistent_storage (0x1c0910).
+ *
+ * The checksum slot (inside the header) is zeroed, the CRC of the first
+ * 0x345000 bytes of the buffer is computed and stored back into that slot.
+ * The header is then set aside on the stack and zeroed in the buffer, the
+ * whole buffer is written from offset 0 in ONE WriteFile (no chunking, no
+ * sound_idle), and the saved header is written over offset 0 last, so an
+ * interrupted save leaves a zero header. The header is copied back into the
+ * buffer and the file handle closed.
+ *
+ * buffer: game-state base. The only caller (0x1bf8e0) passes it as an int
+ * loaded from 0x4ea994, so the parameter keeps that type.
+ */
+void game_state_write_to_persistent_storage(int buffer, uint32_t *checksum,
+                                            int header_size, int buffer_size)
+{
+  char saved_header[0x800]; /* Reference frame: sub esp,0x908. */
+  char path_buffer[0x100];
+  uint32_t crc;
+  uint32_t bytes_written;
+  int file_handle;
+
+  file_handle = game_state_open_persistent_storage(0);
+  if (file_handle == -1) {
+    return;
+  }
+
+  *checksum = 0;
+  crc_new(&crc);
+  crc_checksum_buffer(&crc, (void *)buffer, 0x345000);
+  *checksum = crc;
+
+  assert_halt_msg_at("header_size<sizeof(saved_header)",
+                     "c:\\halo\\SOURCE\\saved games\\game_state_xbox.c", 0x14d,
+                     header_size < sizeof(saved_header));
+
+  csmemcpy(saved_header, (void *)buffer, header_size);
+  csmemset((void *)buffer, 0, header_size);
+
+  if (SetFilePointer(file_handle, 0, (int *)0, 0) == 0xffffffff ||
+      !WriteFile(file_handle, (void *)buffer, buffer_size, &bytes_written,
+                 (void *)0) ||
+      bytes_written != (uint32_t)buffer_size ||
+      SetFilePointer(file_handle, 0, (int *)0, 0) == 0xffffffff ||
+      !WriteFile(file_handle, saved_header, header_size, &bytes_written,
+                 (void *)0) ||
+      bytes_written != (uint32_t)header_size) {
+    display_assert(csprintf((char *)0x5ab100,
+                            "failed to write to persistent storage (#%d)",
+                            xapi_GetLastError()),
+                   "c:\\halo\\SOURCE\\saved games\\game_state_xbox.c", 0x15f,
+                   1);
+    system_exit(-1);
+
+    /* After the fatal assert, attempt to delete the save file. */
+    if (player_ui_get_path_to_local_player_profile_directory(0, path_buffer)) {
+      DeleteFileA(path_buffer);
+    }
+  }
+
+  csmemcpy((void *)buffer, saved_header, header_size);
+  CloseHandle(file_handle);
+}
+
 /* 0x1c0c20
  * Read game-state data from persistent storage into a caller-supplied buffer.
  * Opens the save file, seeks to the beginning, reads `size` bytes into `dst`,
@@ -702,6 +768,20 @@ void player_profile_save_last_level_played(void *profile, short *out_last_level,
 
 #undef PLAYER_PROFILE_LEVEL_CHECK
 
+/* 0x1c1280 -- player_profile_get_enclosing_directory_path
+ * Nine-byte forwarder: PUSH EBP / MOV EBP,ESP / POP EBP / JMP 0x1c4da0.  The
+ * two stack arguments are left in place and the JMP hands them straight to
+ * saved_game_file_get_path_to_enclosing_directory, whose AL result becomes
+ * this function's return.  PAL 2342 player_profile.c has the identical body
+ * (T2).  Callers (0xe0c13, 0xe0c4b) PUSH a path buffer and a profile index
+ * and ADD ESP,8 afterwards, so the frame is two cdecl dwords. */
+bool player_profile_get_enclosing_directory_path(int profile_index,
+                                                 char *full_path)
+{
+  return saved_game_file_get_path_to_enclosing_directory(profile_index,
+                                                         full_path);
+}
+
 /* 0x1c1290
  * kb.json previously listed this address as game_state_read_from_persistent_
  * storage(void) — that decl/name does not match the binary. Disassembly and
@@ -751,6 +831,161 @@ void player_profile_set_to_default(void *profile /* @<esi> */, int i)
   *(uint8_t *)((char *)profile + 0x29) = 0;
 }
 
+/* The 0x30-byte player profile record (PAL 2342 struct player_profile, T2
+ * names).  Every offset below is a store player_profile_read (0x1c1340) makes
+ * into its sanitized copy at [EBP-0x34]: player_name +0x00 (ustrncpy of 0xb
+ * chars, terminator word at +0x16), primary_color_index +0x18 (0xffff),
+ * flags +0x1a, last_single_player_map_played +0x26, and the eight controller
+ * bytes +0x28..+0x2f.  single_player_map_flags (+0x1c, ten bytes) is the run
+ * player_profile_save_last_level_played and FUN_001c1720 walk.  The controller
+ * block repeats the player_profile_controller_settings layout player_ui.c
+ * already asserts (co() there); it is file-local here because that typedef is
+ * file-local to player_ui.c. */
+typedef struct player_profile_controller_settings {
+  unsigned char button_preset;         /* +0x0 */
+  unsigned char joystick_preset;       /* +0x1 */
+  unsigned char look_sensitivity;      /* +0x2 */
+  bool invert_look;                    /* +0x3 */
+  bool vibration_disabled;             /* +0x4 */
+  bool flight_stick_aircraft_controls; /* +0x5 */
+  bool autocenter;                     /* +0x6 */
+  bool ingame_help_disabled;           /* +0x7 */
+} player_profile_controller_settings;
+cs(player_profile_controller_settings, 0x8);
+
+typedef struct player_profile {
+  wchar_t player_name[12];                        /* +0x00 */
+  short primary_color_index;                      /* +0x18 */
+  unsigned short flags;                           /* +0x1a */
+  unsigned char single_player_map_flags[10];      /* +0x1c */
+  short last_single_player_map_played;            /* +0x26 */
+  player_profile_controller_settings controller_settings; /* +0x28 */
+} player_profile;
+cs(player_profile, 0x30);
+co(player_profile, primary_color_index, 0x18);
+co(player_profile, flags, 0x1a);
+co(player_profile, single_player_map_flags, 0x1c);
+co(player_profile, last_single_player_map_played, 0x26);
+co(player_profile, controller_settings, 0x28);
+
+/* Bit 31 of a saved-game file index.  build_saved_game_file_index (0x1c3710)
+ * sets it; PAL 2342 names it _saved_game_file_index_valid_bit (T2).  The
+ * binary tests it as the sign bit (TEST EDI,EDI / JNS at 0x1c13b7). */
+#define SAVED_GAME_FILE_INDEX_VALID_FLAG 0x80000000
+
+/* 0x1c1340 -- player_profile_read (PAL 2342 player_profile.c, T2).
+ * Formerly kb player_profile_setup_default_gamespy_settings (a CEA PDB
+ * line-containment guess).  Renamed on our own binary's evidence: the assert
+ * "profile" at c:\halo\SOURCE\saved games\player_profile.c line 0x261 (PUSH
+ * 0x261 at 0x1c1355) is the exact PAL player_profile_read assert, and the
+ * five error strings (0x2ba0f8, 0x2ba0a8, 0x2ba080, 0x2b9eec, 0x2ba030) are
+ * PAL player_profile_read's, in the same order.
+ *
+ * Register arguments: its only caller player_profile_new (0x1c18f0) CALLs with
+ * no pushes, EDI = profile_index and ESI = profile.  ESI is the asserted
+ * pointer (CMP ESI,EBX at 0x1c134c) and EDI is the file index (TEST EDI,EDI,
+ * PUSH EDI to saved_game_file_open / saved_game_file_close /
+ * saved_game_file_get_display_name).
+ *
+ * Frame (SUB ESP,0x354): 0x200 block [EBP-0x354], 0x10c file_ref_t
+ * [EBP-0x154], 0x14 checksum [EBP-0x48], 0x30 sanitized profile [EBP-0x34],
+ * result byte [EBP-0x1].
+ *
+ * Flow: drain the async profile-io thread at 0x4eaa2c (PAL
+ * player_profile_globals.thread; the same slot player_profile_write fills).
+ * A file index without the valid bit gets a sanitized default copy and
+ * returns true.  Otherwise take the saved-game mutex, open, read 0x200 bytes,
+ * checksum the first 0x30 and compare against block + 0x30.  A match copies
+ * the block; a mismatch copies a sanitized default.  Both return true.  A
+ * failed read returns false.  close + release on the open paths; a failed
+ * open only releases; a failed mutex returns false. */
+bool player_profile_read(int profile_index /* @<edi> */,
+                         void *profile /* @<esi> */)
+{
+  bool succeeded;
+  char block[0x200];
+  file_ref_t file;
+  char checksum[0x14];
+  player_profile sanitized_profile;
+
+  succeeded = false;
+  assert_halt_at("c:\\halo\\SOURCE\\saved games\\player_profile.c", 0x261,
+                 profile);
+
+  if (*(void **)0x4eaa2c != NULL) {
+    error(2, "waiting for asynchronous player profile io to finish...");
+    do {
+      /* spin until the async io thread signals completion */
+    } while (!thread_is_done(*(void **)0x4eaa2c));
+    thread_close(*(void **)0x4eaa2c);
+    *(void **)0x4eaa2c = NULL;
+  }
+
+  if (profile_index & SAVED_GAME_FILE_INDEX_VALID_FLAG) {
+    if (saved_game_files_take_mutex()) {
+      if (saved_game_file_open(&file, profile_index)) {
+        if (file_read(&file, 0x200, block)) {
+          saved_game_file_generate_checksum(block, 0x30, checksum);
+          if (csmemcmp(checksum, block + 0x30, 0x14) == 0) {
+            csmemcpy(profile, block, 0x30);
+          } else {
+            error(2, "checksum failed on player profile file, sanitizing "
+                     "memory resident version...");
+            csmemset(&sanitized_profile, 0, 0x30);
+            sanitized_profile.primary_color_index = -1;
+            sanitized_profile.controller_settings.look_sensitivity = 3;
+            sanitized_profile.controller_settings.invert_look = false;
+            sanitized_profile.controller_settings
+              .flight_stick_aircraft_controls = false;
+            sanitized_profile.controller_settings.ingame_help_disabled = false;
+            sanitized_profile.controller_settings.vibration_disabled = false;
+            sanitized_profile.last_single_player_map_played = 0;
+            sanitized_profile.controller_settings.button_preset = 0;
+            sanitized_profile.controller_settings.joystick_preset = 0;
+            sanitized_profile.flags = 0;
+            ustrncpy(sanitized_profile.player_name,
+                     saved_game_file_get_display_name(profile_index), 0xb);
+            sanitized_profile.player_name[0xb] = 0;
+            csmemcpy(profile, &sanitized_profile, 0x30);
+          }
+          succeeded = true;
+        } else {
+          error(2, "failed to read player profile from file");
+        }
+        saved_game_file_close(&file, profile_index);
+      } else {
+        error(2, "failed to open player profile file");
+      }
+      saved_game_files_release_mutex();
+    } else {
+      error(2, "failed to get saved game files mutex; perhaps another "
+               "operation is in progress?");
+    }
+  } else {
+    error(2, "checksum failed on player profile file, sanitizing memory "
+             "resident version...");
+    csmemset(&sanitized_profile, 0, 0x30);
+    sanitized_profile.primary_color_index = -1;
+    sanitized_profile.controller_settings.look_sensitivity = 3;
+    sanitized_profile.controller_settings.invert_look = false;
+    sanitized_profile.controller_settings.flight_stick_aircraft_controls =
+      false;
+    sanitized_profile.controller_settings.ingame_help_disabled = false;
+    sanitized_profile.controller_settings.vibration_disabled = false;
+    sanitized_profile.last_single_player_map_played = 0;
+    sanitized_profile.controller_settings.button_preset = 0;
+    sanitized_profile.controller_settings.joystick_preset = 0;
+    sanitized_profile.flags = 0;
+    ustrncpy(sanitized_profile.player_name,
+             saved_game_file_get_display_name(profile_index), 0xb);
+    sanitized_profile.player_name[0xb] = 0;
+    csmemcpy(profile, &sanitized_profile, 0x30);
+    succeeded = true;
+  }
+
+  return succeeded;
+}
+
 /* 0x1c15c0
  * Asynchronous player-profile write worker.  The only xref to this address is
  * a DATA reference from player_profile_write (0x1c1b00) at 0x1c1b8b, i.e. the
@@ -776,10 +1011,9 @@ void player_profile_set_to_default(void *profile /* @<esi> */, int i)
  *   0x1c2af0 saved_game_files_take_mutex — TEST AL,AL at 0x1c1605 proves it
  *     propagates take_mutex's boolean result, so its decl is bool, not void.
  *   0x1c4850 — PUSH EDI/PUSH EAX + ADD ESP,0x8 + TEST AL,AL: two cdecl args
- *     (file_ref_t out, file index) and a boolean result.  Its recovered name
- *     (enumerate_memory_units_test, PDB line-containment) disagrees with the
- *     observed behavior here ("failed to open player profile file" on false);
- *     the name is left as recovered, its meaning unproven.
+ *     (file_ref_t out, file index) and a boolean result.  It is
+ *     saved_game_file_open (asserts 0x241/0x244-0x247 in its body), formerly
+ *     mis-named enumerate_memory_units_test.
  *   0x1c4990 synchronize_metadata_display_name_with_profile_name — PUSH ESI/
  *     PUSH EDI + ADD ESP,0x8 + TEST AL,AL: (file index, profile) and bool.
  */
@@ -799,7 +1033,7 @@ int __stdcall FUN_001c15c0(void *input)
     saved_game_file_index = *(int32_t *)input;
     write_failed = false;
     profile = (char *)input + 4;
-    if (enumerate_memory_units_test(&file_info, saved_game_file_index)) {
+    if (saved_game_file_open(&file_info, saved_game_file_index)) {
       csmemcpy(buffer, profile, 0x30);
       saved_game_file_generate_checksum(buffer, 0x30, buffer + 0x30);
       if (!file_set_position(&file_info, 0) ||
@@ -852,7 +1086,7 @@ int __stdcall FUN_001c15c0(void *input)
  * printed immediately before identifies it as the solo-level unlock bitfield.
  *
  * Callee decl corrected from this call site's disassembly:
- *   0x1c5560 FUN_001c5560 -- PUSH ESI/PUSH EAX/PUSH EBX + ADD ESP,0xc at
+ *   0x1c5560 create_enumerated_saved_game_file -- PUSH ESI/PUSH EAX/PUSH EBX + ADD ESP,0xc at
  *     0x1c1732-0x1c173e proves three cdecl args, and CMP EDI,-1 on the EAX
  *     result proves an int return; its decl was void(void).
  */
@@ -861,9 +1095,9 @@ int FUN_001c1720(int a1, wchar_t *name)
   file_ref_t file_info;
   int saved_game_file_index;
 
-  saved_game_file_index = FUN_001c5560(0, a1, name);
+  saved_game_file_index = create_enumerated_saved_game_file(0, a1, name);
   if (saved_game_file_index != -1) {
-    if (enumerate_memory_units_test(&file_info, saved_game_file_index)) {
+    if (saved_game_file_open(&file_info, saved_game_file_index)) {
       char buffer[0x200] = { 0 };
       int level;
       int bit;
@@ -914,6 +1148,34 @@ int FUN_001c1720(int a1, wchar_t *name)
   return saved_game_file_index;
 }
 
+/* 0x1c18f0 -- kb name player_profile_new.
+ * Behaviour matches PAL 2342 player_profile_get (T2), not player_profile_new:
+ * it fills a caller-owned 0x30-byte profile record, and FUN_001c1720 above
+ * is the real create-profile routine.  The kb name is kept because ported
+ * callers in other TUs already bind to it.
+ *   - assert "profile" at c:\halo\SOURCE\saved games\player_profile.c
+ *     line 0xc2 (PUSH 0xc2 at 0x1c1901).
+ *   - profile_index == -1 (NONE): csmemcpy(profile, 0x4ea9c8, 0x30) copies
+ *     the 0x30-byte record at the head of the 0x6c-byte profile state block
+ *     (see player_profiles_initialize) and returns BL, which is only ever
+ *     zeroed (XOR BL,BL at 0x1c18f8) -- so this path returns false.
+ *   - otherwise CALL 0x1c1340 with no pushes: EDI = profile_index and
+ *     ESI = profile are still live, and 0x1c1340 asserts "profile" on ESI
+ *     and tests EDI with JNS, so both are register arguments.  Its AL result
+ *     is returned unchanged. */
+bool player_profile_new(int profile_index, void *profile)
+{
+  bool success = false;
+
+  assert_halt_at("c:\\halo\\SOURCE\\saved games\\player_profile.c", 0xc2,
+                 profile);
+  if (profile_index == -1) {
+    csmemcpy(profile, (void *)0x4ea9c8, 0x30);
+    return success;
+  }
+  return player_profile_read(profile_index, profile);
+}
+
 /* 0x1c1950
  * Fills the 0x10-byte record at param_1: dword 0 is the fixed bit pattern
  * 0x3f800000 (float 1.0f); dwords 1-3 are copied from the 3-dword
@@ -957,4 +1219,47 @@ int FUN_001c19a0(void)
 int FUN_001c19c0(void)
 {
   return (int)seed_random_range(random_math_get_local_seed_address(), 0, 0x11);
+}
+
+/* 0x1c19e0 — write the NUMBER_OF_DEFAULT_PROFILES (2) default player profiles
+ * to "z:\saved\player_profiles\default_profile\%02d.sav".  Sole caller is
+ * player_profiles_initialize (tail call).
+ *
+ * Frame evidence (SUB ESP,0x40c): 0x200-byte profile buffer at [EBP-0x40c]
+ * (ESI for player_profile_set_to_default, written whole by file_write with
+ * size 0x200), 0x100-byte path at [EBP-0x20c] (snprintf size 0xff), 0x10C
+ * file_ref_t at [EBP-0x10c].  player_profile_set_to_default only fills the
+ * first 0x30 bytes and saved_game_file_generate_checksum writes its signature
+ * at buffer+0x30; the rest of the 0x200 bytes is never initialised, so the
+ * original writes stack contents there too.  The checksum is computed only
+ * after the file reference is built and before file_create.  The file_write
+ * result is held in BL across file_close (MOV BL,AL at 0x1c1aa4); a failed
+ * close reports its own error, and a failed write falls into the shared
+ * "failed to create/update" report at 0x1c1acc. */
+void FUN_001c19e0(void)
+{
+  char profile[0x200];
+  char path[0x100];
+  file_ref_t file_info;
+  int i;
+  bool written;
+
+  for (i = 0; i < 2; i++) {
+    player_profile_set_to_default(profile, i);
+    snprintf(path, 0xff,
+             "z:\\saved\\player_profiles\\default_profile\\%02d.sav", i);
+    if (file_reference_create_from_path(&file_info, path, false) != NULL) {
+      saved_game_file_generate_checksum(profile, 0x30, profile + 0x30);
+      if (file_create(&file_info) && file_open(&file_info, 2) &&
+          file_set_position(&file_info, 0)) {
+        written = file_write(&file_info, 0x200, profile);
+        if (!file_close(&file_info))
+          error(2, "failed to close default player profile file '%s'", path);
+        if (written)
+          continue;
+      }
+    }
+    error(2, "failed to create/update default player profile file '%s' on disk",
+          path);
+  }
 }

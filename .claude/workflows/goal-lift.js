@@ -41,9 +41,8 @@ const IMPROVE      = !!(args && args.improve)
 // - Cheap deterministic tool-runs (revert, permute-run, equiv-run, redelink,
 //   park, report) use Haiku-low.
 // - The escalation / improve tune follows REASON_MODEL (so: Opus by default),
-//   climbing reasoning EFFORT (ladder medium -> xhigh -> max kicks in for an
-//   opus improve model; Sonnet/other models use a single 'high' rung — see
-//   IMPROVE_EFFORTS below). Fable is opt-in only (--improveModel fable), per user policy
+//   climbing reasoning EFFORT (ladder high -> xhigh, for every improve model —
+//   see IMPROVE_EFFORTS below). Fable is opt-in only (--improveModel fable), per user policy
 //   2026-08-10: never route to fable unless explicitly requested. For
 //   reference, routing_stats.py measured fable-high at an 80% promote rate
 //   with a +14.7pp mean score gain over 16 improve handoffs, vs 52% for
@@ -59,11 +58,19 @@ const COMMIT_MODEL = (args && args.commitModel) || MECHANICAL_MODEL
 const IMPROVE_MODEL = (args && args.improveModel) || REASON_MODEL
 // Effort ladder for the in-place score tune. Each rung re-runs the optimizer at
 // a higher effort, but only for a target still below the pass bar, not capped,
-// and while budget remains. Override as a comma list, e.g. --improveEfforts
-// "medium,max". For a non-opus model, default to a single 'high' rung.
-const IMPROVE_EFFORTS = (args && args.improveEfforts)
-  ? String(args.improveEfforts).split(',').map(s => s.trim()).filter(Boolean)
-  : (IMPROVE_MODEL === 'opus' ? ['medium', 'xhigh', 'max'] : ['high'])
+// and while budget remains. User policy 2026-09-30: the match-optimizer runs at
+// 'high' and 'xhigh' only. --improveEfforts may reorder or drop a rung (e.g.
+// "xhigh"); any other effort is discarded.
+const IMPROVE_EFFORTS_OK = ['high', 'xhigh']
+const IMPROVE_EFFORTS = (() => {
+  if (!(args && args.improveEfforts)) return IMPROVE_EFFORTS_OK.slice()
+  const raw = String(args.improveEfforts).split(',').map(s => s.trim()).filter(Boolean)
+  const kept = raw.filter(e => IMPROVE_EFFORTS_OK.includes(e))
+  if (kept.length !== raw.length) {
+    log(`--improveEfforts: dropped ${raw.filter(e => !kept.includes(e)).join('/')} (allowed: ${IMPROVE_EFFORTS_OK.join('/')})`)
+  }
+  return kept.length ? kept : IMPROVE_EFFORTS_OK.slice()
+})()
 // Do NOT start an escalation rung below this remaining-budget floor (an
 // optimizer run can be sizable). Higher than the batch-loop floor (80k) so a
 // rung never strands the loop. Override with --escalationBudgetFloor.
@@ -72,6 +79,19 @@ const ESCALATION_BUDGET_FLOOR = (args && args.escalationBudgetFloor) || 120000
 // token blast radius regardless of how many land in [65,85). 0 = unlimited.
 // Override with --maxEscalations.
 const MAX_ESCALATIONS = (args && args.maxEscalations != null) ? args.maxEscalations : 3
+// Adaptive ladder: after this many escalations IN A ROW end without clearing
+// the pass bar, later escalations run only the first (cheapest) rung. The
+// ladder's xhigh/max rungs are the most expensive calls in the run, and a
+// streak of misses means the frontier is in a capped tail where they rarely pay
+// (runs committing 1-2 fns cost 1.2-3M tokens/fn in campaigns.jsonl). A clear
+// resets the streak. 0 = never shorten. Override with --escalationMissLimit.
+const ESCALATION_MISS_LIMIT = (args && args.escalationMissLimit != null) ? Number(args.escalationMissLimit) : 2
+// --perCommitBuild: force the commit agent's full halo build on EVERY commit
+// (the pre-2026-09-30 behavior). By default the build is skipped when the
+// lift's own lift_pipeline run already built this exact tree (pass1 / permute
+// paths — lift_pipeline's build step IS `build.py -q --target halo`), and one
+// batch-end build (buildCheckAndBisect) backstops the whole run.
+const PER_COMMIT_BUILD = !!(args && args.perCommitBuild)
 const M = {
   mechanical: { model: MECHANICAL_MODEL, effort: 'high'  },  // tool-run + parse
   // Selection and one-shot score levers still need constrained judgment.
@@ -438,17 +458,6 @@ const SQUASH_SCHEMA = {
   required: ['ok'],
 }
 
-const SHA_SCHEMA = {
-  type: 'object',
-  properties: { sha: { type: 'string' } },
-  required: ['sha'],
-}
-
-const GHIDRA_PREFLIGHT_SCHEMA = {
-  type: 'object',
-  properties: { ok: { type: 'boolean' }, detail: { type: 'string' } },
-  required: ['ok', 'detail'],
-}
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
 
@@ -761,6 +770,19 @@ the fast single-function path, keeping only improvements.
   rtk python3 tools/lift/research_bundle.py prepare --target ${addr} --json --current-attempt
 Read classification only from the returned artifact_paths.score_context.
 
+PAL REFERENCE (shape hint — check whether our implementation can be improved):
+  rtk python3 tools/bytematch/pal_campaign.py pal ${name}
+prints the matching function from the PAL build 2342 decompilation
+(/mnt/g/dev/halo-pal-2342); "no PAL definition" means skip this step. Never
+read PAL files directly. Compare it with our body and try its SHAPE as a lever:
+statement order, expression form, temporaries, local types, loop form, early
+returns, call-site argument order, adjacent-store order. An object status of
+Matching makes the hint stronger. Binding limits: 2276 is the source of
+truth — never import behavior 2276 does not show (an extra call, changed
+constant, new branch); when PAL and our body disagree on behavior keep ours.
+Never copy a PAL struct layout (offsets come only from src/types.h). PAL names
+are T2 evidence. Do not mention PAL in source comments or commit text.
+
 WORKED EXAMPLES (similar already-ported functions with their VC71 %; match
 their idioms — casts, x87 order, struct-store shape — if a lever here mirrors
 one of theirs):
@@ -874,10 +896,14 @@ as blocked_review: it is not re-served until that callee's decl changes.`
 
 // Cheap mechanical gate — runs the same hazard/ABI checks the commit stage will
 // enforce, so a clean high-% lift can skip the Opus-high reviewer entirely.
-// Report booleans ONLY; do not edit or fix anything.
-const mechGatePrompt = (brief, srcFile) =>
-  `Mechanical pre-commit gate for ${brief.name} (${brief.addr}). Report booleans ONLY —
-do NOT edit, fix, build, or commit anything.
+// Fused with the commit (2026-09-30): the gate and the commit used to be two
+// back-to-back mechanical agents, each paying a full agent start-up for a few
+// commands. The pass rule is spelled out literally with this lift's score, and
+// gateThenCommit re-derives it from the returned booleans as a cross-check.
+// commitAllowed=false (dry run) keeps the old report-only behavior.
+const gateCommitPrompt = (brief, srcFile, score, reason, needBuild, commitAllowed) =>
+  `${commitAllowed ? AGENT_RULES + '\n' : ''}Mechanical pre-commit gate for ${brief.name} (${brief.addr}), VC71 ${score}%.
+Steps 1-3 report booleans ONLY — do NOT edit or fix anything in them.
 
 1. HAZARDS: rtk python3 tools/audit/check_lift_hazards.py --files ${srcFile} 2>&1
    (--files, not --changed-only: this gate only reads findings for ${srcFile},
@@ -891,30 +917,91 @@ do NOT edit, fix, build, or commit anything.
 3. RISKY CALLS in the diff: rtk git diff -- ${srcFile}
    - risky_calls=true iff this lift ADDED any of: a raw function-pointer cast call,
      an XCALL(0x...) whose target is ported, or inline __asm.
-Return hazards_clean, abi_clean, risky_calls, warns, and a one-line detail per non-clean finding.`
 
-const commitPrompt = (name, sourceFile, reason) =>
-  `${AGENT_RULES}
+4. PASS RULE: pass = hazards_clean AND abi_clean AND ${score >= 95
+    ? `(score ${score} >= 95, so risky_calls/warns do not matter)`
+    : `NOT risky_calls AND NOT warns (score ${score} < 95)`}.
+${commitAllowed
+    ? `   If pass=false: STOP. Do NOT commit, do NOT revert — leave the tree exactly as
+   it is (a reviewer adjudicates next). Return committed=false.
+   If pass=true: commit the lift of ${brief.name} (mechanical:${score}% ${reason}):
 
-Commit the lift of ${name}${reason ? ' (' + reason + ')' : ''}.
+${commitSteps(brief.name, srcFile, needBuild)}
+${commitTail(brief.name, srcFile)}`
+    : `   Dry run: do NOT build or commit regardless of pass. Return committed=false.`}
 
-FIRST verify a CLEAN FULL build — the per-function lift build is incremental and
-can miss cross-TU breakage:
+Return hazards_clean, abi_clean, risky_calls, warns, pass, committed,
+build_failed, sha, and a one-line detail per non-clean finding.`
+
+// Whether the commit agent must build before committing. lift_pipeline's build
+// step is the SAME incremental `build.py -q --target halo` the commit agent
+// used to re-run, so after a pass1/permute path the tree it would build is the
+// tree that just built. Only the vc71_verify-only tuning paths (atlas-lever,
+// match-optimizer, improve-optimize) edit source without a halo build after.
+// The batch-end buildCheckAndBisect backstops every path either way.
+const needsBuild = (path) => PER_COMMIT_BUILD || /atlas-lever|optimize/.test(String(path || ''))
+
+const COMMIT_SCHEMA = {
+  type: 'object',
+  properties: {
+    committed:    { type: 'boolean' },
+    sha:          { type: 'string' },
+    build_failed: { type: 'boolean' },
+    detail:       { type: 'string' },   // first build error line, or unstaged stray paths
+  },
+  required: ['committed'],
+}
+
+const GATE_COMMIT_SCHEMA = {
+  type: 'object',
+  properties: {
+    ...MECH_GATE_SCHEMA.properties,
+    ...COMMIT_SCHEMA.properties,
+    pass: { type: 'boolean' },
+  },
+  required: ['hazards_clean', 'abi_clean', 'committed'],
+}
+
+// The commit recipe, shared by commitPrompt and the fused gateCommitPrompt.
+const commitSteps = (name, sourceFile, needBuild) =>
+  `${needBuild ? `FIRST verify the full halo build (this path edited source after the lift's
+last lift_pipeline build):
   timeout 165 rtk python3 tools/build/build.py -q --target halo 2>&1 | tee /tmp/glbuild.txt
   Build PASSED if /tmp/glbuild.txt has NO "error:" line and NO "Error 2" / "*** " marker.
   If FAILED:
     rtk git checkout -- src/ kb.json tools/kb_reg_baseline.json
-    Return exactly "BUILD_FAILED: <first error line>" and do NOT commit.
-
+    Return committed=false, build_failed=true, detail=<first error line>. Do NOT commit.
+` : `No build by default: this lift's own lift_pipeline run already built this tree
+with the same command, and a batch-end build backstops the run. The build
+command, for the one case below that still requires it:
+  timeout 165 rtk python3 tools/build/build.py -q --target halo 2>&1 | tee /tmp/glbuild.txt
+  Build PASSED if /tmp/glbuild.txt has NO "error:" line and NO "Error 2" / "*** " marker.
+  If FAILED:
+    rtk git checkout -- src/ kb.json tools/kb_reg_baseline.json
+    Return committed=false, build_failed=true, detail=<first error line>. Do NOT commit.
+`}
 If ${sourceFile} is a NEW translation unit, it must also be registered in
 src/CMakeLists.txt or it is never linked: the function stays ported=true in
 kb.json with no body in the XBE, so the ORIGINAL Xbox code keeps running. The
-build above still exits 0 either way, so this is silent. Check and fix before
+build still exits 0 either way, so this is silent. Check and fix before
 committing:
   grep -c "$(basename ${sourceFile})" src/CMakeLists.txt
   If 0: add the path (repo-relative from src/, e.g. halo/rasterizer/xbox/foo.c)
-  to the source list in src/CMakeLists.txt, in alphabetical position.
+  to the source list in src/CMakeLists.txt, in alphabetical position, THEN run
+  the build command above (even if it was skipped) — the new TU has never been
+  compiled into halo. On failure handle it exactly as a failed build above.
+`
 
+const commitPrompt = (name, sourceFile, reason, needBuild) =>
+  `${AGENT_RULES}
+
+Commit the lift of ${name}${reason ? ' (' + reason + ')' : ''}.
+
+${commitSteps(name, sourceFile, needBuild)}
+${commitTail(name, sourceFile)}`
+
+const commitTail = (name, sourceFile) =>
+  `
 Then commit — note src/CMakeLists.txt is in the add list precisely because a
 new TU's registration was repeatedly written but left unstaged, which landed
 three unlinked translation units on 2026-08-01:
@@ -948,7 +1035,11 @@ three unlinked translation units on 2026-08-01:
 Then, if this function had a parked record from an earlier attempt, mark it
 promoted so the improve pass won't re-pick it (ignore errors if none exists):
   rtk python3 tools/lift/park.py promote --name ${JSON.stringify(name)} --commit "$(git rev-parse --short HEAD)" 2>/dev/null || true
-Return the short commit hash.`
+Return committed=true, sha=<short commit hash>, build_failed=false, and in
+detail any stray path you unstaged. If the commit itself failed (hook error) and
+\`git log --oneline -1\` confirms no new commit, run \`rtk git reset -q\` (unstage
+only — keep the working tree so the caller can park the work) and return
+committed=false, build_failed=false, detail=<first hook error line>.`
 
 const revertPrompt = (name) =>
   `${AGENT_RULES}
@@ -970,15 +1061,35 @@ rtk git status --short
 // point is that the ladder keeps tuning the very source on disk (a --revert-tree
 // there wiped the candidate out from under the optimizer — the empty-patch
 // "escalation_exhausted" records with "no C implementation to apply a lever to").
-const parkToolPrompt = (name, addr, obj, srcFile, score, attemptME, reason, capHyp, notes, fingerprint, artifacts, keepTree, blockedBy) =>
-  `${AGENT_RULES}
+// publish=true: first publish the CURRENT attempt's evidence bundle and park
+// with its attempt fingerprint + artifact ids, falling back to the brief's own
+// (`fingerprint`/`artifacts`) when the publish fails — same as the separate
+// publish-score agent this replaced.
+const parkToolPrompt = (name, addr, obj, srcFile, score, attemptME, reason, capHyp, notes, fingerprint, artifacts, keepTree, blockedBy, publish) => {
+  const fbEvidence = Object.values(artifacts || {}).filter(Boolean)
+  const parkTail = `--name ${JSON.stringify(name)} --addr ${JSON.stringify(addr || '')} --obj ${JSON.stringify(obj || '')} --source ${JSON.stringify(srcFile || '')} --score ${score} --model ${JSON.stringify(attemptME.model)} --effort ${JSON.stringify(attemptME.effort)} --reason ${JSON.stringify(reason || '')} --outcome parked${capHyp ? ' --cap-hypothesis ' + JSON.stringify(capHyp) : ''}${notes ? ' --notes ' + JSON.stringify(String(notes).slice(0, 2000)) : ''}${blockedBy ? ' --blocked-by ' + JSON.stringify(blockedBy) : ''}${keepTree ? '' : ' --revert-tree'}`
+  const cmd = publish
+    ? `Run this whole block as ONE Bash call, verbatim (bash syntax; it publishes the
+current attempt's evidence, then parks with that evidence):
+B=$(mktemp /tmp/glpark.XXXXXX)
+timeout 300 rtk proxy python3 tools/lift/research_bundle.py prepare --target ${JSON.stringify(addr || '')} --json${LIFT_REG_ARGS ? ' --allow-reg-args' : ''} --current-attempt > "$B" 2>/dev/null || true
+FP=$(rtk proxy jq -r '.attempt_fingerprint // .fingerprint // empty' "$B" 2>/dev/null)
+EV=$(rtk proxy jq -r '(.artifacts // {}) | .[] | select(. != null and . != "")' "$B" 2>/dev/null)
+rm -f "$B"
+[ -n "$FP" ] || FP=${JSON.stringify(fingerprint || '')}
+[ -n "$EV" ] || EV=${JSON.stringify(fbEvidence.join(' '))}
+ARGS=(); [ -n "$FP" ] && ARGS+=(--fingerprint "$FP"); for id in $EV; do ARGS+=(--evidence "$id"); done
+rtk python3 tools/lift/park.py park "\${ARGS[@]}" ${parkTail}`
+    : `Run exactly this one command:
+rtk python3 tools/lift/park.py park ${parkTail}${fingerprint ? ' --fingerprint ' + JSON.stringify(fingerprint) : ''}${fbEvidence.map(id => ' --evidence ' + JSON.stringify(id)).join('')}`
+  return `${AGENT_RULES}
 
 Preserve the sub-bar lift of ${name} (${addr}, ${score}% VC71) for a later improve
-pass${keepTree ? '' : ', then clean the tree'}. Run exactly this one command:
-rtk python3 tools/lift/park.py park --name ${JSON.stringify(name)} --addr ${JSON.stringify(addr || '')} --obj ${JSON.stringify(obj || '')} --source ${JSON.stringify(srcFile || '')} --score ${score} --model ${JSON.stringify(attemptME.model)} --effort ${JSON.stringify(attemptME.effort)} --reason ${JSON.stringify(reason || '')} --outcome parked${fingerprint ? ' --fingerprint ' + JSON.stringify(fingerprint) : ''}${Object.values(artifacts || {}).filter(Boolean).map(id => ' --evidence ' + JSON.stringify(id)).join('')}${capHyp ? ' --cap-hypothesis ' + JSON.stringify(capHyp) : ''}${notes ? ' --notes ' + JSON.stringify(String(notes).slice(0, 2000)) : ''}${blockedBy ? ' --blocked-by ' + JSON.stringify(blockedBy) : ''}${keepTree ? '' : ' --revert-tree'}
+pass${keepTree ? '' : ', then clean the tree'}. ${cmd}
 park.py saves the git diff to artifacts/parked/ and records the attempt (with
 history)${keepTree ? '. This is a CHECKPOINT: do NOT revert, reset or checkout anything — the working tree must stay exactly as it is' : ', then reverts src/ kb.json tools/kb_reg_baseline.json to HEAD'}. Return the
 tool's "parked ..." stdout line.`
+}
 
 // Improve pass — pick the closest-to-bar parked function the improve model has
 // NOT already attempted (so repeated improve passes drain the ledger instead of
@@ -1015,19 +1126,15 @@ Return applied, reason.`
 // neighbors + hazard briefs. If the server is cold, the hook starts it in the
 // background and the first few queries return nothing (the model takes ~75s to
 // load) — warming it once here means all research agents get warm (~1-2s),
-// non-empty retrieval instead of racing a cold start 6 ways.
-const warmRetrievalPrompt = () =>
-  `${AGENT_RULES}
-
-Ensure the retrieval query server is up (best-effort — research still works if not).
-Run exactly:
-  if [ -S /tmp/retrieval_server.sock ]; then echo "already-up"; else
+// non-empty retrieval instead of racing a cold start 6 ways. Run by the fused
+// preflight agent in improve mode.
+const WARM_RETRIEVAL_CMD =
+  `  if [ -S /tmp/retrieval_server.sock ]; then echo "already-up"; else
     PY=python3; [ -x .venv/bin/python3 ] && PY=.venv/bin/python3;
     nohup "$PY" tools/retrieval/server.py > /tmp/retrieval_server.log 2>&1 &
     for i in $(seq 1 16); do sleep 5; [ -S /tmp/retrieval_server.sock ] && break; done;
   fi
-  [ -S /tmp/retrieval_server.sock ] && echo "up" || echo "cold"
-Return exactly one word: "up" or "cold".`
+  [ -S /tmp/retrieval_server.sock ] && echo "up" || echo "cold"`
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1099,9 +1206,26 @@ async function reviewThenCommit(brief, score, srcFile, path, phaseTitle, preEqui
     return { committed: false, verdict: 'AUTO_ACCEPT', rationale: 'dry-run: would have committed', dryRun: true }
   }
 
-  await agent(commitPrompt(brief.name, srcFile, path), { label: `commit:${brief.name}`, phase: phaseTitle, ...M.commit })
+  const c = await doCommit(brief, srcFile, path, path, phaseTitle)
+  if (!c.committed) return commitFailure(c)
   return { committed: true, verdict: 'AUTO_ACCEPT', rationale: path }
 }
+
+// Run the commit agent and read its structured result. The commit agent used
+// to return free text that nothing checked, so a "BUILD_FAILED: ..." return
+// (tree already reverted) was still recorded as a commit.
+async function doCommit(brief, srcFile, note, path, phaseTitle) {
+  const c = await schemaAgent(commitPrompt(brief.name, srcFile, note, needsBuild(path)), {
+    label: `commit:${brief.name}`, phase: phaseTitle, ...M.commit, schema: COMMIT_SCHEMA,
+  })
+  return c || { committed: false, build_failed: false, detail: 'structured_output_null:commit' }
+}
+
+// A failed commit is a build failure (tree reverted by the commit agent) or
+// infra (hook error / dead agent — tree kept, so the caller parks it).
+const commitFailure = (c) => c.build_failed
+  ? { committed: false, verdict: 'build_failed', rationale: `commit build failed: ${c.detail || '?'}` }
+  : { committed: false, verdict: 'infra_blocked', rationale: `commit_failed: ${c.detail || '?'}` }
 
 // Equivalence-backed commit fallback for structurally-capped lifts (score
 // stuck in [65,84], deterministic cap confirmed) that never reach
@@ -1121,7 +1245,8 @@ async function capEquivCommit(brief, score, srcFile, path, phaseTitle, capReason
   }
   const note = `${path}${equivNote(eq.confidence, eq.reason)} [structural_cap: ${capReason}]`
   if (DRY_RUN) return { committed: false, rationale: 'dry-run: would have committed', dryRun: true }
-  await agent(commitPrompt(brief.name, srcFile, note), { label: `commit:${brief.name}`, phase: phaseTitle, ...M.commit })
+  const c = await doCommit(brief, srcFile, note, path, phaseTitle)
+  if (!c.committed) return { committed: false, build_failed: !!c.build_failed, rationale: commitFailure(c).rationale }
   return { committed: true, rationale: note }
 }
 
@@ -1135,14 +1260,24 @@ async function capEquivCommit(brief, score, srcFile, path, phaseTitle, capReason
 // which still gets behavioral proof via equivalence on NEEDS_RUNTIME.
 async function gateThenCommit(brief, score, srcFile, path, phaseTitle, preEquiv) {
   if (score >= 90) {
-    const g = await schemaAgent(mechGatePrompt(brief, srcFile), {
-      label: `gate:${brief.name}`, phase: phaseTitle, ...M.mechanical, schema: MECH_GATE_SCHEMA,
+    // One agent: gate, and on a pass commit in the same turn (gateCommitPrompt).
+    // Commit-level model: the fused agent does what the commit agent did.
+    const g = await schemaAgent(gateCommitPrompt(brief, srcFile, score, path, needsBuild(path), !DRY_RUN), {
+      label: `gate+commit:${brief.name}`, phase: phaseTitle, ...M.commit, schema: GATE_COMMIT_SCHEMA,
     })
     const clean   = g && g.hazards_clean && g.abi_clean
     const mechPass = clean && (score >= 95 || (!g.risky_calls && !g.warns))
+    if (g && g.committed) {
+      if (!mechPass) log(`  ⚠ ${brief.name}: gate agent committed although its booleans fail the pass rule (${g.detail || 'no detail'}) — commit ${g.sha || '?'} kept; review it`)
+      return { committed: true, verdict: 'AUTO_ACCEPT', rationale: `mechanical gate: ${score}% clean (${path})` }
+    }
     if (mechPass) {
       if (DRY_RUN) return { committed: false, verdict: 'AUTO_ACCEPT', rationale: `dry-run: mechanical gate (${score}% clean)`, dryRun: true }
-      await agent(commitPrompt(brief.name, srcFile, `mechanical:${score}% ${path}`), { label: `commit:${brief.name}`, phase: phaseTitle, ...M.commit })
+      if (g.build_failed) return commitFailure(g)
+      // Pass but no commit (hook error, or the agent stopped short): commit
+      // with the standalone agent rather than paying for a reviewer.
+      const c = await doCommit(brief, srcFile, `mechanical:${score}% ${path}`, path, phaseTitle)
+      if (!c.committed) return commitFailure(c)
       return { committed: true, verdict: 'AUTO_ACCEPT', rationale: `mechanical gate: ${score}% clean (${path})` }
     }
     // High % but flagged (hazard/ABI/risky/warn) → the reviewer must adjudicate.
@@ -1157,14 +1292,13 @@ async function gateThenCommit(brief, score, srcFile, path, phaseTitle, preEquiv)
 // read back by the improve pass via park.py next's last_notes/attempt_history.
 // keepTree = record the attempt WITHOUT reverting (checkpoint park); see parkToolPrompt.
 // blockedBy = callee addr from a reviewer callee-ABI REJECT → park.py blocked_review.
+// One agent (2026-09-30): the current-attempt evidence publish and the park used
+// to be two mechanical agents back to back; the park only needed the publish's
+// fingerprint + artifact ids, which the shell recipe now pipes across itself.
 async function parkBuilt(brief, srcFile, score, attemptME, reason, capHyp, phaseTitle, notes, keepTree, blockedBy) {
-  const refreshed = await schemaAgent(bundlePrompt(brief, true), {
-    label: `publish-score:${brief.name}`, phase: phaseTitle || 'Lift', ...M.mechanical, schema: BUNDLE_SCHEMA,
-  })
-  const evidence = refreshed || brief
   await agent(parkToolPrompt(brief.name, brief.addr, brief.obj, srcFile, score, attemptME, reason, capHyp, notes,
-    evidence.attempt_fingerprint || evidence.fingerprint, evidence.artifacts, keepTree, blockedBy),
-    { label: `park:${brief.name}`, phase: phaseTitle || 'Lift', ...M.mechanical })
+    brief.attempt_fingerprint || brief.fingerprint, brief.artifacts, keepTree, blockedBy, true),
+    { label: `publish+park:${brief.name}`, phase: phaseTitle || 'Lift', ...M.mechanical })
 }
 
 // Collapse this run's consecutive same-object commits into one, reworded
@@ -1182,6 +1316,76 @@ async function parkBuilt(brief, srcFile, score, attemptME, reason, capHyp, phase
 // TOP of history, so squashing pure same-object stretches needs no splitting —
 // stretches are processed newest-to-oldest so an earlier reset never touches a
 // later stretch that is still separate commits.
+// Batch-end build backstop for the per-commit build that needsBuild() now
+// skips on pass1/permute paths. One incremental halo build over the run's
+// final tree; on failure, bisect this run's commits BY HAND (each build is
+// its own ≤165s command — a single `git bisect run` would outlive the [STALL]
+// ceiling) and revert the first bad commit, at most twice.
+const BUILD_CHECK_SCHEMA = {
+  type: 'object',
+  properties: {
+    ok:             { type: 'boolean' },   // final tree builds
+    reverted_names: { type: 'array', items: { type: 'string' } },
+    reverted_shas:  { type: 'array', items: { type: 'string' } },
+    detail:         { type: 'string' },
+  },
+  required: ['ok'],
+}
+
+async function buildCheckAndBisect(committedResults, runStartSha, phaseTitle) {
+  if (DRY_RUN || PER_COMMIT_BUILD || !runStartSha || !committedResults.length) return { ok: true, reverted_names: [] }
+  const r = await schemaAgent(
+    `${AGENT_RULES}
+Batch-end build check for this run's ${committedResults.length} lift commit(s)
+(${runStartSha}..HEAD). SERIAL — one git-mutating command at a time.
+BUILD = timeout 165 rtk python3 tools/build/build.py -q --target halo 2>&1 | tail -30
+  passes iff the output has NO "error:" line and NO "Error 2" / "*** " marker
+  (a "[timed-out]"/killed build counts as a FAIL).
+
+1. Run BUILD on HEAD. Passes → return {"ok":true,"reverted_names":[]}. Done.
+2. Fails → bisect by hand:
+   rtk git bisect start HEAD ${runStartSha}
+   Then repeat: run BUILD at the commit git checked out; mark it with
+   \`rtk git bisect good\` or \`rtk git bisect bad\`; until git prints
+   "<sha> is the first bad commit". If git marks ${runStartSha} itself bad, or
+   the first bad commit is not in ${runStartSha}..HEAD, the breakage is not
+   this run's: \`rtk git bisect reset\` and return ok=false,
+   detail="base_broken: <first error line>".
+   rtk git bisect reset
+3. Revert the first bad commit (Bash timeout 600000, foreground — see [STALL
+   EXCEPTION]):
+   HALO_BATCH_COMMIT=1 rtk git revert --no-edit <bad sha>
+   On a revert conflict: rtk git revert --abort, return ok=false,
+   detail="revert_conflict: <bad sha>".
+4. Run BUILD on HEAD again. Passes → done. Fails → repeat steps 2-3 ONCE more
+   (bisect from ${runStartSha} again), then stop either way.
+Map every reverted commit to its function(s) from its subject
+(rtk git log -1 --format=%s <sha>) against this run's committed list:
+${committedResults.map(c => `  ${c.name} (${c.obj})`).join('\n')}
+Return ok (final HEAD builds), reverted_names, reverted_shas, and detail (first
+build error line of each failure).`,
+    { label: 'batch-build-check', phase: phaseTitle, ...M.commit, schema: BUILD_CHECK_SCHEMA })
+  if (!r) {
+    log('⚠ batch-end build check returned null — the land gate\'s clean build is the remaining backstop')
+    // Unknown, not broken: don't turn a dead agent into a build_broken stop.
+    return { ok: true, unchecked: true, reverted_names: [] }
+  }
+  if (r.ok && !(r.reverted_names || []).length) log('✓ batch-end halo build ok')
+  else log(`${r.ok ? '◐' : '✗'} batch-end build: ${r.ok ? 'fixed by reverting' : 'STILL BROKEN after'} ${(r.reverted_names || []).join(', ') || 'no revert'} — ${r.detail || ''}`)
+  return { ...r, reverted_names: r.reverted_names || [] }
+}
+
+// Apply a batch-end revert to the result rows (committed → reverted_build).
+function markBuildReverted(rows, reverted) {
+  const names = new Set(reverted)
+  for (const r of rows) {
+    if (names.has(r.name) && (r.status === 'committed' || r.status === 'promoted')) {
+      r.status = 'reverted_build'
+      r.reason = `reverted at batch-end build check (was: ${r.reason || ''})`
+    }
+  }
+}
+
 async function squashByObject(committedResults, runStartSha, phaseTitle) {
   if (DRY_RUN || !runStartSha || committedResults.length < 2) return { squashed: 0 }
 
@@ -1251,18 +1455,44 @@ or {"ok":false,"reason":"<what went wrong, and current git log --oneline ${runSt
 // until each individual lift agent stalled ~165s waiting on a dead bridge,
 // burning budget on every target before failing. Check once, up front, and
 // abort the whole run (Select/Research/Lift and Improve alike) instead.
+// Fused 2026-09-30 with the run-start SHA (squash boundary), the parked-ledger
+// sync and, in improve mode, the retrieval warm-up: four mechanical agents that
+// each ran one or two commands back to back.
+const PREFLIGHT_SCHEMA = {
+  type: 'object',
+  properties: {
+    ok:     { type: 'boolean' },
+    detail: { type: 'string' },
+    sha:    { type: 'string' },
+    ledger: { type: 'string' },
+  },
+  required: ['ok', 'detail'],
+}
+let preflightSha = null
 {
-  const ghidraCheck = await schemaAgent(
-    `Run: python3 tools/audit/check_ghidra_mcp.py
-Report {"ok":true,"detail":"..."} if it exits 0 (Ghidra MCP bridge reachable),
-or {"ok":false,"detail":"<exact failure output>"} if it exits non-zero or the
-command itself fails to run. Do not attempt any fix — just report the result.`,
-    { label: 'ghidra-mcp-preflight', phase: 'Select', ...M.mechanical, schema: GHIDRA_PREFLIGHT_SCHEMA })
-  if (!ghidraCheck || !ghidraCheck.ok) {
-    log(`✗ Ghidra MCP preflight failed — aborting run: ${ghidraCheck ? ghidraCheck.detail : 'agent_null'}`)
-    return { committed: 0, promoted: 0, reason: 'ghidra_mcp_down', detail: ghidraCheck ? ghidraCheck.detail : 'agent_null' }
+  const pf = await schemaAgent(
+    `Run these steps in order and report each result. Do not attempt any fix.
+1. python3 tools/audit/check_ghidra_mcp.py
+   ok=true if it exits 0 (Ghidra MCP bridge reachable); ok=false with
+   detail="<exact failure output>" if it exits non-zero or fails to run.
+   If ok=false, STOP here and return.
+2. rtk git rev-parse HEAD — sha = the full 40-char hash, nothing else.
+3. Sync the parked ledger; ledger = the last summary line of EACH (two lines):
+   rtk python3 tools/lift/park.py reconcile --apply 2>&1 || true
+   rtk python3 tools/lift/park.py migrate --apply 2>&1 || true
+${IMPROVE ? `4. Warm the retrieval query server (best-effort) — run as ONE Bash call:
+${WARM_RETRIEVAL_CMD}
+   Append "retrieval=up" or "retrieval=cold" to ledger.
+` : ''}Return ok, detail, sha, ledger.`,
+    { label: 'preflight', phase: IMPROVE ? 'Improve' : 'Select', ...M.mechanical, schema: PREFLIGHT_SCHEMA })
+  if (!pf || !pf.ok) {
+    log(`✗ Ghidra MCP preflight failed — aborting run: ${pf ? pf.detail : 'agent_null'}`)
+    return { committed: 0, promoted: 0, reason: 'ghidra_mcp_down', detail: pf ? pf.detail : 'agent_null' }
   }
   log('✓ Ghidra MCP preflight ok')
+  if (pf.ledger) log(`Ledger sync: ${pf.ledger.replace(/\n/g, ' | ')}`)
+  // The squash boundary must be a real hash; a garbled one disables squash.
+  preflightSha = (!DRY_RUN && /^[0-9a-f]{40}$/i.test(String(pf.sha || '').trim())) ? String(pf.sha).trim() : null
 }
 
 // ── Improve pass ────────────────────────────────────────────────────────────
@@ -1277,21 +1507,9 @@ if (IMPROVE) {
   log(`Improve pass: re-lifting up to ${GOAL} parked functions with ${XM}-${M.improve.effort}${DRY_RUN ? ' (dry run — no commits)' : ''}`)
   if (OBJECTS) log(`(object filter not applied in improve mode — park.py next drains globally by score)`)
 
-  // Squash boundary: only commits made from here on are ours to collapse.
-  const runStartShaResult = DRY_RUN ? null : await schemaAgent(
-    'Run: rtk git rev-parse HEAD — return {"sha":"<the full 40-char hash, nothing else>"}',
-    { label: 'run-start-sha', phase: 'Improve', ...M.mechanical, schema: SHA_SCHEMA })
-  const runStartSha = runStartShaResult ? runStartShaResult.sha : null
-
-  // Sync the shared parked ledger before draining it (see Select phase for why).
-  await agent(
-    `Run these two commands and return the last summary line of EACH (two lines total):
-rtk python3 tools/lift/park.py reconcile --apply 2>&1 || true
-rtk python3 tools/lift/park.py migrate --apply 2>&1 || true`,
-    { label: 'ledger-sync', phase: 'Improve', ...M.mechanical })
-
-  // Warm retrieval so the improve re-research decompiles get worked-example neighbors.
-  await agent(warmRetrievalPrompt(), { label: 'retrieval-warm', phase: 'Improve', ...M.mechanical })
+  // Squash boundary, ledger sync and retrieval warm-up all ran in the fused
+  // preflight agent above.
+  const runStartSha = preflightSha
 
   const improved = []
   const seen = new Set()
@@ -1360,12 +1578,14 @@ rtk python3 tools/verify/vc71_verify.py ${refreshSrc} -f ${rec.name} --no-cache 
     // cold re-lift. A cold-start record (no prior patch survived to apply) has
     // no existing candidate to tune, so it always takes the full path below.
     let a
+    let viaOptimize = false   // optimizer edits are vc71_verify-only → commit must build (needsBuild)
     if (warm && classifyBand(rec.best_score) === 'fail_check_cap') {
       const mo = await schemaAgent(matchOptimizerPrompt(rec.name, rec.addr, liftBrief.obj, liftBrief.source_path, rec.best_score, liftBrief.neighbors), {
         label: `improve-optimize:${rec.name}`, phase: 'Improve', agentType: 'vc71-match-optimizer', ...M.improve, schema: MATCH_OPTIMIZER_SCHEMA,
       })
       if (mo && typeof mo.vc71_score === 'number' && mo.vc71_score > rec.best_score) {
         a = { status: 'needs_verify', vc71_score: mo.vc71_score, source_file: liftBrief.source_path, reason: mo.reason || '' }
+        viaOptimize = true
         log(`  ${rec.name} improve-optimize: ${rec.best_score}% → ${mo.vc71_score}% (skipping full re-lift)`)
       } else {
         log(`  ${rec.name} improve-optimize made no improvement over ${rec.best_score}% — falling back to full re-lift (${IMPROVE_MODEL})`)
@@ -1394,15 +1614,23 @@ rtk python3 tools/verify/vc71_verify.py ${refreshSrc} -f ${rec.name} --no-cache 
     // Ghidra export cannot move the number.
     if (band === 'pass_permute') {
       const ps = await maybePermute(rec.name, 'Improve')
-      if (ps !== null) { score = ps; band = classifyBand(score) }
+      if (ps !== null) { score = ps; band = classifyBand(score); viaOptimize = false }
     }
 
     if (band === 'pass' || band === 'pass_permute') {
-      const outcome = await gateThenCommit(liftBrief, score, srcFile, `improve:${warm ? 'warm' : 'cold'}`, 'Improve')
+      // A permute pass re-runs lift_pipeline, so it clears viaOptimize (above).
+      const ipath = `improve:${warm ? 'warm' : 'cold'}${viaOptimize ? '+optimize' : ''}`
+      const outcome = await gateThenCommit(liftBrief, score, srcFile, ipath, 'Improve')
       if (outcome.committed) {
         promoted++; noProgress = 0
         improved.push({ ...rec, status: 'promoted', vc71_score: score, reason: outcome.rationale })
         log(`✓ promoted ${rec.name} ${score}% (was ${rec.best_score}%)`); continue
+      }
+      if (outcome.verdict === 'build_failed') {
+        // Tree already reverted by the commit agent; the parked best patch stands.
+        noProgress++
+        improved.push({ ...rec, status: 're_parked', vc71_score: score, reason: outcome.rationale })
+        log(`✗ ${rec.name} ${score}% — ${outcome.rationale}`); continue
       }
       if (outcome.dryRun) {
         improved.push({ ...rec, status: 'would_promote', vc71_score: score, reason: outcome.rationale })
@@ -1419,6 +1647,9 @@ rtk python3 tools/verify/vc71_verify.py ${refreshSrc} -f ${rec.name} --no-cache 
   }
 
   phase('Report')
+  const ibuild = await buildCheckAndBisect(improved.filter(r => r.status === 'promoted'), runStartSha, 'Report')
+  markBuildReverted(improved, ibuild.reverted_names)
+  if (!ibuild.ok) istop = `build_broken (${ibuild.detail || 'see batch-build-check'})`
   const proms = improved.filter(r => r.status === 'promoted')
   log(`\n── Improve pass complete (${istop}) ─────────────────`)
   log(`Promoted:   ${proms.length}${DRY_RUN ? ` (dry-run; ${improved.filter(r => r.status === 'would_promote').length} would-promote)` : ''}${proms.length ? ' — ' + proms.map(p => `${p.name} ${p.vc71_score}%`).join(', ') : ''}`)
@@ -1426,7 +1657,7 @@ rtk python3 tools/verify/vc71_verify.py ${refreshSrc} -f ${rec.name} --no-cache 
   log(`Already landed: ${improved.filter(r => r.status === 'already_landed').length}`)
   if (budget.total) log(`Budget remaining: ~${Math.round(budget.remaining() / 1000)}k tokens`)
 
-  const sq = await squashByObject(proms, runStartSha, 'Report')
+  const sq = ibuild.reverted_names.length ? { squashed: 0 } : await squashByObject(proms, runStartSha, 'Report')
 
   await agent(
     `Append an improve-pass summary to artifacts/auto_lift/goal_progress.md (create if missing).
@@ -1474,20 +1705,10 @@ if (OBJECTS) log(`Object filter (hard): ${OBJECTS.join(', ')}`)
 if (CRITERIA) log(`Extra criteria (soft): ${CRITERIA}`)
 
 // Squash boundary: only commits made from here on are ours to collapse.
-const runStartShaResult = DRY_RUN ? null : await schemaAgent(
-  'Run: rtk git rev-parse HEAD — return {"sha":"<the full 40-char hash, nothing else>"}',
-  { label: 'run-start-sha', phase: 'Select', ...M.mechanical, schema: SHA_SCHEMA })
-const runStartSha = runStartShaResult ? runStartShaResult.sha : null
-
-// Sync the shared parked ledger before selecting: reconcile drops records for
-// functions that landed via another path since they were parked, and migrate
-// upgrades any pre-shared-root legacy records. Neither is ever invoked
-// automatically otherwise, so the ledger silently accumulates stale entries.
-await agent(
-  `Run these two commands and return the last summary line of EACH (two lines total):
-rtk python3 tools/lift/park.py reconcile --apply 2>&1 || true
-rtk python3 tools/lift/park.py migrate --apply 2>&1 || true`,
-  { label: 'ledger-sync', phase: 'Select', ...M.mechanical })
+// Captured, together with the parked-ledger sync (reconcile drops records for
+// functions that landed via another path since they were parked, migrate
+// upgrades legacy records), by the fused preflight agent above.
+const runStartSha = preflightSha
 
 const BATCH_LIMIT = Math.min(60, Math.max(30, GOAL * 3))
 
@@ -1539,8 +1760,8 @@ the code-side pre-screen decide, so it can keep them when the queue would
 otherwise run dry.
 ${OBJECTS
     ? `HARD RESTRICTION: only return candidates whose obj is one of: ${OBJECTS.join(', ')}. Discard everything else (this is also enforced in code afterward, so don't waste entries on other objects).`
-    : `Prefer, in order: game_engine.obj, lruv_cache.obj, hud.obj, items.obj, input_xbox.obj —
-sort those to the front, then the rest by score descending.`}
+    : `Keep the selector's own order (total_score descending) — do NOT re-sort. The
+selector already ranks by each TU's demonstrated VC71 history (selector v2).`}
 ${CRITERIA ? `\nADDITIONAL USER CRITERIA (apply on top of the rules above): ${CRITERIA}\n` : ''}
 Return up to ${RETURN_CAP} entries, each with the parsed fields above.`
 
@@ -1734,9 +1955,17 @@ Return one line per function: <name> exported|failed <path-or-reason>.`,
 // Research forward until `want` NEW viable briefs exist or the queue is spent.
 // Non-viable briefs are recorded into `results` as they are discovered, so the
 // final report is identical to the eager version's.
-async function researchMore(want) {
+// Returns { fresh, infra } (infra = briefs that came back infra_blocked).
+// background=true: the lift loop started this call WITHOUT awaiting it, to
+// overlap the next window's research with the current lift (see prefetch in
+// the Lift loop). Its tokens are then left to the Lift phase's residual count,
+// because a budget.spent() delta taken across concurrent agents would also
+// swallow the lift's own spend. Safe to overlap: nextTarget advances
+// synchronously before the first await, and only one call is ever in flight.
+async function researchMore(want, background) {
   const tokenBefore = budget.spent()
   const fresh = []
+  let infra = 0
   while (fresh.length < want && nextTarget < targets.length) {
     const take  = Math.min(RESEARCH_BATCH, Math.max(1, want - fresh.length))
     const batch = targets.slice(nextTarget, nextTarget + take)
@@ -1759,7 +1988,7 @@ async function researchMore(want) {
       if (b.pre_screen === 'ok') {
         okBriefs.push(b); fresh.push(b)
       } else if (b.pre_screen === 'infra_blocked') {
-        pendingInfra++
+        infra++
         results.push({ addr: b.addr, name: b.name, obj: b.obj, status: 'infra_blocked', reason: b.skip_reason || 'ghidra_unavailable' })
       } else {
         results.push({ addr: b.addr, name: b.name, obj: b.obj, status: 'skipped', reason: b.skip_reason || b.pre_screen })
@@ -1767,15 +1996,15 @@ async function researchMore(want) {
     }
   }
   if (fresh.length) await delinkPrefetch(fresh)
-  phaseTokens.research += Math.max(0, budget.spent() - tokenBefore)
-  return fresh
+  if (!background) phaseTokens.research += Math.max(0, budget.spent() - tokenBefore)
+  return { fresh, infra }
 }
 
 for (const s of codeSkips) {
   results.push({ addr: s.addr, name: s.name, obj: s.obj, status: 'skipped', reason: s.reason })
 }
 
-await researchMore(GOAL + RESEARCH_LOOKAHEAD)
+pendingInfra = (await researchMore(GOAL + RESEARCH_LOOKAHEAD)).infra
 log(`Research window: ${okBriefs.length} viable of ${briefs.length} briefed (${targets.length - nextTarget} target(s) held back)`)
 
 // ── Phase 3: Serial lift loop, gated to reach GOAL or exhaust the queue ──────
@@ -1788,6 +2017,8 @@ let stopReason = 'queue_exhausted'
 
 let liftIdx = 0
 let escalationsThisRun = 0   // targets that entered the escalation ladder (bounded by MAX_ESCALATIONS)
+let escalationMisses = 0     // consecutive escalations that ended below the bar (ESCALATION_MISS_LIMIT)
+let prefetch = null          // in-flight background researchMore() promise, or null
 while (true) {
   const committed = results.filter(r => r.status === 'committed')
   if (committed.length >= GOAL) { stopReason = 'goal_reached'; break }
@@ -1800,14 +2031,25 @@ while (true) {
   // Ran out of briefed targets — top up rather than stopping, unless the
   // selector's queue is genuinely spent.
   if (liftIdx >= okBriefs.length) {
-    pendingInfra = 0
-    const added = await researchMore(GOAL - committed.length + RESEARCH_LOOKAHEAD)
-    consecutiveInfra += pendingInfra
-    if (!added.length) { stopReason = 'queue_exhausted'; break }
+    // Prefer the window already being researched in the background.
+    const r = prefetch ? await prefetch : await researchMore(GOAL - committed.length + RESEARCH_LOOKAHEAD)
+    prefetch = null
+    consecutiveInfra += r.infra
+    // researchMore only returns empty once the selector queue is spent.
+    if (!r.fresh.length) { stopReason = 'queue_exhausted'; break }
     continue
   }
 
   const brief = okBriefs[liftIdx++]
+
+  // This is the last briefed target: research the next window WHILE it lifts,
+  // instead of stalling the loop on research after it. Bundles only write
+  // artifacts/ (plus delinked/ via delinkPrefetch), never src/ or kb.json. A
+  // bundle for a target in the TU being lifted can fingerprint mid-edit source;
+  // that only costs a stale-fingerprint rebuild when its own lift starts.
+  if (!prefetch && liftIdx >= okBriefs.length && nextTarget < targets.length && GOAL - committed.length > 1) {
+    prefetch = researchMore(GOAL - committed.length - 1 + RESEARCH_LOOKAHEAD, true)
+  }
 
   log(`[${committed.length}/${GOAL} committed] next: ${brief.name} (${brief.addr})`)
 
@@ -1960,16 +2202,19 @@ while (true) {
     // below) still revert, so a ladder that never clears the bar leaves a clean tree.
     await parkBuilt(brief, srcFile, score, M.reason, 'pre_escalation', a1.cap_reason || '', 'Lift', a1.reason || '', true)
 
-    // Effort ladder (Opus, NOT Fable): start at the cheap rung and step up to
-    // xhigh/max ONLY for a target still below the 85% pass bar, not documented-
+    // Effort ladder (Opus, NOT Fable): start at high and step up to
+    // xhigh ONLY for a target still below the 85% pass bar, not documented-
     // capped, and while budget remains. Most targets stop at the first rung.
     // The optimizer edits srcFile in place, so each rung builds on the last.
     let capReason  = ''
     let rungCapped = false
-    for (let ri = 0; ri < IMPROVE_EFFORTS.length; ri++) {
-      const eff = IMPROVE_EFFORTS[ri]
+    const shortLadder = ESCALATION_MISS_LIMIT > 0 && escalationMisses >= ESCALATION_MISS_LIMIT && IMPROVE_EFFORTS.length > 1
+    const rungs = shortLadder ? IMPROVE_EFFORTS.slice(0, 1) : IMPROVE_EFFORTS
+    if (shortLadder) log(`  ${brief.name}: ${escalationMisses} escalations in a row missed the bar — first rung only (${rungs[0]})`)
+    for (let ri = 0; ri < rungs.length; ri++) {
+      const eff = rungs[ri]
       const ME  = { model: IMPROVE_MODEL, effort: eff }
-      log(`  ${brief.name} ${score}% — vc71-match-optimizer ${IMPROVE_MODEL}-${eff} [rung ${ri + 1}/${IMPROVE_EFFORTS.length}] (not a structural cap: ${a1.cap_confidence || 'n/a'})`)
+      log(`  ${brief.name} ${score}% — vc71-match-optimizer ${IMPROVE_MODEL}-${eff} [rung ${ri + 1}/${rungs.length}] (not a structural cap: ${a1.cap_confidence || 'n/a'})`)
       const mo = await schemaAgent(matchOptimizerPrompt(brief.name, brief.addr, brief.obj, srcFile, score, brief.neighbors), {
         label: `match-optimize:${brief.name}:${eff}`, phase: 'Lift', agentType: 'vc71-match-optimizer', ...ME, schema: MATCH_OPTIMIZER_SCHEMA,
       })
@@ -1992,6 +2237,10 @@ while (true) {
         break
       }
     }
+    // A documented cap is deterministic, not a sign of a capped-tail frontier
+    // the ladder is wasting rungs on, so it leaves the streak alone.
+    if (band !== 'fail_check_cap') escalationMisses = 0
+    else if (!rungCapped) escalationMisses++
     if (rungCapped) {
       // Optimizer hit a documented ceiling (its own classify_cap equivalent).
       // Before parking, try an equivalence-backed commit — a confirmed cap is
@@ -2001,6 +2250,13 @@ while (true) {
       if (ce.committed) {
         log(`  ${brief.name} ${score}% — capped but equivalence-confirmed, committed: ${ce.rationale}`)
         results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'committed', vc71_score: score, reason: ce.rationale })
+        continue
+      }
+      if (ce.build_failed) {
+        // The commit agent already reverted the tree; nothing left to park.
+        consecutiveFails++
+        results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'build_failed', vc71_score: score, reason: ce.rationale })
+        log(`✗ ${brief.name} ${score}% — ${ce.rationale}`)
         continue
       }
       log(`  ${brief.name} ${score}% capped [fingerprinted-mechanical:optimizer]: ${capReason} — parked (${ce.rationale}), no further escalation`)
@@ -2017,6 +2273,12 @@ while (true) {
     if (ce.committed) {
       log(`  ${brief.name} ${score}% — capped but equivalence-confirmed, committed: ${ce.rationale}`)
       results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'committed', vc71_score: score, reason: ce.rationale })
+      continue
+    }
+    if (ce.build_failed) {
+      consecutiveFails++
+      results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'build_failed', vc71_score: score, reason: ce.rationale })
+      log(`✗ ${brief.name} ${score}% — ${ce.rationale}`)
       continue
     }
     log(`  ${brief.name} ${score}% capped [${capProvenance}]: ${a1.cap_reason || 'unclassified'} — parked (${ce.rationale}), no escalation`)
@@ -2059,6 +2321,11 @@ while (true) {
     results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'would_commit', vc71_score: score, source_file: srcFile, reason: outcome.rationale })
     await agent(revertPrompt(brief.name), { label: `revert-dry-run:${brief.name}`, phase: 'Lift', ...M.mechanical })
     log(`○ ${brief.name} ${score}% (dry-run, would commit — reverted for clean state)`)
+  } else if (outcome.verdict === 'build_failed') {
+    // The commit agent reverted the tree after a failed halo build.
+    consecutiveFails++
+    results.push({ addr: brief.addr, name: brief.name, obj: brief.obj, status: 'build_failed', vc71_score: score, source_file: srcFile, reason: outcome.rationale })
+    log(`✗ ${brief.name} ${score}% — ${outcome.rationale}`)
   } else if (outcome.verdict === 'infra_blocked') {
     // The gate agent died (terminal API error or a missed StructuredOutput call
     // that schemaAgent already retried once). That is infra, not a verdict on
@@ -2085,11 +2352,19 @@ while (true) {
   }
 }
 
+// A background research window may still be running when the loop stops; let
+// it finish so no agent outlives the run (its skips still land in results).
+if (prefetch) { await prefetch; prefetch = null }
+
 // ── Phase 4: Report ───────────────────────────────────────────────────────────
 
 const reportTokenStart = budget.spent()
 phaseTokens.lift = Math.max(0, reportTokenStart - runTokenStart - phaseTokens.select - phaseTokens.research - phaseTokens.improve)
 phase('Report')
+
+const buildCheck = await buildCheckAndBisect(results.filter(r => r.status === 'committed'), runStartSha, 'Report')
+markBuildReverted(results, buildCheck.reverted_names)
+if (!buildCheck.ok && stopReason !== 'budget_low') stopReason = `build_broken (${buildCheck.detail || 'see batch-build-check'})`
 
 const committed      = results.filter(r => r.status === 'committed')
 const wouldCommit    = results.filter(r => r.status === 'would_commit')
@@ -2151,7 +2426,10 @@ if (outcomeRows.length) {
     { label: 'retrieval-outcomes', phase: 'Report', ...M.mechanical })
 }
 
-const sq = await squashByObject(committed, runStartSha, 'Report')
+// A batch-end revert adds commits the squash's 1:1 count check would reject.
+const sq = buildCheck.reverted_names.length
+  ? (log('squash-by-object skipped: batch-end build check reverted commits'), { squashed: 0 })
+  : await squashByObject(committed, runStartSha, 'Report')
 
 phaseTokens.report = Math.max(0, budget.spent() - reportTokenStart)
 
@@ -2165,6 +2443,7 @@ return {
   reverted_verify: revertedVerify.length,
   reverted_review: revertedReview.length,
   commits_squashed: sq.squashed || 0,
+  reverted_build: results.filter(r => r.status === 'reverted_build').length,
   parked: parked.length,
   infra_blocked: infra.length,
   phase_token_deltas: phaseTokens,

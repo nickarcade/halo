@@ -116,8 +116,6 @@ directly, independent of whether the summary classifier fired. Missing file
 just means no VC71 run has scored this function yet — run it, or proceed with
 the manual recipes below (the atlas entries work without a pack too).
 
-- **Triage near-zero scores (<5%) first**: If `scores.official_pct` is <5% and `n_cand_insns` is 1–5 vs hundreds of `n_ref_insns` (e.g. `collision_log_render` at 0.4%), check if the function was originally stubbed or had its body omitted (`/* Debug body omitted */`). Lift the full decompilation first before trying shape levers.
-
 ### Preserve only measured gains (hybrid gate)
 
 Record a whole-TU baseline **once** at session start. Iterate with the
@@ -391,6 +389,36 @@ throughout the body.
 
 ---
 
+### `regarg_static_helper_ceiling`
+
+**Signature:** the function's own `@<reg>` phantom load was modeled, but the
+remaining diff is candidate-only `PUSH EBP; MOV EBP,ESP` setup plus matching
+`POP EBP` teardown. The reference starts by consuming the annotated register
+and has no stack-parameter load.
+
+**Interpretation:** likely original file-static helper using MSVC's private
+same-TU register convention. This is stronger than a generic `@<reg>` ceiling:
+VC71 reproduced FUN_00181020's exact 18-mnemonic `@<si>` body when the same code
+was compiled as a static noinline helper with two same-TU callers. External
+`/Oy` removed EBP but retained ESI save/load/restore, proving external linkage
+and frame-pointer omission are separate effects.
+
+**Action:**
+1. Audit every original caller: each must write the annotated register before
+   `CALL` and must not push that parameter.
+2. Reproduce with a minimal static same-TU VC71 probe. Treat static linkage as
+   inferred until the compiler reproduction and TU evidence agree.
+3. Do not run the permuter on a prologue-only gap; AST permutations cannot turn
+   external cdecl into MSVC's private SI/ESI convention.
+4. Do not make the production lift static solely for score. The patcher needs
+   an external implementation symbol, and unported callers rely on the generated
+   register thunk. Prefer a verifier-only original-TU/static scoring context.
+
+**Observed:** FUN_00181020 normal lane 87.8%; external `/Oy` 92.3%; static
+same-TU probe 100.0% mnemonic match under both `/Oy` and `/Oy-`.
+
+---
+
 ### `anchor_collapse`
 
 **Signature:** `scores.dp_lcs_pct` sits well above `scores.official_pct` —
@@ -474,61 +502,7 @@ or doesn't explain the remaining gap.
    `FLD [mem]`, so the patterns diverge. **Recovered ~5 instructions on
    FUN_001a2160.**
 
-4. **Inlined call argument evaluation order (right-to-left push).**
-   When passing an expression to a function call (especially string formatting / variadic calls like `crt_sprintf`), separating the computation into a temporary evaluates it *before* pushing the other arguments. Inlining the expression in the call argument forces C's right-to-left evaluation order, pushing trailing format arguments first and evaluating the leading expression last:
-   ```c
-   /* Bad: evaluates csstrlen FIRST, then pushes format arguments */
-   char *end = dst + csstrlen(dst);
-   crt_sprintf(end, "%d %d", a, b);
-
-   /* Good: pushes b, a, format string first, evaluates dst + csstrlen(dst) last */
-   crt_sprintf(dst + csstrlen(dst), "%d %d", a, b);
-   ```
-   **Recovered +11.2pp on FUN_0014da20 (85.7% → 96.9%).**
-
-5. **Native 64-bit (`int64_t`) arithmetic vs manual 32-bit hi/lo carry chaining.**
-   Ghidra frequently decompiles 64-bit integer math (e.g. `QueryPerformanceCounter` or timestamp deltas) as manual 32-bit addition/subtraction with borrow/carry bit checks. Replace them with standard `int64_t` operations:
-   ```c
-   /* Bad: manual 32-bit carry math */
-   elapsed_lo = cur[0] - start_lo;
-   elapsed_hi = (int)cur[1] - start_hi - (unsigned int)(cur[0] < start_lo);
-
-   /* Good: native 64-bit arithmetic */
-   int64_t elapsed = current - *(int64_t *)&start_lo;
-   *(int64_t *)(buf + offset) += elapsed;
-   ```
-   MSVC 7.1 automatically generates the compact native `sub/sbb` and `add/adc` chains.
-   **Recovered +13.8pp on collision_log_add_time (70.6% → 84.4%).**
-
-6. **Inlined `qmemcpy` (`REP MOVSD` intrinsic) vs `csmemcpy` function call.**
-   `csmemcpy(...)` compiles to an external function `CALL` (`call 0x...; add esp, 0xc`), whereas `qmemcpy(...)` (or `xbox_memcpy`) expands under VC71 into inlined `REP MOVSD` (or unrolled `MOV` pairs for small sizes).
-   ```c
-   /* Bad: emits runtime function CALL */
-   csmemcpy(dst, src, 0xb88);
-
-   /* Good: emits inlined REP MOVSD */
-   qmemcpy(dst, src, 0xb88);
-   ```
-   **Recovered +14.1pp on collision_log_end_period (72.7% → 86.8%).**
-
-7. **Sentinel return structure (`if (val != -1) { ... return res; } return -1;`).**
-   Ghidra often decompiles sentinel exits as `if (val == -1) return -1; elem = lookup(val); return elem->field;`. When the pristine disassembly shows `JZ exit_block` jumping to `exit_block: OR EAX, -1; RET` at the bottom, invert the condition:
-   ```c
-   /* Bad: emits JNE over early return */
-   if (index == (int16_t)-1) return -1;
-   elem = lookup(index);
-   return elem->field;
-
-   /* Good: emits JZ to bottom OR EAX, -1 */
-   if (index != (int16_t)-1) {
-     elem = lookup(index);
-     return elem->field;
-   }
-   return -1;
-   ```
-   **Recovered +21.1pp on FUN_0014da80 (78.9% → 100.0%).**
-
-8. **Nested if-trees → switch restoration.** Ghidra decompiles MSVC
+4. **Nested if-trees → switch restoration.** Ghidra decompiles MSVC
    jump-table `switch` statements into nested `if (code < ...)` branches.
    Signature: reference disassembly shows an indirect jump through a table
    (`jmp [table + reg*4]`) while the candidate is an if/else chain.
@@ -536,7 +510,7 @@ or doesn't explain the remaining gap.
    compare/branch instructions the if-tree emits. Unquantified in pp terms
    — magnitude scales with branch count.
 
-9. **Float literal vs const-pool variable-type tuning.** General case of
+5. **Float literal vs const-pool variable-type tuning.** General case of
    the `imm_wrong_literal` recipe plus the `loadw_field_width` register-size
    rules applied together — when a function has several small mismatches
    that don't individually trip a warning threshold, sweep every local's

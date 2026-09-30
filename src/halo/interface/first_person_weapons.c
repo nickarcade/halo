@@ -639,11 +639,10 @@ void first_person_weapon_center_flashlight(int object_handle, float *out_positio
   out_forward[1] = marker_forward[1];
   out_forward[2] = marker_forward[2];
 
-  if (out_up) {
-    ((float *)out_up)[0] = marker_up[0];
-    ((float *)out_up)[1] = marker_up[1];
-    ((float *)out_up)[2] = marker_up[2];
-  }
+  /* 0xdd31b-0xdd32f: out_up is written unconditionally (no NULL test). */
+  ((float *)out_up)[0] = marker_up[0];
+  ((float *)out_up)[1] = marker_up[1];
+  ((float *)out_up)[2] = marker_up[2];
 }
 
 /* Fetch the first-person marker of a weapon held by the unit of the local
@@ -677,15 +676,15 @@ char first_person_weapon_adjust_light(int object_handle, int marker_result,
         *(char *)first_person_weapon_get(local_player_index) != 0 &&
         first_person_weapon_get_marker_by_name(
           object_handle, (void *)marker_result, &marker, 1) > 0) {
-      ((int *)out_position)[0] = ((int *)marker.matrix_position)[0];
-      ((int *)out_position)[1] = ((int *)marker.matrix_position)[1];
-      ((int *)out_position)[2] = ((int *)marker.matrix_position)[2];
-      ((int *)out_forward)[0] = ((int *)marker.matrix_forward)[0];
-      ((int *)out_forward)[1] = ((int *)marker.matrix_forward)[1];
-      ((int *)out_forward)[2] = ((int *)marker.matrix_forward)[2];
-      ((int *)out_up)[0] = ((int *)marker.matrix_up)[0];
-      ((int *)out_up)[1] = ((int *)marker.matrix_up)[1];
-      ((int *)out_up)[2] = ((int *)marker.matrix_up)[2];
+      ((int *)out_position)[0] = ((int *)&marker.matrix.position)[0];
+      ((int *)out_position)[1] = ((int *)&marker.matrix.position)[1];
+      ((int *)out_position)[2] = ((int *)&marker.matrix.position)[2];
+      ((int *)out_forward)[0] = ((int *)&marker.matrix.forward)[0];
+      ((int *)out_forward)[1] = ((int *)&marker.matrix.forward)[1];
+      ((int *)out_forward)[2] = ((int *)&marker.matrix.forward)[2];
+      ((int *)out_up)[0] = ((int *)&marker.matrix.up)[0];
+      ((int *)out_up)[1] = ((int *)&marker.matrix.up)[1];
+      ((int *)out_up)[2] = ((int *)&marker.matrix.up)[2];
       return 1;
     }
   }
@@ -859,7 +858,11 @@ void first_person_weapon_build_node_matrices(int16_t local_player_index)
 
   if (*(int16_t *)(fp + 0x20) != -1) {
     node = (char *)tag_block_get_element(antr_tag + 0x74, (int)*(int16_t *)(fp + 0x20), 0xb4);
-    overlay_animation_apply_continuous_scaled(*(int *)(node + 0x20), *(float *)(fp + 0x24), *(float *)(weapon + 0x1f4) + *(float *)0x253398, (int)(uint32_t)matrices);
+    /* 0xdd90e: the 0xb4 animation element itself (EAX from
+     * tag_block_get_element) is arg 1 -- the callee reads its frame count
+     * at +0x22.  Passing *(node + 0x20) read a bogus frame count and fired
+     * "frame index out of bounds B" every tick of the charge overlay. */
+    overlay_animation_apply_continuous_scaled((int)node, *(float *)(fp + 0x24), *(float *)(weapon + 0x1f4) + *(float *)0x253398, (int)(uint32_t)matrices);
   }
 
   if (*(int *)(unit_anim + 0x10) >= 5) {

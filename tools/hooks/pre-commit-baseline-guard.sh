@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: ^tools/kb_reg_baseline\.json$
 # Pre-commit hook: prevent removal or modification of existing entries
 # in tools/kb_reg_baseline.json.  New entries (additions) are allowed.
 #
@@ -7,7 +8,8 @@
 BASELINE="tools/kb_reg_baseline.json"
 
 # Only run if the baseline is staged for commit.
-if ! git diff --cached --name-only | grep -qx "$BASELINE"; then
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+if ! staged_list all | grep -qx "$BASELINE"; then
     exit 0
 fi
 

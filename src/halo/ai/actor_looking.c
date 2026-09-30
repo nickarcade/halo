@@ -3075,23 +3075,20 @@ void action_obey_end(int actor_handle)
 void action_obey_describe_command(void *scenario_data, short *cmd,
                                   char *out_buf, int out_size)
 {
-  int cmd_type;
-  int sub_type;
   const char *mode_names[5] = { "idle aim weapon", "idle turn around",
                                 "idle look with head", "forced exact facing",
                                 "forced aim weapon" };
 
-  cmd_type = cmd[0];
-  sub_type = cmd[1];
-
-  if (cmd_type > 0x1b) {
-    snprintf(out_buf, out_size, "<unknown %d>", cmd_type);
+  /* Case bodies are in the original's code-layout order (jump table 0x17838):
+   * 0,1,2,3,22,4,23,24,25,5..14,16,17,15,18,19,20,26,27,21, then default. */
+  switch (cmd[0]) {
+  case 0:
+    snprintf(out_buf, out_size, "pause %.1f", *(float *)(cmd + 2));
     return;
-  }
-
-  switch (cmd_type) {
   case 1: {
-    snprintf(out_buf, out_size, "go to (p%d) %s", cmd[6], mode_names[sub_type]);
+    /* 0x17188: own 2-entry table, not the look-mode names */
+    const char *stop_modes[2] = { "stop_at_point", "keep_moving" };
+    snprintf(out_buf, out_size, "go to (p%d) %s", cmd[6], stop_modes[cmd[1]]);
     return;
   }
   case 2:
@@ -3102,34 +3099,52 @@ void action_obey_describe_command(void *scenario_data, short *cmd,
                                   "any-facing" };
     if (cmd[6] == -1) {
       snprintf(out_buf, out_size, "move %s along angle %.1f, dist %.2f",
-               move_names[sub_type], *(float *)(cmd + 4), *(float *)(cmd + 2));
+               move_names[cmd[1]], *(float *)(cmd + 4), *(float *)(cmd + 2));
       return;
     }
     snprintf(out_buf, out_size, "move %s towards (p%d), dist %.2f",
-             move_names[sub_type], cmd[6], *(float *)(cmd + 2));
+             move_names[cmd[1]], cmd[6], *(float *)(cmd + 2));
     return;
   }
   case 22: {
     const char *move_names[4] = { "forwards", "left", "right", "backwards" };
-    snprintf(out_buf, out_size, "move %s for %.1f sec", move_names[sub_type],
+    snprintf(out_buf, out_size, "move %s for %.1f sec", move_names[cmd[1]],
              *(float *)(cmd + 2));
     return;
   }
-  case 4: {
+  case 4:
     snprintf(out_buf, out_size, "look %s at (p%d) for %.1f",
-             mode_names[sub_type], cmd[6], *(float *)(cmd + 2));
+             mode_names[cmd[1]], cmd[6], *(float *)(cmd + 2));
+    return;
+  case 23:
+    snprintf(out_buf, out_size,
+             "look %s at random one of (p%d-p%d) for %.1f-%.1f",
+             mode_names[cmd[1]], cmd[6], cmd[7], *(float *)(cmd + 2),
+             *(float *)(cmd + 4));
+    return;
+  case 24:
+    snprintf(out_buf, out_size, "look %s at player for %.1f",
+             mode_names[cmd[1]], *(float *)(cmd + 2));
+    return;
+  case 25: {
+    char *elem_name;
+    elem_name = "<error>";
+    if (cmd[12] >= 0 && cmd[12] < *(int *)((char *)scenario_data + 0x204))
+      elem_name = (char *)tag_block_get_element((char *)scenario_data + 0x204,
+                                                cmd[12], 0x24);
+    snprintf(out_buf, out_size, "look %s at %s for %.1f", mode_names[cmd[1]],
+             elem_name, *(float *)(cmd + 2));
     return;
   }
   case 5: {
-    const char *animation_modes[5] = { "idle aim weapon", "noncombat", "asleep",
-                                       "combat", "panic" };
-    snprintf(out_buf, out_size, "animation mode %s",
-             animation_modes[sub_type + 1]);
+    const char *animation_modes[4] = { "noncombat", "asleep", "combat",
+                                       "panic" };
+    snprintf(out_buf, out_size, "animation mode %s", animation_modes[cmd[1]]);
     return;
   }
   case 6: {
     const char *toggle_names[2] = { "disable", "enable" };
-    snprintf(out_buf, out_size, "crouch %s", toggle_names[sub_type]);
+    snprintf(out_buf, out_size, "crouch %s", toggle_names[cmd[1]]);
     return;
   }
   case 7:
@@ -3143,18 +3158,16 @@ void action_obey_describe_command(void *scenario_data, short *cmd,
     const char *seat_names[5] = { "any-non-driver", "gunner", "passenger",
                                   "driver", "any-seat" };
     snprintf(out_buf, out_size, "enter vehicle as %s if within %.1f",
-             seat_names[sub_type], *(float *)(cmd + 2));
+             seat_names[cmd[1]], *(float *)(cmd + 2));
     return;
   }
   case 10:
-    snprintf(out_buf, out_size, "exit vehicle");
+    /* 0x1747e: string 0x253a50 */
+    snprintf(out_buf, out_size, "running jump");
     return;
   case 11:
     snprintf(out_buf, out_size, "targeted jump (%.2fh, %.2fv)",
              *(float *)(cmd + 2), *(float *)(cmd + 4));
-    return;
-  case 0:
-    snprintf(out_buf, out_size, "pause %.1f", *(float *)(cmd + 2));
     return;
   case 12: {
     char *name;
@@ -3165,7 +3178,7 @@ void action_obey_describe_command(void *scenario_data, short *cmd,
     else if (cmd[9] >= 0 && cmd[9] < *(int *)((char *)scenario_data + 0x450))
       name = (char *)tag_block_get_element((char *)scenario_data + 0x450,
                                            cmd[9], 0x28);
-    snprintf(out_buf, out_size, "script %s %s", name, script_modes[sub_type]);
+    snprintf(out_buf, out_size, "script %s %s", name, script_modes[cmd[1]]);
     return;
   }
   case 13: {
@@ -3192,83 +3205,66 @@ void action_obey_describe_command(void *scenario_data, short *cmd,
       snprintf(out_buf, out_size, "play recording %s", "NONE");
     return;
   }
+  case 16:
+    snprintf(out_buf, out_size, "vocalize %s",
+             dialogue_get_vocalization_name(cmd[1], 0));
+    return;
+  case 17: {
+    const char *toggle_names[2] = { "enable", "disable" };
+    snprintf(out_buf, out_size, "targeting %s", toggle_names[cmd[1]]);
+    return;
+  }
   case 15: {
     const char *action[] = {
       "berserk",     "surprise-front", "surprise-back", "evade-left",
       "evade-right", "dive-fwd",       "dive-back",     "dive-left",
       "dive-right",  "vehicle-woohoo", "vehicle-scared"
     };
-    snprintf(out_buf, out_size, "action %s", action[sub_type]);
-    return;
-  }
-  case 16:
-    snprintf(out_buf, out_size, "vocalize %s",
-             dialogue_get_vocalization_name(sub_type, 0));
-    return;
-  case 17: {
-    const char *toggle_names[2] = { "enable", "disable" };
-    snprintf(out_buf, out_size, "targeting %s", toggle_names[sub_type]);
+    snprintf(out_buf, out_size, "action %s", action[cmd[1]]);
     return;
   }
   case 18: {
     const char *toggle_names[2] = { "enable", "disable" };
-    snprintf(out_buf, out_size, "initiative %s", toggle_names[sub_type]);
+    snprintf(out_buf, out_size, "initiative %s", toggle_names[cmd[1]]);
     return;
   }
   case 19: {
     const char *wait_modes[3] = { "until alerted", "until visible enemy",
                                   "until told to advance" };
-    snprintf(out_buf, out_size, "wait %s", wait_modes[sub_type]);
+    snprintf(out_buf, out_size, "wait %s", wait_modes[cmd[1]]);
     return;
   }
   case 20: {
     const char *loop_modes[2] = { "always", "only until told to advance" };
     if (cmd[11] == -1) {
-      snprintf(out_buf, out_size, "loop to <none> %s", loop_modes[sub_type]);
+      snprintf(out_buf, out_size, "loop to <none> %s", loop_modes[cmd[1]]);
     } else {
-      char local_buf[256];
-      csstrcpy(local_buf, "");
-      if (cmd[7] != -1)
-        crt_sprintf(local_buf, " (p%d)", cmd[7]);
-      snprintf(out_buf, out_size, "loop to (p%d)%s %s", cmd[6], local_buf,
-               loop_modes[sub_type]);
+      snprintf(out_buf, out_size, "loop to #%d %s", cmd[11],
+               loop_modes[cmd[1]]);
     }
-    return;
-  }
-  case 21:
-    snprintf(out_buf, out_size, "pause in loop %.1f", *(float *)(cmd + 2));
-    return;
-  case 23: {
-    snprintf(out_buf, out_size,
-             "look %s at random one of (p%d-p%d) for %.1f-%.1f",
-             mode_names[sub_type], cmd[6], cmd[7], *(float *)(cmd + 2),
-             *(float *)(cmd + 4));
-    return;
-  }
-  case 24: {
-    snprintf(out_buf, out_size, "look %s at player for %.1f",
-             mode_names[sub_type], *(float *)(cmd + 2));
-    return;
-  }
-  case 25: {
-    char *elem_name;
-    elem_name = "<error>";
-    if (cmd[12] >= 0 && cmd[12] < *(int *)((char *)scenario_data + 0x204))
-      elem_name = (char *)tag_block_get_element((char *)scenario_data + 0x204,
-                                                cmd[12], 0x24);
-    snprintf(out_buf, out_size, "look %s at %s for %.1f", mode_names[sub_type],
-             elem_name, *(float *)(cmd + 2));
     return;
   }
   case 26:
     snprintf(out_buf, out_size, "set radius %.2f", *(float *)(cmd + 2));
     return;
-  case 27:
-    snprintf(out_buf, out_size, "continue after melee");
+  case 27: {
+    /* 0x177a4: csstrcpy(buf, "") (0x8dff0), optional crt_sprintf of the
+     * facing point (0x1d90f0), then one snprintf.  256-byte buffer at
+     * EBP-0x140 (frame 0x140 less the 0x40 of name tables). */
+    char face_buf[0x100];
+    csstrcpy(face_buf, "");
+    if (cmd[7] != -1)
+      crt_sprintf(face_buf, " and face at (p%d)", cmd[7]);
+    snprintf(out_buf, out_size, "teleport to (p%d)%s", cmd[6], face_buf);
+    return;
+  }
+  case 21:
+    /* 0x17801: string 0x253844 */
+    snprintf(out_buf, out_size, "die");
     return;
   }
 
-  snprintf(out_buf, out_size, "<unknown %d>", cmd_type);
+  snprintf(out_buf, out_size, "<unknown %d>", cmd[0]);
 }
 
 /* vector_from_points2d (0x178b0)
@@ -6062,8 +6058,9 @@ void pre_evaluator_global(int actor_handle, char *eval_state,
 
         if (*(char *)(eval_state + 0x40) != 0) {
           if (((actor_t *)actor)->danger_zone_danger_type <= 0 ||
-              ((actor_t *)actor)->field_287 == 0) {
-            display_assert("actor->danger_zone.position != NONE",
+              ((actor_t *)actor)->danger_zone_noticed_danger == 0) {
+            display_assert("(actor->danger_zone.danger_type > _actor_danger_zone_none) && "
+                           "actor->danger_zone.noticed_danger",
                            "c:\\halo\\SOURCE\\ai\\actor_firing_position.c",
                            0xba, 1);
             system_exit(-1);
@@ -6152,7 +6149,7 @@ void pre_evaluator_global(int actor_handle, char *eval_state,
         if (faction_mask & faction_bit) {
           faction_bonus = *(float *)(eval_state + 0x4c);
           if (!(faction_bonus >= 0.0f && faction_bonus < 1000.0f)) {
-            display_assert("score >= 0.f && score < REAL_MAX",
+            display_assert("(evaluation >= 0.0f) && (evaluation < 1e+03f)",
                            "c:\\halo\\SOURCE\\ai\\actor_firing_position.c",
                            0x81, 1);
             system_exit(-1);
@@ -6180,7 +6177,7 @@ void pre_evaluator_global(int actor_handle, char *eval_state,
           if (local_8_min < 1.0f) {
             local_c_score = xbox_sqrtf(local_8_min) * 10.0f;
             if (!(local_c_score >= 0.0f && local_c_score < 1000.0f)) {
-              display_assert("score >= 0.f && score < REAL_MAX",
+              display_assert("(evaluation >= 0.0f) && (evaluation < 1e+03f)",
                              "c:\\halo\\SOURCE\\ai\\actor_firing_position.c",
                              0x81, 1);
               system_exit(-1);
@@ -6247,7 +6244,7 @@ void pre_evaluator_global(int actor_handle, char *eval_state,
                 los_score = 15.0f - cos_angle * -15.0f;
                 if (!(los_score >= 0.0f && los_score < 1000.0f)) {
                   display_assert(
-                    "score >= 0.f && score < REAL_MAX",
+                    "(evaluation >= 0.0f) && (evaluation < 1e+03f)",
                     "c:\\halo\\SOURCE\\ai\\actor_firing_position.c", 0x81, 1);
                   system_exit(-1);
                 }
@@ -6257,7 +6254,7 @@ void pre_evaluator_global(int actor_handle, char *eval_state,
                 los_score = (cos_angle - 0.866025f) * 111.9619f + 15.0f;
                 if (!(los_score >= 0.0f && los_score < 1000.0f)) {
                   display_assert(
-                    "score >= 0.f && score < REAL_MAX",
+                    "(evaluation >= 0.0f) && (evaluation < 1e+03f)",
                     "c:\\halo\\SOURCE\\ai\\actor_firing_position.c", 0x81, 1);
                   system_exit(-1);
                 }
@@ -6978,7 +6975,7 @@ short actor_select_firing_position(int actor_handle, void *eval_ctx,
   }
 
   if (((actor_t *)actor)->danger_zone_danger_type > 0 &&
-      ((actor_t *)actor)->field_287 != '\0' &&
+      ((actor_t *)actor)->danger_zone_noticed_danger != '\0' &&
       ((actor_t *)actor)->field_2d4 <
         ((actor_t *)actor)->field_2d8 + *(float *)0x254644)
     *(char *)(ctx + 0x40) = 1;
@@ -8434,6 +8431,185 @@ char actor_look_idle_find_prop(int actor_handle, char param_2, char param_3,
   }
 
   return 0;
+}
+
+/* FUN_00028250 (0x28250) — pick a look-hold duration in ticks.
+ *
+ * look_vectors holds three {min, max} second ranges: [0..1] facing,
+ * [2..3] aiming, [4..5] looking, selected by look_type (@<edi>, MOVSX DI).
+ * When either bound is > 0 the duration is random_real_range(min, max);
+ * otherwise the original logs "logic error in actor looking" through error(2)
+ * and uses 0.5f (0x253398).  The duration is scaled by the actor weapon
+ * definition's +0x410 float when that is > 0, by 1.5f (0x2533ec) when
+ * is_secondary is set, then by 30.0f (0x253394, ticks per second), narrowed
+ * to float (FSTP [EBP+0xc]) and FISTP-rounded; results <= 1 become 1.
+ * The 'actr' tag_get result is discarded by the original (validation only).
+ * Confirmed: actor_handle @<esi> (PUSH ESI at 0x28271/0x2832d), look_type
+ * @<edi>; default case asserts NULL reason at actor_looking.c line 0x3da. */
+int FUN_00028250(float *look_vectors, char is_secondary, int actor_handle,
+                 int look_type)
+{
+  char *actor;
+  char *weapon_definition;
+  char *mode_names[3];
+  float range[2];
+  float seconds;
+  int ticks;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  tag_get('actr', ((actor_t *)actor)->field_058);
+  weapon_definition = actor_get_weapon_definition(actor_handle);
+
+  switch ((short)look_type) {
+  case 0:
+    range[0] = look_vectors[0];
+    range[1] = look_vectors[1];
+    break;
+  case 1:
+    range[0] = look_vectors[2];
+    range[1] = look_vectors[3];
+    break;
+  case 2:
+    range[0] = look_vectors[4];
+    range[1] = look_vectors[5];
+    break;
+  default:
+    display_assert(NULL, "c:\\halo\\SOURCE\\ai\\actor_looking.c", 0x3da, 1);
+    system_exit(-1);
+  }
+
+  if (range[0] > 0.0f || range[1] > 0.0f) {
+    seconds = random_real_range(get_global_random_seed_address(), range[0],
+                                range[1]);
+  } else {
+    mode_names[0] = "facing";
+    mode_names[1] = "aiming";
+    mode_names[2] = "looking";
+    error(2,
+          "%s: logic error in actor looking: %s mode should be disabled "
+          "(%.1f %.1f)",
+          ai_debug_describe_actor(actor_handle, -1, 1, (char *)0x5ab100,
+                                  0x100),
+          mode_names[(short)look_type], (double)range[0], (double)range[1]);
+    seconds = *(float *)0x253398;
+  }
+
+  if (weapon_definition != NULL &&
+      *(float *)(weapon_definition + 0x410) > 0.0f) {
+    seconds = seconds * *(float *)(weapon_definition + 0x410);
+  }
+  if (is_secondary != '\0') {
+    seconds = seconds * *(float *)0x2533ec;
+  }
+  seconds = seconds * *(float *)0x253394;
+  ticks = x87_round_to_int(seconds);
+  if (ticks <= 1) {
+    ticks = 1;
+  }
+  return ticks;
+}
+
+/* FUN_000283b0 (0x283b0) — choose a random look direction around current_dir.
+ *
+ * Builds the horizontal perpendicular {-dir.y, dir.x, 0}, normalizes it
+ * (falling back to the global vector at *(float **)0x31fc40 when the length
+ * is 0), then per attempt draws yaw in [az_min, az_max] and pitch in
+ * [el_min, el_max], rotates a copy of current_dir by pitch about the
+ * perpendicular and by yaw about *(float **)0x31fc44.  When is_aim is set the
+ * candidate is ray-tested (collision flags 0x21, collision user 1, ray length
+ * 3.0f at 0x254644) from origin and rejected on a hit; after 10 hits the
+ * function returns 0 without writing out_vec3.  The accepted direction is
+ * normalized (skip when |len| < *(double *)0x2533d0) and written to out_vec3.
+ * Confirmed: current_dir @<eax> (MOV ESI,EAX at 0x283b8; callers LEA EAX
+ * before CALL); asserts at actor_looking.c 0x42a/0x42e/0x435.  0x5ac5d4 is a
+ * 16-bit counter incremented per ray test (meaning unproven). */
+char FUN_000283b0(float *actor_facing, char is_aim, float az_min, float az_max,
+                  float el_min, float el_max, float *out_vec3,
+                  float *current_dir)
+{
+  float axis[3];
+  float direction[3];
+  float ray[3];
+  int16_t collision_result[40];
+  float yaw;
+  float pitch;
+  float length;
+  float inverse;
+  int attempts;
+  short depth;
+  char clear;
+
+  axis[0] = -current_dir[1];
+  axis[1] = current_dir[0];
+  axis[2] = 0.0f;
+  if (normalize3d(axis) == 0.0f) {
+    axis[0] = (*(float **)0x31fc40)[0];
+    axis[1] = (*(float **)0x31fc40)[1];
+    axis[2] = (*(float **)0x31fc40)[2];
+  }
+
+  attempts = 0;
+  for (;;) {
+    yaw = random_real_range(get_global_random_seed_address(), az_min, az_max);
+    pitch =
+      random_real_range(get_global_random_seed_address(), el_min, el_max);
+    direction[0] = current_dir[0];
+    direction[1] = current_dir[1];
+    direction[2] = current_dir[2];
+    rotate_vector3d_by_sincos(direction, axis, x87_fsin(pitch),
+                              x87_fcos(pitch));
+    rotate_vector3d_by_sincos(direction, *(float **)0x31fc44, x87_fsin(yaw),
+                              x87_fcos(yaw));
+    if (is_aim == '\0') {
+      break;
+    }
+
+    ++*(short *)0x5ac5d4;
+    if (*(volatile short *)0x4761d8 >= 0x20) {
+      display_assert("global_current_collision_user_depth < "
+                     "MAXIMUM_COLLISION_USER_STACK_DEPTH",
+                     "c:\\halo\\SOURCE\\ai\\actor_looking.c", 0x42a, 1);
+      system_exit(-1);
+    }
+    depth = *(volatile short *)0x4761d8;
+    *(volatile short *)0x4761d8 = depth + 1;
+    *(int16_t *)(0x5a8c80 + (int)depth * 2) = 1;
+    ray[0] = direction[0] * *(float *)0x254644;
+    ray[1] = direction[1] * *(float *)0x254644;
+    ray[2] = direction[2] * *(float *)0x254644;
+    clear = !FUN_0014df70(0x21, actor_facing, ray, -1, collision_result);
+    if (*(volatile short *)0x4761d8 <= 1) {
+      display_assert("global_current_collision_user_depth > 1",
+                     "c:\\halo\\SOURCE\\ai\\actor_looking.c", 0x42e, 1);
+      system_exit(-1);
+    }
+    --*(short *)0x4761d8;
+    if (clear) {
+      break;
+    }
+    attempts++;
+    if ((short)attempts >= 10) {
+      return 0;
+    }
+  }
+
+  if (out_vec3 == NULL) {
+    display_assert("result_vector", "c:\\halo\\SOURCE\\ai\\actor_looking.c",
+                   0x435, 1);
+    system_exit(-1);
+  }
+  length = x87_sqrt(direction[2] * direction[2] + direction[1] * direction[1] +
+                    direction[0] * direction[0]);
+  if ((double)x87_fabs(length) >= *(double *)0x2533d0) {
+    inverse = *(float *)0x2533c8 / length;
+    direction[0] = direction[0] * inverse;
+    direction[1] = direction[1] * inverse;
+    direction[2] = direction[2] * inverse;
+  }
+  out_vec3[0] = direction[0];
+  out_vec3[1] = direction[1];
+  out_vec3[2] = direction[2];
+  return 1;
 }
 
 /* actor_look_idle_new_major_direction (0x28cc0)

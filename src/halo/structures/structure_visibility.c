@@ -225,6 +225,87 @@ void FUN_00196850(int param_1)
   }
 }
 
+/* 0x196a60 - FUN_00196a60
+ *
+ * Classifies an axis-aligned box `bounds` against the cull box `cull_bounds`.
+ * Both are six floats {x0, x1, y0, y1, z0, z1} (min/max per axis). Returns 0
+ * when the boxes are disjoint on any axis, 1 when they overlap but `bounds`
+ * leaves the cull box on some side, 2 when `bounds` lies entirely inside.
+ *
+ * ABI: leaf, no frame; ECX = cull_bounds, EDX = bounds, result in EAX.
+ * Compare senses: TEST AH,5 / JNP is "less than"; TEST AH,0x41 / JZ is
+ * "greater than" (unordered takes neither exit).
+ * Dormant: kb ported=false.
+ */
+int FUN_00196a60(float *cull_bounds, float *bounds)
+{
+  if (cull_bounds[1] < bounds[0] || cull_bounds[0] > bounds[1] ||
+      cull_bounds[3] < bounds[2] || cull_bounds[2] > bounds[3] ||
+      cull_bounds[5] < bounds[4] || cull_bounds[4] > bounds[5]) {
+    return 0;
+  }
+  if (bounds[0] < cull_bounds[0] || bounds[1] > cull_bounds[1] ||
+      bounds[2] < cull_bounds[2] || bounds[3] > cull_bounds[3] ||
+      bounds[4] < cull_bounds[4] || bounds[5] > cull_bounds[5]) {
+    return 1;
+  }
+  return 2;
+}
+
+/* 0x196b10 - classify an axis-aligned bounding box against a plane list.
+ * Returns 0 when every corner is behind any one plane, 1 when at least one
+ * plane splits the box, and 2 when all corners are in front of every plane. */
+int FUN_00196b10(float *bounds, int plane_count, int plane_address)
+{
+  float copied_bounds[6];
+  float *plane;
+  unsigned char plane_corner_mask;
+  unsigned char combined_corner_mask;
+  short plane_index;
+  int i;
+
+  for (i = 0; i < 6; i++) {
+    copied_bounds[i] = bounds[i];
+  }
+
+  combined_corner_mask = 0;
+  for (plane_index = 0; plane_index < (short)plane_count; plane_index++) {
+    plane = (float *)(plane_address + plane_index * 0x10);
+    plane_corner_mask = 0;
+    if (copied_bounds[0] * plane[0] + copied_bounds[2] * plane[1] +
+          copied_bounds[4] * plane[2] - plane[3] < 0.0f)
+      plane_corner_mask |= 0x01;
+    if (copied_bounds[1] * plane[0] + copied_bounds[2] * plane[1] +
+          copied_bounds[4] * plane[2] - plane[3] < 0.0f)
+      plane_corner_mask |= 0x02;
+    if (copied_bounds[0] * plane[0] + copied_bounds[3] * plane[1] +
+          copied_bounds[4] * plane[2] - plane[3] < 0.0f)
+      plane_corner_mask |= 0x04;
+    if (copied_bounds[1] * plane[0] + copied_bounds[3] * plane[1] +
+          copied_bounds[4] * plane[2] - plane[3] < 0.0f)
+      plane_corner_mask |= 0x08;
+    if (copied_bounds[0] * plane[0] + copied_bounds[2] * plane[1] +
+          copied_bounds[5] * plane[2] - plane[3] < 0.0f)
+      plane_corner_mask |= 0x10;
+    if (copied_bounds[1] * plane[0] + copied_bounds[2] * plane[1] +
+          copied_bounds[5] * plane[2] - plane[3] < 0.0f)
+      plane_corner_mask |= 0x20;
+    if (copied_bounds[0] * plane[0] + copied_bounds[3] * plane[1] +
+          copied_bounds[5] * plane[2] - plane[3] < 0.0f)
+      plane_corner_mask |= 0x40;
+    if (copied_bounds[1] * plane[0] + copied_bounds[3] * plane[1] +
+          copied_bounds[5] * plane[2] - plane[3] < 0.0f)
+      plane_corner_mask |= 0x80;
+
+    if (plane_corner_mask == 0xff) {
+      return 0;
+    }
+    combined_corner_mask |= plane_corner_mask;
+  }
+
+  return combined_corner_mask != 0 ? 1 : 2;
+}
+
 /* FUN_00196c90: gather visible objects across all rendered clusters (0x196c90).
  * Walks every rendered cluster (count at 0x5137cc), iterating the caller-
  * supplied per-cluster object list via (iter_first, iter_next); for each object
@@ -280,6 +361,54 @@ short FUN_00196c90(int out_handles, short max_count, void *iter_first,
   return count;
 }
 
+
+/* 0x196d60 - FUN_00196d60
+ *
+ * Grows the 2D rectangle `rect` {x0, x1, y0, y1} to cover every point of a
+ * portal hull: int16 point count at +0, float (x, y) pairs from +4. The count
+ * must be 0..0x100 (assert "valid_portal_hull(hull)").
+ *
+ * ABI: leaf, no frame; ESI = rect, EDI = hull, no stack arguments.
+ * Per point (0x196dc0): rect[0] > x -> x; rect[1] < x -> x; rect[2] > y -> y;
+ * rect[3] < y -> y (dword copies). The counter is 16-bit (INC EDX /
+ * CMP DX,[EDI]) and the count is re-read every iteration.
+ * Dormant: kb ported=false.
+ */
+void FUN_00196d60(float *rect, int16_t *hull)
+{
+  float *point;
+  short i;
+
+  if (rect == 0) {
+    display_assert("rectangle",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x4cf, 1);
+    system_exit(-1);
+  }
+  if (hull == 0 || hull[0] < 0 || hull[0] > 0x100) {
+    display_assert("valid_portal_hull(hull)",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x4d0, 1);
+    system_exit(-1);
+  }
+
+  point = (float *)(hull + 2);
+  for (i = 0; i < hull[0]; i++) {
+    if (rect[0] > point[0]) {
+      rect[0] = point[0];
+    }
+    if (rect[1] < point[0]) {
+      rect[1] = point[0];
+    }
+    if (rect[2] > point[1]) {
+      rect[2] = point[1];
+    }
+    if (rect[3] < point[1]) {
+      rect[3] = point[1];
+    }
+    point += 2;
+  }
+}
 
 /* Recursively flood rendered clusters across BSP portal connections (0x197b00).
  * DFS over the cluster portal graph. Sets a per-cluster "visited" bit (dynamic
@@ -349,7 +478,7 @@ void FUN_00197b00(int16_t cluster_index, uint16_t *sound_list)
       system_exit(-1);
     }
     if ((int16_t)cluster_index < 0 || (int16_t)cluster_index >= 0x200) {
-      display_assert("cluster_index>=0 && cluster_index<MAXIMUM_CLUSTERS",
+      display_assert("cluster_index>=0 && cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
                      "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
                      0x3f8, 1);
       system_exit(-1);
@@ -433,7 +562,7 @@ void FUN_00197b00(int16_t cluster_index, uint16_t *sound_list)
          * filled. */
         built_list[0] = (uint16_t)FUN_00108060(
           *sound_list, sound_list + 2, *(int *)portal_hull, portal_hull + 2,
-          0x100, &built_list[2], 0x38d1b717);
+          0x100, &built_list[2], 0.0001f);
         if ((int16_t)built_list[0] > 0) {
           FUN_00197b00(neighbor, built_list);
         } else if (built_list[0] == 0xffff) {
@@ -445,4 +574,340 @@ void FUN_00197b00(int16_t cluster_index, uint16_t *sound_list)
   }
 
   *(uint32_t *)(bit_offset + *(int *)0x4d8ed8) &= ~bit_mask;
+}
+
+/* 0x197130 - gather visible clusters referenced by a BSP leaf's surfaces.
+ *
+ * Register ABI (prologue at 0x197130): MOV EBX,[EBP+0x2c] then MOV ESI,EAX; the
+ * only register arg is leaf@<eax> (BSP node/leaf value; its sign bit is a
+ * node/leaf discriminator, masked off with &0x7fffffff for the leaf index).
+ * Stack args: bounds ([EBP+0x8] parent_bounds), param_2 ([EBP+0xc] per-call
+ * visited-cluster bitset base), param_3 ([EBP+0x10] int* out cluster array),
+ * count ([EBP+0x14] out capacity), center ([EBP+0x18] cull-sphere center,
+ * null-checked only), radius ([EBP+0x1c], unused here), cull_bounds
+ * ([EBP+0x20]), param_8 ([EBP+0x24]), param_9 ([EBP+0x28]), intersection
+ * ([EBP+0x2c], mode: the incoming value is read into EBX and the slot is then
+ * reused as the running output accumulator that is returned).
+ *
+ * Resolves the leaf element (scenario+0xe0, stride 0x10), validates it, derives
+ * child bounds via FUN_00196eb0, and (unless intersection==2) culls against the
+ * cull bounds via FUN_00196a60/FUN_00196b10 taking the min classification.  If
+ * the leaf is at all visible it walks the leaf's surface run (scenario+0xec,
+ * stride 8), and for each surface's cluster index sets a bit in the global
+ * cluster visibility set at 0x5137d0 gated bitset and, if newly visible and not
+ * already recorded in the per-call bitset, appends the cluster to the out array
+ * (until count is reached).  Returns the number of clusters appended. */
+int FUN_00197130(float *bounds, void *param_2, int *param_3, int count,
+                 float *center, float radius, float *cull_bounds, int param_8,
+                 int param_9, int intersection, int leaf /* @<eax> */)
+{
+  void *scenario;
+  char *leaf_element;
+  int accumulator;
+  int cull_result;
+  float local_20[6];
+
+  (void)radius;
+  accumulator = 0;
+  scenario = scenario_get();
+  leaf_element = (char *)tag_block_get_element((char *)scenario + 0xe0,
+                                               leaf & 0x7fffffff, 0x10);
+
+  if ((short)intersection == 0) {
+    display_assert("intersection",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x2f0, true);
+    system_exit(-1);
+  }
+  if (bounds == (float *)0) {
+    display_assert("parent_bounds",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x2f1, true);
+    system_exit(-1);
+  }
+  if (center == (float *)0) {
+    display_assert("cull_sphere_center",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x2f2, true);
+    system_exit(-1);
+  }
+  if (cull_bounds == (float *)0) {
+    display_assert("cull_bounds",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x2f3, true);
+    system_exit(-1);
+  }
+  if (*(short *)(leaf_element + 8) < 0 ||
+      *(int *)((char *)scenario + 0x134) <= (int)*(short *)(leaf_element + 8)) {
+    display_assert(
+      "leaf->cluster_index>=0 && leaf->cluster_index<structure->clusters.count",
+      "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x2f4, true);
+    system_exit(-1);
+  }
+
+  FUN_00196eb0(bounds, (unsigned char *)leaf_element, local_20);
+
+  cull_result = (short)intersection;
+  if ((short)intersection != 2) {
+    int a = FUN_00196a60(cull_bounds, local_20);
+    int b = FUN_00196b10(local_20, param_8, param_9);
+    cull_result = a;
+    if ((short)b < (short)a) {
+      cull_result = b;
+    }
+  }
+
+  if ((short)cull_result != 0) {
+    int i;
+    int first = *(int *)(leaf_element + 0xc);
+    int end = (int)*(short *)(leaf_element + 0xa) + first;
+    char *surface_block = (char *)scenario + 0xec;
+    for (i = first; i < end; i++) {
+      int *elem = (int *)tag_block_get_element(surface_block, i, 8);
+      int cluster = *elem;
+      int word_off = (cluster >> 5) * 4;
+      unsigned int mask = 1u << (cluster & 0x1f);
+      if ((mask & *(unsigned int *)((char *)0x5137d0 + word_off)) != 0) {
+        unsigned int *per_call = (unsigned int *)((char *)param_2 + word_off);
+        if ((mask & *per_call) == 0) {
+          if ((short)count <= (short)accumulator) {
+            break;
+          }
+          *per_call |= mask;
+          param_3[(short)accumulator] = cluster;
+          accumulator = accumulator + 1;
+        }
+      }
+      end = (int)*(short *)(leaf_element + 0xa) + *(int *)(leaf_element + 0xc);
+    }
+  }
+
+  return accumulator;
+}
+
+/* 0x197310 - project a structure surface's vertices to screen and clip.
+ *
+ * Register ABI (prologue at 0x197310): MOV EBX,EAX / MOV EDI,ECX / MOV ESI,EDX
+ *   verts@<eax>  -> float* source vertex array (stride 3 floats)
+ *   plane@<ecx>  -> float* plane {nx,ny,nz,d}
+ *   ref@<edx>    -> float* reference point; byte at ref+0x24 flips winding
+ * Stack args: arg1 (matrix container; transform matrix at arg1+0x10),
+ *   count (int16_t vertex count), sign (winding direction, +/-1),
+ *   out (short* result: [0]=clipped vertex count, then {float x,float y} pairs
+ *   at byte offsets +4,+8,... i.e. 8-byte stride starting at out+4).
+ *
+ * Computes signed distance of ref from plane, scaled by sign; if the magnitude
+ * is below the 0x2674e8 epsilon the surface is coplanar (return 2); if the
+ * signed side is <= 0 the surface faces away (return 1).  Otherwise transforms
+ * each vertex through the matrix into a 3-float scratch buffer, clips the
+ * polygon against 0x2b35c4, perspective-divides each surviving vertex
+ * (ooz = k / z, k at 0x255e94) walking forward (sign==1) or backward, and
+ * writes the 2D coords to out.  Returns 1 if fewer than 3 vertices survive,
+ * else 0.  0x2533c0 == 0.0f threshold. */
+short FUN_00197310(void *verts, void *plane, void *ref, void *arg1,
+                   int16_t count, int sign, short *out)
+{
+  float *v = (float *)verts;
+  float *p = (float *)plane;
+  float *r = (float *)ref;
+  float buf[256][3];
+  float side;
+  float ooz;
+  int orig_sign;
+  int j;
+  short idx;
+  short end;
+  short oidx;
+
+  scenario_get();
+  *out = 0;
+  orig_sign = (short)sign;
+  side = (r[2] * p[2] + r[1] * p[1] + r[0] * p[0] - p[3]) * (float)orig_sign;
+  if (*((char *)ref + 0x24) != '\0') {
+    sign = -sign;
+  }
+  if (fabs(side) < *(double *)0x002674e8) {
+    return 2;
+  }
+  if (side <= *(float *)0x002533c0) {
+    return 1;
+  }
+
+  if (count > 0) {
+    float *mtx = (float *)((char *)arg1 + 0x10);
+    for (j = 0; j < count; j++) {
+      matrix_transform_point(mtx, v + j * 3, &buf[j][0]);
+    }
+  }
+
+  *out = convex_polygon3d_clip_to_plane(count, &buf[0][0], (float *)0x002b35c4,
+                                        0x100, &buf[0][0], (uint32_t *)0,
+                                        0.0001f, (void *)0x1);
+  if (*out == -1) {
+    display_assert("result->vertex_count!=NONE",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x485, true);
+    system_exit(-1);
+  }
+
+  if (sign == 1) {
+    idx = 0;
+    end = *out;
+  } else {
+    idx = (short)(*out - 1);
+    end = -1;
+  }
+  oidx = 0;
+  if (idx != end) {
+    do {
+      int e = (int)idx;
+      ooz = *(float *)0x00255e94 / buf[e][2];
+      if (ooz <= *(float *)0x002533c0) {
+        display_assert("ooz>0.f",
+                       "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                       0x497, true);
+        system_exit(-1);
+      }
+      *(float *)(out + oidx * 4 + 2) = ooz * buf[e][0];
+      *(float *)(out + oidx * 4 + 4) = ooz * buf[e][1];
+      idx = (short)(idx + sign);
+      oidx = (short)(oidx + 1);
+    } while (idx != end);
+  }
+
+  return (short)(*out < 3);
+}
+
+/* FUN_001978a0: recursive bsp3d structure-visibility traversal.
+ *   Original: c:\halo\SOURCE\structures\structure_visibility.c line ~0x2ab.
+ *
+ * Walks the structure BSP3D node tree from `node_index`. At each node it
+ * subdivides the incoming (parent) bounds across the node's fraction record
+ * (FUN_00196eb0 -> child bounds in `bounds`), tests those bounds against the
+ * cull bounds (FUN_00196a60) and the frustum planes (FUN_00196b10) unless the
+ * caller already reported "fully inside" ((short)intersection == 2), then for
+ * each of the node's two child slots that survive the splitting-plane sphere
+ * test recurses into subtrees (child >= 0) or dispatches leaves (child < 0,
+ * child != -1) via FUN_00197130. Returns the accumulated 16-bit count in AX.
+ *
+ * 11 cdecl stack args (recursive tail cleans ADD ESP,0x2c = 44 = 11*4).
+ * ESI is the running accumulator, EDI the propagated intersection mode.
+ *
+ * Verified against disasm 0x1978a0-0x197afa. Notes on decompiler traps fixed
+ * here:
+ *   - The two side flags are independent stack bytes (side[0]/side[1]),
+ *     defaulted to 1 and cleared by the plane test; Ghidra modelled them as a
+ *     CONCAT into param_2. param_2 is really a float* (parent bounds).
+ *   - The value passed to children in slot 7 is the UNCHANGED radius (held in
+ *     EBX across the FPU block), not fVar1; the decompiler mis-aliased EBX.
+ *   - FUN_00196eb0 is a 3-arg call (bounds, fractions, out); its 3rd arg is the
+ *     &local_24 push that tag_block_get_element left on the stack (this is the
+ *     ADD ESP,0xc "anomaly"). FUN_00196b10 takes &bounds in @eax. */
+unsigned short FUN_001978a0(int node_index, float *parent_bounds, void *param_3,
+                            int *param_4, int param_5, float *center,
+                            float radius, float *cull_bounds, int param_9,
+                            int param_10, int intersection)
+{
+  int accum;
+  char *scenario;
+  char *nodes_block;
+  unsigned char *fractions;
+  int mode;
+  int t;
+  int *node;
+  float *plane;
+  float dist;
+  unsigned char side[2];
+  int count;
+  int *child_ptr;
+  unsigned char *side_ptr;
+  int child;
+  float bounds[6];
+
+  accum = 0;
+  scenario = (char *)scenario_get();
+  nodes_block = (char *)tag_block_get_element(scenario + 0xb0, 0, 0x60);
+
+  if (parent_bounds == 0) {
+    display_assert("parent_bounds",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x2ab, true);
+    system_exit(-1);
+  }
+  if (center == 0) {
+    display_assert("cull_sphere_center",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x2ac, true);
+    system_exit(-1);
+  }
+  if (cull_bounds == 0) {
+    display_assert("cull_bounds",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x2ad, true);
+    system_exit(-1);
+  }
+  /* the original loads intersection into EDI here and keeps that register as
+   * the running mode for the rest of the function */
+  mode = intersection;
+  if ((short)mode == 0) {
+    display_assert("intersection",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x2ae, true);
+    system_exit(-1);
+  }
+
+  fractions =
+    (unsigned char *)tag_block_get_element(scenario + 0xbc, node_index, 6);
+  FUN_00196eb0(parent_bounds, fractions, bounds);
+
+  if ((short)mode != 2) {
+    mode = FUN_00196a60(cull_bounds, bounds);
+    if ((short)mode == 0)
+      return (unsigned short)accum;
+    t = FUN_00196b10(bounds, param_9, param_10);
+    if ((short)t == 2)
+      param_9 = 0;
+    if ((short)mode > (short)t)
+      mode = t;
+  }
+
+  if ((short)mode != 0) {
+    node = (int *)tag_block_get_element(nodes_block, node_index, 0xc);
+    plane = (float *)tag_block_get_element(nodes_block + 0xc, *node, 0x10);
+    dist = plane[2] * center[2] + plane[1] * center[1] + center[0] * plane[0] -
+           plane[3];
+
+    side[0] = 1;
+    if (!(dist < radius))
+      side[0] = 0;
+    side[1] = 1;
+    if (!(dist > -radius))
+      side[1] = 0;
+
+    child_ptr = node + 1;
+    side_ptr = side;
+    count = 2;
+    do {
+      if (*side_ptr != 0) {
+        child = *child_ptr;
+        /* recurse arm first: original falls through into the self-call and
+         * sinks the leaf arm past the join (JS to it) */
+        if (child >= 0) {
+          accum += FUN_001978a0(child, bounds, param_3, param_4 + (short)accum,
+                                param_5 - accum, center, radius, cull_bounds,
+                                param_9, param_10, mode);
+        } else if (child != -1) {
+          /* 0x19713c: callee reads the leaf ref from EAX (strips the sign
+           * bit itself via AND 0x7fffffff) — implicit @<eax> arg. */
+          accum += FUN_00197130(bounds, param_3, param_4 + (short)accum,
+                                param_5 - accum, center, radius, cull_bounds,
+                                param_9, param_10, mode, child);
+        }
+      }
+      child_ptr++;
+      side_ptr++;
+    } while (--count != 0);
+  }
+
+  return (unsigned short)accum;
 }

@@ -1018,67 +1018,72 @@ void FUN_00131ed0(void *definition, void *flag)
  * FUN_00132ca0 (0x132ca0) -- create and initialize a flag globals datum for
  * a scenario flag definition. Definition offsets +0xc/+0xe/+0x50 and datum
  * offsets +0x02..+0x18 are binary-observed.
+ *
+ * This is the flag widget's new_proc: every exit returns the datum handle
+ * (MOV EAX,EBX at 0x132dff and 0x132e0a), or -1 when the definition index is
+ * -1 or the allocation fails. The widget layer stores it as the widget handle.
  */
-void FUN_00132ca0(int flag_definition_index)
+int FUN_00132ca0(int flag_definition_index)
 {
   void *definition;
   void *flag;
   void *cell;
   int datum_handle;
-  int x;
-  int y;
+  int16_t x;
+  int16_t y;
   int16_t *interior_cell;
 
   global_scenario_get();
   if (flag_definition_index == -1) {
-    return;
+    return -1;
   }
 
   definition = tag_get(0x666c6167, flag_definition_index);
   datum_handle = data_new_at_index(*(data_t **)0x5a90d0);
-  if (datum_handle == -1) {
-    return;
-  }
+  if (datum_handle != -1) {
+    flag = datum_get(*(data_t **)0x5a90d0, datum_handle);
+    if ((int)*(int16_t *)((char *)definition + 0xe) *
+            (int)*(int16_t *)((char *)definition + 0xc) >=
+          0xe1 ||
+        *(int16_t *)((char *)definition + 0xc) >= 0x28 ||
+        *(int *)((char *)definition + 0x50) == -1) {
+      *((char *)flag + 2) = 1;
+    } else {
+      *((char *)flag + 2) = 0;
+      *((char *)flag + 3) = 0;
+      *(int *)((char *)flag + 8) = -1;
+      *(int *)((char *)flag + 0xc) = flag_definition_index;
+      *(int *)((char *)flag + 0x10) = 0;
+      *(int *)((char *)flag + 0x14) = 0;
+      *(int *)((char *)flag + 0x18) = 0;
 
-  flag = datum_get(*(data_t **)0x5a90d0, datum_handle);
-  if ((int)*(int16_t *)((char *)definition + 0xe) *
-          (int)*(int16_t *)((char *)definition + 0xc) >=
-        0xe1 ||
-      *(int16_t *)((char *)definition + 0xc) >= 0x28 ||
-      *(int *)((char *)definition + 0x50) == -1) {
-    *((char *)flag + 2) = 1;
-    return;
-  }
+      /* Both counters are 16-bit: CMP AX/BX against the definition's WORD
+       * fields at 0x132ddc and 0x132dd0. */
+      for (x = 0; x < *(int16_t *)((char *)definition + 0xc); x++) {
+        for (y = 0; y < *(int16_t *)((char *)definition + 0xe); y++) {
+          cell = FUN_00131840(flag, definition, x, y);
+          *(int *)cell = *(int *)*(void **)0x31fc1c;
+          *(int *)((char *)cell + 4) = *(int *)((char *)*(void **)0x31fc1c + 4);
+          *(int *)((char *)cell + 8) = *(int *)((char *)*(void **)0x31fc1c + 8);
+          *(int *)((char *)cell + 0xc) = *(int *)*(void **)0x31fc38;
+          *(int *)((char *)cell + 0x10) =
+            *(int *)((char *)*(void **)0x31fc38 + 4);
+          *(int *)((char *)cell + 0x14) =
+            *(int *)((char *)*(void **)0x31fc38 + 8);
 
-  *((char *)flag + 2) = 0;
-  *((char *)flag + 3) = 0;
-  *(int *)((char *)flag + 8) = -1;
-  *(int *)((char *)flag + 0xc) = flag_definition_index;
-  *(int *)((char *)flag + 0x10) = 0;
-  *(int *)((char *)flag + 0x14) = 0;
-  *(int *)((char *)flag + 0x18) = 0;
-
-  for (x = 0; x < *(int16_t *)((char *)definition + 0xc); x++) {
-    for (y = 0; y < *(int16_t *)((char *)definition + 0xe); y++) {
-      cell = FUN_00131840(flag, definition, (int16_t)x, (int16_t)y);
-      *(int *)cell = *(int *)*(void **)0x31fc1c;
-      *(int *)((char *)cell + 4) = *(int *)((char *)*(void **)0x31fc1c + 4);
-      *(int *)((char *)cell + 8) = *(int *)((char *)*(void **)0x31fc1c + 8);
-      *(int *)((char *)cell + 0xc) = *(int *)*(void **)0x31fc38;
-      *(int *)((char *)cell + 0x10) = *(int *)((char *)*(void **)0x31fc38 + 4);
-      *(int *)((char *)cell + 0x14) = *(int *)((char *)*(void **)0x31fc38 + 8);
-
-      if (x < *(int16_t *)((char *)definition + 0xc) - 1 &&
-          y < *(int16_t *)((char *)definition + 0xe) - 1) {
-        interior_cell =
-          telnet_console_print(flag, definition, (int16_t)x, (int16_t)y);
-        *interior_cell = 0;
+          if (x < *(int16_t *)((char *)definition + 0xc) - 1 &&
+              y < *(int16_t *)((char *)definition + 0xe) - 1) {
+            interior_cell = telnet_console_print(flag, definition, x, y);
+            *interior_cell = 0;
+          }
+        }
       }
+
+      FUN_00131e00(definition, flag);
+      FUN_00131ed0(definition, flag);
     }
   }
-
-  FUN_00131e00(definition, flag);
-  FUN_00131ed0(definition, flag);
+  return datum_handle;
 }
 
 /* FUN_00132e20 (0x132e20) -- update one flag datum and render it when valid. */

@@ -1,6 +1,6 @@
 /* Xbox texture cache: retrieve and block on hardware texture data.
  * Source: c:\halo\SOURCE\cache\xbox_texture_cache.c */
-#ifdef HALO_RETAIL64
+#if defined(HALO_RETAIL64)
 #define HALO_TEXTURE_CACHE_SIZE 0x800000
 #else
 #define HALO_TEXTURE_CACHE_SIZE 0x1600000

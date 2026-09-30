@@ -51,3 +51,6 @@ Report:
 - Use `-x <host>` to target a specific Xbox IP.
 - The tool is surgical by design; it does **not** wipe entire partitions.
 - If no Halo cache files are found, it reports "already clean".
+- Deploy leftovers in the title directory (`cachebeta.map`, `init.txt`) are a
+  separate tool: `rtk python3 tools/xbox/clear_title_files.py [--dry-run] [-x <host>]`.
+  A stale `cachebeta.map` makes Halo's crash stack print wrong function names.

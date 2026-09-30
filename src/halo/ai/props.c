@@ -669,6 +669,63 @@ int prop_new_unacknowledged(int actor_handle, int unit_handle, bool flag)
   return prop_index;
 }
 
+/* 0x647c0 — prop_setup_orphan (@eax = source_prop_index, stack: actor_index,
+ * orphan_prop_index).
+ *
+ * PAL 2342 source/ai/props.c `static void prop_setup_orphan(actor_index,
+ * orphan_prop_index, source_prop_index)`; 2276 passes the source prop in EAX
+ * (kb @<eax>) and never reads actor_index ([EBP+8]).
+ *
+ * Copies the whole source prop into the orphan, then restores the orphan's
+ * own identifier, owner, chain link and parent link, so the orphan stays in
+ * the actor's prop chain.  It then marks the orphan uninspected and resets
+ * its search bookkeeping.
+ *
+ * Call-site verification (disasm 0x647c0-0x6489b):
+ *   0x647d1 datum_get(PUSH ECX=prop_data, PUSH EAX=@eax source) -> EDI  YES
+ *   0x647e2 datum_get(PUSH EAX=prop_data, PUSH EDX=[EBP+0xc])   -> ESI  YES
+ *   0x64805 csmemcpy(PUSH ESI=orphan, PUSH EDI=source, PUSH 0x138)     YES
+ *
+ * vector_from_points3d is inlined in 2276 (three FLD/FSUB/FSTP triples:
+ * +0xbc - +0x80 -> +0x40).  velocity is copied from *global_zero_vector_ptr
+ * with integer MOVs, i.e. a struct assignment. */
+void prop_setup_orphan(int parent_prop_handle, int actor_handle,
+                       int orphan_prop_handle)
+{
+  prop_t *source_prop;
+  prop_t *prop;
+  int16_t identifier;
+  int owner_actor_index;
+  int next_prop_index;
+  int preserved_parent_prop_index;
+
+  source_prop = (prop_t *)datum_get(prop_data, parent_prop_handle);
+  prop = (prop_t *)datum_get(prop_data, orphan_prop_handle);
+  owner_actor_index = prop->owner_actor_index;
+  next_prop_index = prop->next_prop_index;
+  preserved_parent_prop_index = prop->parent_prop_index;
+  identifier = prop->identifier;
+  csmemcpy(prop, source_prop, sizeof(prop_t));
+  prop->parent_prop_index = preserved_parent_prop_index;
+  prop->owner_actor_index = owner_actor_index;
+  prop->identifier = identifier;
+  prop->next_prop_index = next_prop_index;
+  prop->state = _prop_state_uninspected_orphan;
+  prop->orphan_lifespan_ticks = 900; /* 30 s at 30 ticks/s */
+  prop->orphan_inspection_ticks = 0;
+  prop->tried_to_uncover = 0;
+  prop->tried_to_search = 0;
+  prop->abandoned_search = 0;
+  prop->orphan_hint_vector.i =
+    prop->body_position.x - prop->last_perceived_body_position.x;
+  prop->orphan_hint_vector.j =
+    prop->body_position.y - prop->last_perceived_body_position.y;
+  prop->orphan_hint_vector.k =
+    prop->body_position.z - prop->last_perceived_body_position.z;
+  prop->velocity = *(real_vector3d *)global_zero_vector_ptr;
+  prop->quantized_speed = 0;
+}
+
 /* 0x648a0 — prop_orphan_transition.
  *
  * Allocates a new prop with no unit handle, initializes it from prop_handle,

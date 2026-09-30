@@ -14,7 +14,7 @@ void players_initialize(void)
 
 void players_initialize_for_new_map(void)
 {
-  player_control_initialize_for_new_map();
+  player_control_dispose();
   csmemset(players_globals, 0, sizeof(players_globals_t));
   csmemset(&players_globals->unk_0[4], 0xFF, 0x10);
   csmemset(&players_globals->unk_0[0x14], 0xFF, 0x10);
@@ -5964,7 +5964,7 @@ void unit_close_evaluate(int16_t function_index, int thread_datum, char init)
 
 /* 0xbef00 — HS script function handler: set a unit's actively-controlled flag.
  * Structural twin of unit_close_evaluate above; only the middle callee differs
- * (unit_set_actively_controlled_flag @0x1a7f80 instead of unit_close
+ * (unit_kill @0x1a7f80 instead of unit_close
  * @0x1ae180). 13 instructions, standard EBP frame, ESI is the one
  * callee-saved register and holds thread_datum live across the evaluate call
  * — which is why the SAME value feeds both hs_macro_function_evaluate and
@@ -5987,7 +5987,7 @@ void unit_close_evaluate(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, in kb.json):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7f80 = unit_set_actively_controlled_flag(int unit_handle)
+ *   0x1a7f80 = unit_kill(int unit_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void unit_kill_evaluate(int16_t function_index, int thread_datum, char init)
 {
@@ -5996,13 +5996,13 @@ void unit_kill_evaluate(int16_t function_index, int thread_datum, char init)
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    unit_set_actively_controlled_flag(*record);
+    unit_kill(*record);
     hs_return(thread_datum, 0);
   }
 }
 
 /* 0xbef40 — HS script function handler: kill a unit. Structural twin of
- * unit_close_evaluate above; only the middle callee differs (unit_kill @0x1a7fa0
+ * unit_close_evaluate above; only the middle callee differs (unit_kill_silent @0x1a7fa0
  * instead of unit_close @0x1ae180). 13 instructions, standard EBP frame, ESI
  * is the one callee-saved register and holds thread_datum live across the
  * evaluate call — which is why the SAME value feeds both
@@ -6017,7 +6017,7 @@ void unit_kill_evaluate(int16_t function_index, int thread_datum, char init)
  *   CALL 2 @0xbef5f: MOV EDX,[EAX]; PUSH EDX -- the argument is the
  *   DEREFERENCE of the returned record at offset 0, not the pointer.
  *   CALL 3 @0xbef67: PUSH 0; PUSH ESI -> hs_return(thread_datum, 0).
- *   ONE combined ADD ESP,0xC at 0xbef6c folds unit_kill's 1 dword with
+ *   ONE combined ADD ESP,0xC at 0xbef6c folds unit_kill_silent's 1 dword with
  *   hs_return's 2 dwords; the ARG_COUNT enrichment warning on 0xcbf80
  *   ("cleanup=3 vs decl=2") is that merge -- hs_return really takes 2 args,
  *   do NOT "fix" its decl. POP ESI; POP EBP; RET (no immediate -> cdecl).
@@ -6026,7 +6026,7 @@ void unit_kill_evaluate(int16_t function_index, int thread_datum, char init)
  *
  * Callees (all cdecl, in kb.json):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1a7fa0 = unit_kill(int unit_handle)
+ *   0x1a7fa0 = unit_kill_silent(int unit_handle)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void unit_kill_silent_evaluate(int16_t function_index, int thread_datum, char init)
 {
@@ -6035,7 +6035,7 @@ void unit_kill_silent_evaluate(int16_t function_index, int thread_datum, char in
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    unit_kill(*record);
+    unit_kill_silent(*record);
     hs_return(thread_datum, 0);
   }
 }
@@ -6047,7 +6047,7 @@ void unit_kill_silent_evaluate(int16_t function_index, int thread_datum, char in
  * hs_macro_function_evaluate(function_index, thread_datum, init); on a
  * non-NULL evaluation record it loads the record's FIRST DWORD (a full 32-bit
  * load: MOV EDX,[EAX]; PUSH EDX -- a unit/object handle, exactly as
- * unit_kill_silent_evaluate does for unit_kill) and passes it to FUN_001AC0E0, whose
+ * unit_kill_silent_evaluate does for unit_kill_silent) and passes it to FUN_001AC0E0, whose
  * 16-bit result (AX) is forwarded to hs_return.
  *
  * cdecl frame (PUSH EBP; MOV EBP,ESP; PUSH ECX for one dword local;

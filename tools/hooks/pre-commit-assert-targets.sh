@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: \.c$
 # Pre-commit gate: assert-tail CALL targets (system_exit vs halt_and_catch_fire)
 # in staged lifted .c files must match the pristine XBE (lift-learnings §29).
 # Skips silently when no .c files are staged or the XBE is absent (CI).
@@ -6,7 +7,8 @@
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Fast bail: no staged .c files
-if ! git diff --cached --name-only --diff-filter=ACMR | grep -q '\.c$'; then
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+if ! staged_list acmr | grep -q '\.c$'; then
     exit 0
 fi
 

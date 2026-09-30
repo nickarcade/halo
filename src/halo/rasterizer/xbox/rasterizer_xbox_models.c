@@ -681,3 +681,682 @@ void *FUN_0016c090(void *shader, short param_2, int param_3, int param_4,
   }
   return result;
 }
+
+/* 0x16c5a0 — opaque model draw (PAL 2342 names it _rasterizer_model_draw).
+ *
+ * local_parameters (0x47dff8) fields read here, from the 2276 disassembly:
+ *   +0x00 geometry flags (bit 2 no-fog, bit 3 no-zbuffer), +0x04 unique id
+ *   (self-illumination random-phase seed), +0x0c int16 node matrix count,
+ *   +0x50 int16 point light count, +0x5c..+0x68 reflection tint (argb),
+ *   +0x84 animation (colors pointer at +0x84), +0xa8 effect shader,
+ *   +0xac effect animation (values pointer at +0xb0), +0xb4 centroid,
+ *   +0xc4/+0xc8 base map scale.
+ * Shader-model flags byte +0x28: bit 0 detail after reflection, bit 1 two
+ * sided, bit 2 not alpha tested, bit 3 alpha blended decal, bit 4 true
+ * atmospheric fog. Asserts carry the 2276 line numbers of this TU. */
+void FUN_0016c5a0(int param_1, int param_2, int param_3, int param_4,
+                  int param_5, int param_6, int param_7)
+{
+  void *shader;
+  char *local_parameters;
+  char *shader_model;
+  void *effect_shader;
+  void *group;
+  float *animation_values;
+  float *external_color;
+  float *tint;
+  short intensity_exponent_source;
+  short color_source;
+  short vertex_type;
+  short local_model_effect_type;
+  bool alpha_blended_decal;
+  uint32_t alpha_test_enable;
+  uint32_t zbias;
+  int vertex_shader_permutation;
+  int vertex_shader_work;
+  unsigned int seed;
+  float camera_distance;
+  float reflection_fraction;
+  float self_illumination_phase;
+  float self_illumination_fraction;
+  float planar_fog_fraction;
+  float fog_density;
+  float one_minus_planar;
+  float value;
+  float color_delta[3];
+  float self_illumination_color[3];
+  float diffuse_change_color[3];
+  float perpendicular[4];
+  float parallel[4];
+  float vertex_constants[12];
+  float specular_constants[8];
+  float cc0[4];
+  float cc0_error[3];
+  float cc1[3];
+  uint32_t cc0_pixel;
+  uint32_t cc0_error_pixel;
+  uint32_t cc1_pixel;
+  uint32_t diffuse_change_pixel;
+  uint32_t self_illumination_pixel;
+
+  shader = (void *)param_1;
+
+  if (*(void **)0x476ab0 == NULL) {
+    display_assert("global_d3d_device",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c",
+                   0x29f, true);
+    system_exit(-1);
+  }
+
+  if (*(char *)0x3256c4 == 0) {
+    return;
+  }
+
+  if (*(void **)0x47dff8 == NULL) {
+    display_assert("local_parameters",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c",
+                   0x2a3, true);
+    system_exit(-1);
+  }
+
+  if (shader == NULL) {
+    display_assert("shader",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c",
+                   0x2a4, true);
+    system_exit(-1);
+  }
+
+  effect_shader = *(void **)(*(char **)0x47dff8 + 0xa8);
+  if (effect_shader != NULL) {
+    intensity_exponent_source = -1;
+    if (*(short *)((char *)effect_shader + 0x24) == 10) {
+      intensity_exponent_source =
+        *(short *)((char *)FUN_001906b0(effect_shader, 10) + 0x2c);
+    }
+
+    animation_values = *(float **)(*(char **)0x47dff8 + 0xb0);
+    if (intensity_exponent_source < 1 || intensity_exponent_source > 4 ||
+        animation_values == NULL ||
+        animation_values[intensity_exponent_source - 1] != 0.0f) {
+      local_parameters = *(char **)0x47dff8;
+      group = FUN_0016c090(*(void **)(local_parameters + 0xa8), (short)param_2,
+                           param_3, param_4, param_5, param_6, param_7,
+                           (float *)(local_parameters + 0xb4), NULL);
+      if (group != NULL) {
+        *(int *)((char *)group + 0x6c) =
+          rasterizer_memory_pool_alloc((int)(*(char **)0x47dff8 + 0xac), 8);
+      }
+    }
+  }
+
+  local_model_effect_type = *(short *)0x47e000;
+  if (local_model_effect_type == 1) {
+    if (*(short *)((char *)shader + 0x24) != 4) {
+      display_assert("shader->base.type==_shader_type_model",
+                     "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c",
+                     0x2d9, true);
+      system_exit(-1);
+    }
+    FUN_0017cbd0(shader, (short)param_2, param_3, param_4, param_5, param_6,
+                 param_7, (float *)(*(char **)0x47dff8 + 0xb4), NULL);
+    FUN_001592e0(1);
+    return;
+  }
+
+  if (local_model_effect_type != 0) {
+    error(2, "### ERROR model effect type #%d can't render opaque shader",
+          (int)local_model_effect_type);
+    return;
+  }
+
+  if (*(short *)((char *)shader + 0x24) == 3) {
+    rasterizer_model_draw_environment_shader(shader, (short)param_2,
+                                             (void *)param_3, param_4, param_5,
+                                             (void *)param_6, param_7);
+  } else {
+    shader_model = (char *)FUN_001906b0(shader, 4);
+    alpha_blended_decal = ((*(unsigned char *)(shader_model + 0x28) >> 3) & 1) != 0;
+
+    if (*(short *)0x47e000 != 0) {
+      display_assert("local_model_effect_type==_render_model_effect_type_none",
+                     "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c",
+                     0x303, true);
+      system_exit(-1);
+    }
+
+    local_parameters = *(char **)0x47dff8;
+    camera_distance =
+      (*(float *)(local_parameters + 0xb4) - *(float *)0x5a5bc8) *
+        *(float *)0x5a5bd4 +
+      (*(float *)(local_parameters + 0xb8) - *(float *)0x5a5bcc) *
+        *(float *)0x5a5bd8 +
+      *(float *)0x5a5bdc *
+        (*(float *)(local_parameters + 0xbc) - *(float *)0x5a5bd0);
+
+    if (*(float *)(shader_model + 0x140) != 0.0f) {
+      reflection_fraction =
+        (camera_distance - *(float *)(shader_model + 0x140)) /
+        (*(float *)(shader_model + 0x13c) - *(float *)(shader_model + 0x140));
+      if (reflection_fraction < 0.0f) {
+        reflection_fraction = 0.0f;
+      } else if (reflection_fraction > 1.0f) {
+        reflection_fraction = 1.0f;
+      }
+    } else {
+      reflection_fraction = 1.0f;
+    }
+
+    if ((*(unsigned char *)local_parameters & 8) != 0) {
+      D3DDevice_SetRenderState_ZEnable(0);
+      zbias = 0;
+    } else {
+      D3DDevice_SetRenderState_ZEnable(1);
+      D3DDevice_SetRenderState_Simple(0x4035c, !alpha_blended_decal);
+      *(uint32_t *)0x1fb798 = !alpha_blended_decal;
+      D3DDevice_SetRenderState_Simple(0x40354, 0x203);
+      *(uint32_t *)0x1fb77c = 0x203;
+      zbias = alpha_blended_decal ? *(uint32_t *)0x32570c : 0;
+    }
+    D3DDevice_SetRenderState_ZBias(zbias);
+    D3DDevice_SetRenderState_CullMode(0x901);
+    D3DDevice_SetRenderState_Simple(0x40358, 0x10101);
+    *(uint32_t *)0x1fb7a4 = 0x10101;
+    D3DDevice_SetRenderState_Simple(0x40304, alpha_blended_decal);
+    *(uint32_t *)0x1fb784 = alpha_blended_decal;
+    D3DDevice_SetRenderState_Simple(0x40344, 0x302);
+    *(uint32_t *)0x1fb790 = 0x302;
+    D3DDevice_SetRenderState_Simple(0x40348, 0x303);
+    *(uint32_t *)0x1fb794 = 0x303;
+    D3DDevice_SetRenderState_Simple(0x40350, 0x8006);
+    *(uint32_t *)0x1fb7c0 = 0x8006;
+    if (!alpha_blended_decal &&
+        (*(unsigned char *)(shader_model + 0x28) & 4) == 0) {
+      alpha_test_enable = 1;
+    } else {
+      alpha_test_enable = 0;
+    }
+    D3DDevice_SetRenderState_Simple(0x40300, alpha_test_enable);
+    *(uint32_t *)0x1fb788 = alpha_test_enable;
+    D3DDevice_SetRenderState_Simple(0x40340, 0x7f);
+    *(uint32_t *)0x1fb78c = 0x7f;
+
+    rasterizer_set_texture(0, 0, 1, *(int *)(shader_model + 0xb0),
+                           (short)param_2);
+    D3DDevice_SetTextureStageState(0, 10, 1);
+    D3DDevice_SetTextureStageState(0, 0xb, 1);
+    D3DDevice_SetTextureStageState(0, 0xd, 2);
+    D3DDevice_SetTextureStageState(0, 0xe, 2);
+    D3DDevice_SetTextureStageState(0, 0xf, 2);
+    rasterizer_set_texture(1, 0, 2, *(int *)(shader_model + 0xe8),
+                           (short)param_2);
+    D3DDevice_SetTextureStageState(1, 10, 1);
+    D3DDevice_SetTextureStageState(1, 0xb, 1);
+    D3DDevice_SetTextureStageState(1, 0xd, 2);
+    D3DDevice_SetTextureStageState(1, 0xe, 2);
+    D3DDevice_SetTextureStageState(1, 0xf, 2);
+    rasterizer_set_texture(2, 0, 1, *(int *)(shader_model + 0xc8),
+                           (short)param_2);
+    SetTextureStageStateSmart(2, 10, 1);
+    SetTextureStageStateSmart(2, 0xb, 1);
+    SetTextureStageStateSmart(2, 0xd, 2);
+    SetTextureStageStateSmart(2, 0xe, 2);
+    SetTextureStageStateSmart(2, 0xf, 2);
+    rasterizer_set_texture(3, 2, 0, *(int *)(shader_model + 0x170),
+                           (short)param_2);
+    SetTextureStageStateSmart(3, 10, 3);
+    SetTextureStageStateSmart(3, 0xb, 3);
+    SetTextureStageStateSmart(3, 0xc, 3);
+    SetTextureStageStateSmart(3, 0xd, 2);
+    SetTextureStageStateSmart(3, 0xe, 2);
+    SetTextureStageStateSmart(3, 0xf, 2);
+
+    seed = *(unsigned int *)(*(char **)0x47dff8 + 4);
+    if ((*(unsigned char *)(shader_model + 0x6c) & 1) != 0) {
+      self_illumination_phase = 0.0f;
+    } else {
+      self_illumination_phase = random_math_real(&seed);
+    }
+
+    if (*(float *)(shader_model + 0x74) == 0.0f) {
+      display_assert(
+        "shader_model->model.self_illumination_animation_period!=0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x360,
+        true);
+      system_exit(-1);
+    }
+
+    FUN_00013090((float *)(shader_model + 0x84), (float *)(shader_model + 0x78),
+                 color_delta);
+    self_illumination_fraction = FUN_0010a5e0(
+      *(int16_t *)(shader_model + 0x72),
+      *(float *)0x5a5e18 / *(float *)(shader_model + 0x74) +
+        self_illumination_phase);
+    vector3d_scale_add((float *)(shader_model + 0x78), color_delta,
+                       self_illumination_fraction, self_illumination_color);
+
+    if (!(self_illumination_color[0] >= 0.0f &&
+          self_illumination_color[0] <= 1.0f)) {
+      display_assert(
+        "self_illumination_color.red >=0.0f && "
+        "self_illumination_color.red <=1.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x36c,
+        true);
+      system_exit(-1);
+    }
+    if (!(self_illumination_color[1] >= 0.0f &&
+          self_illumination_color[1] <= 1.0f)) {
+      display_assert(
+        "self_illumination_color.green>=0.0f && "
+        "self_illumination_color.green<=1.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x36d,
+        true);
+      system_exit(-1);
+    }
+    if (!(self_illumination_color[2] >= 0.0f &&
+          self_illumination_color[2] <= 1.0f)) {
+      display_assert(
+        "self_illumination_color.blue >=0.0f && "
+        "self_illumination_color.blue <=1.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x36e,
+        true);
+      system_exit(-1);
+    }
+
+    color_source = *(short *)(shader_model + 0x70);
+    if (color_source > 0 && color_source < 5) {
+      external_color = (float *)(*(char **)(*(char **)0x47dff8 + 0x84) +
+                                 (color_source - 1) * 0xc);
+      if (!(external_color[0] >= 0.0f && external_color[0] <= 1.0f)) {
+        display_assert(
+          "external_color->red >=0.0f && external_color->red <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x377,
+          true);
+        system_exit(-1);
+      }
+      if (!(external_color[1] >= 0.0f && external_color[1] <= 1.0f)) {
+        display_assert(
+          "external_color->green>=0.0f && external_color->green<=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x378,
+          true);
+        system_exit(-1);
+      }
+      if (!(external_color[2] >= 0.0f && external_color[2] <= 1.0f)) {
+        display_assert(
+          "external_color->blue >=0.0f && external_color->blue <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x379,
+          true);
+        system_exit(-1);
+      }
+      self_illumination_color[0] = self_illumination_color[0] * external_color[0];
+      self_illumination_color[1] = self_illumination_color[1] * external_color[1];
+      self_illumination_color[2] = self_illumination_color[2] * external_color[2];
+    }
+
+    color_source = *(short *)(shader_model + 0x4c);
+    if (color_source > 0 && color_source < 5) {
+      external_color = (float *)(*(char **)(*(char **)0x47dff8 + 0x84) +
+                                 (color_source - 1) * 0xc);
+      diffuse_change_color[0] = external_color[0];
+      diffuse_change_color[1] = external_color[1];
+      diffuse_change_color[2] = external_color[2];
+      if (!(diffuse_change_color[0] >= 0.0f &&
+            diffuse_change_color[0] <= 1.0f)) {
+        display_assert(
+          "diffuse_change_color.red >=0.0f && diffuse_change_color.red <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x388,
+          true);
+        system_exit(-1);
+      }
+      if (!(diffuse_change_color[1] >= 0.0f &&
+            diffuse_change_color[1] <= 1.0f)) {
+        display_assert(
+          "diffuse_change_color.green>=0.0f && "
+          "diffuse_change_color.green<=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x389,
+          true);
+        system_exit(-1);
+      }
+      if (!(diffuse_change_color[2] >= 0.0f &&
+            diffuse_change_color[2] <= 1.0f)) {
+        display_assert(
+          "diffuse_change_color.blue >=0.0f && "
+          "diffuse_change_color.blue <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x38a,
+          true);
+        system_exit(-1);
+      }
+    } else {
+      diffuse_change_color[0] = (*(float **)0x2ee708)[0];
+      diffuse_change_color[1] = (*(float **)0x2ee708)[1];
+      diffuse_change_color[2] = (*(float **)0x2ee708)[2];
+    }
+
+    vertex_shader_work = *(int *)0x5a5558;
+    local_parameters = *(char **)0x47dff8;
+    if ((*(unsigned char *)(shader_model + 0x28) & 0x10) != 0) {
+      vertex_shader_permutation = 2;
+    } else if (*(char *)0x47e003 != 0) {
+      vertex_shader_permutation = 0;
+    } else if (*(short *)(local_parameters + 0x50) > 0) {
+      vertex_shader_permutation = 1;
+    } else if (*(short *)(local_parameters + 0xc) <= 1 &&
+               (*(int *)(shader_model + 0xc8) == -1 ||
+                (*(short *)(shader_model + 0xd6) == 0 &&
+                 self_illumination_color[0] == 0.0f &&
+                 self_illumination_color[1] == 0.0f &&
+                 self_illumination_color[2] == 0.0f &&
+                 diffuse_change_color[0] == 1.0f &&
+                 diffuse_change_color[1] == 1.0f &&
+                 diffuse_change_color[2] == 1.0f)) &&
+               (*(int *)(shader_model + 0x170) == -1 ||
+                !(reflection_fraction > 0.0f))) {
+      vertex_shader_permutation = 3;
+    } else {
+      vertex_shader_permutation = 2;
+    }
+
+    if (param_6 != 0) {
+      vertex_type = *(short *)param_6;
+    } else {
+      vertex_type = rasterizer_dynamic_vertices_get_type(param_7);
+    }
+    FUN_00178b40(10, vertex_type, vertex_shader_permutation);
+
+    if (*(short *)0x3256ba >= 1) {
+      *(int *)0x5a5568 =
+        *(int *)0x5a5568 + (*(int *)0x5a5558 - vertex_shader_work);
+      ((int *)0x5a5414)[(short)vertex_shader_permutation] =
+        ((int *)0x5a5414)[(short)vertex_shader_permutation] +
+        *(int *)(param_6 + 4);
+    }
+
+    local_parameters = *(char **)0x47dff8;
+    perpendicular[0] = reflection_fraction * *(float *)(shader_model + 0x144) *
+                       *(float *)(local_parameters + 0x5c);
+    perpendicular[1] =
+      *(float *)(shader_model + 0x148) * *(float *)(local_parameters + 0x60);
+    perpendicular[2] =
+      *(float *)(shader_model + 0x14c) * *(float *)(local_parameters + 0x64);
+    perpendicular[3] =
+      *(float *)(shader_model + 0x150) * *(float *)(local_parameters + 0x68);
+    parallel[0] = reflection_fraction * *(float *)(shader_model + 0x154) *
+                  *(float *)(local_parameters + 0x5c);
+    parallel[1] =
+      *(float *)(shader_model + 0x158) * *(float *)(local_parameters + 0x60);
+    parallel[2] =
+      *(float *)(shader_model + 0x15c) * *(float *)(local_parameters + 0x64);
+    parallel[3] =
+      *(float *)(shader_model + 0x160) * *(float *)(local_parameters + 0x68);
+
+    vertex_constants[0] = *(float *)(shader_model + 0xd8);
+    vertex_constants[1] =
+      *(float *)(shader_model + 0xd8) * *(float *)(shader_model + 0xec);
+    vertex_constants[2] = 1.0f;
+    vertex_constants[3] = 1.0f;
+    vertex_constants[4] = 1.0f;
+    vertex_constants[5] = 0.0f;
+    vertex_constants[6] = 0.0f;
+    vertex_constants[7] = 0.0f;
+    vertex_constants[8] = 0.0f;
+    vertex_constants[9] = 1.0f;
+    vertex_constants[10] = 0.0f;
+    vertex_constants[11] = 0.0f;
+    specular_constants[0] = perpendicular[1] - parallel[1];
+    specular_constants[1] = perpendicular[2] - parallel[2];
+    specular_constants[2] = perpendicular[3] - parallel[3];
+    specular_constants[3] = perpendicular[0] - parallel[0];
+    specular_constants[4] = parallel[1];
+    specular_constants[5] = parallel[2];
+    specular_constants[6] = parallel[3];
+    specular_constants[7] = parallel[0];
+
+    FUN_00190e10(shader_model + 0xfc, local_parameters + 0x84,
+                 *(float *)(local_parameters + 0xc4) *
+                   *(float *)(shader_model + 0x9c),
+                 *(float *)(local_parameters + 0xc8) *
+                   *(float *)(shader_model + 0xa0),
+                 0.0f, 0.0f, 0.0f, *(float *)0x5a5e18, &vertex_constants[4],
+                 &vertex_constants[8]);
+    vertex_constants[10] = *(float *)(shader_model + 0x38);
+    D3DDevice_SetVertexShaderConstant(-0x54, vertex_constants, 3);
+    D3DDevice_SetVertexShaderConstant(-0x51, specular_constants, 2);
+
+    tint = *(float **)0x47e4d0;
+    if (tint != NULL &&
+        (tint[0] > 0.0f || tint[1] > 0.0f || tint[2] > 0.0f ||
+         tint[3] > 0.0f)) {
+      specular_constants[0] = 0.0f;
+      specular_constants[1] = 0.0f;
+      specular_constants[2] = 0.0f;
+      specular_constants[3] = 0.0f;
+      specular_constants[4] = tint[0];
+      specular_constants[5] = tint[1];
+      specular_constants[6] = tint[2];
+      specular_constants[7] = tint[3];
+      D3DDevice_SetVertexShaderConstant(-0x51, specular_constants, 2);
+    }
+
+    if (!(*(float *)0x5a5dc0 > *(float *)0x5a5dbc)) {
+      display_assert(
+        "global_window_parameters.fog.atmospheric_maximum_distance>"
+        "global_window_parameters.fog.atmospheric_minimum_distance",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x432,
+        true);
+      system_exit(-1);
+    }
+    if (!(*(float *)0x5a5dc0 > 0.0f)) {
+      display_assert(
+        "global_window_parameters.fog.atmospheric_maximum_distance>0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x433,
+        true);
+      system_exit(-1);
+    }
+    if (!(*(float *)0x5a5de8 > 0.0f)) {
+      display_assert(
+        "global_window_parameters.fog.planar_maximum_distance>0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x434,
+        true);
+      system_exit(-1);
+    }
+    if (!(*(float *)0x5a5dec > 0.0f)) {
+      display_assert(
+        "global_window_parameters.fog.planar_maximum_depth>0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x435,
+        true);
+      system_exit(-1);
+    }
+
+    if (*(char *)0x3256d4 != 0 &&
+        (**(unsigned char **)0x47dff8 & 4) == 0) {
+      planar_fog_fraction =
+        plane3d_distance_to_point((float *)0x5a5dc8, (float *)0x5a5bc8) /
+        *(float *)0x5a5dc0;
+      if (planar_fog_fraction < 0.0f) {
+        planar_fog_fraction = 0.0f;
+      } else if (planar_fog_fraction > 1.0f) {
+        planar_fog_fraction = 1.0f;
+      }
+      fog_density = (camera_distance - *(float *)0x5a5dbc) /
+                    (*(float *)0x5a5dc0 - *(float *)0x5a5dbc);
+      if (fog_density < 0.0f) {
+        fog_density = 0.0f;
+      } else if (fog_density > 1.0f) {
+        fog_density = 1.0f;
+      }
+      fog_density = fog_density * *(float *)0x5a5db8;
+      if ((*(unsigned char *)0x5a5da8 & 2) != 0) {
+        planar_fog_fraction = 1.0f;
+      }
+
+      cc0[0] = 1.0f - fog_density;
+      one_minus_planar = 1.0f - planar_fog_fraction;
+      cc0[1] = *(float *)0x5a5dd8 -
+               (planar_fog_fraction * *(float *)0x5a5dd8 +
+                one_minus_planar * *(float *)0x5a5dac) *
+                 fog_density;
+      cc0[2] = *(float *)0x5a5ddc -
+               (*(float *)0x5a5db0 * one_minus_planar +
+                *(float *)0x5a5ddc * planar_fog_fraction) *
+                 fog_density;
+      cc0[3] = *(float *)0x5a5de0 -
+               (one_minus_planar * *(float *)0x5a5db4 +
+                *(float *)0x5a5de0 * planar_fog_fraction) *
+                 fog_density;
+
+      value = -cc0[1];
+      cc0_error[0] = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+      value = -cc0[2];
+      cc0_error[1] = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+      value = -cc0[3];
+      cc0_error[2] = value < 0.0f ? 0.0f : (value > 1.0f ? 1.0f : value);
+      if (cc0[1] < 0.0f) {
+        cc0[1] = 0.0f;
+      } else if (cc0[1] > 1.0f) {
+        cc0[1] = 1.0f;
+      }
+      if (cc0[2] < 0.0f) {
+        cc0[2] = 0.0f;
+      } else if (cc0[2] > 1.0f) {
+        cc0[2] = 1.0f;
+      }
+      if (cc0[3] < 0.0f) {
+        cc0[3] = 0.0f;
+      } else if (cc0[3] > 1.0f) {
+        cc0[3] = 1.0f;
+      }
+      cc1[0] = *(float *)0x5a5dac * fog_density;
+      cc1[1] = *(float *)0x5a5db0 * fog_density;
+      cc1[2] = *(float *)0x5a5db4 * fog_density;
+
+      if (!(cc0[1] >= 0.0f && cc0[1] <= 1.0f)) {
+        display_assert(
+          "cc0.red >=0.0f && cc0.red <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x45b,
+          true);
+        system_exit(-1);
+      }
+      if (!(cc0[2] >= 0.0f && cc0[2] <= 1.0f)) {
+        display_assert(
+          "cc0.green>=0.0f && cc0.green<=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x45c,
+          true);
+        system_exit(-1);
+      }
+      if (!(cc0[3] >= 0.0f && cc0[3] <= 1.0f)) {
+        display_assert(
+          "cc0.blue >=0.0f && cc0.blue <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x45d,
+          true);
+        system_exit(-1);
+      }
+      if (!(cc1[0] >= 0.0f && cc1[0] <= 1.0f)) {
+        display_assert(
+          "cc1.red >=0.0f && cc1.red <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x45e,
+          true);
+        system_exit(-1);
+      }
+      if (!(cc1[1] >= 0.0f && cc1[1] <= 1.0f)) {
+        display_assert(
+          "cc1.green>=0.0f && cc1.green<=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x45f,
+          true);
+        system_exit(-1);
+      }
+      if (!(cc1[2] >= 0.0f && cc1[2] <= 1.0f)) {
+        display_assert(
+          "cc1.blue >=0.0f && cc1.blue <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x460,
+          true);
+        system_exit(-1);
+      }
+      if (!(cc0_error[0] >= 0.0f && cc0_error[0] <= 1.0f)) {
+        display_assert(
+          "cc0_error.red >=0.0f && cc0_error.red <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x461,
+          true);
+        system_exit(-1);
+      }
+      if (!(cc0_error[1] >= 0.0f && cc0_error[1] <= 1.0f)) {
+        display_assert(
+          "cc0_error.green>=0.0f && cc0_error.green<=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x462,
+          true);
+        system_exit(-1);
+      }
+      if (!(cc0_error[2] >= 0.0f && cc0_error[2] <= 1.0f)) {
+        display_assert(
+          "cc0_error.blue >=0.0f && cc0_error.blue <=1.0f",
+          "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_models.c", 0x463,
+          true);
+        system_exit(-1);
+      }
+
+      cc0_pixel = real_argb_color_to_pixel32(cc0);
+      cc0_error_pixel = real_rgb_color_to_pixel32(cc0_error);
+      cc1_pixel = real_rgb_color_to_pixel32(cc1);
+    } else {
+      cc1_pixel = 0xff000000;
+      cc0_error_pixel = 0xff000000;
+      cc0_pixel = 0xff000000;
+    }
+
+    diffuse_change_pixel = real_rgb_color_to_pixel32(diffuse_change_color);
+    self_illumination_pixel = real_rgb_color_to_pixel32(self_illumination_color);
+    FUN_0016ab00(*(int16_t *)(shader_model + 0xd4), self_illumination_pixel,
+                 *(int16_t *)(shader_model + 0xd6), diffuse_change_pixel,
+                 cc0_pixel, cc0_error_pixel, cc1_pixel,
+                 (char)(*(unsigned char *)(shader_model + 0x28) & 1),
+                 (char)((*(unsigned char *)(shader_model + 0x28) >> 4) & 1));
+    D3DDevice_SetRenderState_CullMode(0x901);
+    rasterizer_draw((const triangle_buffer *)param_3, param_4, 0, param_5,
+                    (const vertex_buffer *)param_6, param_7);
+    if (*(short *)0x3256ba == 2) {
+      *(int *)0x5a54dc = *(int *)0x5a54dc + param_5;
+      *(int *)0x5a54e0 = *(int *)0x5a54e0 + 1;
+      *(int *)0x5a54d8 =
+        *(int *)0x5a54d8 + FUN_0017ed90((void *)param_3, (void *)param_6);
+    }
+
+    if ((*(unsigned char *)(shader_model + 0x28) & 2) != 0) {
+      vertex_constants[0] = *(float *)(shader_model + 0xd8);
+      vertex_constants[1] =
+        *(float *)(shader_model + 0xd8) * *(float *)(shader_model + 0xec);
+      vertex_constants[2] = 1.0f;
+      vertex_constants[3] = -1.0f;
+      vertex_constants[4] = 1.0f;
+      vertex_constants[5] = 0.0f;
+      vertex_constants[6] = 0.0f;
+      vertex_constants[7] = 0.0f;
+      vertex_constants[8] = 0.0f;
+      vertex_constants[9] = 1.0f;
+      vertex_constants[10] = 0.0f;
+      vertex_constants[11] = 0.0f;
+      local_parameters = *(char **)0x47dff8;
+      FUN_00190e10(shader_model + 0xfc, local_parameters + 0x84,
+                   *(float *)(local_parameters + 0xc4) *
+                     *(float *)(shader_model + 0x9c),
+                   *(float *)(local_parameters + 0xc8) *
+                     *(float *)(shader_model + 0xa0),
+                   0.0f, 0.0f, 0.0f, *(float *)0x5a5e18, &vertex_constants[4],
+                   &vertex_constants[8]);
+      vertex_constants[10] = *(float *)(shader_model + 0x38);
+      D3DDevice_SetVertexShaderConstant(-0x54, vertex_constants, 3);
+      SetRenderStateSmart(0x7f, 0x900);
+      rasterizer_draw((const triangle_buffer *)param_3, param_4, 0, param_5,
+                      (const vertex_buffer *)param_6, param_7);
+      if (*(short *)0x3256ba == 2) {
+        *(int *)0x5a54e0 = *(int *)0x5a54e0 + 1;
+        *(int *)0x5a54dc = *(int *)0x5a54dc + param_5;
+        *(int *)0x5a54d8 =
+          *(int *)0x5a54d8 + FUN_0017ed90((void *)param_3, (void *)param_6);
+      }
+    }
+  }
+
+  if (*(char *)0x47e004 != 0) {
+    rasterizer_environment_fog_screen_model_submit(
+      shader, (int16_t)param_2, (void *)param_3, param_4, param_5,
+      (void *)param_6, param_7);
+  }
+}

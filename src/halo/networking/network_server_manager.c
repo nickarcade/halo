@@ -825,8 +825,7 @@ char network_game_server_adjust_machine_settings(int param_1, int param_2, int p
       network_event("server updated machine #%d settings",
                        (int)*(char *)(param_3 + 0x40));
     } else {
-      network_event("network_game_update_machine() failed in "
-                       "network_game_server_get_client_connection()");
+      network_event("network_game_update_machine() failed in network_game_server_adjust_machine_settings()");
     }
   } else {
     network_event("client machine tried to update itself with a non-matching "

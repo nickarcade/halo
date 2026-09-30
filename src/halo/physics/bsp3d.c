@@ -322,12 +322,12 @@ int FUN_001470b0(int param_1, uint32_t param_2, uint32_t param_3,
   links = node + 1;
 
   if (vertex_count < 3) {
-    display_assert("point_count>=NUMBER_OF_VERTICES_PER_TRIANGLE",
+    display_assert("vertex_count>=NUMBER_OF_VERTICES_PER_TRIANGLE",
                    "c:\\halo\\SOURCE\\physics\\bsp3d.c", 0x95, true);
     system_exit(-1);
   }
   if (0x3f < vertex_count) {
-    display_assert("point_count<=MAXIMUM_VERTICES_PER_CLIPPED_POLYGON",
+    display_assert("vertex_count<MAXIMUM_VERTICES_PER_CLIPPED_POLYGON",
                    "c:\\halo\\SOURCE\\physics\\bsp3d.c", 0x97, true);
     system_exit(-1);
   }
@@ -376,7 +376,7 @@ int FUN_001470b0(int param_1, uint32_t param_2, uint32_t param_3,
     counts[1] = convex_polygon3d_clip_to_plane(vertex_count, param_4, plane,
                                                0x40, front_buf, 0, param_6, 0);
     if (counts[0] == -1 || counts[1] == -1) {
-      display_assert("back_count!=NONE && front_count!=NONE",
+      display_assert("clipped_counts[0]!=NONE && clipped_counts[1]!=NONE",
                      "c:\\halo\\SOURCE\\physics\\bsp3d.c", 0xb9, true);
       system_exit(-1);
     }

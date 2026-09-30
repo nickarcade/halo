@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# HALO-HOOK-TRIGGER: ^kb\.json$
 # Pre-commit hook: block commits that introduce new non-allowlisted active
 # port deactivations in kb.json.
 #
@@ -12,7 +13,8 @@
 #   HALO_ALLOW_DEACTIVATIONS=1 git commit   — env-var bypass (print in failure msg)
 #   git commit --no-verify                  — skip all pre-commit hooks
 
-if ! git diff --cached --name-only | grep -qx 'kb.json'; then
+. "$(dirname "${BASH_SOURCE[0]}")/lib-staged.sh"
+if ! staged_list all | grep -qx 'kb.json'; then
     exit 0
 fi
 

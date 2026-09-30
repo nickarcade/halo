@@ -169,6 +169,175 @@ done:
   return result;
 }
 
+/* interface_draw_screen -- per-window first-person screen overlay pass
+ * (called from render_scene after the transparent geometry), then the HUD
+ * and the game-engine overlay (0xdefb0).
+ *
+ * Confirmed (0xdefb0..0xdf344, SUB ESP,0x44):
+ *   - returns at once when word [0x506548] (render local player) == -1.
+ *   - FUN_000dedf0(&[EBP-4]) returns a tag index; the dword it stores is
+ *     read back with FLD, so it is a float here (held in a union).
+ *   - no overlay (NONE, or the 'wphi' block at +0xac empty):
+ *     FUN_0017cb90(NULL); hud_draw_screen(); FUN_000afdf0().
+ *   - element = tag_block_get_element(wphi + 0xac, 0, 0xb8);
+ *     zoomed = player_control_get_zoom_level(word [0x506548]) != -1
+ *     (SETNZ BL); csmemset(params, 0, 0x38) with params at [EBP-0x44].
+ *   - four blocks, each gated on `zoomed || !(flag & 1)` (flag bytes
+ *     +0x04, +0x40, +0x6c, +0x8c); the +0x40 block is additionally gated on
+ *     main_get_window_count() <= 1, tested FIRST.
+ *   - clamps are open-coded PIN(x, 0.0f, 1.0f): `!(x >= 0)` -> 0 (TEST
+ *     AH,0x5 / JP), `x > 1` -> 1 (TEST AH,0x41 / JNZ).  The
+ *     FUN_0017d9d0 clamps call the function again for each use (three
+ *     CALLs per block), the other two clamp a value already in ST0/memory.
+ *   - FUN_0017cb90(params); hud_draw_screen(); FUN_000afdf0().
+ * Store-offset table (params = EBP-0x44, 0x38 bytes, from the MOVs):
+ *   +0x02 word 2          (-0x42)   +0x04 float +0x40-block value (-0x40)
+ *   +0x08 bitmap element  (-0x3c)   +0x0c float +0x6c-block value (-0x38)
+ *   +0x10 float +0x8c-block value (-0x34)
+ *   +0x14/+0x18/+0x1c dwords element +0x94/+0x98/+0x9c (-0x30/-0x2c/-0x28)
+ *   +0x20 byte (e[0x8c]>>2)&1 (-0x24)  +0x21 byte (e[0x6c]>>2)&1 (-0x23)
+ *   +0x22 byte (e[0x8c]>>3)&1 (-0x22)
+ * Uncertain: the meaning of every params field and of the 'wphi' element
+ *   fields; FUN_000dedf0's out value (unit +0x2f8) is only proven float by
+ *   this FLD, not by its producer.
+ *
+ * 0xdefb0 / interface.obj */
+void interface_draw_screen(void)
+{
+  union {
+    int32_t bits;
+    float value;
+  } fade;
+  int32_t params[0x38 / 4];
+  char *p;
+  char *element;
+  int tag_index;
+  int bitmap_tag_index;
+  char *wphi;
+  bool zoomed;
+  float scale;
+  float ratio;
+  float value;
+  float pinned;
+
+  if (*(int16_t *)0x506548 == -1) {
+    return;
+  }
+  p = (char *)params;
+  tag_index = FUN_000dedf0(&fade.bits);
+  if (tag_index == -1) {
+    goto no_overlay;
+  }
+  wphi = (char *)tag_get(0x77706869, tag_index);
+  if (*(int *)(wphi + 0xac) <= 0) {
+    goto no_overlay;
+  }
+  element = (char *)tag_block_get_element(wphi + 0xac, 0, 0xb8);
+  zoomed = player_control_get_zoom_level(*(int16_t *)0x506548) != -1;
+  csmemset(params, 0, 0x38);
+
+  if (zoomed || (*(uint8_t *)(element + 0x04) & 1) == 0) {
+    if ((int16_t)main_get_window_count() <= 1) {
+      bitmap_tag_index = *(int *)(element + 0x24);
+    } else {
+      bitmap_tag_index = *(int *)(element + 0x34);
+    }
+    if (bitmap_tag_index != -1) {
+      *(void **)(p + 0x08) = tag_block_get_element(
+        (char *)tag_get(0x6269746d, bitmap_tag_index) + 0x60, 0, 0x30);
+      *(uint8_t *)(p + 0x21) = (*(uint8_t *)(element + 0x6c) >> 2) & 1;
+      *(uint8_t *)(p + 0x22) = (*(uint8_t *)(element + 0x8c) >> 3) & 1;
+    }
+  }
+
+  if ((int16_t)main_get_window_count() <= 1 &&
+      (zoomed || (*(uint8_t *)(element + 0x40) & 1) == 0)) {
+    scale = 0.0f;
+    if (*(float *)(element + 0x44) != *(float *)(element + 0x48)) {
+      ratio = (*(float *)0x506578 - *(float *)(element + 0x44)) /
+              (*(float *)(element + 0x48) - *(float *)(element + 0x44));
+      if (ratio < 0.0f) {
+        ratio = 0.0f;
+      } else if (ratio > 1.0f) {
+        ratio = 1.0f;
+      }
+      scalars_interpolate(*(float *)(element + 0x4c),
+                          *(float *)(element + 0x50), ratio, &scale);
+      value = scale;
+    } else {
+      value = *(float *)(element + 0x50);
+    }
+    if (value > 0.0f) {
+      *(float *)(p + 0x04) = value;
+      *(int16_t *)(p + 0x02) = 2;
+    }
+  }
+
+  if (zoomed || (*(uint8_t *)(element + 0x6c) & 1) == 0) {
+    scale = *(float *)(element + 0x70);
+    if ((*(uint8_t *)(element + 0x6c) & 2) != 0) {
+      if (fade.value < 0.0f) {
+        pinned = 0.0f;
+      } else if (fade.value > 1.0f) {
+        pinned = 1.0f;
+      } else {
+        pinned = fade.value;
+      }
+      scale = pinned * scale;
+    }
+    if (FUN_0017d9d0((int16_t)*(uint16_t *)(element + 0x6e)) < 0.0f) {
+      pinned = 0.0f;
+    } else if (FUN_0017d9d0((int16_t)*(uint16_t *)(element + 0x6e)) > 1.0f) {
+      pinned = 1.0f;
+    } else {
+      pinned = FUN_0017d9d0((int16_t)*(uint16_t *)(element + 0x6e));
+    }
+    value = pinned * scale;
+    if (value > 0.0f) {
+      *(float *)(p + 0x0c) = value;
+    }
+  }
+
+  if (zoomed || (*(uint8_t *)(element + 0x8c) & 1) == 0) {
+    scale = *(float *)(element + 0x90);
+    if ((*(uint8_t *)(element + 0x8c) & 2) != 0) {
+      if (fade.value < 0.0f) {
+        pinned = 0.0f;
+      } else if (fade.value > 1.0f) {
+        pinned = 1.0f;
+      } else {
+        pinned = fade.value;
+      }
+      scale = pinned * scale;
+    }
+    if (FUN_0017d9d0((int16_t)*(uint16_t *)(element + 0x8e)) < 0.0f) {
+      pinned = 0.0f;
+    } else if (FUN_0017d9d0((int16_t)*(uint16_t *)(element + 0x8e)) > 1.0f) {
+      pinned = 1.0f;
+    } else {
+      pinned = FUN_0017d9d0((int16_t)*(uint16_t *)(element + 0x8e));
+    }
+    value = pinned * scale;
+    if (value > 0.0f) {
+      *(float *)(p + 0x10) = value;
+      *(uint8_t *)(p + 0x20) = (*(uint8_t *)(element + 0x8c) >> 2) & 1;
+      *(int32_t *)(p + 0x14) = *(int32_t *)(element + 0x94);
+      *(int32_t *)(p + 0x18) = *(int32_t *)(element + 0x98);
+      *(int32_t *)(p + 0x1c) = *(int32_t *)(element + 0x9c);
+    }
+  }
+
+  FUN_0017cb90(params);
+  hud_draw_screen();
+  FUN_000afdf0();
+  return;
+
+no_overlay:
+  FUN_0017cb90(NULL);
+  hud_draw_screen();
+  FUN_000afdf0();
+}
+
 /* 0xdf350 */
 void profile_graph_toggle(const char *value_name)
 {

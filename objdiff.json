@@ -9086,6 +9086,22 @@
    "metadata": {
     "source_path": "halo/main/telnet_console.c"
    }
+  },
+  {
+   "name": "halo/ui_widget_FUN_000e9d00",
+   "target_path": "build/CMakeFiles/halo.dir/src/halo/interface/ui_widget.c.obj",
+   "base_path": "delinked/ui_widget_FUN_000e9d00.obj",
+   "metadata": {
+    "source_path": "halo/interface/ui_widget.c"
+   }
+  },
+  {
+   "name": "halo/FUN_00155130",
+   "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/xbox/rasterizer_xbox.c.obj",
+   "base_path": "delinked/functions/155130.obj",
+   "metadata": {
+    "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox.c"
+   }
   }
  ]
 }

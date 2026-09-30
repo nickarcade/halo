@@ -1,3 +1,5 @@
+#include <stdarg.h>
+
 /* compute_packet_field_sizes (0x11add0) and _data_packet_encode (0x11afa0) are
  * now ported in networking/data_packet_groups.c; their declarations come from
  * kb.json via decl.h.  The raw-address XCALL macros that used to stand in for
@@ -1177,6 +1179,21 @@ void lra_default_purge_block_proc(int *ptr)
   *ptr = 0;
 }
 
+/* lra_block_delete — if the block is not yet deleted, run the cache's delete
+ * callback on it, then clear the locked bit and set the deleted bit (0x11c1f0).
+ * Register args: @ECX = cache, @ESI = block header.  No references to the
+ * out-of-line copy exist; the same body is inlined into its callers. */
+void lra_block_delete(int cache, int block)
+{
+  lra_cache_t *c = (lra_cache_t *)cache;
+  lra_block_t *b = (lra_block_t *)block;
+
+  if ((b->magic_flags & 2) == 0) {
+    c->unlock_proc(b->data);
+    b->magic_flags = (b->magic_flags & ~1U) | 2;
+  }
+}
+
 /* lra_cache_validate_block — validate a block header (0x11c210).
  * Register args: @EBX = cache, @ESI = block header. */
 void verify_lra_cache_block(int cache, int block)
@@ -1530,4 +1547,39 @@ void *create_network_game_message(int type, void *data,
 
   network_event("encode_network_game_message() failed");
   return NULL;
+}
+
+void network_event(const char *format, ...)
+{
+  va_list args;
+
+  if (format == NULL) {
+    display_assert("format", "c:\\halo\\SOURCE\\networking\\network_messages.c",
+                   0x14b, 1);
+    system_exit(-1);
+  }
+
+  va_start(args, format);
+  crt_vsnprintf(error_string_buffer, 0xff, format, args);
+  va_end(args);
+
+  error(3, error_string_buffer);
+}
+
+bool encode_network_game_message(void *message_struct, char *encoded_message,
+                                 int16_t *encoded_message_size, int16_t type,
+                                 int one)
+{
+  if (message_struct == NULL || encoded_message == NULL ||
+      encoded_message_size == NULL || !(*encoded_message_size > 0)) {
+    display_assert("message_struct && encoded_message && encoded_message_size "
+                   "&& (*encoded_message_size>0)",
+                   "c:\\halo\\SOURCE\\networking\\network_messages.c", 0x161,
+                   1);
+    system_exit(-1);
+  }
+
+  return encode_packet_group(&s_network_game_messages_group, message_struct,
+                             encoded_message, encoded_message_size, type,
+                             (short)one);
 }

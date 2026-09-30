@@ -42,7 +42,8 @@ void game_state_initialize_for_new_map(void)
 
   /* store map type (0x124), tag checksum (0x126), and cache checksum (0x128) */
   *(int16_t *)((char *)*(void **)0x4ea9ac + 0x124) = *(int16_t *)0x31fa94;
-  *(int16_t *)((char *)*(void **)0x4ea9ac + 0x126) = game_difficulty_level_get();
+  *(int16_t *)((char *)*(void **)0x4ea9ac + 0x126) =
+    game_difficulty_level_get();
   *(int *)((char *)*(void **)0x4ea9ac + 0x128) = FUN_001b9920();
   *(int *)*(void **)0x4ea9ac = *(int *)0x4ea9a0;
 }
@@ -70,8 +71,7 @@ void game_state_save(void)
  *
  * noinline: the original emits this out of line and
  * game_state_save_to_persistent_storage reaches it via CALL 0x001bf8a0. */
-__declspec(noinline)
-void game_state_revert(void)
+__declspec(noinline) void game_state_revert(void)
 {
   void (**callbacks)(void);
   int count;
@@ -162,25 +162,24 @@ bool game_state_validate_core_header(char *header, bool fatal)
   result = false;
   if (csstrcmp(header + 0x104, "01.10.12.2276") != 0) {
     if (fatal) {
-      display_assert(
-        csprintf((char *)0x5ab100, "expected build #%d but got #%d",
-                 "01.10.12.2276", header + 0x104),
-        "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x195, 1);
+      display_assert(csprintf((char *)0x5ab100,
+                              "expected build #%d but got #%d", "01.10.12.2276",
+                              header + 0x104),
+                     "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x195, 1);
       system_exit(-1);
     }
   } else if (csstrcmp(header + 0x4, tag_get_name(*(int *)0x326a08)) != 0) {
     if (fatal) {
-      display_assert(
-        csprintf((char *)0x5ab100, "expected \"%s\" but got \"%s\"",
-                 tag_get_name(*(int *)0x326a08), header + 0x4),
-        "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x199, 1);
+      display_assert(csprintf((char *)0x5ab100,
+                              "expected \"%s\" but got \"%s\"",
+                              tag_get_name(*(int *)0x326a08), header + 0x4),
+                     "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x199, 1);
       system_exit(-1);
     }
   } else if (*(int *)header != *(int *)0x4ea9a0) {
     if (fatal) {
-      display_assert(
-        csprintf((char *)0x5ab100, "allocation checksum mismatch"),
-        "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x19d, 1);
+      display_assert(csprintf((char *)0x5ab100, "allocation checksum mismatch"),
+                     "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x19d, 1);
       system_exit(-1);
     }
   } else if (*(int16_t *)(header + 0x124) != *(int16_t *)0x31fa94) {
@@ -237,6 +236,21 @@ void FUN_001bfb60(const char *name, int a2, int value, bool flag)
   crt_fflush(game_state_globals.log_file);
 }
 
+/*
+ * game_state_set_revert_time - 0x1bfbd0 / game_state.obj
+ *
+ * Restores the saved-game "verified-tick" at 0x4ea9a8 to the current game
+ * time and unpauses game time. Entry 10 of the 13 after-load callbacks
+ * game_state_revert (0x1bf8a0) invokes via the table at 0x32eaa8; makes
+ * game_state_reverted's *(int *)0x4ea9a8 == game_time_get() check pass
+ * immediately after a revert.
+ */
+void game_state_set_revert_time(void)
+{
+  *(int *)0x4ea9a8 = game_time_get();
+  game_time_set_paused(0);
+}
+
 /* Allocate from the CPU-side game state region.
  *
  * Logs each allocation to "d:\\gamestate.txt" (0x1bfc73-0x1bfcc0) using the
@@ -246,15 +260,19 @@ void FUN_001bfb60(const char *name, int a2, int value, bool flag)
  * noinline: the original emits this out of line at all three call sites --
  * game_state_data_new, game_state_memory_pool_new and
  * game_state_lruv_cache_new all reach it via CALL 0x001bfbf0. */
-__declspec(noinline)
-void *game_state_malloc(const char *name, const char *group_name, int size)
+__declspec(noinline) void *game_state_malloc(const char *name,
+                                             const char *group_name, int size)
 {
   void *result;
 
-  assert_halt_msg_at("!(size&3)", "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x99, !(size & 3));
-  assert_halt_at("c:\\halo\\SOURCE\\saved games\\game_state.c", 0x9c, !game_state_globals.locked);
-  assert_halt_msg_at("game_state_globals.cpu_allocation_size+size<=GAME_STATE_CPU_SIZE", "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x9f, game_state_globals.cpu_allocation_size + size <=
-              GAME_STATE_CPU_SIZE);
+  assert_halt_msg_at("!(size&3)", "c:\\halo\\SOURCE\\saved games\\game_state.c",
+                     0x99, !(size & 3));
+  assert_halt_at("c:\\halo\\SOURCE\\saved games\\game_state.c", 0x9c,
+                 !game_state_globals.locked);
+  assert_halt_msg_at(
+    "game_state_globals.cpu_allocation_size+size<=GAME_STATE_CPU_SIZE",
+    "c:\\halo\\SOURCE\\saved games\\game_state.c", 0x9f,
+    game_state_globals.cpu_allocation_size + size <= GAME_STATE_CPU_SIZE);
 
   /* Open log file on first use; skip logging if open fails. */
   if (game_state_globals.log_file == NULL) {
@@ -285,8 +303,10 @@ void *game_state_gpu_alloc(const char *name, int a2, uint32_t size)
   uint32_t new_gpu_size;
   int offset;
 
-  assert_halt_msg_at("!(size&3)", "c:\\halo\\SOURCE\\saved games\\game_state.c", 0xb6, !(size & 3));
-  assert_halt_at("c:\\halo\\SOURCE\\saved games\\game_state.c", 0xb9, !game_state_globals.locked);
+  assert_halt_msg_at("!(size&3)", "c:\\halo\\SOURCE\\saved games\\game_state.c",
+                     0xb6, !(size & 3));
+  assert_halt_at("c:\\halo\\SOURCE\\saved games\\game_state.c", 0xb9,
+                 !game_state_globals.locked);
   assert_halt(game_state_globals.gpu_allocation_size + size <= 0x40000);
 
   new_gpu_size = game_state_globals.gpu_allocation_size + size;
@@ -389,8 +409,8 @@ void game_state_lruv_cache_new(void)
  */
 /* noinline (VC71 verification only): the original build emits this out of
  * line; game_state_lruv_cache_new calls it via CALL 0x001c00c0. */
-__declspec(noinline)
-void *FUN_001c00c0(void *address, uint32_t cpu_size, uint32_t gpu_size)
+__declspec(noinline) void *FUN_001c00c0(void *address, uint32_t cpu_size,
+                                        uint32_t gpu_size)
 {
   int result;
 

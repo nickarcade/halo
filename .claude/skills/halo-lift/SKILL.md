@@ -134,6 +134,13 @@ All edits target **that path**, not a hardcoded `/mnt/g/dev/halo`.
    - Generic accessors (`datum_get`, `tag_get`) genuinely return `void *` —
      the type depends on the pool. Those need a typed wrapper, not a changed
      decl; leave them and say so rather than inventing a type.
+   - **Write in Bungie code style** (binding: `lift-implementation.md` →
+     *Bungie Code Style*). This covers: `lower_snake` names, `k_` constants,
+     `_enum_member` / `_x_bit` enums, `MAXIMUM_`/`NUMBER_OF_` bounds,
+     `*_index` handles, `NONE`, `TEST_FLAG`, cseries types, typed `<element>_get`
+     datum macros over kb-named pools, and `DATUM_INDEX_TO_*`. Style changes
+     spelling only. If a style rule would change bytes or call count, keep the
+     original codegen.
    - Preserve engine idioms: `real`/`boolean` types, `cseries` macros, typed
      tag/object accessors, named enum switch cases (see `halo-xbox-re`)
    - Asserts: `assert_halt(cond)`

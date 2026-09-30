@@ -301,40 +301,6 @@ char FUN_001ac3b0(volatile int unit_handle, int weapon_handle)
   return result;
 }
 
-/* sound_cache_sound_finished (0x1be090)
- *
- * Decrements the software_reference_count on a cache-sound entry when a
- * sound permutation finishes playing. Takes the permutation tag pointer,
- * reads the cache handle from offset +0x2c, and looks up the corresponding
- * cache-sound datum from the sound cache table at 0x4e9368.
- *
- * If the debug trace flag at 0x5054ec is set, logs the current reference
- * count and name before decrementing.
- *
- * Asserts that software_reference_count is nonzero before decrementing
- * (source: c:\halo\SOURCE\cache\xbox_sound_cache.c, line 263). */
-void sound_cache_sound_finished(int permutation_ptr)
-{
-  char *cache_sound;
-  int cache_handle;
-
-  cache_handle = *(int *)(permutation_ptr + 0x2c);
-  cache_sound = (char *)datum_get(*(data_t **)0x4e9368, cache_handle);
-
-  if (*(uint8_t *)0x5054ec != 0) {
-    error(2, "--- finish %d %s", (int)*(uint8_t *)(cache_sound + 4),
-          *(char **)(cache_sound + 8));
-  }
-
-  if (*(uint8_t *)(cache_sound + 4) == 0) {
-    display_assert("cache_sound->software_reference_count > 0",
-                   "c:\\halo\\SOURCE\\cache\\xbox_sound_cache.c", 0x107, 1);
-    system_exit(-1);
-  }
-
-  *(uint8_t *)(cache_sound + 4) -= 1;
-}
-
 /* FUN_001be100 (0x1be100)
  *
  * Hardware-reference counterpart of sound_cache_sound_finished: bumps the
@@ -430,63 +396,6 @@ int FUN_001be170(int cache_block_index)
   return 1;
 }
 
-/* FUN_001be1b0 (0x1be1b0)
- *
- * LRU-V block-delete callback for the Xbox sound cache: sound_cache_new hands
- * this function to lruv_new as the first callback (cast at
- * cache/xbox_sound_cache.c:122), so the stack argument is a cache block index
- * -- which in this cache is also the cache-sound datum index (FUN_001be2b0
- * asserts new_cache_sound_index==cache_block_index).  The kb decl was
- * void(void); the reference reads MOV EDI,dword ptr [EBP+0x8] at 0x1be1ba and
- * cleanup is caller-side (plain RET), so it is a single cdecl int parameter.
- *
- * Refuses to evict a block that is still referenced: +0x04 is the software
- * reference count and +0x05 the hardware reference count (same fields
- * FUN_001be170 tests), and a non-zero count reports
- * "tried to delete sound %s(%s) from the cache while it was playing."
- * (xbox_sound_cache.c line 0x141) and halts.
- *
- * Otherwise it asserts cache_sound->sound->cache_block_index==block_index
- * (line 0x144), clears the owning record's cache-block index (+0x2c = -1) and
- * cache page address (+0x30 = 0), then frees the datum.  +0x08 is the owning
- * sound-permutation record FUN_001be2b0 stored there, and +0x3c on that record
- * is the tag index handed to tag_get_name.
- *
- * The reference re-loads [ESI+0x8] before each of the three uses
- * (0x1be216 / 0x1be23e / 0x1be248), so the loads are left uncached here.
- *
- * The second %s consumes the record pointer itself (PUSH EAX at 0x1be1e9,
- * offset 0), so offset 0 of that record is most likely an embedded name
- * string -- UNPROVEN from this function, hence the raw pointer. */
-void FUN_001be1b0(int block_index)
-{
-  char *cache_sound;
-
-  cache_sound = (char *)datum_get(*(data_t **)0x4e9368, block_index);
-
-  if (*(uint8_t *)(cache_sound + 4) != 0 ||
-      *(uint8_t *)(cache_sound + 5) != 0) {
-    display_assert(
-      csprintf((char *)0x5ab100,
-               "tried to delete sound %s(%s) from the cache while it was "
-               "playing.",
-               tag_get_name(*(int *)(*(char **)(cache_sound + 8) + 0x3c)),
-               *(char **)(cache_sound + 8)),
-      "c:\\halo\\SOURCE\\cache\\xbox_sound_cache.c", 0x141, 1);
-    system_exit(-1);
-  }
-
-  if (*(int *)(*(char **)(cache_sound + 8) + 0x2c) != block_index) {
-    display_assert("cache_sound->sound->cache_block_index==block_index",
-                   "c:\\halo\\SOURCE\\cache\\xbox_sound_cache.c", 0x144, 1);
-    system_exit(-1);
-  }
-
-  *(int *)(*(char **)(cache_sound + 8) + 0x2c) = -1;
-  *(int *)(*(char **)(cache_sound + 8) + 0x30) = 0;
-  datum_delete(*(data_t **)0x4e9368, block_index);
-}
-
 /* FUN_001be270 (0x1be270)
  *
  * Name-formatting callback for the Xbox sound cache LRU dump: FUN_001be2b0
@@ -519,79 +428,6 @@ char *FUN_001be270(int cache_block_index)
   crt_sprintf((char *)0x4e9268, "%s (%s)", tag_get_name(*(int *)(sound + 0x3c)),
               sound);
   return (char *)0x4e9268;
-}
-
-/* FUN_001be2b0 (0x1be2b0)
- *
- * Sound-cache counterpart of xbox_texture_cache_request: reserves an LRU
- * cache block for a pending sound-permutation request (record passed in ESI)
- * and starts the asynchronous read into that block.
- *
- * Request record offsets (confirmed from the disassembly at 0x1be2b6 ff.):
- *   +0x2c  cache block index   (written on success)
- *   +0x30  cache page address  (written on success)
- *   +0x34  cache file index    -> cache_file_read param_1
- *   +0x40  requested size      -> lruv allocation size and read size
- *   +0x48  file offset         -> cache_file_read offset
- *
- * On allocation failure it reports "SOUND CACHE BLOWN" and dumps the LRU
- * state to d:\stabbed.txt, at most once per 10 seconds (last-report
- * timestamp at 0x4e9374); the cache-sound datum is left untouched.
- *
- * Asserts new_cache_sound_index==cache_block_index
- * (c:\halo\SOURCE\cache\xbox_sound_cache.c line 0x170).
- *
- * The cache_file_read return value is genuinely discarded here (unlike the
- * texture path, which stores it at entry+2); entry+2 is instead handed to
- * cache_file_read as the completion flag. */
-void FUN_001be2b0(char *request /* @<esi> */)
-{
-  int cache_block_index;
-  int cache_page_index;
-  int new_cache_sound_index;
-  char *cache_sound;
-
-  cache_block_index =
-    FUN_0011de10(*(void **)0x4e9370, *(unsigned int *)(request + 0x40));
-  if (cache_block_index != -1) {
-    cache_page_index =
-      lruv_block_get_address(*(void **)0x4e9370, cache_block_index) +
-      *(int *)0x4e936c;
-    new_cache_sound_index =
-      data_new_datum(*(data_t **)0x4e9368, cache_block_index);
-    cache_sound = (char *)datum_get(*(data_t **)0x4e9368, cache_block_index);
-
-    if (new_cache_sound_index != cache_block_index) {
-      display_assert("new_cache_sound_index==cache_block_index",
-                     "c:\\halo\\SOURCE\\cache\\xbox_sound_cache.c", 0x170, 1);
-      system_exit(-1);
-    }
-
-    *(int *)(request + 0x2c) = cache_block_index;
-    *(int *)(request + 0x30) = cache_page_index;
-    *(char **)(cache_sound + 8) = request;
-    cache_file_read(*(int *)(request + 0x34), *(int *)(request + 0x48),
-                    *(unsigned int *)(request + 0x40), cache_page_index,
-                    cache_sound + 2, 0);
-    return;
-  }
-
-  /* Cold path: MSVC lays the cache-blown reporting out after the RET. */
-  if (system_milliseconds() - *(unsigned int *)0x4e9374 > 10000u) {
-    terminal_printf(
-      *(void **)0x2ee6f4,
-      "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-      NULL);
-    error(2, "SOUND CACHE BLOWN!!!! double-click \"GETSTABBED.BAT\" on your "
-             "PC now!!!");
-    terminal_printf(
-      *(void **)0x2ee6f4,
-      "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!",
-      NULL);
-    FUN_0011db90("d:\\stabbed.txt", request, *(int *)(request + 0x40),
-                 *(void **)0x4e9370, (void *)0x18ef30, (void *)0x1be270);
-    *(unsigned int *)0x4e9374 = system_milliseconds();
-  }
 }
 
 /* sound_pitch_push_sample (0x1c7b00)
@@ -1101,135 +937,6 @@ void dsound_virtual_set_location(int channel_index, char flag_0c,
     dsound_channel_set_location(channel, flag_0c, location, value_10, value_14,
                                 flag_18);
   }
-}
-
-/* dsound_initialize (0x1cb4c0)
- *
- * Binary: [EBP+8] is a pointer asserted non-NULL as "preferences"
- * (sound_dsound_xbox.c line 0xea); AL is the return value.  Creates the
- * DirectSound object into 0x50545c, copies its caps into 0x50544c..0x505458,
- * sets distance factor 3.048f and rolloff 1.0f, downloads the effects image
- * (0x2bccf0, 0x3a5c bytes; failure is logged but not fatal), then
- * initializes virtual channels (per-type counts at preferences[5..8]) and
- * dsound channels (per-type counts at preferences[1..4], flags from the
- * short table at 0x32fcf8).  The 0x34-byte block passed to FUN_001ca2b0
- * and the preferences layout beyond these reads are UNKNOWN. */
-boolean dsound_initialize(short *preferences)
-{
-  uint32_t params[13];
-  uint32_t caps[4];
-  void *image_desc;
-  uint32_t image_loc[2];
-  const uint32_t *source;
-  short *vchannel;
-  short virtual_index;
-  short channel_index;
-  short type_index;
-  short count_index;
-  boolean success;
-  int result;
-
-  success = false;
-  *(char *)0x4fdbc0 = false;
-  *(char *)0x505484 = false;
-  *(float *)0x505488 = 1.0f;
-  *(void **)0x505460 = NULL;
-  if (preferences == NULL) {
-    display_assert("preferences",
-                   "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0xea, 1);
-    system_exit(-1);
-  }
-
-  result = DirectSoundCreate(NULL, (void **)0x50545c, NULL);
-  if (result >= 0) {
-    result = IDirectSound_GetCaps(*(void **)0x50545c, caps);
-    if (result >= 0) {
-      *(uint32_t *)0x50544c = caps[0];
-      *(uint32_t *)0x505450 = caps[1];
-      *(uint32_t *)0x505454 = caps[2];
-      *(uint32_t *)0x505458 = caps[3];
-      result = IDirectSound_SetDistanceFactor(*(void **)0x50545c, 3.048f, 0);
-      if (result >= 0) {
-        result = IDirectSound_SetRolloffFactor(*(void **)0x50545c, 1.0f, 0);
-        if (result >= 0) {
-          csmemset(params, 0, 0x34);
-          source = *(const uint32_t **)0x31fc3c;
-          params[3] = source[0];
-          params[4] = source[1];
-          params[5] = source[2];
-          source = *(const uint32_t **)0x31fc44;
-          params[6] = source[0];
-          params[7] = source[1];
-          params[8] = source[2];
-          params[12] = 0x2c1220;
-          image_loc[0] = 0;
-          image_loc[1] = 1;
-          result = IDirectSound_DownloadEffectsImage(
-            *(void **)0x50545c, (const void *)0x2bccf0, 0x3a5c, image_loc,
-            &image_desc);
-          if (result < 0) {
-            sound_dsound_log_error(result, "could not download effects image.");
-          }
-          IDirectSound_SetMixBinHeadroom(*(void **)0x50545c, 0x7fffffff, 0);
-          DirectSoundUseFullHRTF();
-          FUN_001ca2b0((const float *)params);
-
-          virtual_index = 0;
-          success = true;
-          for (type_index = 0; type_index < 4; type_index++) {
-            for (count_index = 0; count_index < preferences[5 + type_index];
-                 count_index++) {
-              (*(short *)0x4fdbc2)++;
-              if (success) {
-                vchannel = (short *)sound_dsound_vchannel_get(virtual_index);
-                if (type_index < 0 || type_index >= 4) {
-                  display_assert(
-                    "type_index>=0 && type_index<NUMBER_OF_SOUND_CHANNEL_TYPES",
-                    "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x1a6, 1);
-                  system_exit(-1);
-                }
-                vchannel[1] = type_index;
-                vchannel[0] = -1;
-                virtual_index++;
-                success = true;
-              } else {
-                success = false;
-              }
-            }
-          }
-
-          channel_index = 0;
-          for (type_index = 0; type_index < 4; type_index++) {
-            ((short *)0x5053c8)[type_index] = channel_index;
-            for (count_index = 0; count_index < preferences[1 + type_index];
-                 count_index++) {
-              (*(short *)0x4fdfc4)++;
-              success =
-                success && dsound_initialize_channel(
-                             ((short *)0x32fcf8)[type_index], channel_index++);
-            }
-          }
-
-          success = success && dsound_fix_rear_speakers();
-        } else {
-          sound_dsound_log_error(result, "could not adjust rolloff factor");
-        }
-      } else {
-        sound_dsound_log_error(result, "could not adjust distance factor");
-      }
-    } else {
-      sound_dsound_log_error(result, "could not get caps for sound card?");
-    }
-  } else {
-    sound_dsound_log_error(result, "could not create direct sound object");
-  }
-
-  if (success) {
-    *(char *)0x4fdbc0 = true;
-  } else {
-    FUN_001c93f0();
-  }
-  return success;
 }
 
 /* sound_valid_for_channel (0x1cb790)
@@ -2631,7 +2338,7 @@ void sound_stop_channel(int sound_handle /* @<ebx> */)
   {
     char *verify = (char *)datum_get(*(data_t **)0x4fdba4, sound_handle);
     if (*(short *)(verify + 0x8c) != -1) {
-      display_assert("sound->playing_channel_index==NONE",
+      display_assert("sound_get(sound_index)->playing_channel_index==NONE",
                      "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x4cf, 1);
       system_exit(-1);
     }
@@ -2643,11 +2350,118 @@ void sound_stop_channel(int sound_handle /* @<ebx> */)
 
 /* Sound manager — low-level sound system lifecycle and rendering. */
 
-/* Compute listener distance squared for a channel/source pair. */
-extern float FUN_001ccbe0(int channel_index, void *source);
+/* FUN_001ccbe0 (0x1ccbe0)
+ *
+ * Compute a squared distance for a channel/source pair, dispatched on the
+ * source's type word (*(short *)source):
+ *   0 - no source: returns the global zero constant.
+ *   1 - listener-relative: resolves the channel's listener via
+ *       sound_listener_get(channel_index) [passed through ESI, unmodified
+ *       since function entry], subtracts the listener's position
+ *       (listener+0x2c/0x30/0x34) from the source's position
+ *       (source+0xc/0x10/0x14), and returns the squared length -- after
+ *       re-fetching the listener and asserting its valid byte (offset 0) is
+ *       nonzero.
+ *   2 - already a delta vector: returns the squared length of
+ *       source+0xc/0x10/0x14 directly, no listener lookup.
+ *   default (3+): halts via display_assert(NULL, ...)/system_exit(-1).
+ *
+ * channel_index arrives in EAX and is copied to ESI at entry (unused unless
+ * type==1); source arrives directly in EDI. Both are cdecl parameters here --
+ * the kb.json @<eax>/@<edi> annotation only matters for callers still calling
+ * through the register-arg thunk.
+ *
+ * The original dispatches with a switch (default block first); the compiler
+ * tail-merges the invalid-listener assert into the default-case call site. */
+float FUN_001ccbe0(int channel_index, void *source)
+{
+  void *listener;
+  float dx;
+  float dy;
+  float dz;
+  float dist_sq;
 
-/* Compute distance for random scale checks. */
-extern float FUN_001ccca0(int channel_index, void *source);
+  switch (*(short *)source) {
+  case 0:
+    return *(float *)0x2533c0;
+  case 1:
+    listener = sound_listener_get((short)channel_index);
+    dx = *(float *)((char *)listener + 0x2c) - *(float *)((char *)source + 0xc);
+    dy =
+      *(float *)((char *)listener + 0x30) - *(float *)((char *)source + 0x10);
+    dz =
+      *(float *)((char *)listener + 0x34) - *(float *)((char *)source + 0x14);
+    dist_sq = dz * dz + dx * dx + dy * dy;
+    if (*(char *)sound_listener_get((short)channel_index) == 0) {
+      display_assert("listener_get(listener_index)->valid",
+                     "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x574, 1);
+      system_exit(-1);
+    }
+    break;
+  case 2:
+    dx = *(float *)((char *)source + 0xc);
+    dy = *(float *)((char *)source + 0x10);
+    dz = *(float *)((char *)source + 0x14);
+    return dx * dx + dy * dy + dz * dz;
+  default:
+    display_assert(NULL, "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x57a, 1);
+    system_exit(-1);
+  }
+  return dist_sq;
+}
+
+/* FUN_001ccca0 (0x1ccca0)  -- dormant lift (kb ported:false)
+ *
+ * Linear (square-rooted) twin of FUN_001ccbe0: returns the distance between
+ * a channel's listener and a sound source, dispatched on the source's type
+ * word (*(short *)source):
+ *   0 - no source: returns the global zero constant (0x2533c0).
+ *   1 - listener-relative: sound_listener_get(channel_index) [channel_index
+ *       arrives in EAX and is copied to ESI, the listener getter's @<si>
+ *       slot], delta = listener+0x2c/0x30/0x34 - source+0xc/0x10/0x14,
+ *       returns FSQRT(dz*dz + dx*dx + dy*dy) after re-fetching the listener
+ *       and asserting its valid byte (listener+0) is nonzero (line 0x58d).
+ *   2 - source+0xc/0x10/0x14 is already a delta: FSQRT(x*x + y*y + z*z).
+ *   default: display_assert(NULL, ..., 0x593)/system_exit(-1).
+ * The x87 addend order above is read off the FLD ST(i)/FMUL/FADDP sequence
+ * of each arm. As in the sibling, the original is a switch whose two asserts
+ * tail-merge into one CALL 0x8d9f0. */
+float FUN_001ccca0(int channel_index, void *source)
+{
+  void *listener;
+  float dx;
+  float dy;
+  float dz;
+  float distance;
+
+  switch (*(short *)source) {
+  case 0:
+    return *(float *)0x2533c0;
+  case 1:
+    listener = sound_listener_get((short)channel_index);
+    dx = *(float *)((char *)listener + 0x2c) - *(float *)((char *)source + 0xc);
+    dy =
+      *(float *)((char *)listener + 0x30) - *(float *)((char *)source + 0x10);
+    dz =
+      *(float *)((char *)listener + 0x34) - *(float *)((char *)source + 0x14);
+    distance = xbox_sqrtf(dz * dz + dx * dx + dy * dy);
+    if (*(char *)sound_listener_get((short)channel_index) == 0) {
+      display_assert("listener_get(listener_index)->valid",
+                     "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x58d, 1);
+      system_exit(-1);
+    }
+    break;
+  case 2:
+    dx = *(float *)((char *)source + 0xc);
+    dy = *(float *)((char *)source + 0x10);
+    dz = *(float *)((char *)source + 0x14);
+    return xbox_sqrtf(dx * dx + dy * dy + dz * dz);
+  default:
+    display_assert(NULL, "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x593, 1);
+    system_exit(-1);
+  }
+  return distance;
+}
 
 /* sound_find_oldest_channel (0x1ccd70)
  *
@@ -3287,6 +3101,134 @@ int16_t sound_allocate_channel(void *source /* @<eax> */, float priority)
     return -1;
 
   return (short)best_channel;
+}
+
+/* FUN_001cd690 -- per-frame pass over every live sound in the sounds table
+ * (0x4fdba4): drop sounds that have finished or cannot play, (re)allocate a
+ * channel for the rest, fade sounds in/out as they gain or lose a channel,
+ * then step the global float at 0x4eb0b0 toward its target.
+ *
+ * Confirmed: void(void), cdecl -- no [EBP+8] access, no register read before
+ *   write, and sound_render (0x1cf7ba) calls it with no pushes.  The kb decl
+ *   is correct.
+ * Confirmed: players_are_all_dead (0xba5e0) is called first, its AL result
+ *   kept in [EBP-2]; [EBP-1] starts at 0.
+ * Confirmed loop body (EBX = sound index, ESI = datum, [EBP-0xc] = 'snd!'):
+ *   - channel word +0x8c zero-extended into EAX; when != 0xffff,
+ *     sound_channel_update_status(@<ax>) (0x1cc050); a zero status with state
+ *     word +2 not 2/3 stops the sound (0x1cd7e3).
+ *   - FUN_001cbc40(@<ebx> index) returning 0 stops the sound.
+ *   - sound_get_default_priority(*(int *)(sound+8)) is FSTP'd into its own
+ *     argument slot, which becomes the float argument of
+ *     sound_allocate_channel(@<eax> sound+0x14, priority); PUSH EBX /
+ *     CALL FUN_001cc4f0 follows; one ADD ESP,8 retires both.
+ *   - tag+4 class 0x2c/0x2e/0x2f sets [EBP-1].
+ *   - channel == -1: when flag bit 2 of byte +4 is clear,
+ *     sound_start_fade(0, [0x2c127c], -1, index) and set bit 2.  Otherwise
+ *     word +6 = channel and, when bit 2 is set,
+ *     sound_start_fade(0, [0x2c1280], index, -1) and clear bit 2.
+ *   - when all players are dead: class 0x2c with a channel fades out
+ *     (sound_start_fade(0, [0x2c1284], -1, index)), class 0x2c/0x2e without a
+ *     channel stops.
+ *   - sound_stop_channel(@<ebx> index) (0x1cca60) is the shared stop block.
+ * Confirmed tail: target = [0x32f6d8] with step [0x4eaf50]*[0x25bc08] when
+ *   [EBP-1] is set, else target 1.0f with step [0x4eaf50]*[0x2c16d0] (also
+ *   taken when the table is empty).  diff = target - [0x4eb0b0] and step are
+ *   narrowed to float locals; [0x4eb0b0] += -step if diff < -step, += step if
+ *   diff > step, else += diff.
+ * Uncertain: the meaning of the class codes and of 0x4eb0b0 (a comment in
+ *   sound_render calls this function sound_update_output; not binary-backed).
+ *
+ * 0x1cd690 / sound_manager.obj */
+void FUN_001cd690(void)
+{
+  bool all_players_dead;
+  char class_seen;
+  int sound_index;
+  char *sound;
+  char *sound_definition;
+  int16_t channel_index;
+  int16_t sound_class;
+  float step;
+  float difference;
+
+  all_players_dead = players_are_all_dead();
+  class_seen = 0;
+  sound_index = data_next_index(*(data_t **)0x4fdba4, -1);
+  if (sound_index != -1) {
+    do {
+      sound = (char *)datum_get(*(data_t **)0x4fdba4, sound_index);
+      sound_definition = (char *)tag_get(0x736e6421, *(int *)(sound + 8));
+
+      if (*(uint16_t *)(sound + 0x8c) != 0xffff &&
+          sound_channel_update_status(*(int16_t *)(sound + 0x8c)) == 0 &&
+          *(int16_t *)(sound + 2) != 2 && *(int16_t *)(sound + 2) != 3) {
+        goto stop_sound;
+      }
+      if (!FUN_001cbc40(sound_index)) {
+        goto stop_sound;
+      }
+
+      channel_index = sound_allocate_channel(
+        sound + 0x14, sound_get_default_priority(*(int *)(sound + 8)));
+      FUN_001cc4f0(sound_index);
+
+      sound_class = *(int16_t *)(sound_definition + 4);
+      if (sound_class == 0x2c || sound_class == 0x2e || sound_class == 0x2f) {
+        class_seen = 1;
+      }
+
+      if (channel_index == -1) {
+        if ((*(uint8_t *)(sound + 4) & 4) == 0) {
+          sound_start_fade(0, *(float *)0x2c127c, -1, sound_index);
+          *(uint8_t *)(sound + 4) |= 4;
+        }
+      } else {
+        *(int16_t *)(sound + 6) = channel_index;
+        if ((*(uint8_t *)(sound + 4) & 4) != 0) {
+          sound_start_fade(0, *(float *)0x2c1280, sound_index, -1);
+          *(uint8_t *)(sound + 4) &= 0xfb;
+        }
+      }
+
+      if (all_players_dead) {
+        sound_class = *(int16_t *)(sound_definition + 4);
+        if (sound_class == 0x2c) {
+          if (*(int16_t *)(sound + 0x8c) == -1) {
+            goto stop_sound;
+          }
+          sound_start_fade(0, *(float *)0x2c1284, -1, sound_index);
+        } else if (sound_class == 0x2e && *(int16_t *)(sound + 0x8c) == -1) {
+          goto stop_sound;
+        }
+      }
+      goto next_sound;
+
+    stop_sound:
+      sound_stop_channel(sound_index);
+
+    next_sound:
+      sound_index = data_next_index(*(data_t **)0x4fdba4, sound_index);
+    } while (sound_index != -1);
+
+    if (class_seen) {
+      step = *(float *)0x4eaf50 * *(float *)0x25bc08;
+      difference = *(float *)0x32f6d8 - *(float *)0x4eb0b0;
+      goto step_toward_target;
+    }
+  }
+
+  step = *(float *)0x4eaf50 * *(float *)0x2c16d0;
+  difference = 1.0f - *(float *)0x4eb0b0;
+
+step_toward_target:
+  if (difference < -step) {
+    *(float *)0x4eb0b0 += -step;
+  } else if (difference > step) {
+    *(float *)0x4eb0b0 += step;
+  } else {
+    *(float *)0x4eb0b0 += difference;
+  }
 }
 
 /* sound_find_best_channel (0x1cd8b0)
@@ -4006,6 +3948,219 @@ int sound_start(int sound_tag_index, void *source, int object_handle,
   return result;
 }
 
+/* sound_refresh_looping (0x1ce550)  -- dormant lift (kb ported:false)
+ *
+ * Refresh (or create) the looping-sound datum for a game looping sound and
+ * re-issue its per-track channel sounds.
+ *
+ *   sound_tag_index      [EBP+0x08] 'lsnd' tag index (definition_index)
+ *   looping_sound_index  [EBP+0x0c] game looping-sound handle; handed to
+ *                        FUN_001cc440 in EDI and pushed to looping_sound_new
+ *   source               [EBP+0x10] 0x40-byte sound source block; +0 is the
+ *                        spatialization-mode short, +0x18 the forward vector
+ *                        (assert line 0x2f4), +0xc the position handed to
+ *                        player_effect_continuous_refresh
+ *   param_4              [EBP+0x14] read only as a WORD (CMP word / MOV DX);
+ *                        callers pass 0/1/2, and 2 is the stop request
+ *   param_5              [EBP+0x18] byte; selects the tracks' alternate
+ *                        (+0x8c / +0x9c) sound tags, stored to loop+0x4d
+ *   param_6              [EBP+0x1c] float fade time used when stopping
+ *
+ * Returns (AL):
+ *   - sound system not initialized / no hardware (0x4eaf40 / 0x4eaf41):
+ *     (param_4 == 2), the SETZ taken at entry;
+ *   - no existing looping datum and param_4 == 2: 1 (MOV CL,1 / MOV AL,CL);
+ *   - looping_sound_new failed: 0;
+ *   - datum deleted up front (stop request or loop+0x4e set, with
+ *     loop+0x50 == 0): 1;
+ *   - otherwise 0 -- including the tail datum_delete when
+ *     sound_allocate_channel fails, which is still followed by the
+ *     loop+0x4d / loop+0x52 stores into the deleted datum (as the original).
+ *
+ * Track loop: the counter is a short (INC EAX / MOVSX ECX,AX); the raw
+ * counter dword [EBP-0x10] is what is pushed as track_index to
+ * sound_create_looping_entry, the sign-extended copy [EBP-0x8] indexes the
+ * per-track handle array at loop+0xd4 (dword stride).
+ *
+ * Every datum_get whose result is unused in the original (0x1ce776,
+ * 0x1ce81a) is kept: datum_get validates the handle.
+ * The equality test on param_6 is FCOMP/TEST AH,0x44/JNP, i.e. the jump is
+ * taken when param_6 == 0.0f (global 0x2533c0); unordered takes the fade. */
+bool sound_refresh_looping(int sound_tag_index, int looping_sound_index,
+                           void *source, int param_4, bool param_5,
+                           float param_6)
+{
+  bool created;
+  int looping_handle;
+  char *loop;
+  char *definition;
+  char *track;
+  short track_index;
+  int index;
+  int sound_tag;
+  int new_handle;
+  int current;
+  char *sound;
+
+  created = (short)param_4 == 2;
+  if (*(short *)source != 0 &&
+      !valid_real_normal3d((float *)((char *)source + 0x18))) {
+    display_assert("source->spatialization_mode==_sound_spatialization_mode_"
+                   "none || valid_real_normal3d(&source->location.forward)",
+                   "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x2f4, 1);
+    system_exit(-1);
+  }
+
+  render_debug_looping_sound(sound_tag_index, source);
+  if (*(unsigned char *)0x4eaf40 == 0 || *(unsigned char *)0x4eaf41 == 0) {
+    return created;
+  }
+
+  looping_handle = FUN_001cc440(looping_sound_index);
+  created = false;
+  if (looping_handle == -1) {
+    if ((short)param_4 == 2) {
+      return true;
+    }
+    looping_handle =
+      looping_sound_new(sound_tag_index, looping_sound_index, source);
+    created = true;
+    if (looping_handle == -1) {
+      return false;
+    }
+  }
+
+  loop = (char *)datum_get(*(data_t **)0x4fdba0, looping_handle);
+  definition = (char *)tag_get(0x6c736e64, sound_tag_index);
+  if (*(int *)(loop + 4) != sound_tag_index) {
+    display_assert("loop->definition_index==definition_index",
+                   "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x30e, 1);
+    system_exit(-1);
+  }
+
+  /* REP MOVSD, ECX=0x10: the whole 0x40-byte source block. */
+  memcpy(loop + 0xc, source, 0x40);
+  *(unsigned char *)(loop + 0x4c) = *(unsigned char *)0x4eaf54;
+
+  if (((short)param_4 == 2 || *(char *)(loop + 0x4e) != 0) &&
+      *(short *)(loop + 0x50) == 0) {
+    datum_delete(*(data_t **)0x4fdba0, looping_handle);
+    return true;
+  }
+
+  if (*(int *)(definition + 0x38) != -1) {
+    player_effect_continuous_refresh(*(int *)(definition + 0x38),
+                                     (float *)((char *)source + 0xc));
+  }
+
+  track_index = 0;
+  if (*(int *)(definition + 0x3c) > 0) {
+    index = 0;
+    do {
+      track = (char *)tag_block_get_element(definition + 0x3c, index, 0xa0);
+      if (created) {
+        *(int *)(loop + index * 4 + 0xd4) = -1;
+      }
+
+      if ((short)param_4 == 0) {
+        if (*(int *)(track + 0x3c) != -1) {
+          *(int *)(loop + index * 4 + 0xd4) = sound_create_looping_entry(
+            *(int *)(track + 0x3c), looping_handle, track_index, 1);
+        }
+      } else if ((short)param_4 == 2) {
+        goto stop_track;
+      }
+
+      if (*(char *)(loop + 0x4e) != 0) {
+        goto stop_track;
+      }
+
+      sound_tag = *(int *)(track + 0x4c);
+      if (param_5 && *(int *)(track + 0x8c) != -1) {
+        sound_tag = *(int *)(track + 0x8c);
+      }
+      if (sound_tag != -1) {
+        current = *(int *)(loop + index * 4 + 0xd4);
+        if (current == -1 ||
+            ((short)param_4 == 0 && (*(unsigned char *)track & 1) != 0)) {
+          new_handle = sound_create_looping_entry(sound_tag, looping_handle,
+                                                  track_index, 2);
+          if (new_handle != -1) {
+            datum_get(*(data_t **)0x4fdba4, new_handle);
+            if ((short)param_4 == 0) {
+              if ((*(unsigned char *)track & 1) != 0) {
+                sound_start_fade(0, *(float *)(track + 8), new_handle, -1);
+              }
+            } else {
+              sound_start_fade(0, *(float *)0x2c127c, new_handle, -1);
+            }
+            *(int *)(loop + index * 4 + 0xd4) = new_handle;
+          }
+        } else {
+          datum_get(*(data_t **)0x4fdba4, current);
+          if ((char)param_5 != *(char *)(loop + 0x4d) &&
+              (*(unsigned char *)track & 4) != 0) {
+            new_handle = sound_create_looping_entry(sound_tag, looping_handle,
+                                                    track_index, 2);
+            if (new_handle != -1) {
+              sound_start_fade(0, *(float *)(track + 0xc), new_handle,
+                               *(int *)(loop + index * 4 + 0xd4));
+              *(int *)(loop + index * 4 + 0xd4) = new_handle;
+            }
+          } else if (!created) {
+            FUN_001cc2f0(*(int *)(loop + index * 4 + 0xd4), sound_tag);
+          }
+        }
+      }
+      goto next_track;
+
+    stop_track:
+      if (*(short *)(loop + 0x52) != 2) {
+        if (param_6 != *(float *)0x2533c0) {
+          sound_start_fade(0, param_6, -1, *(int *)(loop + index * 4 + 0xd4));
+        } else {
+          current = *(int *)(loop + index * 4 + 0xd4);
+          if (current != -1 &&
+              ((*(unsigned char *)track & 2) != 0 ||
+               (*(int *)(track + 0x5c) == -1 &&
+                (*(unsigned char *)definition & 2) == 0))) {
+            sound_start_fade(0, *(float *)(track + 0xc), -1, current);
+          }
+          if (*(int *)(track + 0x5c) != -1) {
+            sound_tag = *(int *)(track + 0x5c);
+            if (param_5 && *(int *)(track + 0x9c) != -1) {
+              sound_tag = *(int *)(track + 0x9c);
+            }
+            if ((*(unsigned char *)track & 2) != 0) {
+              sound_create_looping_entry(sound_tag, looping_handle,
+                                         track_index, 4);
+            } else if (*(int *)(loop + index * 4 + 0xd4) != -1) {
+              sound = (char *)datum_get(*(data_t **)0x4fdba4,
+                                        *(int *)(loop + index * 4 + 0xd4));
+              if (*(short *)(sound + 0x8c) != -1) {
+                FUN_001cc2f0(*(int *)(loop + index * 4 + 0xd4), sound_tag);
+                *(short *)(sound + 2) = 3;
+              }
+            }
+          }
+        }
+      }
+
+    next_track:
+      track_index++;
+      index = track_index;
+    } while (index < *(int *)(definition + 0x3c));
+  }
+
+  if (*(short *)(loop + 0x50) == 0 &&
+      sound_allocate_channel(source, *(float *)(definition + 0x20)) == -1) {
+    datum_delete(*(data_t **)0x4fdba0, looping_handle);
+  }
+  *(char *)(loop + 0x4d) = (char)param_5;
+  *(short *)(loop + 0x52) = (short)param_4;
+  return false;
+}
+
 /* FUN_001ce9c0 @ 0x1ce9c0 -- per-frame sound listener update.
  *
  * Runs only while a game is in progress (game_in_progress, 0xb5be0).
@@ -4610,8 +4765,7 @@ void FUN_001cf360(void)
           sound_cache_request_sound(
             tag_block_get_element(
               (char *)tag_block_get_element(
-                (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8)) +
-                  0x98,
+                (char *)tag_get(0x736e6421, *(int *)(sound_entry + 0x8)) + 0x98,
                 (int)*(short *)(sound_entry + 0x8e), 0x48) +
                 0x3c,
               (int)*(short *)(sound_entry + 0x90), 0x7c),

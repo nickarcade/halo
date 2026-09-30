@@ -272,32 +272,32 @@ void FUN_000f4ea0(int scenario_tag_index)
                      "long_descriptions",
                      0) == -1)
       error(2,
-            "failed to load the button set long descriptions string list tag");
+            "failed to load the player profile button set long descriptions string list tag");
     if (FUN_001b9b00(0x75737472,
                      "ui\\shell\\main_menu\\player_profiles_select\\button_set_"
                      "short_descriptions",
                      0) == -1)
       error(2,
-            "failed to load the button set short descriptions string list tag");
+            "failed to load the player profile short descriptions string list tag");
     if (FUN_001b9b00(0x75737472,
                      "ui\\shell\\main_menu\\player_profiles_select\\joystick_"
                      "set_defaults_descriptions",
                      0) == -1)
       error(
         2,
-        "failed to load the default joystick set descriptions string list tag");
+        "failed to load the default player profile joystick set descriptions string list tag");
     if (FUN_001b9b00(0x75737472,
                      "ui\\shell\\main_menu\\player_profiles_select\\joystick_"
                      "set_short_descriptions",
                      0) == -1)
       error(
         2,
-        "failed to load the joystick set short descriptions string list tag");
+        "failed to load the player profile joystick set short descriptions string list tag");
     if (FUN_001b9b00(0x75737472,
                      "ui\\shell\\main_menu\\player_profiles_select\\profile_"
                      "description_labels",
                      0) == -1)
-      error(2, "failed to load the profile description labels string list tag");
+      error(2, "failed to load the player profile description labels string list tag");
     if (FUN_001b9b00(0x736e6421 /* 'snd!' */, "sound\\sfx\\ui\\cursor", 0) ==
         -1)
       error(2, "failed to load ui cursor sound tag");
@@ -804,6 +804,318 @@ unsigned short virtual_keyboard_get_character(short key /* @<si> */)
     character = 0x7f;
   }
   return character;
+}
+
+/* Typed views of the virtual keyboard's fixed globals (T2 names):
+ * virtual_keyboard_globals @0x46cef0 (0x68 bytes), the 5x11 signed-byte key
+ * layout @0x28a790 (MOVSX byte [row*0xb + col + 0x28a790]) and the 44-entry
+ * keyboard_rect table @0x31e5b0 (8-byte stride; loops end at 0x31e6d0 = 36
+ * configurable keys and 0x31e710 = 44 keys). */
+#define virtual_keyboard_globals (*(virtual_keyboard_globals_t *)0x46cef0)
+typedef char virtual_keyboard_key_row_t[11];
+#define virtual_keyboard_key_layout \
+  ((const virtual_keyboard_key_row_t *)0x28a790)
+#define keyboard_rect ((viewport_bounds_t *)0x31e5b0)
+
+/* virtual_keyboard_render_internal (0xf5900) — interface/virtual_keyboard.c
+ * (T2). Draws the on-screen keyboard: the
+ * background bitmap, the caption string, the edit text (with a highlight
+ * behind it while the first key still replaces the buffer), a blinking caret,
+ * the 36 character keys and the 8 special keys with their labels.
+ *
+ * The jump table at 0xf5ee8 sends _vkey_symbols (key 39) straight to the
+ * loop increment (0xf5ebe), so that key draws neither its label nor its
+ * background. Assert lines are 0x40b/0x40d/0x415/0x57f.
+ *
+ * Only caller: virtual_keyboard_render (0xf5fa0) tail-JMPs here. */
+void virtual_keyboard_render_internal(void)
+{
+  real_argb_color caption_color;
+  real_argb_color text_color;
+  void *keyboard_font_header;
+
+  text_color.alpha = 1.0f;
+  text_color.red = 0.9f;
+  text_color.green = 0.9f;
+  text_color.blue = 0.9f;
+  caption_color = text_color;
+
+  if (virtual_keyboard_globals.keyboard == NULL ||
+      virtual_keyboard_globals.keyboard->font_tag.tag_index == -1) {
+    display_assert("(virtual_keyboard_globals.keyboard != NULL) && "
+                   "(virtual_keyboard_globals.keyboard->font_tag.index != "
+                   "NONE)",
+                   "c:\\halo\\SOURCE\\interface\\virtual_keyboard.c", 0x40b,
+                   true);
+    system_exit(-1);
+  }
+  keyboard_font_header =
+    tag_get(0x666f6e74,
+            virtual_keyboard_globals.keyboard->font_tag.tag_index); /* 'font' */
+  if (keyboard_font_header == NULL) {
+    display_assert("keyboard_font_header",
+                   "c:\\halo\\SOURCE\\interface\\virtual_keyboard.c", 0x40d,
+                   true);
+    system_exit(-1);
+  }
+
+  if (virtual_keyboard_globals.keyboard->background_bitmap_tag.tag_index !=
+      -1) {
+    viewport_bounds_t bounds;
+    void *bitmap;
+
+    bounds.y0 = 0;
+    bounds.x0 = 0;
+    bounds.y1 = 480;
+    bounds.x1 = 640;
+    bitmap = FUN_00077040(
+      virtual_keyboard_globals.keyboard->background_bitmap_tag.tag_index, 0, 0);
+    if (bitmap == NULL) {
+      display_assert("bitmap",
+                     "c:\\halo\\SOURCE\\interface\\virtual_keyboard.c", 0x415,
+                     true);
+      system_exit(-1);
+    }
+    draw_bitmap_in_rect((int)bitmap, (int16_t *)&bounds, (int16_t *)&bounds,
+                        NULL, 0xffffffff, 0, false);
+  }
+
+  draw_string_set_font(virtual_keyboard_globals.keyboard->font_tag.tag_index,
+                       -1, 0, 0, &caption_color);
+  if (virtual_keyboard_globals.keyboard->special_key_labels_string_list_tag
+        .tag_index != -1) {
+    viewport_bounds_t bounds;
+    wchar_t *caption =
+      (wchar_t *)FUN_0019d420(virtual_keyboard_globals.keyboard
+                                ->special_key_labels_string_list_tag.tag_index,
+                              virtual_keyboard_globals.caption_index);
+
+    bounds.y0 = 78;
+    bounds.x0 = 114;
+    bounds.y1 = 110;
+    bounds.x1 = 640;
+    rasterizer_draw_string(&bounds, (short *)&bounds, NULL, 0, caption);
+  }
+
+  draw_string_set_font(virtual_keyboard_globals.keyboard->font_tag.tag_index,
+                       -1, 2, 0, &text_color);
+  {
+    viewport_bounds_t bounds;
+
+    bounds.y0 = 118;
+    bounds.x0 = 220;
+    bounds.y1 = 143;
+    bounds.x1 = 420;
+    if (virtual_keyboard_globals.first_key_replaces_buffer == 1) {
+      void *bitmap =
+        FUN_00077040(virtual_keyboard_globals.caret_bitmap_index, 0, 0);
+
+      if (bitmap != NULL) {
+        viewport_bounds_t text_bounds;
+        viewport_bounds_t cursor_bounds;
+
+        FUN_0019cdb0((short *)&bounds, virtual_keyboard_globals.text_buffer,
+                     (short *)&text_bounds, (short *)&cursor_bounds);
+        text_bounds.x0 -= 2;
+        text_bounds.x1 += 2;
+        draw_bitmap_in_rect((int)bitmap, (int16_t *)&text_bounds,
+                            (int16_t *)&bounds, NULL, 0x7f7f7f7f, 0, false);
+      }
+    }
+    rasterizer_draw_string(&bounds, (short *)&bounds, NULL, 0,
+                           virtual_keyboard_globals.text_buffer);
+  }
+
+  if (!virtual_keyboard_globals.first_key_replaces_buffer &&
+      virtual_keyboard_globals.caret_bitmap_index != -1 &&
+      (system_milliseconds() / 1000) & 1) {
+    wchar_t *character = virtual_keyboard_globals.text_buffer;
+    /* font_header +0x06 descending_height + +0x04 ascending_height
+     * (font_group.h, T2); the binary loads +0x06 first. */
+    short height = *(short *)((char *)keyboard_font_header + 6) +
+                   *(short *)((char *)keyboard_font_header + 4);
+    short cursor_offset = 0;
+    short width = 0;
+    void *bitmap =
+      FUN_00077040(virtual_keyboard_globals.caret_bitmap_index, 0, 0);
+    viewport_bounds_t caret_bounds;
+
+    if (bitmap != NULL) {
+      /* Loops on the pointer, not the character (the binary's
+       * loop test); the NUL
+       * terminator ends the walk because the font has no glyph for it. */
+      while (character != NULL) {
+        char *font_character =
+          (char *)FUN_0019cff0(keyboard_font_header, *character);
+
+        if (font_character == NULL) {
+          break;
+        }
+        /* font_character +0x02 = character_width (T2) */
+        if (character < virtual_keyboard_globals.cursor) {
+          cursor_offset += *(short *)(font_character + 2);
+        }
+        width += *(short *)(font_character + 2);
+        character++;
+      }
+
+      /* 320 is the horizontal centre of the 220..420 text box */
+      caret_bounds.x0 = 320 - (width >> 1) + cursor_offset;
+      caret_bounds.x1 = caret_bounds.x0 + 1;
+      caret_bounds.y0 = 120;
+      caret_bounds.y1 = height + 120;
+      draw_bitmap_in_rect((int)bitmap, (int16_t *)&caret_bounds, NULL, NULL,
+                          0xffffffff, 0, false);
+    }
+  }
+
+  draw_string_set_font(virtual_keyboard_globals.keyboard->font_tag.tag_index,
+                       -1, 2, 0, &text_color);
+  {
+    virtual_keyboard_key_t *keys =
+      (virtual_keyboard_key_t *)virtual_keyboard_globals.keyboard->keys.address;
+    wchar_t string[24] = { 0 };
+    int key_index;
+
+    /* 36 = NUMBER_OF_CONFIGURABLE_VIRTUAL_KEYS */
+    for (key_index = 0; key_index < 36; key_index++) {
+      virtual_keyboard_key_t *key = &keys[key_index];
+      void *font_character;
+      int bitmap_index;
+
+      string[0] = virtual_keyboard_get_character((short)key_index);
+      font_character = FUN_0019cff0(keyboard_font_header, string[0]);
+      if (font_character == NULL) {
+        string[0] = 0x7f;
+        font_character = FUN_0019cff0(keyboard_font_header, string[0]);
+      }
+      if (font_character != NULL) {
+        viewport_bounds_t key_bounds = keyboard_rect[key_index];
+
+        key_bounds.x0 += 2;
+        key_bounds.x1 += 2;
+        key_bounds.y0 += 5;
+        key_bounds.y1 += 5;
+        rasterizer_draw_string(&key_bounds, NULL, NULL, 0, string);
+      }
+
+      if (virtual_keyboard_key_layout[virtual_keyboard_globals.row]
+                                     [virtual_keyboard_globals.column] ==
+          key_index) {
+        /* 4 = _event_key_select */
+        if (virtual_keyboard_globals.last_event == 4) {
+          bitmap_index = key->active_background_bitmap_tag.tag_index;
+        } else {
+          bitmap_index = key->selected_background_bitmap_tag.tag_index;
+        }
+      } else {
+        bitmap_index = key->unselected_background_bitmap_tag.tag_index;
+      }
+
+      if (bitmap_index != -1) {
+        void *bitmap = FUN_00077040(bitmap_index, 0, 0);
+
+        if (bitmap != NULL) {
+          draw_bitmap_in_rect((int)bitmap, (int16_t *)&keyboard_rect[key_index],
+                              NULL, NULL, 0xffffffff, 0, false);
+        }
+      }
+    }
+
+    if (virtual_keyboard_globals.keyboard->special_key_labels_string_list_tag
+          .tag_index != -1) {
+      /* 44 = NUMBER_OF_VIRTUAL_KEYS; labels are string-list entries 0..7 */
+      for (; key_index < 44; key_index++) {
+        virtual_keyboard_key_t *key = &keys[key_index];
+        wchar_t *label = (wchar_t *)FUN_0019d420(
+          virtual_keyboard_globals.keyboard->special_key_labels_string_list_tag
+            .tag_index,
+          key_index - 36);
+        int bitmap_index = -1;
+        void *bitmap = NULL;
+
+        switch (key_index) {
+        case 36: /* _vkey_done */
+        case 40: /* _vkey_backspace */
+        case 41: /* _vkey_left */
+        case 42: /* _vkey_right */
+        case 43: /* _vkey_space */
+          if (virtual_keyboard_key_layout[virtual_keyboard_globals.row]
+                                         [virtual_keyboard_globals.column] ==
+              key_index) {
+            if (virtual_keyboard_globals.last_event == 4) {
+              bitmap_index = key->active_background_bitmap_tag.tag_index;
+            } else {
+              bitmap_index = key->selected_background_bitmap_tag.tag_index;
+            }
+          } else {
+            bitmap_index = key->unselected_background_bitmap_tag.tag_index;
+          }
+          break;
+
+        case 37: /* _vkey_shift */
+          if (virtual_keyboard_key_layout[virtual_keyboard_globals.row]
+                                         [virtual_keyboard_globals.column] ==
+              key_index) {
+            if (virtual_keyboard_globals.last_event == 4) {
+              bitmap_index = key->active_background_bitmap_tag.tag_index;
+            } else {
+              bitmap_index = key->selected_background_bitmap_tag.tag_index;
+            }
+          } else if (virtual_keyboard_globals.shift_active) {
+            bitmap_index = key->sticky_background_bitmap_tag.tag_index;
+          } else {
+            bitmap_index = key->unselected_background_bitmap_tag.tag_index;
+          }
+          break;
+
+        case 38: /* _vkey_caps */
+          if (virtual_keyboard_key_layout[virtual_keyboard_globals.row]
+                                         [virtual_keyboard_globals.column] ==
+              key_index) {
+            if (virtual_keyboard_globals.last_event == 4) {
+              bitmap_index = key->active_background_bitmap_tag.tag_index;
+            } else {
+              bitmap_index = key->selected_background_bitmap_tag.tag_index;
+            }
+          } else if (virtual_keyboard_globals.caps_active) {
+            bitmap_index = key->sticky_background_bitmap_tag.tag_index;
+          } else {
+            bitmap_index = key->unselected_background_bitmap_tag.tag_index;
+          }
+          break;
+
+        case 39: /* _vkey_symbols: 2276 jump-table slot goes to the increment */
+          continue;
+
+        default:
+          display_assert("!\"what key is this?\"",
+                         "c:\\halo\\SOURCE\\interface\\virtual_keyboard.c",
+                         0x57f, true);
+          system_exit(-1);
+        }
+
+        if (bitmap_index != -1) {
+          bitmap = FUN_00077040(bitmap_index, 0, 0);
+        }
+
+        if (label != NULL) {
+          viewport_bounds_t label_bounds = keyboard_rect[key_index];
+
+          label_bounds.x0 += 2;
+          label_bounds.x1 += 2;
+          label_bounds.y0 += 5;
+          label_bounds.y1 += 5;
+          rasterizer_draw_string(&label_bounds, NULL, NULL, 0, label);
+        }
+        if (bitmap != NULL) {
+          draw_bitmap_in_rect((int)bitmap, (int16_t *)&keyboard_rect[key_index],
+                              (int16_t *)&keyboard_rect[key_index], NULL,
+                              0xffffffff, 0, false);
+        }
+      }
+    }
+  }
 }
 
 /* Virtual keyboard free-room check (0xf5f10).
@@ -1387,6 +1699,25 @@ short object_get_type(int item_handle)
   return (unsigned char)datum[3];
 }
 
+/* items_initialize_for_new_map (0xf68e0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the item object_type_definition table at
+ *   0x323e88, slot +0x18 (initialize_for_new_map); name from PAL 2342
+ *   objects/object_types.c item_data_definition (T2). */
+void items_initialize_for_new_map(void)
+{
+}
+
+/* items_dispose_from_old_map (0xf68f0)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: only reference is the item object_type_definition table at
+ *   0x323e88, slot +0x1c (dispose_from_old_map); name from PAL 2342 (T2). */
+void items_dispose_from_old_map(void)
+{
+}
+
 /* Activate an item: set flags 0x6000, record game time, reset timer (0xf6910).
  */
 char item_new(int item_handle)
@@ -1397,6 +1728,18 @@ char item_new(int item_handle)
   *(int *)(item_obj + 0x1b4) = game_time_get();
   *(int *)(item_obj + 0x1b0) = NONE;
   return 1;
+}
+
+/* item_delete (0xf6950)
+ *
+ * Confirmed: the body is a single RET (C3); the cdecl object-handle
+ *   argument is never read.
+ * Confirmed: only reference is the item object_type_definition table at
+ *   0x323e88, slot +0x2c (datum_delete, PAL signature void (long)); name
+ *   from PAL 2342 objects/object_types.c item_data_definition (T2). */
+void item_delete(int item_handle)
+{
+  (void)item_handle;
 }
 
 /* Iterate all item objects (type 0x1c) and return true if any have
@@ -1833,6 +2176,95 @@ void item_accelerate(int item_handle, float *position, int flag)
     system_exit(-1);
   }
   *(int16_t *)0x4761d8 = *(int16_t *)0x4761d8 - 1;
+}
+
+/* item_align_to_normal_and_point (0xf7110)
+ *
+ * Register args: out_point in EAX (MOV EDI,EAX), normal in ESI, item_handle
+ * in EBX; `point` is the only stack arg (RET, caller cleans 4).
+ * Looks up the item's "ground point" marker (one 0x60-byte marker record at
+ * [EBP-0x94]; +0x3c = marker vector read in the fallback, +0x54 = marker
+ * forward); returns without writing anything when there is none.  NULL
+ * point/out_point are replaced by one local scratch vector.
+ * v = sqrt((forward . normal + 1) * 2): when v > 0.01 (double compare) the
+ * marker vector is rotated by the half-angle quaternion
+ * {(forward x normal) / v, v * 0.5}; otherwise it is (normal x vec) x normal.
+ * The result is normalized and becomes the forward of a matrix at `point`
+ * with `normal` as up; the item is placed so its marker matches that matrix
+ * (object_compute_child_marker_position) and the item's position (+0x0c) is
+ * copied to out_point. */
+void item_align_to_normal_and_point(float *out_point, float *normal,
+                                    int item_handle, float *point)
+{
+  float matrix[13];
+  char marker[0x60];
+  float scratch[3];
+  float quaternion[4];
+  char *item;
+  float forward[3];
+  float inverse;
+  float dot;
+  float scale;
+  float t0;
+  float t1;
+  float t2;
+
+  item = (char *)object_get_and_verify_type(item_handle, 0x1c);
+  if (normal == NULL) {
+    display_assert("normal", "c:\\halo\\SOURCE\\items\\items.c", 0x2c9, 1);
+    system_exit(-1);
+  }
+  if (object_get_marker_by_name(item_handle, "ground point", marker, 1) ==
+      0)
+    return;
+  if (point == NULL)
+    point = scratch;
+  if (out_point == NULL)
+    out_point = scratch;
+  dot = ((float *)(marker + 0x54))[0] * normal[0] +
+        ((float *)(marker + 0x54))[1] * normal[1] +
+        ((float *)(marker + 0x54))[2] * normal[2] + 1.0f;
+  scale = x87_sqrt(dot + dot); /* FADD ST0,ST0 */
+  if ((double)scale > 0.01) {
+    if (!(scale > 0.0f)) {
+      display_assert("scale>0", "c:\\halo\\SOURCE\\items\\items.c", 0x2dc, 1);
+      system_exit(-1);
+    }
+    t0 = ((float *)(marker + 0x54))[1] * normal[2] -
+         ((float *)(marker + 0x54))[2] * normal[1];
+    t1 = ((float *)(marker + 0x54))[2] * normal[0] -
+         ((float *)(marker + 0x54))[0] * normal[2];
+    t2 = ((float *)(marker + 0x54))[0] * normal[1] -
+         ((float *)(marker + 0x54))[1] * normal[0];
+    inverse = 1.0f / scale;
+    quaternion[0] = t0 * inverse;
+    quaternion[1] = t1 * inverse;
+    quaternion[2] = t2 * inverse;
+    quaternion[3] = scale * 0.5f;
+    quaternion_transform_point(quaternion, (float *)(marker + 0x3c), forward);
+  } else {
+    t0 = ((float *)(marker + 0x3c))[2] * normal[1] -
+         ((float *)(marker + 0x3c))[1] * normal[2];
+    t1 = ((float *)(marker + 0x3c))[0] * normal[2] -
+         ((float *)(marker + 0x3c))[2] * normal[0];
+    t2 = ((float *)(marker + 0x3c))[1] * normal[0] -
+         ((float *)(marker + 0x3c))[0] * normal[1];
+    forward[0] = t1 * normal[2] - t2 * normal[1];
+    forward[1] = t2 * normal[0] - t0 * normal[2];
+    forward[2] = t0 * normal[1] - t1 * normal[0];
+  }
+  normalize3d(forward);
+  matrix4x3_from_forward_up_position(matrix, point, forward, normal);
+  if (!valid_real_matrix4x3(matrix)) {
+    display_assert("valid_real_matrix4x3(&ground_point_matrix)",
+                   "c:\\halo\\SOURCE\\items\\items.c", 0x2f3, 1);
+    system_exit(-1);
+  }
+  object_compute_child_marker_position(
+    object_get_and_verify_type(item_handle, -1), marker, matrix);
+  ((int *)out_point)[0] = ((int *)(item + 0xc))[0];
+  ((int *)out_point)[1] = ((int *)(item + 0xc))[1];
+  ((int *)out_point)[2] = ((int *)(item + 0xc))[2];
 }
 
 /* 13-dword (real_matrix4x3) block lifted out of the "ground point" marker

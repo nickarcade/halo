@@ -42,6 +42,15 @@ Parse from $ARGUMENTS (all optional):
   `--commitModel`/`--improveModel`/`--mechanicalModel` directly and forward
   each verbatim as the matching camelCase key in the Workflow args.
 
+- `--escalationMissLimit N` — after N escalations in a row end below the pass
+  bar, later escalations run only the first (cheapest) optimizer rung
+  (default 2; 0 = always run the full ladder). Forward as `escalationMissLimit`.
+- `--perCommitBuild` — run the full halo build inside every commit agent (the
+  old behavior). By default the build runs at commit only for paths that edited
+  source after the lift's own `lift_pipeline` build (atlas-lever / optimizer),
+  plus one batch-end build that bisects and reverts a breaking commit.
+  Forward as `perCommitBuild: true`.
+
 ## Steps
 
 1. Print a one-line banner: `Goal: lift {N} functions at >=90% VC71` (`{N}` =

@@ -235,10 +235,10 @@ static void run_hs_parser_cases(char *buf)
   /* The harness runs straight after shell_initialize(), before any map is
    * loaded, so hs_initialize() has not run and the syntax-node pool at
    * 0x5aa6c8 is still NULL (verified on the box: getmem 0x5aa6c8 = 0).
-   * hs_scripts_initialize() takes its no-scenario path (global scenario
+   * hs_allocate() takes its no-scenario path (global scenario
    * index at 0x326a08 is -1) and allocates the pool. */
   if (*(void **)0x5aa6c8 == 0) {
-    hs_scripts_initialize();
+    hs_allocate();
   }
 
   if (*(void **)0x5aa6c8 == 0) {
@@ -518,13 +518,13 @@ static void run_dual_oracle_tests(void)
   {
     /* The harness runs right after shell_initialize(), before a map is
      * loaded, so the syntax pool at 0x5aa6c8 is still NULL and the global
-     * scenario at 0x5064e4 is NULL. hs_scripts_initialize() takes its
+     * scenario at 0x5064e4 is NULL. hs_allocate() takes its
      * no-scenario path and allocates the pool. */
     char *scenario;
     char *script;
 
     if (*(void **)0x5aa6c8 == 0)
-      hs_scripts_initialize();
+      hs_allocate();
 
     if (*(void **)0x5aa6c8 == 0) {
       total += 1;

@@ -1408,6 +1408,150 @@
         "16"
       ],
       "reason": "bsp2d surface-reference scan, no-match path: ref[0] != surface_index so the body is skipped and the loop exhausts to the -1 sentinel. Observed 30/30 PASS, 30.8% cov, moderate. Deliberately NOT registered: the param_8!=0 paths that call the now-ported FUN_00148240. There the candidate runs the real sibling while the oracle stubs it, and the oracle ignores that stub's return entirely -- it yields a constant 0x00400f2c whether the stub is told to return 0 or 1, while the lifted side correctly returns -1 and 7. Oracle-side harness defect, not a lift defect; the call arguments are covered by the stub-arg differential (9 calls, 0 mismatches)."
+    },
+    {
+      "addr": "0xb33a0",
+      "obj": "game_engine.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/oddball_engine_update_countdown.json",
+        "--allow-stubs",
+        "--real-callees",
+        "--trace-all-stubs",
+        "--pinned-state",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "live one-player bloodgulch game state captured from the pristine build (capture_gametype_snapshot.py), trimmed to touched pages (trim_snapshot.py); team oddball tick 301, ball-spawn timer 149 -> countdown decrement path; 20 matched writes, 20 compared stub calls",
+      "scenario": "oddball-countdown"
+    },
+    {
+      "addr": "0xb33a0",
+      "obj": "game_engine.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/oddball_engine_update_spawn.json",
+        "--allow-stubs",
+        "--real-callees",
+        "--trace-all-stubs",
+        "--pinned-state",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "live one-player bloodgulch game state captured from the pristine build (capture_gametype_snapshot.py), trimmed to touched pages (trim_snapshot.py); team oddball, ball-spawn timer 1 -> spawn path; 20 matched writes, 60 compared stub calls",
+      "scenario": "oddball-spawn"
+    },
+    {
+      "addr": "0xb33a0",
+      "obj": "game_engine.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/oddball_engine_update_announce.json",
+        "--allow-stubs",
+        "--real-callees",
+        "--trace-all-stubs",
+        "--pinned-state",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "live one-player bloodgulch game state captured from the pristine build (capture_gametype_snapshot.py), trimmed to touched pages (trim_snapshot.py); team oddball, game_time_get=60 -> announce path with teams; 40 compared stub calls",
+      "scenario": "oddball-announce"
+    },
+    {
+      "addr": "0xb33a0",
+      "obj": "game_engine.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/oddball_engine_update_announce_noteams.json",
+        "--allow-stubs",
+        "--real-callees",
+        "--trace-all-stubs",
+        "--pinned-state",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "live one-player bloodgulch game state captured from the pristine build (capture_gametype_snapshot.py), trimmed to touched pages (trim_snapshot.py); team oddball with has_teams cleared -> free-for-all announce path; 40 compared stub calls",
+      "scenario": "oddball-announce-noteams"
+    },
+    {
+      "addr": "0xb04e0",
+      "obj": "game_engine.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/ctf_get_player_score_ctf_t700.json",
+        "--allow-stubs",
+        "--real-callees",
+        "--trace-all-stubs",
+        "--pinned-state",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "live one-player bloodgulch game state captured from the pristine build (capture_gametype_snapshot.py), trimmed to touched pages (trim_snapshot.py); ctf tick 702; 100% coverage over the live player table",
+      "scenario": "ctf-t700"
+    },
+    {
+      "addr": "0xb1a60",
+      "obj": "game_engine.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/king_get_player_score_king_t300.json",
+        "--allow-stubs",
+        "--real-callees",
+        "--trace-all-stubs",
+        "--pinned-state",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "live one-player bloodgulch game state captured from the pristine build (capture_gametype_snapshot.py), trimmed to touched pages (trim_snapshot.py); king of the hill tick 303; 100% coverage over the live player table",
+      "scenario": "king-t303"
+    },
+    {
+      "addr": "0xb2b40",
+      "obj": "game_engine.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/oddball_get_player_score_oddball_t1200.json",
+        "--allow-stubs",
+        "--real-callees",
+        "--trace-all-stubs",
+        "--pinned-state",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "live one-player bloodgulch game state captured from the pristine build (capture_gametype_snapshot.py), trimmed to touched pages (trim_snapshot.py); team oddball tick 1201; 100% coverage over the live player table",
+      "scenario": "oddball-t1201"
+    },
+    {
+      "addr": "0xb4170",
+      "obj": "game.obj",
+      "seeds": 20,
+      "flags": [
+        "--state-snapshot",
+        "tools/equivalence/regression_snapshots/race_get_player_score_race_t300.json",
+        "--allow-stubs",
+        "--real-callees",
+        "--trace-all-stubs",
+        "--pinned-state",
+        "--mem-trace",
+        "--no-concolic",
+        "--no-leaf-cache"
+      ],
+      "reason": "live one-player bloodgulch game state captured from the pristine build (capture_gametype_snapshot.py), trimmed to touched pages (trim_snapshot.py); team race tick 302; 96.3% coverage over the live player table",
+      "scenario": "race-t302"
     }
   ]
 }

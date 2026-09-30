@@ -26,6 +26,14 @@ void scenario_tags_unload(void)
   tag_instances = 0;
 }
 
+/* 0x1b98c0: a lone tail jump (E9) into the cache-file IO initializer.
+ * shell_initialize calls it during startup, so despite the kb name it opens
+ * rather than closes. */
+void tag_files_close(void)
+{
+  FUN_001bdb10();
+}
+
 /* Dword stamp compared against cache header field +0x128 when deciding whether
  * a saved game state still matches the loaded map (see the validity gate in
  * cache/cache_files_windows.c, which checks it alongside the header magic, the
@@ -38,6 +46,52 @@ void scenario_tags_unload(void)
 int FUN_001b9920(void)
 {
   return global_4e4d68;
+}
+
+/* 0x1b9bf0 -- validate a raw tag index (a datum-handle: 16-bit array index in
+ * the low word, 16-bit salt in the high word) and resolve it to its
+ * 0x20-stride tag_instance record. Three fatal asserts, all fed through
+ * display_assert/system_exit like cache_file_header_verify above:
+ *   - tags not loaded (cache_tags_available byte clear)
+ *   - tag_instances base not set
+ *   - index out of [0, tags_header+0xc) range, OR (when the high word is
+ *     non-zero) the stored salt at record+0xc does not match tag_index
+ * The index itself is truncated to 16 bits (MOVSX on [EBP+8]) before the
+ * bounds check and the multiply, so a caller-supplied high word never
+ * affects which record is addressed -- only whether the salt check fires. */
+int *tag_instance_resolve(int tag_index)
+{
+  short index;
+  int *entry;
+
+  if (!cache_tags_available) {
+    display_assert("cache_file_globals.tags_loaded",
+                   "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x1d3, 1);
+    system_exit(-1);
+  }
+  if (tag_instances == 0) {
+    display_assert("global_tag_instances",
+                   "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x1d4, 1);
+    system_exit(-1);
+  }
+
+  index = (short)tag_index;
+  if (index < 0 || index >= *(int *)((char *)tags_header + 0xc)) {
+    display_assert(csprintf(error_string_buffer,
+                            "i don't think %08x is a tag index", tag_index),
+                   "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x1d7, 1);
+    system_exit(-1);
+  }
+
+  entry = (int *)((char *)tag_instances + index * 0x20);
+  if ((tag_index & 0xffff0000) != 0 && entry[3] != tag_index) {
+    display_assert(csprintf(error_string_buffer,
+                            "i don't think %08x is a tag index", tag_index),
+                   "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x1db, 1);
+    system_exit(-1);
+  }
+
+  return entry;
 }
 
 /* ASCII 'head' / 'foot'. The two magic words bracket the 0x800-byte cache
