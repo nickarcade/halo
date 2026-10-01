@@ -8713,11 +8713,12 @@
         {
           "addr": "0xb45c0",
           "decl": "int FUN_000b45c0(int param_1);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0xb46b0",
-          "decl": "void race_update_team_score(int player_handle@<eax>, int flag_index);"
+          "decl": "void race_update_team_score(int player_handle@<eax>, int flag_index);",
+          "ported": true
         },
         {
           "addr": "0xb4800",
@@ -8727,7 +8728,7 @@
         {
           "addr": "0xb4960",
           "decl": "int FUN_000b4960(void);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0xb4a70",
@@ -8798,7 +8799,7 @@
         {
           "addr": "0xb5210",
           "decl": "void slayer_engine_display_score(int player_index);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0xb5490",

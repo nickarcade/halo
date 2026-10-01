@@ -1019,6 +1019,76 @@ int FUN_000b45c0(int param_1)
   return result;
 }
 
+/* race_update_team_score (0xb46b0) — race_touch_flag
+ *
+ * Source: c:\halo\SOURCE\game\game_engine_race.c
+ * Register ABI: player_handle in EAX (@<eax>), flag_index on stack.
+ */
+void race_update_team_score(int player_handle, int flag_index)
+{
+  void *scenario;
+  tag_block *flags_block;
+  netgame_flag *flag;
+  game_variant_t *variant;
+  int team_index;
+  int target_flag_index;
+  uint32_t *lap_bit_vector;
+  uint32_t bit;
+  uint32_t visited;
+
+  scenario = global_scenario_get();
+  flags_block = (tag_block *)((char *)scenario + 0x378);
+  flag = (netgame_flag *)tag_block_get_element(flags_block, flag_index, 0x94);
+  target_flag_index = (int)flag->team_index;
+
+  if (!FUN_000b3b30(target_flag_index, player_handle)) {
+    return;
+  }
+
+  team_index = player_handle & 0xffff;
+  game_engine_post_event(0x1a);
+
+  if (race_globals.team_current_flags[team_index] == -1) {
+    variant = (game_variant_t *)game_engine_get_variant();
+    if (variant->field_4c == 0) {
+      display_assert(
+        "_race_type_normal != game_engine_get_variant()->game_engine_variant.race.race_type",
+        "c:\\halo\\SOURCE\\game\\game_engine_race.c", 0x2d3, 1);
+      system_exit(-1);
+    }
+    race_globals.team_current_flags[team_index] = flag->team_index;
+  }
+
+  variant = (game_variant_t *)game_engine_get_variant();
+  if (variant->field_4c == 2) {
+    FUN_000b39a0(player_handle);
+    race_globals.random_flag = FUN_000b45c0(race_globals.random_flag);
+    return;
+  }
+
+  visited = race_globals.team_visited_flags[team_index];
+  lap_bit_vector = &race_globals.team_visited_flags[team_index];
+  if (visited == race_globals.track_flags_bitmask) {
+    FUN_000b39a0(player_handle);
+    return;
+  }
+
+  bit = 1 << target_flag_index;
+  if (visited & bit) {
+    display_assert("!TEST_FLAG(*lap_bit_vector, team_index)",
+                   "c:\\halo\\SOURCE\\game\\game_engine_race.c", 0x2e9, 1);
+    system_exit(-1);
+  }
+
+  *lap_bit_vector |= bit;
+  if (*lap_bit_vector & ~race_globals.track_flags_bitmask) {
+    display_assert(
+      "!(*lap_bit_vector & ~race_globals.lap_completed_value)",
+      "c:\\halo\\SOURCE\\game\\game_engine_race.c", 0x2ed, 1);
+    system_exit(-1);
+  }
+}
+
 /* FUN_000B4800 (0xb4800) — race engine: per-player race update.
  *
  * Reached through the game-engine variant function table (data xref from
