@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "struct": "ai_conversation_definition_t",
+  "sources": [
+    "cachebeta.xbe 2276 ai_conversation_find_participant 0x447d0-0x44fad"
+  ],
+  "fields": [
+    {
+      "offset": "0x28",
+      "width": 4,
+      "signed": true,
+      "name": "run_to_player_distance",
+      "confidence": "typed",
+      "evidence": "FLD [EDX+0x28]; FCOMP 0.0 @0x44ba6",
+      "kind": "float"
+    },
+    {
+      "offset": "0x50",
+      "width": 4,
+      "signed": true,
+      "name": "participants_count",
+      "confidence": "typed",
+      "evidence": "MOV EDX,[EAX+0x50]; TEST EDX/JLE @0x44aa0",
+      "kind": "int"
+    },
+    {
+      "offset": "0x54",
+      "width": 4,
+      "signed": false,
+      "name": "participants_address",
+      "confidence": "typed",
+      "evidence": "tag_block_get_element receives definition+0x50 @0x44813",
+      "kind": "pointer"
+    },
+    {
+      "offset": "0x58",
+      "width": 4,
+      "signed": false,
+      "name": "participants_definition",
+      "confidence": "typed",
+      "evidence": "existing tag_block layout; not read by this target",
+      "kind": "int"
+    }
+  ],
+  "notes": [
+    "Names are advisory T2 CEA/PAL context; offsets and widths verified against 2276. Unobserved ranges are padding."
+  ],
+  "size": {
+    "value": "0x74",
+    "evidence": "tag_block_get_element stride at 0x447f0 / 0x4480c"
+  }
+}

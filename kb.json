@@ -5106,35 +5106,35 @@
      "addr": "0x1454c0",
      "decl": "void placeholder_initialize_for_new_map(void);",
      "name": "placeholder_initialize_for_new_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c placeholder_data_definition slot +0x18 initialize_for_new_map (table 0x324568); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the placeholder object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list. kb object follows the neighbouring 0x145560+ scenery callbacks (breakable_surfaces.obj); the original TU is PAL objects/placeholder, attribution uncertain."
     },
     {
      "addr": "0x1454d0",
      "decl": "void placeholder_dispose_from_old_map(void);",
      "name": "placeholder_dispose_from_old_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c placeholder_data_definition slot +0x1c dispose_from_old_map (table 0x324568); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the placeholder object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list. kb object follows the neighbouring 0x145560+ scenery callbacks (breakable_surfaces.obj); the original TU is PAL objects/placeholder, attribution uncertain."
     },
     {
      "addr": "0x145520",
      "decl": "void scenery_initialize(void);",
      "name": "scenery_initialize",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c scenery_data_definition slot +0x10 initialize (table 0x3241a8); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the scenery object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x145530",
      "decl": "void scenery_initialize_for_new_map(void);",
      "name": "scenery_initialize_for_new_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c scenery_data_definition slot +0x18 initialize_for_new_map (table 0x3241a8); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the scenery object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x145540",
      "decl": "void scenery_dispose_from_old_map(void);",
      "name": "scenery_dispose_from_old_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c scenery_data_definition slot +0x1c dispose_from_old_map (table 0x3241a8); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the scenery object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
@@ -7288,7 +7288,7 @@
     {
      "addr": "0x17cba0",
      "decl": "void rasterizer_screen_flash(void);",
-     "ported": false,
+     "ported": true,
      "source_path": "src/halo/effects/decals.c",
      "comment": "[NAME: rasterizer_screen_flash \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14] Bare JMP 0x171bc0 thunk (no frame, no args); dormant lift 2026-09-27 in decals.c."
     },
@@ -7310,7 +7310,7 @@
     {
      "addr": "0x17cbe0",
      "decl": "void rasterizer_model_end(void);",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: rasterizer_model_end \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -7321,7 +7321,7 @@
     {
      "addr": "0x17cc00",
      "decl": "void FUN_0017cc00(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x17cc10",
@@ -7342,12 +7342,12 @@
     {
      "addr": "0x17cc40",
      "decl": "void FUN_0017cc40(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x17cc50",
      "decl": "void FUN_0017cc50(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x17cc60",
@@ -7368,7 +7368,7 @@
     {
      "addr": "0x17cc90",
      "decl": "void FUN_0017cc90(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x17cca0",
@@ -7393,7 +7393,7 @@
     {
      "addr": "0x17cce0",
      "decl": "void rasterizer_environment_shadow_model_end(void);",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: rasterizer_environment_shadow_model_end \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
     },
     {
@@ -7431,7 +7431,7 @@
     {
      "addr": "0x17cd50",
      "decl": "void FUN_0017cd50(void);",
-     "ported": false
+     "ported": true
     }
    ],
    "name": "decals.obj",
@@ -7483,15 +7483,18 @@
     },
     {
      "addr": "0x86270",
-     "decl": "bool director_inhibited_facing(short local_player_index);"
+     "decl": "bool director_inhibited_facing(short local_player_index);",
+     "ported": true
     },
     {
      "addr": "0x862c0",
-     "decl": "bool director_inhibited_input(short local_player_index);"
+     "decl": "bool director_inhibited_input(short local_player_index);",
+     "ported": true
     },
     {
      "addr": "0x86310",
-     "decl": "void director_set_mode(int16_t mode);"
+     "decl": "void director_set_mode(int16_t mode);",
+     "ported": true
     },
     {
      "addr": "0x86360",
@@ -7538,7 +7541,8 @@
     },
     {
      "addr": "0x86b80",
-     "decl": "int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3);"
+     "decl": "int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3);",
+     "ported": true
     },
     {
      "addr": "0x86be0",
@@ -7590,7 +7594,8 @@
      "decl": "void director_initialize_for_saved_game(void);",
      "name": "director_initialize_for_saved_game",
      "src": "src/halo/camera/director.c",
-     "comment": "After-load callback (game_state_revert table 0x32eaa8). director_initialize_for_new_map, then director_script_camera(zero-extended scripting byte at *0x5ab200). Dormant C body; name is T2 (structural mirror of a named symbol from another build)."
+     "comment": "After-load callback (game_state_revert table 0x32eaa8). director_initialize_for_new_map, then director_script_camera(zero-extended scripting byte at *0x5ab200). Dormant C body; name is T2 (structural mirror of a named symbol from another build).",
+     "ported": true
     },
     {
      "addr": "0x87800",
@@ -7599,11 +7604,13 @@
     },
     {
      "addr": "0x878d0",
-     "decl": "void editor_camera_get_focus(uint32_t *position, uint32_t *angles);"
+     "decl": "void editor_camera_get_focus(uint32_t *position, uint32_t *angles);",
+     "ported": true
     },
     {
      "addr": "0x87950",
-     "decl": "void editor_camera_set_focus(const uint32_t *position, const uint32_t *angles);"
+     "decl": "void editor_camera_set_focus(const uint32_t *position, const uint32_t *angles);",
+     "ported": true
     },
     {
      "addr": "0x879d0",
@@ -7611,7 +7618,8 @@
     },
     {
      "addr": "0x87ac0",
-     "decl": "char FUN_00087ac0(char enabled);"
+     "decl": "char FUN_00087ac0(char enabled);",
+     "ported": true
     },
     {
      "addr": "0x87b00",
@@ -11017,7 +11025,7 @@
     {
      "addr": "0x1c1280",
      "decl": "bool player_profile_get_enclosing_directory_path(int profile_index, char *full_path);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1c1290",
@@ -14976,7 +14984,8 @@
     },
     {
      "addr": "0xdf350",
-     "decl": "void profile_graph_toggle(const char *value_name);"
+     "decl": "void profile_graph_toggle(const char *value_name);",
+     "ported": true
     },
     {
      "addr": "0xdf3d0",
@@ -15232,7 +15241,7 @@
      "name": "items_initialize_for_new_map",
      "src": "src/halo/items/items.c",
      "comment": "Body is a single RET. item object_type_definition (0x323e88) slot +0x18. Dormant C body; name is T2.",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xf68f0",
@@ -15240,7 +15249,7 @@
      "name": "items_dispose_from_old_map",
      "src": "src/halo/items/items.c",
      "comment": "Body is a single RET. item object_type_definition (0x323e88) slot +0x1c. Dormant C body; name is T2.",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xf6910",
@@ -15254,7 +15263,7 @@
      "name": "item_delete",
      "src": "src/halo/items/items.c",
      "comment": "Body is a single RET; the argument is never read. item object_type_definition (0x323e88) slot +0x2c. Dormant C body; name is T2.",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xf6970",
@@ -18709,7 +18718,7 @@
      "addr": "0x89940",
      "decl": "float uniform_cubic_spline(float f0, float f1, float f2, float f3, float t0, float h, float t);",
      "comment": "[NAME: uniform_cubic_spline \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x89a20",
@@ -19131,7 +19140,7 @@
      "addr": "0xa1580",
      "decl": "void particles_disconnect_from_structure_bsp(void);",
      "name": "particles_disconnect_from_structure_bsp",
-     "ported": false,
+     "ported": true,
      "source_path": "src/halo/effects/particles.c",
      "comment": "[NAME: PAL 2342 source/scenario/scenario.c scenario_structure_bsp_disconnect_proc_table slot 5 (0-based); name_source=pal-2342 method=structure_bsp_connection_table tier=T2] Only reference is slot 5 of the disconnect table at 0x326a44; body is a single RET (C3). Added 2026-09-27 from standalone bring-up."
     }
@@ -19929,7 +19938,7 @@
     {
      "addr": "0xe0d80",
      "decl": "bool player_ui_edit_profile_is_default_profile(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xe0dd0",
@@ -19954,7 +19963,7 @@
     {
      "addr": "0xe0ee0",
      "decl": "bool player_ui_edit_profile_is_dirty(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xe0fd0",
@@ -25084,14 +25093,14 @@
      "addr": "0x956c0",
      "decl": "void controls_initialize_for_new_map(void);",
      "name": "controls_initialize_for_new_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c control_data_definition slot +0x18 initialize_for_new_map (table 0x324428); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the control object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x956d0",
      "decl": "void controls_dispose_from_old_map(void);",
      "name": "controls_dispose_from_old_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c control_data_definition slot +0x1c dispose_from_old_map (table 0x324428); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the control object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
@@ -25140,14 +25149,14 @@
      "addr": "0x95990",
      "decl": "void light_fixtures_initialize_for_new_map(void);",
      "name": "light_fixtures_initialize_for_new_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c light_fixture_data_definition slot +0x18 initialize_for_new_map (table 0x3244c8); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the light_fixture object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x959a0",
      "decl": "void light_fixtures_dispose_from_old_map(void);",
      "name": "light_fixtures_dispose_from_old_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c light_fixture_data_definition slot +0x1c dispose_from_old_map (table 0x3244c8); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the light_fixture object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
@@ -25181,14 +25190,14 @@
      "addr": "0x95ab0",
      "decl": "void machines_initialize_for_new_map(void);",
      "name": "machines_initialize_for_new_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c machine_data_definition slot +0x18 initialize_for_new_map (table 0x324388); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the machine object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x95ac0",
      "decl": "void machines_dispose_from_old_map(void);",
      "name": "machines_dispose_from_old_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c machine_data_definition slot +0x1c dispose_from_old_map (table 0x324388); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the machine object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
@@ -25291,7 +25300,7 @@
     {
      "addr": "0x184680",
      "decl": "void FUN_00184680(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x184690",
@@ -25321,7 +25330,8 @@
     },
     {
      "addr": "0x184b60",
-     "decl": "void render_effects(int a);"
+     "decl": "void render_effects(int a);",
+     "ported": true
     },
     {
      "addr": "0x184de0",
@@ -29796,7 +29806,7 @@
     {
      "addr": "0xe98a0",
      "decl": "bool widget_event_function_null(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "widget_event_function_null",
      "comment": "Event handler no-op (data xrefs 0x31e158/0x31e164/0x31e168 = table slots 0,3,4). Name PAL 2342 ui_widget_event_handler_functions.c event_handler_function_list (T2). Body MOV AL,1/RET. Moved from <common>; neighbours 0xe98b0/0xe98c0 are ui_widget.obj. Added from Ghidra function list by standalone bring-up 2026-09-27."
     },
@@ -29822,7 +29832,7 @@
      "decl": "bool solo_level_set_next_map_name(void *widget, void *event_data, bool *widget_deleted);",
      "comment": "[NAME: solo_level_set_next_map_name \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
      "name": "solo_level_set_next_map_name",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xe9bd0",
@@ -29833,31 +29843,31 @@
     {
      "addr": "0xe9c30",
      "decl": "bool start_new_game(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
      "addr": "0xe9c60",
      "decl": "bool pause_game_restart_at_checkpoint(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
      "addr": "0xe9c70",
      "decl": "bool pause_game_restart_level(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
      "addr": "0xe9c80",
      "decl": "bool pause_game_return_to_main_menu(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
      "addr": "0xe9c90",
      "decl": "bool clear_multiplayer_player_joins(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
@@ -29906,26 +29916,26 @@
     {
      "addr": "0xea080",
      "decl": "bool coop_game_initialize(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
      "addr": "0xea090",
      "decl": "bool main_menu_initialize(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "main_menu_initialize",
      "comment": "Event handler table index 23 (data xref 0x31e1b4). Name PAL 2342 ui_widget_event_handler_functions.c:2418 (T2). Moved from <common>; neighbours 0xea010/0xea100 are ui_widget.obj. Added from Ghidra function list by standalone bring-up 2026-09-27."
     },
     {
      "addr": "0xea0d0",
      "decl": "bool mp_type_menu_initialize(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
      "addr": "0xea0e0",
      "decl": "bool pick_play_stage_for_quick_start(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
@@ -30038,7 +30048,7 @@
      "decl": "bool playlist_profile_change_koth_rules(void *widget);",
      "comment": "[NAME: playlist_profile_change_koth_rules \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
      "name": "playlist_profile_change_koth_rules",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xeb710",
@@ -30232,7 +30242,7 @@
     {
      "addr": "0xef950",
      "decl": "bool main_menu_switch_to_solo_game(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
@@ -30251,21 +30261,21 @@
     {
      "addr": "0xefbc0",
      "decl": "bool delete_player_profile_final(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "delete_player_profile_final",
      "comment": "UI event handler table index 76 (table 0x31e158, name table 0x31e2f0); dormant lift 2026-09-29."
     },
     {
      "addr": "0xefc10",
      "decl": "bool delete_playlist_profile_final(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "delete_playlist_profile_final",
      "comment": "UI event handler table index 77 (table 0x31e158, name table 0x31e2f0); dormant lift 2026-09-29."
     },
     {
      "addr": "0xefc50",
      "decl": "bool cancel_profile_delete(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "cancel_profile_delete",
      "comment": "UI event handler table index 78 (table 0x31e158, name table 0x31e2f0); dormant lift 2026-09-29."
     },
@@ -30297,20 +30307,20 @@
     {
      "addr": "0xf0010",
      "decl": "bool network_game_server_accept_connections(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_accept_connections",
      "comment": "UI event handler table index 83 (table 0x31e158, name table 0x31e2f0); dormant lift 2026-09-29."
     },
     {
      "addr": "0xf0030",
      "decl": "bool network_game_server_defer_game_start(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
      "addr": "0xf0050",
      "decl": "bool network_game_server_allow_game_start(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "network_game_server_allow_game_start",
      "comment": "UI event handler table index 85 (table 0x31e158, name table 0x31e2f0); dormant lift 2026-09-29."
     },
@@ -30323,14 +30333,14 @@
     {
      "addr": "0xf0090",
      "decl": "bool run_xdemos(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "run_xdemos",
      "comment": "UI event handler table index 87 (table 0x31e158, name table 0x31e2f0); dormant lift 2026-09-29."
     },
     {
      "addr": "0xf00a0",
      "decl": "bool single_player_reset_controller_choices(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "single_player_reset_controller_choices",
      "comment": "Event handler (data xref 0x31e2b8). Name PAL 2342 ui_widget_event_handler_functions.c:2164 (T2). Moved from <common>; neighbours 0xf0070/0xf00b0 are ui_widget_game_data_input_functions.obj. Added from Ghidra function list by standalone bring-up 2026-09-27."
     },
@@ -30373,7 +30383,7 @@
     {
      "addr": "0xf0420",
      "decl": "bool exit_to_xbox_dashboard(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "exit_to_xbox_dashboard",
      "comment": "UI event handler table index 95 (table 0x31e158, name table 0x31e2f0); dormant lift 2026-09-29."
     },
@@ -30404,7 +30414,7 @@
     {
      "addr": "0xf0720",
      "decl": "bool begin_music_fade_out(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "begin_music_fade_out",
      "comment": "UI event handler table index 100 (table 0x31e158, name table 0x31e2f0); dormant lift 2026-09-29."
     },
@@ -31094,14 +31104,14 @@
      "addr": "0x1a0790",
      "decl": "void bipeds_initialize_for_new_map(void);",
      "name": "bipeds_initialize_for_new_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c biped_data_definition slot +0x18 initialize_for_new_map (table 0x323d48); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the biped object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x1a07a0",
      "decl": "void bipeds_dispose_from_old_map(void);",
      "name": "bipeds_dispose_from_old_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c biped_data_definition slot +0x1c dispose_from_old_map (table 0x323d48); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the biped object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
@@ -32534,14 +32544,14 @@
      "addr": "0x1b5550",
      "decl": "void vehicles_initialize_for_new_map(void);",
      "name": "vehicles_initialize_for_new_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c vehicle_data_definition slot +0x18 initialize_for_new_map (table 0x323de8); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the vehicle object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x1b5560",
      "decl": "void vehicles_dispose_from_old_map(void);",
      "name": "vehicles_dispose_from_old_map",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/objects/object_types.c vehicle_data_definition slot +0x1c dispose_from_old_map (table 0x323de8); name_source=pal-2342 method=object_type_definition_table tier=T2] Only reference is the vehicle object_type_definition function-pointer table in .data; body is a single RET (C3). Added 2026-09-27 from standalone missing-stub list."
     },
     {
@@ -33357,7 +33367,8 @@
     },
     {
      "addr": "0x1bf080",
-     "decl": "void texture_cache_new(void);"
+     "decl": "void texture_cache_new(void);",
+     "ported": true
     },
     {
      "addr": "0x1bf130",
@@ -33495,7 +33506,7 @@
     {
      "addr": "0x1807d0",
      "decl": "unsigned char FUN_001807d0(float param_1);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x180820",
@@ -34397,7 +34408,7 @@
     {
      "addr": "0x108060",
      "decl": "short FUN_00108060(int16_t count, void *records, int a3, uint16_t *scratch, int max_count, uint16_t *out_list, float epsilon);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x108270",
@@ -35119,7 +35130,8 @@
     },
     {
      "addr": "0x11cfd0",
-     "decl": "void FUN_0011cfd0(int *ptr, int value);"
+     "decl": "void FUN_0011cfd0(int *ptr, int value);",
+     "ported": true
     },
     {
      "addr": "0x11cfe0",
@@ -37637,7 +37649,8 @@
     },
     {
      "addr": "0x42d20",
-     "decl": "void ai_communication_packet_new(void *packet);"
+     "decl": "void ai_communication_packet_new(void *packet);",
+     "ported": true
     },
     {
      "addr": "0x42d80",
@@ -37811,7 +37824,8 @@
     },
     {
      "addr": "0x447d0",
-     "decl": "char ai_conversation_find_participant(int16_t participant_index, char *param_2, char *param_3, char *param_4, float *param_5, int conversation_handle @<eax>);"
+     "decl": "char ai_conversation_find_participant(int16_t participant_index, char *param_2, char *param_3, char *param_4, float *param_5, int conversation_handle @<eax>);",
+     "ported": true
     },
     {
      "addr": "0x44fd0",
@@ -37826,7 +37840,8 @@
     {
      "addr": "0x454a0",
      "decl": "float ai_communication_actor_talk_weight(int object_handle @<eax>, int actor_handle, float *param_3, int param_4, float *param_5, int param_6, int param_7, int param_8, int param_9, int param_10, int param_11, int param_12);",
-     "name": "ai_communication_actor_talk_weight"
+     "name": "ai_communication_actor_talk_weight",
+     "ported": true
     },
     {
      "addr": "0x45830",
@@ -38360,28 +38375,28 @@
      "addr": "0x538e0",
      "decl": "int16_t ai_profile_sample_actors(void);",
      "name": "ai_profile_sample_actors",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/ai/ai_profile.c ai_profile_sample_actors (actor_data->actual_count); name_source=pal-2342 method=global+table tier=T2] MOV EAX,[0x6325a4 actor_data]; MOV AX,[EAX+0x30]; RET - returns the data_t+0x30 word of the pool; referenced from the ai_profile meter table in .rdata. Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x53940",
      "decl": "int16_t ai_profile_sample_props(void);",
      "name": "ai_profile_sample_props",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/ai/ai_profile.c ai_profile_sample_props (prop_data->actual_count); name_source=pal-2342 method=global+table tier=T2] MOV EAX,[0x5ab23c prop_data]; MOV AX,[EAX+0x30]; RET - returns the data_t+0x30 word of the pool; referenced from the ai_profile meter table in .rdata. Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x53950",
      "decl": "int16_t ai_profile_sample_swarms(void);",
      "name": "ai_profile_sample_swarms",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/ai/ai_profile.c ai_profile_sample_swarms (swarm_data->actual_count); name_source=pal-2342 method=global+table tier=T2] MOV EAX,[0x6325a0 swarm_data]; MOV AX,[EAX+0x30]; RET - returns the data_t+0x30 word of the pool; referenced from the ai_profile meter table in .rdata. Added 2026-09-27 from standalone missing-stub list."
     },
     {
      "addr": "0x539b0",
      "decl": "int16_t ai_profile_sample_swarm_components(void);",
      "name": "ai_profile_sample_swarm_components",
-     "ported": false,
+     "ported": true,
      "comment": "[NAME: PAL 2342 source/ai/ai_profile.c ai_profile_sample_swarm_components (swarm_component_data->actual_count); name_source=pal-2342 method=global+table tier=T2] MOV EAX,[0x63259c swarm_component_data]; MOV AX,[EAX+0x30]; RET - returns the data_t+0x30 word of the pool; referenced from the ai_profile meter table in .rdata. Added 2026-09-27 from standalone missing-stub list."
     },
     {
@@ -41950,7 +41965,7 @@
     {
      "addr": "0x1b98c0",
      "decl": "void tag_files_close(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1b98d0",
@@ -42065,7 +42080,8 @@
     },
     {
      "addr": "0x24a60",
-     "decl": "int actor_get_firing_position_group(int actor_handle, short param_2, int param_3);"
+     "decl": "int actor_get_firing_position_group(int actor_handle, short param_2, int param_3);",
+     "ported": true
     },
     {
      "addr": "0x24b80",
@@ -52096,15 +52112,18 @@
     },
     {
      "addr": "0x160bc0",
-     "decl": "void FUN_00160bc0(void);"
+     "decl": "void FUN_00160bc0(void);",
+     "ported": true
     },
     {
      "addr": "0x160bd0",
-     "decl": "void FUN_00160bd0(void);"
+     "decl": "void FUN_00160bd0(void);",
+     "ported": true
     },
     {
      "addr": "0x160be0",
-     "decl": "void FUN_00160be0(void);"
+     "decl": "void FUN_00160be0(void);",
+     "ported": true
     },
     {
      "addr": "0x160bf0",

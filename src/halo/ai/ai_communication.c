@@ -125,6 +125,61 @@ cs(dialogue_event_status_t, 0x8);
   ((ai_debug_communication_focus_vector[(type) >> 5] &                      \
     (1u << ((type) & 0x1f))) != 0)
 
+/* Partial conversation layouts. Widths/offsets are from 2276
+ * ai_conversation_find_participant (0x447d0); names are T2 CEA/PAL context.
+ * Unobserved fields remain padding. See
+ * recovery/evidence/ai_conversation_*.json. */
+typedef struct {
+  char pad_00[2];
+  uint8_t flags; /* +0x02: TEST byte [participant+2],2 */
+  char pad_03;
+  int16_t selection_type; /* +0x04: MOVSX / switch */
+  int16_t actor_type; /* +0x06: CMP word */
+  int16_t preexisting_name_index; /* +0x08: MOV AX; NONE */
+  int16_t new_name_index; /* +0x0a: debug name fallback */
+  char pad_0c[0xc];
+  int16_t dialogue_variants[6]; /* +0x18: six word reads */
+  char pad_24[0x20];
+  int32_t ai_index; /* +0x44: iterator source; NONE */
+  char pad_48[0xc];
+} ai_conversation_participant_t;
+cs(ai_conversation_participant_t, 0x54);
+co(ai_conversation_participant_t, flags, 0x02);
+co(ai_conversation_participant_t, selection_type, 0x04);
+co(ai_conversation_participant_t, actor_type, 0x06);
+co(ai_conversation_participant_t, preexisting_name_index, 0x08);
+co(ai_conversation_participant_t, new_name_index, 0x0a);
+co(ai_conversation_participant_t, dialogue_variants, 0x18);
+co(ai_conversation_participant_t, ai_index, 0x44);
+
+typedef struct {
+  char pad_00[0x28];
+  real run_to_player_distance; /* +0x28: FCOMP 0.0 */
+  char pad_2c[0x24];
+  tag_block participants; /* +0x50: tag_block_get_element, stride 0x54 */
+  char pad_5c[0x18];
+} ai_conversation_definition_t;
+cs(ai_conversation_definition_t, 0x74);
+co(ai_conversation_definition_t, run_to_player_distance, 0x28);
+co(ai_conversation_definition_t, participants, 0x50);
+
+/* Only the prefix used here is recovered; complete datum size unproven here. */
+typedef struct {
+  char pad_00[2];
+  int16_t definition_index;
+  char pad_04[0x10];
+  uint32_t participant_mask;
+  int16_t dialogue_indices[8];
+  int32_t actor_indices[8];
+} ai_conversation_datum_t;
+co(ai_conversation_datum_t, definition_index, 0x02);
+co(ai_conversation_datum_t, participant_mask, 0x14);
+co(ai_conversation_datum_t, dialogue_indices, 0x18);
+co(ai_conversation_datum_t, actor_indices, 0x28);
+
+#define conversation_data (*(data_t **)0x6324ec)
+#define ai_debug_conversations (*(char *)0x5aca5f)
+
 /* ai_communication_initialize: count comm dialogue/reply table entries,
  * allocate per-entry status tables via game_state_malloc, build a dialogue
  * index map into 0x632500[], and allocate the "ai conversation" data table.
@@ -2385,6 +2440,342 @@ void ai_conversation_unit_died(int unit_handle, char param_2)
   }
 }
 
+/* ai_conversation_find_participant (0x447d0).
+ * EAX carries conversation_index; five stack arguments, AL boolean return.
+ * Iterator indices are at +0x14 (all actors) / +0x10 (AI index).
+ * Candidate scoring, variant fallback, RNG and optional outputs follow the
+ * original listing, including the distinction between assigned and nearby. */
+char ai_conversation_find_participant(int16_t participant_index,
+                                      char *found_actor, char *try_alternate,
+                                      char *better_player_rating,
+                                      float *best_distance_reference,
+                                      int conversation_index)
+{
+  ai_conversation_datum_t *conversation;
+  ai_conversation_definition_t *definition;
+  ai_conversation_participant_t *participant;
+  actor_t *actor;
+  actor_t *placed_actor;
+  unit_data_t *unit;
+  unit_data_t *player_unit;
+  real_point3d nearby_positions[8];
+  char actor_iterator[0x1c];
+  char ai_iterator[0x18];
+  int16_t change_variant_indices[6];
+  int16_t rejection_counts[7];
+  const char *rejection_names[7];
+  char actor_string[256];
+  char reason_string[512];
+  const char *object_name;
+  int selected_actor_index;
+  int actor_index;
+  int object_index;
+  int player_index;
+  int possible_actor_count;
+  int16_t selected_variant_index;
+  int16_t nearby_count;
+  int16_t slot;
+  int16_t variant_index;
+  int16_t found_variant_index;
+  int16_t change_variant_count;
+  int16_t unit_variant;
+  int16_t name_index;
+  char assigned;
+  char better_rating_seen;
+  char radio_selection;
+  char use_object;
+  char use_ai_iterator;
+  char first_participant;
+  char found_variant;
+  real best_score;
+  real best_distance;
+  real candidate_score;
+  real candidate_distance;
+  real player_rating;
+  real nearest_distance_squared;
+  x87_wide_t dx, dy, dz, distance_squared;
+
+  conversation =
+    (ai_conversation_datum_t *)datum_get(conversation_data, conversation_index);
+  definition = (ai_conversation_definition_t *)tag_block_get_element(
+    (char *)global_scenario_get() + 0x468, conversation->definition_index,
+    0x74);
+  participant = (ai_conversation_participant_t *)tag_block_get_element(
+    &definition->participants, participant_index, 0x54);
+  selected_variant_index = -1;
+  selected_actor_index = -1;
+  best_distance = 3.402823466e38f;
+  better_rating_seen = 0;
+  assigned = 0;
+  assert_halt(definition);
+
+  if (participant->selection_type == 1) {
+    assigned = 1;
+    selected_variant_index = 0;
+    goto finalize;
+  }
+
+  radio_selection = 0;
+  use_object = 0;
+  use_ai_iterator = 0;
+  object_index = -1;
+  best_score = 0.0f;
+  possible_actor_count = 0;
+  csmemset(rejection_counts, 0, sizeof(rejection_counts));
+  if (participant->selection_type == 6 || participant->selection_type == 7) {
+    radio_selection = 1;
+  }
+  nearby_count = 0;
+  for (slot = 0; slot < definition->participants.count; slot++) {
+    if (conversation->actor_indices[slot] != -1) {
+      placed_actor =
+        (actor_t *)datum_get(actor_data, conversation->actor_indices[slot]);
+      assert_halt(nearby_count < 8);
+      nearby_positions[nearby_count] = placed_actor->body_position;
+      nearby_count++;
+    }
+  }
+  first_participant = nearby_count == 0;
+  if (participant->preexisting_name_index != -1) {
+    object_index =
+      object_name_list_get_handle(participant->preexisting_name_index);
+    use_object = 1;
+  } else if (participant->ai_index != -1) {
+    ai_index_actor_iterator_new(participant->ai_index, ai_iterator);
+    use_ai_iterator = 1;
+  } else {
+    actor_iterator_new(actor_iterator, 1);
+  }
+
+  for (;;) {
+    candidate_score = 0.0f;
+    candidate_distance = 3.402823466e38f;
+    player_unit = NULL;
+    if (use_object) {
+      unit = (unit_data_t *)object_try_and_get_and_verify_type(object_index, 3);
+      actor = NULL;
+      actor_index = -1;
+      if (unit != NULL && unit->actor_index.value != -1) {
+        actor_index = unit->actor_index.value;
+        actor = (actor_t *)datum_get(actor_data, actor_index);
+      }
+      object_index = -1;
+    } else if (use_ai_iterator) {
+      actor = (actor_t *)ai_index_actor_iterator_next(ai_iterator);
+      actor_index = *(int *)(ai_iterator + 0x10);
+    } else {
+      actor = (actor_t *)actor_iterator_next(actor_iterator);
+      actor_index = *(int *)(actor_iterator + 0x14);
+    }
+    if (actor == NULL) {
+      break;
+    }
+    possible_actor_count++;
+    if (actor->meta_unit_index == -1) {
+      rejection_counts[0]++;
+      continue;
+    }
+    if (actor->meta_type != participant->actor_type) {
+      rejection_counts[1]++;
+      continue;
+    }
+    for (slot = 0; slot < definition->participants.count; slot++) {
+      if (actor_index == conversation->actor_indices[slot]) {
+        break;
+      }
+    }
+    if (slot < definition->participants.count) {
+      rejection_counts[2]++;
+      continue;
+    }
+    player_rating = ai_communication_get_player_rating(
+      actor->meta_unit_index, first_participant, &player_index,
+      &candidate_distance);
+    HALO_FLT_ROUNDTRIP(player_rating);
+    if (player_index == -1) {
+      if (!radio_selection) {
+        rejection_counts[3]++;
+        better_rating_seen = 1;
+        continue;
+      }
+    } else {
+      candidate_score = player_rating;
+      player_unit = (unit_data_t *)object_get_and_verify_type(player_index, 3);
+    }
+    switch (participant->selection_type) {
+    case 0:
+    case 6:
+      /* 0xa7a30 is named friendly in kb; the binary rejects a true AL. */
+      if (player_unit != NULL &&
+          game_allegiance_get_team_is_friendly(
+            actor->meta_team_index, player_unit->object.owner_team_index)) {
+        rejection_counts[4]++;
+        continue;
+      }
+      break;
+    case 2:
+      if (player_unit == NULL ||
+          player_unit->object.parent_object_index.value == -1 ||
+          actor->vehicle_index !=
+            player_unit->object.parent_object_index.value) {
+        rejection_counts[4]++;
+        continue;
+      }
+      if (actor->field_161) {
+        candidate_score += 1.0f;
+        HALO_FLT_ROUNDTRIP(candidate_score);
+      }
+      break;
+    case 3:
+      if (actor->vehicle_index != -1) {
+        rejection_counts[4]++;
+        continue;
+      }
+      break;
+    case 4:
+    case 7:
+      if (actor->field_01c) {
+        candidate_score += 1.5f;
+        HALO_FLT_ROUNDTRIP(candidate_score);
+      }
+      break;
+    }
+    if (first_participant && !radio_selection && player_rating < 2.0f &&
+        definition->run_to_player_distance == 0.0f) {
+      rejection_counts[5]++;
+      better_rating_seen = 1;
+      continue;
+    }
+    if (nearby_count > 0) {
+      nearest_distance_squared = 3.402823466e38f;
+      for (slot = 0; slot < nearby_count; slot++) {
+        dx = (x87_wide_t)nearby_positions[slot].x - actor->body_position.x;
+        dy = (x87_wide_t)nearby_positions[slot].y - actor->body_position.y;
+        dz = (x87_wide_t)nearby_positions[slot].z - actor->body_position.z;
+        distance_squared = dz * dz + dx * dx + dy * dy;
+        if (distance_squared < nearest_distance_squared) {
+          nearest_distance_squared = HALO_NARROW(distance_squared);
+          HALO_FLT_ROUNDTRIP(nearest_distance_squared);
+        }
+      }
+      if (nearest_distance_squared < 20.25f) {
+        candidate_score = (1.0f - (x87_sqrtd(nearest_distance_squared) - 1.5f) *
+                                    0.3333333433f) +
+                          candidate_score;
+        HALO_FLT_ROUNDTRIP(candidate_score);
+      }
+    }
+    unit = (unit_data_t *)object_get_and_verify_type(actor->meta_unit_index, 3);
+    unit_variant = unit->object.unk_110;
+    change_variant_count = 0;
+    found_variant_index = -1;
+    found_variant = 0;
+    for (variant_index = 0; variant_index < 6; variant_index++) {
+      if (participant->dialogue_variants[variant_index] != -1) {
+        if (participant->dialogue_variants[variant_index] == unit_variant) {
+          found_variant_index = variant_index;
+          goto matching_variant;
+        }
+        if (participant->dialogue_variants[variant_index] == 0) {
+          found_variant_index = variant_index;
+          found_variant = 1;
+        } else if (unit_variant < 100 &&
+                   participant->dialogue_variants[variant_index] < 100) {
+          assert_halt(change_variant_count < 6);
+          change_variant_indices[change_variant_count++] = variant_index;
+        }
+      }
+    }
+    if (found_variant) {
+    matching_variant:
+      assert_halt(found_variant_index != -1);
+      variant_index = found_variant_index;
+      candidate_score += 0.7f;
+      HALO_FLT_ROUNDTRIP(candidate_score);
+    } else {
+      if (change_variant_count <= 0) {
+        rejection_counts[6]++;
+        continue;
+      }
+      if (change_variant_count == 1) {
+        variant_index = change_variant_indices[0];
+      } else {
+        variant_index = change_variant_indices[seed_random_range(
+          (unsigned int *)get_global_random_seed_address(), 0,
+          change_variant_count)];
+      }
+      assert_halt(variant_index >= 0 && variant_index < 6);
+    }
+    if (candidate_score > best_score) {
+      selected_actor_index = actor_index;
+      best_score = candidate_score;
+      best_distance = candidate_distance;
+      selected_variant_index = variant_index;
+      assigned = 1;
+    }
+  }
+
+  if (!assigned && ai_debug_conversations) {
+    name_index = participant->preexisting_name_index;
+    if (name_index == -1) {
+      name_index = participant->new_name_index;
+    }
+    object_name = (const char *)0x254384;
+    if (name_index >= 0 &&
+        name_index < *(int *)((char *)global_scenario_get() + 0x204)) {
+      object_name = (const char *)tag_block_get_element(
+        (char *)global_scenario_get() + 0x204, name_index, 0x24);
+    }
+    if (use_object) {
+      csstrcpy(actor_string, "<specific unit>");
+    } else if (use_ai_iterator) {
+      ai_index_to_string(participant->ai_index, global_scenario_get(),
+                         actor_string, sizeof(actor_string));
+    } else {
+      csstrcpy(actor_string, "<everyone>");
+    }
+    console_printf(0, "%s: didn't find %d/%s in %s (%d possible actors)",
+                   (char *)definition, participant_index, object_name,
+                   actor_string, (int)(int16_t)possible_actor_count);
+    if ((int16_t)possible_actor_count > 0) {
+      rejection_names[0] = "swarm";
+      rejection_names[1] = "wrong-type";
+      rejection_names[2] = "already-conversing";
+      rejection_names[3] = "nowhere-near-player";
+      rejection_names[4] = "selection";
+      rejection_names[5] = "not-near-player";
+      rejection_names[6] = "no-dialogue-match";
+      csstrcpy(reason_string, "  reasons: ");
+      for (slot = 0; slot < 7; slot++) {
+        if (rejection_counts[slot] > 0) {
+          crt_sprintf(reason_string + csstrlen(reason_string), "%s(%d) ",
+                      rejection_names[slot], (int)rejection_counts[slot]);
+        }
+      }
+      console_printf(0, reason_string);
+    }
+  }
+
+finalize:
+  if (assigned) {
+    conversation->participant_mask |= 1u << (participant_index & 31);
+    conversation->actor_indices[participant_index] = selected_actor_index;
+    conversation->dialogue_indices[participant_index] = selected_variant_index;
+    if (found_actor != NULL && selected_actor_index != -1) {
+      *found_actor = 1;
+    }
+  } else if ((participant->flags & 2) && try_alternate != NULL) {
+    *try_alternate = 1;
+  }
+  if (better_rating_seen && better_player_rating != NULL) {
+    *better_player_rating = 1;
+  }
+  if (best_distance_reference != NULL &&
+      best_distance < *best_distance_reference) {
+    *best_distance_reference = best_distance;
+  }
+  return assigned;
+}
 /* ai_communication_started (0x44fd0) — a unit began speaking: optional debug
  * logging, then record the speech in the dialogue timers.  DORMANT
  * (kb ported:false).
@@ -2595,6 +2986,167 @@ void ai_communication_notify(int unit_handle, uint16_t priority, uint16_t type,
       actor = (actor_t *)actor_iterator_next(iter);
     }
   }
+}
+
+/* ai_communication_actor_talk_weight (0x454a0).
+ * subject_index is in EAX; return is ST(0), including all zero exits.
+ * Existing callers forward stimulus_range_bits as a raw dword. Preserve that
+ * ABI and reinterpret its IEEE float payload rather than numerically cast it.
+ * The remaining stack carriers are narrowed exactly at the original word/byte
+ * reads. consider_speech receives EAX=&sound, ECX=&vocalization, DX=priority.
+ */
+float ai_communication_actor_talk_weight(
+  int subject_index, int actor_index, float *subject_point, int cause_index,
+  float *cause_point, int stimulus_range_bits, int communication_type,
+  int communication_priority, int speech_priority, int vocalization_type,
+  int animation_type, int flags)
+{
+  actor_t *actor;
+  unit_data_t *subject;
+  prop_t *prop;
+  union {
+    int bits;
+    real value;
+  } range;
+  real weight;
+  real player_rating;
+  x87_wide_t dx, dy, dz;
+  int unit_index;
+  int prop_index;
+  int sound_index;
+  int16_t speech_type;
+  int16_t visibility;
+  char lighting;
+  char have_target;
+  char passes;
+  char subject_ok;
+  char cause_ok;
+
+  actor = (actor_t *)datum_get(actor_data, actor_index);
+  range.bits = stimulus_range_bits;
+  have_target = subject_index != -1 || cause_index != -1;
+  unit_index = actor->meta_unit_index;
+  passes = unit_index != -1;
+  weight = 10.0f;
+  if (actor->field_06a <= 1 || !passes) {
+    return 0.0f;
+  }
+  if (have_target) {
+    if (subject_index != -1) {
+      dx = (x87_wide_t)subject_point[0] - actor->head_position.x;
+      dy = (x87_wide_t)subject_point[1] - actor->head_position.y;
+      dz = (x87_wide_t)subject_point[2] - actor->head_position.z;
+      if ((x87_wide_t)range.value * range.value > dx * dx + dy * dy + dz * dz) {
+        goto in_range;
+      }
+    }
+    if (cause_index == -1 ||
+        !((x87_wide_t)range.value * range.value >
+          distance_squared3d((float *)&actor->head_position, cause_point))) {
+      return 0.0f;
+    }
+  in_range:
+    passes = 1;
+  }
+  if (flags & 2) {
+    player_rating =
+      ai_communication_get_player_rating(unit_index, 0, NULL, NULL);
+    if (player_rating == 0.0f) {
+      return 0.0f;
+    }
+    weight = player_rating * 5.0f + 10.0f;
+    HALO_FLT_ROUNDTRIP(weight);
+  }
+  if ((flags & 4) && subject_index != -1) {
+    subject = (unit_data_t *)object_get_and_verify_type(subject_index, 3);
+    if (subject->object.parent_object_index.value != actor->vehicle_index) {
+      return 0.0f;
+    }
+  }
+  if ((int16_t)animation_type != -1 &&
+      (uint8_t)unit_test_animation_impulse(unit_index, animation_type)) {
+    weight += 5.0f;
+    HALO_FLT_ROUNDTRIP(weight);
+  }
+  if ((int16_t)vocalization_type != -1) {
+    speech_type = (int16_t)vocalization_type;
+    sound_index = -1;
+    if (ai_communication_consider_speech(
+          &sound_index, &speech_type, (short)speech_priority, unit_index,
+          (short)communication_priority, 0, (char)(flags & 1), 1, &weight,
+          NULL) == 0) {
+      return 0.0f;
+    }
+  }
+  if (have_target) {
+    subject_ok = 0;
+    cause_ok = 0;
+    if (subject_index != -1) {
+      if (actor->meta_unit_index == subject_index) {
+        if (flags & 8) {
+          subject_ok = 1;
+        } else {
+          passes = 0;
+        }
+      } else {
+        prop_index =
+          prop_get_base_by_unit_index(actor_index, subject_index, 1, 0);
+        if (prop_index != -1) {
+          prop = (prop_t *)datum_get(prop_data, prop_index);
+          /* The x87 TEST AH,0x41 also admits unordered comparisons here. */
+          if (!(prop->distance > range.value)) {
+            if (prop->state < 2 || prop->state > 3) {
+              if (prop->enemy) {
+                goto check_cause;
+              }
+              if ((int16_t)communication_type == 0 && prop->audibility < 2 &&
+                  prop->ineffability < 2) {
+                lighting = prop->flashlight ? 2 : prop->lighting;
+                visibility = actor_visibility_at_point(
+                  actor_index, &actor->head_position,
+                  (float *)&prop->head_position, lighting, prop->line_of_sight,
+                  1, 0,
+                  actor_get_perception_knowledge(actor_index, prop_index));
+                if (visibility < 2) {
+                  goto check_cause;
+                }
+              }
+            }
+            weight = (1.0f - (x87_wide_t)prop->distance / range.value) * 10.0f +
+                     weight;
+            HALO_FLT_ROUNDTRIP(weight);
+            subject_ok = 1;
+          }
+        }
+      }
+    }
+  check_cause:
+    if (cause_index != -1) {
+      if (actor->meta_unit_index == cause_index) {
+        if (!(flags & 0x10)) {
+          return 0.0f;
+        }
+        cause_ok = 1;
+      } else {
+        prop_index = prop_get_active_by_unit_index(actor_index, cause_index);
+        if (prop_index != -1) {
+          prop = (prop_t *)datum_get(prop_data, prop_index);
+          if (!(prop->distance > range.value) &&
+              ((prop->state >= 2 && prop->state <= 3) || !prop->enemy)) {
+            weight = (1.0f - (x87_wide_t)prop->distance / range.value) * 10.0f +
+                     weight;
+            HALO_FLT_ROUNDTRIP(weight);
+            cause_ok = 1;
+          }
+        }
+      }
+    }
+    if (!passes) {
+      return 0.0f;
+    }
+    passes = subject_ok | cause_ok;
+  }
+  return passes ? weight : 0.0f;
 }
 
 /* ai_communication_find_specific_actor_to_talk (0x45830) — scan the actors

@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "struct": "ai_conversation_datum_t",
+  "sources": [
+    "cachebeta.xbe 2276 ai_conversation_find_participant 0x447d0-0x44fad"
+  ],
+  "fields": [
+    {
+      "offset": "0x2",
+      "width": 2,
+      "signed": true,
+      "name": "definition_index",
+      "confidence": "typed",
+      "evidence": "MOVSX EDX,word [EAX+2] @0x447e9",
+      "kind": "int"
+    },
+    {
+      "offset": "0x14",
+      "width": 4,
+      "signed": false,
+      "name": "participant_mask",
+      "confidence": "typed",
+      "evidence": "OR / MOV dword [EAX+0x14] @0x44885",
+      "kind": "int"
+    },
+    {
+      "offset": "0x18",
+      "width": 2,
+      "signed": true,
+      "name": "dialogue_indices",
+      "confidence": "typed",
+      "evidence": "MOV word [EAX+ECX*2+0x18],SI @0x44895",
+      "kind": "int",
+      "array_len": 8
+    },
+    {
+      "offset": "0x28",
+      "width": 4,
+      "signed": true,
+      "name": "actor_indices",
+      "confidence": "typed",
+      "evidence": "MOV dword [EAX+ECX*4+0x28],EDX @0x44891; NONE compare @0x44907",
+      "kind": "int",
+      "array_len": 8
+    }
+  ],
+  "notes": [
+    "Names are advisory T2 CEA/PAL context; offsets and widths verified against 2276. Unobserved ranges are padding."
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "struct": "ai_conversation_participant_t",
+  "sources": [
+    "cachebeta.xbe 2276 ai_conversation_find_participant 0x447d0-0x44fad"
+  ],
+  "fields": [
+    {
+      "offset": "0x2",
+      "width": 1,
+      "signed": false,
+      "name": "flags",
+      "confidence": "typed",
+      "evidence": "TEST byte [EAX+2],2 @0x44f63",
+      "kind": "int"
+    },
+    {
+      "offset": "0x4",
+      "width": 2,
+      "signed": true,
+      "name": "selection_type",
+      "confidence": "typed",
+      "evidence": "MOVSX EAX,word [EDX+4] @0x44b21",
+      "kind": "int"
+    },
+    {
+      "offset": "0x6",
+      "width": 2,
+      "signed": true,
+      "name": "actor_type",
+      "confidence": "typed",
+      "evidence": "CMP CX,word [EDX+6] @0x44a8e",
+      "kind": "int"
+    },
+    {
+      "offset": "0x8",
+      "width": 2,
+      "signed": true,
+      "name": "preexisting_name_index",
+      "confidence": "typed",
+      "evidence": "MOV AX,word [EBX+8] @0x4498b; signed debug test @0x44e16",
+      "kind": "int"
+    },
+    {
+      "offset": "0xa",
+      "width": 2,
+      "signed": true,
+      "name": "new_name_index",
+      "confidence": "typed",
+      "evidence": "MOV AX,word [ECX+0xa] @0x44e12; TEST AX/JL @0x44e16",
+      "kind": "int"
+    },
+    {
+      "offset": "0x18",
+      "width": 2,
+      "signed": true,
+      "name": "dialogue_variants",
+      "confidence": "typed",
+      "evidence": "MOV AX,[EAX+EDX*2+0x18] @0x44ca6; signed comparisons @0x44ccd",
+      "kind": "int",
+      "array_len": 6
+    },
+    {
+      "offset": "0x44",
+      "width": 4,
+      "signed": true,
+      "name": "ai_index",
+      "confidence": "typed",
+      "evidence": "MOV EAX,[EBX+0x44]; CMP EAX,-1 @0x449a7",
+      "kind": "int"
+    }
+  ],
+  "notes": [
+    "Names are advisory T2 CEA/PAL context; offsets and widths verified against 2276. Unobserved ranges are padding."
+  ],
+  "size": {
+    "value": "0x54",
+    "evidence": "tag_block_get_element stride at 0x447f0 / 0x4480c"
+  }
+}

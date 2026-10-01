@@ -26863,6 +26863,10 @@
     "0x5065a4": {
       "kind": "data",
       "status": "ported"
+    },
+    "0x454a0": {
+      "kind": "function",
+      "status": "ported"
     }
   }
 }

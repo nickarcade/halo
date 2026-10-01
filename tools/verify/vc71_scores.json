@@ -38225,6 +38225,21 @@
       "score": 98.1,
       "source": "src/halo/ai/ai.c"
     },
+    "ai_communication_actor_talk_weight": {
+      "abi_model": "raw",
+      "abi_model_items": 0,
+      "abi_modeled_mnemonic_pct": 88.5,
+      "addr": "0x454a0",
+      "end": "0x45828",
+      "kind": "auto",
+      "n_r": 294,
+      "opnd_percent": 68.9,
+      "raw_mnemonic_pct": 88.5,
+      "ref": "synth",
+      "ref_sha": "a0e462bca5baf008",
+      "score": 88.5,
+      "source": "src/halo/ai/ai_communication.c"
+    },
     "ai_communication_consider_speech": {
       "abi_model": "raw",
       "abi_model_items": 0,
@@ -38573,16 +38588,31 @@
     "ai_conversation_begin": {
       "abi_model": "raw",
       "abi_model_items": 0,
-      "abi_modeled_mnemonic_pct": 91.1,
+      "abi_modeled_mnemonic_pct": 91.6,
       "addr": "0x45a10",
       "end": "0x460d7",
       "kind": "auto",
       "n_r": 589,
-      "opnd_percent": 82.3,
-      "raw_mnemonic_pct": 91.1,
+      "opnd_percent": 76.1,
+      "raw_mnemonic_pct": 91.6,
       "ref": "synth",
       "ref_sha": "53a0314db7df2bca",
-      "score": 91.1,
+      "score": 91.6,
+      "source": "src/halo/ai/ai_communication.c"
+    },
+    "ai_conversation_find_participant": {
+      "abi_model": "regparam_stripped",
+      "abi_model_items": 1,
+      "abi_modeled_mnemonic_pct": 94.6,
+      "addr": "0x447d0",
+      "end": "0x44fae",
+      "kind": "auto",
+      "n_r": 630,
+      "opnd_percent": 87.5,
+      "raw_mnemonic_pct": 94.6,
+      "ref": "synth",
+      "ref_sha": "506f420dde715ddb",
+      "score": 94.6,
       "source": "src/halo/ai/ai_communication.c"
     },
     "ai_conversation_finish": {

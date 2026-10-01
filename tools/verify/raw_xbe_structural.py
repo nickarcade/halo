@@ -900,6 +900,14 @@ def aligned_byte_compare(candidate, relocations, reference, address,
                 if (field["insn_offset"] == reference_insn["offset"] and
                         field["kind"] == candidate_form["kind"]):
                     candidates.append((field_offset, field))
+            if len(candidates) > 1:
+                # `mov dword ptr [disp32], imm32` carries two DIR32 fields.
+                # The relocated one is the field at the same offset inside
+                # the instruction; pairing by kind alone left every such
+                # store unpaired and compared its address literally.
+                local = candidate_form["operand_offset"] - candidate_insn["offset"]
+                candidates = [(field_offset, field) for field_offset, field in candidates
+                              if field_offset - reference_insn["offset"] == local]
             if len(candidates) != 1:
                 unresolved_relocations += 1
                 unpaired_relocations += 1
