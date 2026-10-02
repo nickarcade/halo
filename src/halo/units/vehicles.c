@@ -752,6 +752,7 @@ void create_pelican_effect(int vehicle_handle)
  */
 
 #include "../../common.h"
+#include "../../x87_math.h"
 
 /* Squared proximity threshold: 10.0^2 = 100.0 world units. */
 #define VEHICLE_NEAR_PLAYER_DIST_SQ 100.0f
@@ -911,5 +912,221 @@ void update_alien_fighter_physics(int vehicle_handle, int param_2, int param_3)
   }
 
   update_alien_fighter_physics_new(vehicle_handle, param_2, param_3);
-  create_ghost_effect(vehicle_handle);
+}
+
+/* 0x1b5c90: vehicle_accelerate
+ * Applies a linear acceleration vector to the vehicle's velocity,
+ * computes an angular torque impulse about the up axis crossed with
+ * acceleration, and wakes the vehicle up if sleeping (clears flag bit 0x20).
+ */
+void vehicle_accelerate(int vehicle_handle, float *velocity)
+{
+  char *vehicle;
+  uint32_t tag_index;
+  char *vehicle_tag;
+  int32_t physics_tag_index;
+  float cross[3];
+  float *up;
+  float len;
+
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  tag_index = *(uint32_t *)vehicle;
+  vehicle_tag = (char *)tag_get(0x76656869, tag_index);
+  physics_tag_index = *(int32_t *)(vehicle_tag + 0x8c);
+  if (physics_tag_index != -1) {
+    tag_get(0x70687973, physics_tag_index);
+
+    *(float *)(vehicle + 0x18) += velocity[0];
+    *(float *)(vehicle + 0x1c) += velocity[1];
+    *(float *)(vehicle + 0x20) += velocity[2];
+
+    up = *(float **)0x31fc44;
+    cross[0] = velocity[2] * up[1] - velocity[1] * up[2];
+    cross[1] = up[2] * velocity[0] - velocity[2] * up[0];
+    cross[2] = velocity[1] * up[0] - velocity[0] * up[1];
+
+    len = normalize3d(cross);
+    if (len > *(float *)0x2533c0) {
+      len *= *(float *)0x256980;
+      *(float *)(vehicle + 0x3c) += cross[0] * len;
+      *(float *)(vehicle + 0x40) += cross[1] * len;
+      *(float *)(vehicle + 0x44) += cross[2] * len;
+      *(uint32_t *)(vehicle + 4) &= ~0x20;
+      return;
+    }
+    *(uint32_t *)(vehicle + 4) &= ~0x20;
+  }
+}
+
+/* 0x1b5f20: compute_acceleration
+ * Computes acceleration vector required to reach desired_vel from current_vel,
+ * adjusting for global gravity, and limits the resulting acceleration vector
+ * according to the angle between desired_vel and acceleration.
+ */
+float *compute_acceleration(float *out_accel, const float *current_vel, const float *desired_vel, float max_accel, float min_accel)
+{
+  float dot;
+  float delta_len_sq;
+  float desired_len_sq;
+  float cos_sq;
+  float accel_limit;
+
+  out_accel[0] = desired_vel[0] - current_vel[0];
+  out_accel[1] = desired_vel[1] - current_vel[1];
+  out_accel[2] = (desired_vel[2] - current_vel[2]) + *(float *)0x32512c;
+
+  dot = desired_vel[0] * out_accel[0] + desired_vel[2] * out_accel[2] + desired_vel[1] * out_accel[1];
+  if (dot > *(float *)0x253f44) {
+    delta_len_sq = out_accel[0] * out_accel[0] + out_accel[1] * out_accel[1] + out_accel[2] * out_accel[2];
+    desired_len_sq = desired_vel[0] * desired_vel[0] + desired_vel[1] * desired_vel[1] + desired_vel[2] * desired_vel[2];
+    cos_sq = (dot * dot) / (delta_len_sq * desired_len_sq);
+    accel_limit = (max_accel - min_accel) * cos_sq + min_accel;
+    FUN_000a57b0(out_accel, accel_limit);
+    return out_accel;
+  }
+
+  FUN_000a57b0(out_accel, min_accel);
+  return out_accel;
+}
+
+/* 0x1b6ca0: slowly_stop_vehicle
+ * Decrements the stopping countdown timer (+0x426) and dampens linear/angular
+ * velocities by 0.835 (*(float *)0x2b7cf8). Rotates forward/up vectors by angular velocity,
+ * integrates position, and zeros velocities when the timer reaches 0.
+ */
+void slowly_stop_vehicle(int vehicle_handle)
+{
+  char *vehicle;
+  float damp;
+  float new_pos[3];
+  float ang_vel[3];
+  float new_forward[3];
+  float new_up[3];
+  float angle;
+  float rot_mat[12];
+
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  *(int16_t *)(vehicle + 0x426) -= 1;
+
+  damp = *(const float *)0x2b7cf8;
+  *(float *)(vehicle + 0x18) *= damp;
+  *(float *)(vehicle + 0x1c) *= damp;
+  *(float *)(vehicle + 0x20) *= damp;
+  *(float *)(vehicle + 0x3c) *= damp;
+  *(float *)(vehicle + 0x40) *= damp;
+  *(float *)(vehicle + 0x44) *= damp;
+
+  new_pos[0] = *(float *)(vehicle + 0x18) + *(float *)(vehicle + 0xc);
+  new_pos[1] = *(float *)(vehicle + 0x10) + *(float *)(vehicle + 0x1c);
+  new_pos[2] = *(float *)(vehicle + 0x14) + *(float *)(vehicle + 0x20);
+
+  ang_vel[0] = *(float *)(vehicle + 0x3c);
+  ang_vel[1] = *(float *)(vehicle + 0x40);
+  ang_vel[2] = *(float *)(vehicle + 0x44);
+
+  angle = normalize3d(ang_vel);
+  if (angle != *(float *)0x2533c0) {
+    float sin_val = x87_fsin(angle);
+    float cos_val = x87_fcos(angle);
+    FUN_001092d0(rot_mat, ang_vel, sin_val, cos_val);
+    matrix_scale_transform_vector(rot_mat, (float *)(vehicle + 0x24), new_forward);
+    matrix_scale_transform_vector(rot_mat, (float *)(vehicle + 0x30), new_up);
+  } else {
+    new_forward[0] = *(float *)(vehicle + 0x24);
+    new_forward[1] = *(float *)(vehicle + 0x28);
+    new_forward[2] = *(float *)(vehicle + 0x2c);
+    new_up[0] = *(float *)(vehicle + 0x30);
+    new_up[1] = *(float *)(vehicle + 0x34);
+    new_up[2] = *(float *)(vehicle + 0x38);
+  }
+
+  if (*(int16_t *)(vehicle + 0x426) == 0) {
+    float *zero = *(float **)0x31fc38;
+    *(float *)(vehicle + 0x18) = zero[0];
+    *(float *)(vehicle + 0x1c) = zero[1];
+    *(float *)(vehicle + 0x20) = zero[2];
+    *(float *)(vehicle + 0x3c) = zero[0];
+    *(float *)(vehicle + 0x40) = zero[1];
+    *(float *)(vehicle + 0x44) = zero[2];
+  }
+
+  object_set_position(vehicle_handle, new_pos, new_forward, new_up);
+}
+
+/* 0x1b8060: vehicle_stuck
+ * Checks whether any wheel/suspension contact point is flagged in the
+ * vehicle's stuck contact bitmask (+0x478). If so, computes the centroid of
+ * flagged contact points transformed to world space, outputs the normalized
+ * direction from vehicle position to centroid, and returns 1. Otherwise returns 0.
+ */
+char vehicle_stuck(int vehicle_handle, float *vec)
+{
+  char *vehicle;
+  uint32_t stuck_mask;
+  char instance_buf[0x64];
+  void *physics_tag;
+  void *points_block;
+  int count;
+  int match_count;
+  int i;
+  float *origin;
+  float sum[3];
+  float world_center[3];
+  vector3_t vehicle_pos;
+  float mag;
+
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  stuck_mask = *(uint32_t *)(vehicle + 0x478);
+  if (stuck_mask == 0) {
+    return 0;
+  }
+
+  if (!FUN_001509c0(instance_buf, vehicle_handle)) {
+    return 0;
+  }
+
+  origin = *(float **)0x31fc1c;
+  sum[0] = origin[0];
+  sum[1] = origin[1];
+  sum[2] = origin[2];
+
+  physics_tag = *(void **)(instance_buf + 4);
+  points_block = (char *)physics_tag + 0x74;
+  count = *(int *)points_block;
+
+  match_count = 0;
+  for (i = 0; i < count; i++) {
+    if (stuck_mask & (1U << (i & 0x1f))) {
+      char *elem = (char *)tag_block_get_element(points_block, i, 0x80);
+      sum[0] += *(float *)(elem + 0x38);
+      sum[1] += *(float *)(elem + 0x3c);
+      sum[2] += *(float *)(elem + 0x40);
+      match_count++;
+    }
+  }
+
+  if (match_count <= 0) {
+    return 0;
+  }
+
+  {
+    float inv_count = *(float *)0x2533c8 / (float)match_count;
+    sum[0] *= inv_count;
+    sum[1] *= inv_count;
+    sum[2] *= inv_count;
+  }
+
+  matrix_transform_point((float *)(instance_buf + 8), sum, world_center);
+  object_get_world_position(vehicle_handle, &vehicle_pos);
+
+  vec[0] = world_center[0] - vehicle_pos.x;
+  vec[1] = world_center[1] - vehicle_pos.y;
+  vec[2] = world_center[2] - vehicle_pos.z;
+
+  mag = normalize3d(vec);
+  if (mag != *(float *)0x2533c0) {
+    return 1;
+  }
+
+  return 0;
 }

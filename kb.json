@@ -31994,7 +31994,8 @@
         },
         {
           "addr": "0x1b5c90",
-          "decl": "void vehicle_accelerate(int handle, float *velocity);"
+          "decl": "void vehicle_accelerate(int handle, float *velocity);",
+          "ported": true
         },
         {
           "addr": "0x1b5d90",
@@ -32008,8 +32009,9 @@
         },
         {
           "addr": "0x1b5f20",
-          "decl": "void compute_acceleration(void);",
-          "comment": "[NAME: compute_acceleration \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "float *compute_acceleration(float *out_accel, const float *current_vel, const float *desired_vel, float max_accel, float min_accel);",
+          "comment": "[NAME: compute_acceleration \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b5ff0",
@@ -32038,8 +32040,9 @@
         },
         {
           "addr": "0x1b6ca0",
-          "decl": "void slowly_stop_vehicle(void);",
-          "comment": "[NAME: slowly_stop_vehicle \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void slowly_stop_vehicle(int vehicle_handle);",
+          "comment": "[NAME: slowly_stop_vehicle \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b6e20",
@@ -32078,7 +32081,8 @@
         },
         {
           "addr": "0x1b8060",
-          "decl": "char vehicle_stuck(int unit_handle, float *vec);"
+          "decl": "char vehicle_stuck(int unit_handle, float *vec);",
+          "ported": true
         },
         {
           "addr": "0x1b81d0",
