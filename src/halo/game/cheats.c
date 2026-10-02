@@ -244,6 +244,27 @@ real reciprocal_square_root(real value)
   return 1.0f / sqrtf(value);
 }
 
+/* FUN_000a57b0 (0xa57b0) — limit3d
+ *
+ * Normalizes 3D vector to max_length if its length exceeds max_length.
+ * Returns 1 if clamped, 0 if within limit.
+ */
+short FUN_000a57b0(float *vec, float max_length)
+{
+  float length_sq;
+  float scale;
+
+  length_sq = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
+  if (length_sq > max_length * max_length) {
+    scale = max_length / sqrtf(length_sq);
+    vec[0] *= scale;
+    vec[1] *= scale;
+    vec[2] *= scale;
+    return 1;
+  }
+  return 0;
+}
+
 /* set_real_euler_angles2d (0xa5810)
  *
  * Two-store setter, straight from the disassembly:
@@ -319,6 +340,229 @@ char FUN_000a5830(float *point, void *elem_data, float *arg3, int arg4)
   *(int16_t *)0x4761d8 -= 1;
 
   return result;
+}
+
+/* object_compute_autoaim_target (0xa5920)
+ *
+ * Computes closest point on biped autoaim pill to aiming ray, then clamps
+ * perpendicular offset to pill radius and adjusts target position.
+ */
+static void object_compute_autoaim_target_internal(int object_handle,
+                                                  const float *from_pos,
+                                                  const float *forward_dir,
+                                                  float *out_target_pos)
+{
+  float pill_base[3];
+  float pill_axis[3];
+  float pill_radius;
+  float cross_x;
+  float cross_y;
+  float cross_z;
+  float cross_sq;
+  float delta[3];
+  float dc_x;
+  float dc_y;
+  float dc_z;
+  float t;
+  float perp_offset[3];
+  float proj;
+
+  biped_get_autoaim_pill(object_handle, pill_base, pill_axis,
+                         (int *)&pill_radius);
+
+  cross_x = pill_axis[1] * forward_dir[2] - pill_axis[2] * forward_dir[1];
+  cross_y = pill_axis[2] * forward_dir[0] - pill_axis[0] * forward_dir[2];
+  cross_z = pill_axis[0] * forward_dir[1] - pill_axis[1] * forward_dir[0];
+  cross_sq = cross_x * cross_x + cross_y * cross_y + cross_z * cross_z;
+
+  if (cross_sq <= *(float *)0x2533c0) {
+    out_target_pos[0] = pill_base[0];
+    out_target_pos[1] = pill_base[1];
+    out_target_pos[2] = pill_base[2];
+  } else {
+    delta[0] = from_pos[0] - pill_base[0];
+    delta[1] = from_pos[1] - pill_base[1];
+    delta[2] = from_pos[2] - pill_base[2];
+
+    dc_x = delta[1] * forward_dir[2] - delta[2] * forward_dir[1];
+    dc_y = delta[2] * forward_dir[0] - delta[0] * forward_dir[2];
+    dc_z = delta[0] * forward_dir[1] - delta[1] * forward_dir[0];
+
+    t = (dc_x * cross_x + dc_y * cross_y + dc_z * cross_z) / cross_sq;
+    if (t < *(float *)0x2533c0) {
+      t = *(float *)0x2533c0;
+    } else if (t > *(float *)0x2533c8) {
+      t = *(float *)0x2533c8;
+    }
+
+    out_target_pos[0] = pill_base[0] + pill_axis[0] * t;
+    out_target_pos[1] = pill_base[1] + pill_axis[1] * t;
+    out_target_pos[2] = pill_base[2] + pill_axis[2] * t;
+  }
+
+  delta[0] = out_target_pos[0] - from_pos[0];
+  delta[1] = out_target_pos[1] - from_pos[1];
+  delta[2] = out_target_pos[2] - from_pos[2];
+
+  proj = -(delta[0] * forward_dir[0] + delta[1] * forward_dir[1] +
+           delta[2] * forward_dir[2]);
+
+  perp_offset[0] = delta[0] + proj * forward_dir[0];
+  perp_offset[1] = delta[1] + proj * forward_dir[1];
+  perp_offset[2] = delta[2] + proj * forward_dir[2];
+
+  FUN_000a57b0(perp_offset, pill_radius);
+
+  out_target_pos[0] -= perp_offset[0];
+  out_target_pos[1] -= perp_offset[1];
+  out_target_pos[2] -= perp_offset[2];
+}
+
+void object_compute_autoaim_target(void)
+{
+}
+
+/* FUN_000a5ac0 (0xa5ac0) — aim_assist_compute_target
+ *
+ * Computes candidate target record (0x38 bytes) for object_handle.
+ * Populates out_record with object handle, target position, delta, direction,
+ * distance, angle, and autoaim/magnet attenuation.
+ * Returns 1 if candidate has nonzero attenuation, 0 otherwise.
+ */
+char FUN_000a5ac0(void *param_1, int object_handle, float *arg_p3,
+                  float *arg_p4, void *out_record)
+{
+  float *record;
+  float *params;
+  float *from_pos;
+  float *forward_dir;
+  float delta[3];
+  float dist;
+  float cos_angle;
+  float angle;
+  float atten_dist;
+  float atten_angle;
+  char *unit_obj;
+  char *unit_tag;
+  char *game_globals;
+  char *element;
+
+  record = (float *)out_record;
+  params = (float *)param_1;
+  from_pos = arg_p3;
+  forward_dir = arg_p4;
+
+  *(int *)record = object_handle;
+  object_compute_autoaim_target_internal(object_handle, from_pos, forward_dir,
+                                         record + 1);
+
+  delta[0] = record[1] - from_pos[0];
+  delta[1] = record[2] - from_pos[1];
+  delta[2] = record[3] - from_pos[2];
+
+  record[4] = delta[0];
+  record[5] = delta[1];
+  record[6] = delta[2];
+
+  record[7] = delta[0];
+  record[8] = delta[1];
+  record[9] = delta[2];
+
+  dist = normalize3d(record + 7);
+  record[10] = dist;
+
+  cos_angle = record[7] * forward_dir[0] + record[8] * forward_dir[1] +
+              record[9] * forward_dir[2];
+  if (cos_angle < *(float *)0x255e94) {
+    cos_angle = *(float *)0x255e94;
+  } else if (cos_angle > *(float *)0x2533c8) {
+    cos_angle = *(float *)0x2533c8;
+  }
+
+  angle = acosf(cos_angle);
+  record[11] = angle;
+
+  if (params != NULL) {
+    atten_dist = FUN_000a5590(dist, params[1]);
+    atten_angle = FUN_000a5590(angle, params[0]);
+    record[12] = atten_dist * atten_angle;
+
+    atten_dist = FUN_000a5590(dist, params[3]);
+    atten_angle = FUN_000a5590(angle, params[2]);
+    record[13] = atten_dist * atten_angle;
+
+    if (record[13] > *(float *)0x2533c0) {
+      unit_obj = (char *)object_get_and_verify_type(object_handle, 3);
+      unit_tag = (char *)tag_get(0x756e6974, *(int *)unit_obj);
+      if (*(uint32_t *)(unit_tag + 0x17c) & 0x80000) {
+        game_globals = (char *)game_globals_get();
+        element = (char *)tag_block_get_element(
+          (tag_block *)(game_globals + 0x110), 0, 0x80);
+        record[13] *= *(float *)(element + 8);
+      }
+    }
+  } else {
+    record[12] = *(float *)0x2533c0;
+    record[13] = *(float *)0x2533c0;
+  }
+
+  if (record[12] <= *(float *)0x2533c0 && record[13] <= *(float *)0x2533c0) {
+    return 0;
+  }
+  return 1;
+}
+
+/* FUN_000a5c60 (0xa5c60) — autoaim_compute_target
+ *
+ * Computes autoaim target data for an object:
+ * 1. Computes closest point on pill to aiming ray -> out0 (target position).
+ * 2. Checks line of sight from from_pos to out0 ignoring ignore_player_object.
+ * 3. If line of sight clear:
+ *    Computes delta vector out1 = out0 - from_pos.
+ *    Normalizes out1 -> out2 (distance returned).
+ *    Computes angle between facing and out1 (clamped dot product -> acosf).
+ *    Writes angle to *out_angle and returns 1.
+ * 4. Otherwise returns 0.
+ */
+char FUN_000a5c60(int target_object, float *from_pos, float *facing,
+                  int ignore_player_object, float *out0, float *out1,
+                  float *out2, float *out_angle)
+{
+  float delta[3];
+  float dist;
+  float cos_angle;
+
+  object_compute_autoaim_target_internal(target_object, from_pos, facing, out0);
+  if (!FUN_000a5830(from_pos, out0, (float *)ignore_player_object,
+                    target_object)) {
+    return 0;
+  }
+
+  delta[0] = out0[0] - from_pos[0];
+  delta[1] = out0[1] - from_pos[1];
+  delta[2] = out0[2] - from_pos[2];
+
+  out1[0] = delta[0];
+  out1[1] = delta[1];
+  out1[2] = delta[2];
+
+  dist = normalize3d(out1);
+  *out2 = dist;
+
+  if (dist == *(float *)0x2533c0) {
+    return 0;
+  }
+
+  cos_angle =
+    facing[0] * out1[0] + facing[1] * out1[1] + facing[2] * out1[2];
+  if (cos_angle < *(float *)0x255e94) {
+    cos_angle = *(float *)0x255e94;
+  } else if (cos_angle > *(float *)0x2533c8) {
+    cos_angle = *(float *)0x2533c8;
+  }
+
+  *out_angle = acosf(cos_angle);
+  return 1;
 }
 
 /* FUN_000a5d70 (0xa5d70)
@@ -422,6 +666,72 @@ int16_t FUN_000a5d70(void *param_1, int object_handle, float *arg_p3,
   return total_count;
 }
 
+/* FUN_000a5f00 (0xa5f00) — find_aim_assist_targets
+ *
+ * Traverses clusters in a cone from point along direction, collects objects
+ * in those clusters, and queries target candidates into out_buffer using
+ * FUN_000a5d70.
+ * Register ABI: cone_spec in EDI (@<edi>).
+ */
+int16_t FUN_000a5f00(float *cone_spec, int16_t starting_cluster,
+                     float *point, float *direction, float *arg4, float *arg5,
+                     int max_count, void *out_buffer)
+{
+  float max_angle;
+  float max_range;
+  float sine;
+  float cosine;
+  int16_t cluster_count;
+  int16_t object_count;
+  int16_t clusters[512];
+  int objects[2048];
+  int16_t count;
+  int16_t i;
+  int16_t n;
+  char *record_ptr;
+
+  if (cone_spec[1] < cone_spec[3]) {
+    max_angle = cone_spec[3];
+  } else {
+    max_angle = cone_spec[1];
+  }
+
+  if (cone_spec[0] < cone_spec[2]) {
+    max_range = cone_spec[2];
+  } else {
+    max_range = cone_spec[0];
+  }
+
+  if (max_angle <= *(float *)0x2533c0 || max_range <= *(float *)0x2533c0) {
+    return 0;
+  }
+
+  sine = x87_fsin(max_angle);
+  cosine = x87_fcos(max_angle);
+
+  cluster_count = structure_clusters_in_cone(
+    starting_cluster, point, direction, max_range, sine, cosine, 512, clusters);
+
+  object_count = object_find_in_cluster(1, cluster_count, clusters, 2048, objects);
+  if (object_count <= 0) {
+    return 0;
+  }
+
+  count = 0;
+  for (i = 0; i < object_count; i++) {
+    record_ptr = (char *)out_buffer + (int)count * 0x38;
+    n = FUN_000a5d70(cone_spec, objects[i], point, direction, max_range, sine,
+                     cosine, (int)arg4, (int16_t)(int)arg5,
+                     (int16_t)(max_count - count), record_ptr);
+    count += n;
+    if (count >= max_count) {
+      break;
+    }
+  }
+
+  return count;
+}
+
 /* FUN_000a6030 (0xa6030)
  *
  * Locate the best candidate record inside the cone described by `cone_spec`,
@@ -486,6 +796,228 @@ char FUN_000a6030(float *cone_spec, float *point, float *direction, float *arg4,
   }
 
   return 0;
+}
+
+/* player_aim_projectile (0xa6130)
+ *
+ * Aims a projectile for a player: checks valid unit normal on target_dir,
+ * gets camera position and orientation, calls aim_assist, and if a target
+ * is found, interpolates target_dir toward target inside cone, and records
+ * target in player state.
+ * Returns target object handle, or -1 if none.
+ */
+int player_aim_projectile(int16_t player_index, float *forward, float *target_dir)
+{
+  int target_object;
+  char *player;
+  int unit_handle;
+  int aiming_unit;
+  int16_t zoom_level;
+  float cone_spec[5];
+  float camera_pos[3];
+  float camera_forward[3];
+  char target_record[0x38];
+  float new_dir[3];
+  float dist;
+  char *unit_obj;
+  float camera_offset[3];
+  float camera_dist;
+  float ray_dir[3];
+  float collision_result[0x14];
+  float target_delta[3];
+  float half_angle;
+  int16_t depth;
+
+  target_object = -1;
+  player = (char *)datum_get(player_data, player_index);
+  unit_handle = *(int *)(player + 0x34);
+  aiming_unit = unit_get_aiming_unit_index(unit_handle);
+
+  if (!valid_real_normal3d(target_dir)) {
+    display_assert("valid_real_normal3d(target_dir)",
+                   "c:\\halo\\SOURCE\\game\\aim_assist.c", 0x4d, 1);
+    system_exit(-1);
+  }
+
+  if (*(int16_t *)0x4761d8 >= 0x20) {
+    display_assert("global_current_collision_user_depth < "
+                   "MAXIMUM_COLLISION_USER_STACK_DEPTH",
+                   "c:\\halo\\SOURCE\\game\\aim_assist.c", 0x4f, 1);
+    system_exit(-1);
+  }
+
+  depth = *(int16_t *)0x4761d8;
+  *(int16_t *)(0x5a8c80 + (int)depth * 2) = 6;
+  *(int16_t *)0x4761d8 = (int16_t)(depth + 1);
+
+  zoom_level = unit_get_zoom_level(aiming_unit);
+  if (unit_get_aim_assist_parameters(aiming_unit, cone_spec, zoom_level)) {
+    director_camera_deterministic(unit_handle, (int)camera_pos,
+                                  (int)camera_forward);
+
+    new_dir[0] = target_dir[0];
+    new_dir[1] = target_dir[1];
+    new_dir[2] = target_dir[2];
+
+    if (FUN_000a6030(cone_spec, camera_pos, camera_forward, (float *)unit_handle,
+                     (float *)(int)*(int16_t *)(player + 0x20), target_record)) {
+      new_dir[0] = *(float *)(target_record + 4) - forward[0];
+      new_dir[1] = *(float *)(target_record + 8) - forward[1];
+      new_dir[2] = *(float *)(target_record + 0xc) - forward[2];
+
+      dist = normalize3d(new_dir);
+      if (dist == *(float *)0x2533c0) {
+        new_dir[0] = target_dir[0];
+        new_dir[1] = target_dir[1];
+        new_dir[2] = target_dir[2];
+      }
+      target_object = *(int *)target_record;
+    }
+
+    unit_obj = (char *)object_get_and_verify_type(unit_handle, 3);
+    camera_offset[0] = camera_pos[0] - *(float *)(unit_obj + 0xc);
+    camera_offset[1] = camera_pos[1] - *(float *)(unit_obj + 0x10);
+    camera_offset[2] = camera_pos[2] - *(float *)(unit_obj + 0x14);
+
+    camera_dist = sqrtf(camera_offset[0] * camera_offset[0] +
+                        camera_offset[1] * camera_offset[1] +
+                        camera_offset[2] * camera_offset[2]);
+    normalize3d(camera_forward);
+
+    ray_dir[0] = camera_forward[0] * camera_dist;
+    ray_dir[1] = camera_forward[1] * camera_dist;
+    ray_dir[2] = camera_forward[2] * camera_dist;
+
+    camera_pos[0] += ray_dir[0];
+    camera_pos[1] += ray_dir[1];
+    camera_pos[2] += ray_dir[2];
+
+    ray_dir[0] = camera_forward[0] * *(float *)0x26b0b0;
+    ray_dir[1] = camera_forward[1] * *(float *)0x26b0b0;
+    ray_dir[2] = camera_forward[2] * *(float *)0x26b0b0;
+
+    FUN_0014df70(0x1000e9, camera_pos, ray_dir, unit_handle,
+                 (int16_t *)collision_result);
+
+    target_delta[0] = *(float *)(target_record + 4) - forward[0];
+    target_delta[1] = *(float *)(target_record + 8) - forward[1];
+    target_delta[2] = *(float *)(target_record + 0xc) - forward[2];
+
+    dist = normalize3d(target_delta);
+    if (dist == *(float *)0x2533c0) {
+      target_delta[0] = target_dir[0];
+      target_delta[1] = target_dir[1];
+      target_delta[2] = target_dir[2];
+    }
+
+    FUN_0010c780(target_delta, new_dir, *(float *)(target_record + 0x30),
+                 ray_dir);
+    half_angle = cone_spec[4];
+    pin_normal_to_cone3d(target_dir, ray_dir, x87_fsin(half_angle),
+                         x87_fcos(half_angle), target_dir);
+  }
+
+  if (*(int16_t *)0x4761d8 <= 1) {
+    display_assert("global_current_collision_user_depth > 1",
+                   "c:\\halo\\SOURCE\\game\\aim_assist.c", 0x8c, 1);
+    system_exit(-1);
+  }
+  *(int16_t *)0x4761d8 -= 1;
+
+  *(int *)(player + 0x40) = target_object;
+  *(uint32_t *)(player + 0x44) = game_time_get();
+
+  return target_object;
+}
+
+/* local_player_aim_assist (0xa6470)
+ *
+ * Computes aim assist and lead targeting for a local player.
+ * Checks perspective (must be first-person), gets camera and aim assist
+ * parameters, queries aim_assist candidate, and if found calculates
+ * lead angles and relative angular velocity.
+ * Returns target object handle, or -1 if none found.
+ */
+int local_player_aim_assist(short local_player_index, real *autoaim_level,
+                            real *field_0x30, void *lead_vector, void *arg5)
+{
+  int16_t perspective;
+  int player_index;
+  char *player;
+  int unit_handle;
+  int aiming_unit;
+  int16_t zoom_level;
+  float cone_spec[5];
+  char *camera;
+  char target_record[0x38];
+  float *lead;
+  float *ang_vel;
+  float unit_pos[3];
+  float target_pos[3];
+  float delta_vel[3];
+  float dx;
+  float dy;
+  float dz;
+  float f14;
+  float sqrt_f14;
+
+  lead = (float *)lead_vector;
+  ang_vel = (float *)arg5;
+
+  *autoaim_level = 0.0f;
+  *field_0x30 = 0.0f;
+  lead[0] = 0.0f;
+  lead[1] = 0.0f;
+  ang_vel[0] = 0.0f;
+  ang_vel[1] = 0.0f;
+
+  perspective = director_get_perspective(local_player_index);
+  if (perspective != 0 && perspective != 1) {
+    return -1;
+  }
+
+  player_index = local_player_get_player_index(local_player_index);
+  player = (char *)datum_get(player_data, player_index);
+  unit_handle = *(int *)(player + 0x34);
+  aiming_unit = unit_get_aiming_unit_index(unit_handle);
+
+  zoom_level = player_control_get_zoom_level(local_player_index);
+  if (!unit_get_aim_assist_parameters(aiming_unit, cone_spec, zoom_level)) {
+    return -1;
+  }
+
+  camera = (char *)observer_get_camera((uint16_t)local_player_index);
+  if (!FUN_000a6030(cone_spec, (float *)camera, (float *)(camera + 0x20),
+                    (float *)aiming_unit,
+                    (float *)(int)*(int16_t *)(player + 0x20), target_record)) {
+    return -1;
+  }
+
+  *autoaim_level = *(float *)(target_record + 0x30);
+  *field_0x30 = *(float *)(target_record + 0x34);
+
+  vector_to_angles(lead, (float *)(target_record + 0x10));
+
+  object_get_root_location(unit_handle, unit_pos, NULL);
+  object_get_root_location(*(int *)target_record, target_pos, NULL);
+
+  delta_vel[0] = target_pos[0] - unit_pos[0];
+  delta_vel[1] = target_pos[1] - unit_pos[1];
+  delta_vel[2] = target_pos[2] - unit_pos[2];
+
+  dx = *(float *)(target_record + 0x10);
+  dy = *(float *)(target_record + 0x14);
+  dz = *(float *)(target_record + 0x18);
+
+  f14 = dx * dx + dy * dy;
+  sqrt_f14 = sqrtf(f14);
+
+  ang_vel[0] = (dx * delta_vel[1] - dy * delta_vel[0]) / f14;
+  ang_vel[1] = (delta_vel[2] * sqrt_f14 -
+                ((dx * delta_vel[0] + dy * delta_vel[1]) / sqrt_f14) * dz) /
+               (dz * dz + f14);
+
+  return *(int *)target_record;
 }
 
 void cheats_initialize(void)

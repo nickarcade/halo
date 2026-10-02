@@ -500,7 +500,7 @@
   "0xa5f00": {
     "addr": "0xa5f00",
     "decl": "int16_t FUN_000a5f00(float *cone_spec /*@<edi> */, int16_t starting_cluster, float *point, float *direction, float *arg4, float *arg5, int max_count, void *out_buffer);",
-    "ported": false,
+    "ported": true,
     "reg_args": {
       "cone_spec": "edi"
     }
@@ -5395,7 +5395,8 @@
         },
         {
           "addr": "0xa57b0",
-          "decl": "short FUN_000a57b0(float *vec, float max_length);"
+          "decl": "short FUN_000a57b0(float *vec, float max_length);",
+          "ported": true
         },
         {
           "addr": "0xa5810",
@@ -5406,20 +5407,23 @@
         {
           "addr": "0xa5830",
           "decl": "char FUN_000a5830(float *point, void *elem_data, float *arg3, int arg4);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0xa5920",
           "decl": "void object_compute_autoaim_target(void);",
-          "comment": "[NAME: object_compute_autoaim_target \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: object_compute_autoaim_target \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0xa5ac0",
-          "decl": "char FUN_000a5ac0(void *param_1, int object_handle, float *arg_p3, float *arg_p4, void *out_record);"
+          "decl": "char FUN_000a5ac0(void *param_1, int object_handle, float *arg_p3, float *arg_p4, void *out_record);",
+          "ported": true
         },
         {
           "addr": "0xa5c60",
-          "decl": "void FUN_000a5c60(void);"
+          "decl": "char FUN_000a5c60(int target_object, float *from_pos, float *facing, int ignore_player_object, float *out0, float *out1, float *out2, float *out_angle);",
+          "ported": true
         },
         {
           "addr": "0xa5d70",
@@ -5429,7 +5433,7 @@
         {
           "addr": "0xa5f00",
           "decl": "int16_t FUN_000a5f00(float *cone_spec /* @<edi> */, int16_t starting_cluster, float *point, float *direction, float *arg4, float *arg5, int max_count, void *out_buffer);",
-          "ported": false,
+          "ported": true,
           "reg_args": {
             "cone_spec": "edi"
           }
@@ -5441,12 +5445,14 @@
         },
         {
           "addr": "0xa6130",
-          "decl": "int player_aim_projectile(int16_t player_index, float *forward, float *target_dir);"
+          "decl": "int player_aim_projectile(int16_t player_index, float *forward, float *target_dir);",
+          "ported": true
         },
         {
           "addr": "0xa6470",
           "decl": "int local_player_aim_assist(short local_player_index, real *autoaim_level, real *field_0x30, void *lead_vector, void *arg5);",
-          "comment": "[NAME: local_player_aim_assist \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: local_player_aim_assist \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0xa65e0",
