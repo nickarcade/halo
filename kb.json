@@ -10628,7 +10628,8 @@
         },
         {
           "addr": "0x1c0ac0",
-          "decl": "void game_state_write_to_persistent_storage(int param_1, void *param_2, int param_3, int param_4);"
+          "decl": "void game_state_write_to_persistent_storage(int param_1, void *param_2, int param_3, int param_4);",
+          "ported": true
         },
         {
           "addr": "0x1c0c20",
@@ -10677,7 +10678,8 @@
         },
         {
           "addr": "0x1c1280",
-          "decl": "bool FUN_001c1280(int, char *);"
+          "decl": "bool FUN_001c1280(int, char *);",
+          "ported": true
         },
         {
           "addr": "0x1c1290",
@@ -10690,7 +10692,8 @@
         },
         {
           "addr": "0x1c1340",
-          "decl": "void player_profile_setup_default_gamespy_settings(void);"
+          "decl": "bool player_profile_setup_default_gamespy_settings(int profile_index, void *profile);",
+          "ported": true
         },
         {
           "addr": "0x1c15c0",
@@ -10704,7 +10707,8 @@
         },
         {
           "addr": "0x1c18f0",
-          "decl": "bool player_profile_new(int profile_index, wchar_t *name);"
+          "decl": "bool player_profile_new(int profile_index, wchar_t *name);",
+          "ported": true
         },
         {
           "addr": "0x1c1950",
@@ -10723,7 +10727,8 @@
         },
         {
           "addr": "0x1c19e0",
-          "decl": "void FUN_001c19e0(void);"
+          "decl": "void FUN_001c19e0(void);",
+          "ported": true
         }
       ],
       "name": "game_state_xbox.obj",

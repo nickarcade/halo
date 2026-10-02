@@ -474,6 +474,76 @@ read_error:
   return result;
 }
 
+/* 0x1c0ac0
+ * Write game state header and buffer to persistent storage.
+ * Opens persistent storage, computes CRC over header (0x345000 bytes),
+ * validates header_size < 0x800, zeroes in-memory header for the write,
+ * writes header (buffer_size bytes) and local_buffer (header_size bytes),
+ * and restores header on completion.
+ */
+void game_state_write_to_persistent_storage(int param_1, void *param_2,
+                                            int param_3, int param_4)
+{
+  uint32_t crc_val;
+  int bytes_written;
+  int file_handle;
+  char local_buffer[0x800];
+  char path_buffer[0x100];
+  void *header;
+  uint32_t *out_crc;
+  int header_size;
+  int buffer_size;
+
+  header = (void *)param_1;
+  out_crc = (uint32_t *)param_2;
+  header_size = param_3;
+  buffer_size = param_4;
+
+  file_handle = xbox_game_state_open_file(0);
+  if (file_handle == -1) {
+    return;
+  }
+
+  *out_crc = 0;
+  crc_checksum_begin(&crc_val);
+  crc_checksum_buffer(&crc_val, header, 0x345000);
+  *out_crc = crc_val;
+
+  if (header_size >= 0x800) {
+    display_assert("header_size<sizeof(saved_header)",
+                   "c:\\halo\\SOURCE\\saved games\\game_state_xbox.c", 0x14d, 1);
+    system_exit(-1);
+  }
+
+  csmemcpy(local_buffer, header, header_size);
+  csmemset(header, 0, header_size);
+
+  if (XSetFilePointer(file_handle, 0, NULL, 0) != -1 &&
+      XWriteFile(file_handle, header, buffer_size, &bytes_written, NULL) &&
+      bytes_written == buffer_size) {
+    if (XSetFilePointer(file_handle, 0, NULL, 0) != -1 &&
+        XWriteFile(file_handle, local_buffer, header_size, &bytes_written, NULL) &&
+        bytes_written == header_size) {
+      csmemcpy(header, local_buffer, header_size);
+      XCloseHandle(file_handle);
+      return;
+    }
+  }
+
+  display_assert(
+    csprintf((char *)0x5ab100, "failed to write to persistent storage (#%d)",
+             xapi_GetLastError()),
+    "c:\\halo\\SOURCE\\saved games\\game_state_xbox.c", 0x15f, 1);
+  system_exit(-1);
+
+  if (xbox_saved_game_get_path(0, path_buffer)) {
+    XDeleteFile(path_buffer);
+  }
+
+  csmemcpy(header, local_buffer, header_size);
+  XCloseHandle(file_handle);
+}
+
 /* 0x1c0c20
  * Read game-state data from persistent storage into a caller-supplied buffer.
  * Opens the save file, seeks to the beginning, reads `size` bytes into `dst`,
@@ -702,6 +772,14 @@ void player_profile_save_last_level_played(void *profile, short *out_last_level,
 
 #undef PLAYER_PROFILE_LEVEL_CHECK
 
+/* 0x1c1280 (player_profile_get_enclosing_directory_path)
+ * Tail-call forward to saved_game_file_get_path_to_enclosing_directory.
+ */
+bool FUN_001c1280(int profile_index, char *path)
+{
+  return saved_game_file_get_path_to_enclosing_directory(profile_index, path);
+}
+
 /* 0x1c1290
  * kb.json previously listed this address as game_state_read_from_persistent_
  * storage(void) — that decl/name does not match the binary. Disassembly and
@@ -749,6 +827,101 @@ void player_profile_set_to_default(void *profile /* @<esi> */, int i)
 
   *(uint8_t *)((char *)profile + 0x28) = 0;
   *(uint8_t *)((char *)profile + 0x29) = 0;
+}
+
+/* 0x1c1340 (player_profile_read)
+ * Reads player profile from disk or creates default sanitized record on error.
+ */
+bool player_profile_setup_default_gamespy_settings(int profile_index, void *profile)
+{
+  file_ref_t file_info;
+  char file_buffer[0x200];
+  char calculated_checksum[0x14];
+  char default_record[0x30];
+  wchar_t *display_name;
+  bool result;
+
+  result = false;
+  if (!profile) {
+    display_assert("profile", "c:\\halo\\SOURCE\\saved games\\player_profile.c", 0x261, 1);
+    system_exit(-1);
+  }
+
+  if (*(int *)0x4eaa2c != 0) {
+    error(2, "waiting for asynchronous player profile io to finish...");
+    do {
+    } while (!thread_is_done(*(void **)0x4eaa2c));
+    thread_close(*(void **)0x4eaa2c);
+    *(int *)0x4eaa2c = 0;
+  }
+
+  if (profile_index >= 0) {
+    error(2, "checksum failed on player profile file, sanitizing memory resident version...");
+    csmemset(default_record, 0, 0x30);
+    *(uint16_t *)(default_record + 0x18) = 0xffff;
+    *(uint8_t *)(default_record + 0x2a) = 3;
+    *(uint8_t *)(default_record + 0x2b) = 0;
+    *(uint8_t *)(default_record + 0x2d) = 0;
+    *(uint8_t *)(default_record + 0x2f) = 0;
+    *(uint8_t *)(default_record + 0x2c) = 0;
+    *(uint16_t *)(default_record + 0x26) = 0;
+    *(uint8_t *)(default_record + 0x28) = 0;
+    *(uint8_t *)(default_record + 0x29) = 0;
+    *(uint16_t *)(default_record + 0x1a) = 0;
+    display_name = saved_game_file_get_display_name(profile_index);
+    ustrncpy((wchar_t *)default_record, display_name, 0xb);
+    *(uint16_t *)(default_record + 0x16) = 0;
+    csmemcpy(profile, default_record, 0x30);
+    return true;
+  }
+
+  if (!saved_game_files_take_mutex()) {
+    error(2, "failed to get saved game files mutex; perhaps another operation is in progress?");
+    return result;
+  }
+
+  if (enumerate_memory_units_test(&file_info, profile_index)) {
+    if (!file_read(&file_info, 0x200, file_buffer)) {
+      error(2, "failed to read player profile from file");
+      saved_game_file_close(&file_info, profile_index);
+      saved_game_files_release_mutex();
+      return result;
+    }
+
+    saved_game_file_generate_checksum(file_buffer, 0x30, calculated_checksum);
+    if (csmemcmp(calculated_checksum, file_buffer + 0x30, 0x14) == 0) {
+      csmemcpy(profile, file_buffer, 0x30);
+      result = true;
+      saved_game_file_close(&file_info, profile_index);
+      saved_game_files_release_mutex();
+      return result;
+    }
+
+    error(2, "checksum failed on player profile file, sanitizing memory resident version...");
+    csmemset(default_record, 0, 0x30);
+    *(uint16_t *)(default_record + 0x18) = 0xffff;
+    *(uint8_t *)(default_record + 0x2a) = 3;
+    *(uint8_t *)(default_record + 0x2b) = 0;
+    *(uint8_t *)(default_record + 0x2d) = 0;
+    *(uint8_t *)(default_record + 0x2f) = 0;
+    *(uint8_t *)(default_record + 0x2c) = 0;
+    *(uint16_t *)(default_record + 0x26) = 0;
+    *(uint8_t *)(default_record + 0x28) = 0;
+    *(uint8_t *)(default_record + 0x29) = 0;
+    *(uint16_t *)(default_record + 0x1a) = 0;
+    display_name = saved_game_file_get_display_name(profile_index);
+    ustrncpy((wchar_t *)default_record, display_name, 0xb);
+    *(uint16_t *)(default_record + 0x16) = 0;
+    csmemcpy(profile, default_record, 0x30);
+    result = true;
+    saved_game_file_close(&file_info, profile_index);
+    saved_game_files_release_mutex();
+    return result;
+  }
+
+  error(2, "failed to open player profile file");
+  saved_game_files_release_mutex();
+  return result;
 }
 
 /* 0x1c15c0
@@ -914,6 +1087,25 @@ int FUN_001c1720(int a1, wchar_t *name)
   return saved_game_file_index;
 }
 
+/* 0x1c18f0 (player_profile_get / player_profile_new)
+ * Reads a player profile by index. If profile_index is -1, returns a default
+ * profile from DAT_004ea9c8 (last used profile) and returns false.
+ */
+bool player_profile_new(int profile_index, wchar_t *name)
+{
+  if (!name) {
+    display_assert("profile", "c:\\halo\\SOURCE\\saved games\\player_profile.c", 0xc2, 1);
+    system_exit(-1);
+  }
+
+  if (profile_index == -1) {
+    csmemcpy(name, (void *)0x4ea9c8, 0x30);
+    return false;
+  }
+
+  return player_profile_setup_default_gamespy_settings(profile_index, name);
+}
+
 /* 0x1c1950
  * Fills the 0x10-byte record at param_1: dword 0 is the fixed bit pattern
  * 0x3f800000 (float 1.0f); dwords 1-3 are copied from the 3-dword
@@ -957,4 +1149,45 @@ int FUN_001c19a0(void)
 int FUN_001c19c0(void)
 {
   return (int)seed_random_range(random_math_get_local_seed_address(), 0, 0x11);
+}
+
+/* 0x1c19e0 (player_profile_create_default_profiles_on_disk)
+ * Writes default profiles to disk at "z:\saved\player_profiles\default_profile\%02d.sav".
+ */
+void FUN_001c19e0(void)
+{
+  file_ref_t file_info;
+  char profile[0x30];
+  char checksum[0x14];
+  char filename[0x100];
+  int i;
+  bool success;
+
+  for (i = 0; i < 2; i++) {
+    player_profile_set_to_default(profile, i);
+    snprintf(filename, sizeof(filename) - 1,
+             "z:\\saved\\player_profiles\\default_profile\\%02d.sav", i);
+    if (file_reference_create_from_path(&file_info, filename, false) != NULL) {
+      saved_game_file_generate_checksum(profile, 0x30, checksum);
+      if (!file_create(&file_info) ||
+          !file_open(&file_info, 2) ||
+          !file_set_position(&file_info, 0)) {
+        error(2, "failed to create/update default player profile file '%s' on disk",
+              filename);
+        continue;
+      }
+
+      success = file_write(&file_info, 0x200, profile);
+      if (!file_close(&file_info)) {
+        error(2, "failed to close default player profile file '%s'", filename);
+      }
+      if (!success) {
+        error(2, "failed to create/update default player profile file '%s' on disk",
+              filename);
+      }
+    } else {
+      error(2, "failed to create/update default player profile file '%s' on disk",
+            filename);
+    }
+  }
 }
