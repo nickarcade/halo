@@ -30734,7 +30734,8 @@
         },
         {
           "addr": "0x1a4440",
-          "decl": "void FUN_001a4440(int unit_handle);"
+          "decl": "void FUN_001a4440(int unit_handle);",
+          "ported": true
         },
         {
           "addr": "0x1a4990",
@@ -30750,15 +30751,18 @@
         },
         {
           "addr": "0x1a4a70",
-          "decl": "void FUN_001a4a70(int handle, float *velocity);"
+          "decl": "void FUN_001a4a70(int handle, float *velocity);",
+          "ported": true
         },
         {
           "addr": "0x1a4c50",
-          "decl": "void FUN_001a4c50(int unit_handle, unsigned char *state);"
+          "decl": "void FUN_001a4c50(int unit_handle, unsigned char *state);",
+          "ported": true
         },
         {
           "addr": "0x1a5300",
-          "decl": "void FUN_001a5300(int unit_handle, unsigned char *state);"
+          "decl": "void FUN_001a5300(int unit_handle, unsigned char *state);",
+          "ported": true
         }
       ],
       "name": "bipeds.obj",
