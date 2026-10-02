@@ -8,9 +8,47 @@
  * EBP-0x20..EBP), so its layout is an explicit unknown. */
 #define XGAME_FIND_DATA_SIZE 0x344
 
-/* Helper: call ensure_directory at 0x1c31f0, which takes the path in EAX and
- * returns its result in AL.  kb.json carries that as `const char *path@<eax>`,
- * so the build system generates the thunk and this is a plain call. */
+static __inline int xapi_create_save_game(const char *root_path, const wchar_t *save_name,
+                                         int open_disposition, int create_flags,
+                                         char *save_path, unsigned int save_path_length)
+{
+  return ((int (__stdcall *)(const char *, const wchar_t *, int, int, char *, unsigned int))0x1d2f22)( /* hazard-ok: fnptr-conv */
+    root_path, save_name, open_disposition, create_flags, save_path, save_path_length);
+}
+
+static __inline int xapi_delete_save_game(const char *root_path, const wchar_t *save_name)
+{
+  return ((int (__stdcall *)(const char *, const wchar_t *))0x1d3185)(root_path, save_name); /* hazard-ok: fnptr-conv */
+}
+
+static __inline int xapi_copy_file(const char *existing_file, const char *new_file, int fail_if_exists)
+{
+  return ((int (__stdcall *)(const char *, const char *, int))0x1d21f2)(existing_file, new_file, fail_if_exists); /* hazard-ok: fnptr-conv */
+}
+
+/* Forward declarations for functions within saved_game_files.c */
+bool get_nth_entry_in_mapfile(int16_t memory_unit_index, int32_t entry_index, void *entry);
+bool remove_nth_entry_in_mapfile(int16_t memory_unit_index, int16_t entry_index);
+bool delete_enumerated_saved_game_file(int saved_game_file_index);
+bool enumerate_memory_units_test(file_ref_t *file_info, int32_t saved_game_file_index);
+bool synchronize_metadata_display_name_with_profile_name(int32_t saved_game_file_index, void *profile);
+bool saved_game_file_get_path_to_enclosing_directory(int profile_index, char *path);
+int FUN_001c5560(int param_1, int param_2, wchar_t *param_3);
+
+/* 0x1c31f0 — find_and_create_directory_if_necessary */
+char FUN_001c31f0(const char *path)
+{
+  file_ref_t file_ref;
+
+  if (file_reference_create_from_path(&file_ref, path, true)) {
+    if (file_exists(&file_ref) || file_create(&file_ref)) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
 static __inline char ensure_dir(const char *path)
 {
   return FUN_001c31f0(path);
@@ -280,6 +318,44 @@ void playlist_profiles_dispose(void)
   csmemset((void *)0x4eaa38, 0, 0x74);
 }
 
+/* 0x1c1e20 — playlist_profile_new */
+int playlist_profile_new(unsigned short local_player_index, wchar_t *name)
+{
+  file_ref_t file_ref;
+  game_variant_t default_variant;
+  char variant_buffer[0x200];
+  int file_index;
+
+  file_index = FUN_001c5560(1, (int)local_player_index, name);
+  if (file_index == -1) {
+    return -1;
+  }
+
+  if (enumerate_memory_units_test(&file_ref, file_index)) {
+    csmemset(variant_buffer, 0, 0x200);
+    game_engine_slayer_default(&default_variant);
+    csmemcpy(variant_buffer, &default_variant, 0x68);
+    variant_buffer[0x64] &= ~1;
+    game_engine_variant_cleanup((game_variant_t *)variant_buffer);
+    ustrncpy((wchar_t *)variant_buffer, name, 11);
+    *(wchar_t *)(variant_buffer + 0x16) = 0;
+    saved_game_file_generate_checksum(variant_buffer, 0x68, variant_buffer + 0x68);
+
+    if (!file_set_position(&file_ref, 0) ||
+        !file_write(&file_ref, 0x200, variant_buffer)) {
+      error(2, "failed to initialize newly created playlist profile");
+      delete_enumerated_saved_game_file(file_index);
+      file_index = -1;
+    }
+    saved_game_file_close(&file_ref, file_index);
+    return file_index;
+  }
+
+  error(2, "failed to open newly created playlist profile");
+  delete_enumerated_saved_game_file(file_index);
+  return -1;
+}
+
 /* 0x1c1f70 — deletes the enumerated saved-game file backing a playlist profile
  * index.  The index arrives on the stack ([EBP+0x8] into ESI at 0x1c1f74) and
  * -1 is the "no profile" sentinel (CMP ESI,-0x1 / JZ at 0x1c1f77).  The single
@@ -501,6 +577,134 @@ void FUN_001c2120(void)
 
   (void)unknown_flag;
   saved_game_files_notify_memory_units_changed();
+}
+
+/* 0x1c22e0 — playlist_profile_create_default_profiles_on_disk (authentic playlist_profile_read)
+ * Takes variant in EBX. Loads a playlist profile from disk or default variant into variant. */
+boolean playlist_profile_create_default_profiles_on_disk(game_variant_t *variant /* @<ebx> */, int unknown)
+{
+  file_ref_t file_ref;
+  game_variant_t default_variant;
+  char buffer[0x200];
+  char signature[20];
+  boolean result;
+
+  result = false;
+  if (variant == NULL) {
+    display_assert("variant", "c:\\halo\\SOURCE\\saved games\\playlist_profile.c", 0x18c, 1);
+    system_exit(-1);
+  }
+
+  if (*(void **)0x4eaaa4 != NULL) {
+    error(2, "waiting for asynchronous playlist profile io to finish...");
+    do {
+    } while (!thread_is_done(*(void **)0x4eaaa4));
+    thread_close(*(void **)0x4eaaa4);
+    *(void **)0x4eaaa4 = NULL;
+  }
+
+  if (unknown >= 0) {
+    game_engine_slayer_default(&default_variant);
+    csmemcpy(variant, &default_variant, 0x68);
+    ustrncpy((wchar_t *)variant, saved_game_file_get_display_name(unknown), 11);
+    ((wchar_t *)variant)[11] = 0;
+    return true;
+  }
+
+  if (!saved_game_files_take_mutex()) {
+    error(2, "failed to get saved game files mutex; perhaps another operation is in progress?");
+    return result;
+  }
+
+  if (enumerate_memory_units_test(&file_ref, unknown)) {
+    if (!file_read(&file_ref, 0x200, buffer)) {
+      error(2, "failed to read playlist profile from file");
+      saved_game_file_close(&file_ref, unknown);
+      saved_game_files_release_mutex();
+      return result;
+    }
+
+    saved_game_file_generate_checksum(buffer, 0x68, signature);
+    if (csmemcmp(signature, buffer + 0x68, 20) == 0) {
+      csmemcpy(variant, buffer, 0x68);
+      result = true;
+      saved_game_file_close(&file_ref, unknown);
+      saved_game_files_release_mutex();
+      return result;
+    }
+
+    error(2, "checksum failed on playlist profile file, sanitizing memory resident version...");
+    game_engine_slayer_default(&default_variant);
+    csmemcpy(variant, &default_variant, 0x68);
+    ustrncpy((wchar_t *)variant, saved_game_file_get_display_name(unknown), 11);
+    ((wchar_t *)variant)[11] = 0;
+    result = true;
+    saved_game_file_close(&file_ref, unknown);
+    saved_game_files_release_mutex();
+    return result;
+  }
+
+  error(2, "failed to open playlist profile file");
+  saved_game_files_release_mutex();
+  return result;
+}
+
+/* 0x1c2550 — playlist_profile_write
+ * Thread procedure that writes a playlist profile to disk asynchronously. */
+unsigned long __stdcall playlist_profile_write(void *param)
+{
+  file_ref_t file_ref;
+  char variant_buffer[0x200];
+  uint32_t file_index;
+  bool write_failed;
+  uint32_t *input;
+
+  input = (uint32_t *)param;
+  if (input == NULL) {
+    display_assert("input", "c:\\halo\\SOURCE\\saved games\\playlist_profile.c", 0x202, 1);
+    system_exit(-1);
+  }
+
+  error(2, "begin playlist profile write");
+
+  if (!saved_game_files_take_mutex()) {
+    error(2, "failed to get saved game files mutex; perhaps another operation is in progress?");
+    error(2, "end playlist profile write");
+    return 0;
+  }
+
+  file_index = *input;
+  write_failed = 0;
+
+  if (!enumerate_memory_units_test(&file_ref, file_index)) {
+    error(2, "failed to open playlist profile file");
+    saved_game_files_release_mutex();
+    error(2, "end playlist profile write");
+    return 0;
+  }
+
+  csmemcpy(variant_buffer, input + 1, 0x68);
+  saved_game_file_generate_checksum(variant_buffer, 0x68, variant_buffer + 0x68);
+
+  if (!file_set_position(&file_ref, 0) ||
+      !file_write(&file_ref, 0x200, variant_buffer)) {
+    error(2, "failed to write playlist profile to file");
+    write_failed = 1;
+  }
+
+  if (saved_game_file_close(&file_ref, file_index)) {
+    if (!synchronize_metadata_display_name_with_profile_name(file_index, input + 1)) {
+      error(2, "metadata name may not match game display name");
+    }
+  }
+
+  if (write_failed) {
+    delete_enumerated_saved_game_file(file_index);
+  }
+
+  saved_game_files_release_mutex();
+  error(2, "end playlist profile write");
+  return 0;
 }
 
 /* Flush the pending saved-game update (guarded by the byte flag at 0x32eb90)
@@ -1845,6 +2049,81 @@ int16_t enumerate_default_player_profiles(void)
   return (int16_t)i;
 }
 
+/* 0x1c3e40 — get_nth_entry_in_mapfile: read the nth 0x206-byte record from the
+ * specified memory unit mapfile.
+ * memory_unit_index arrives in AX, entry_index in EDI, entry pointer on stack. */
+bool get_nth_entry_in_mapfile(int16_t memory_unit_index /* @<ax> */,
+                              int32_t entry_index /* @<edi> */,
+                              void *entry)
+{
+  bool result;
+  uint16_t unit;
+  uint32_t size;
+  uint32_t offset;
+
+  result = 0;
+
+  if (memory_unit_index != 0) {
+    display_assert("memory_unit_index==_memory_unit_hard_drive",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x7a7, 1);
+    system_exit(-1);
+  }
+
+  if (*(uint8_t *)0x4eacc8 != 0) {
+    display_assert("!saved_game_files_globals.enumeration_in_progress",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x7a9, 1);
+    system_exit(-1);
+  }
+
+  if ((uint16_t)memory_unit_index >= 9 || entry == NULL) {
+    display_assert("(memory_unit_index < NUMBER_OF_MEMORY_UNITS) && (file != NULL)",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x7aa, 1);
+    system_exit(-1);
+  }
+
+  if (!take_mutex(*(int **)0x4eacc0, 3600000)) {
+    error(2, "failed to take mapfile mutex");
+    return result;
+  }
+
+  unit = (uint16_t)memory_unit_index;
+
+  if (file_reference_create_from_path(
+        (file_ref_t *)0x4eabb0, ((const char **)0x32eb98)[unit], 0) != 0 &&
+      file_open((file_ref_t *)0x4eabb0, 1)) {
+    size = (uint32_t)file_get_eof((file_ref_t *)0x4eabb0);
+    offset = (uint32_t)(uint16_t)entry_index * 0x206;
+
+    if (size % 0x206 != 0) {
+      error(2, "memory unit mapfile for memory unit #%d is possibly corrupt", unit);
+    }
+
+    if (offset + 0x206 <= size) {
+      if (file_set_position((file_ref_t *)0x4eabb0, (int32_t)offset) &&
+          file_read((file_ref_t *)0x4eabb0, 0x206, entry)) {
+        result = 1;
+      } else {
+        result = 0;
+        error(2, "failed to retrieve entry #%d from memory unit mapfile (#%d)",
+              (uint16_t)entry_index, unit);
+      }
+    } else {
+      result = 0;
+      error(2, "invalid profile index (#%d) into memory unit #%d specified",
+            (uint16_t)entry_index, unit);
+    }
+
+    if (!file_close((file_ref_t *)0x4eabb0)) {
+      error(2, "failed to close memory unit mapfile for memory unit #%d", unit);
+    }
+  } else {
+    error(2, "failed to open memory unit mapfile for memory unit #%d", unit);
+  }
+
+  release_mutex(*(int **)0x4eacc0);
+  return result;
+}
+
 /* Overwrite the nth 0x206-byte record of the memory-unit mapfile in place.
  * `memory_unit_index` arrives in AX (MOV SI,AX at 0x1c4038); the entry index is
  * the 16-bit stack slot at [EBP+8] (MOVZX EBX,word ptr at 0x1c4126) and the
@@ -2034,6 +2313,80 @@ bool append_entry_to_mapfile(int16_t memory_unit_index, const void *file,
   return result;
 }
 
+/* 0x1c43f0 — remove_nth_entry_in_mapfile: removes the nth entry by shifting
+ * subsequent entries forward and truncating the mapfile by 0x206 bytes.
+ * memory_unit_index in AX, entry_index in CX. */
+bool remove_nth_entry_in_mapfile(int16_t memory_unit_index /* @<ax> */,
+                                 int16_t entry_index /* @<cx> */)
+{
+  char record[0x206];
+  bool result;
+  uint16_t unit;
+  uint32_t size;
+  uint32_t dst_offset;
+  uint32_t src_offset;
+
+  dst_offset = (uint32_t)(uint16_t)entry_index * 0x206;
+  result = 0;
+
+  if (memory_unit_index != 0) {
+    display_assert("memory_unit_index==_memory_unit_hard_drive",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x87a, 1);
+    system_exit(-1);
+  }
+
+  if (*(uint8_t *)0x4eacc8 != 0) {
+    display_assert("!saved_game_files_globals.enumeration_in_progress",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x87c, 1);
+    system_exit(-1);
+  }
+
+  if ((uint16_t)memory_unit_index >= 9) {
+    display_assert("memory_unit_index < NUMBER_OF_MEMORY_UNITS",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x87d, 1);
+    system_exit(-1);
+  }
+
+  if (!take_mutex(*(int **)0x4eacc0, 3600000)) {
+    error(2, "failed to take mapfile mutex");
+    return result;
+  }
+
+  unit = (uint16_t)memory_unit_index;
+
+  if (file_reference_create_from_path(
+        (file_ref_t *)0x4eabb0, ((const char **)0x32eb98)[unit], 0) &&
+      file_get_size((file_ref_t *)0x4eabb0, &size) &&
+      (src_offset = dst_offset + 0x206, size >= src_offset) &&
+      file_open((file_ref_t *)0x4eabb0, 3)) {
+    if (file_set_position((file_ref_t *)0x4eabb0, (int32_t)dst_offset)) {
+      if (src_offset < size) {
+        do {
+          if (!file_read_from_position((file_ref_t *)0x4eabb0, (int32_t)src_offset, 0x206, record) ||
+              !file_write_to_position((file_ref_t *)0x4eabb0, (int32_t)dst_offset, 0x206, record)) {
+            error(2, "failed to update memory unit mapfile after removing an enumerated file");
+            result = 0;
+            break;
+          }
+          src_offset += 0x206;
+          dst_offset += 0x206;
+        } while (src_offset < size);
+      }
+      result = file_set_eof((file_ref_t *)0x4eabb0, (int32_t)(size - 0x206));
+    } else {
+      result = 0;
+    }
+
+    if (!file_close((file_ref_t *)0x4eabb0)) {
+      error(2, "failed to close memory unit map file");
+      result = 0;
+    }
+  }
+
+  release_mutex(*(int **)0x4eacc0);
+  return result;
+}
+
 /* Unpack a saved game file index and return the display name of the entry it
  * names.  The two fields read here are the ones build_saved_game_file_index
  * (0x1c36f0) packs: MOVZX ESI,AH at 0x1c460d takes the 8-bit memory unit at
@@ -2075,6 +2428,337 @@ wchar_t *saved_game_file_get_display_name(int32_t saved_game_file_index)
   }
 
   return (wchar_t *)0x4eaab0;
+}
+
+/* 0x1c46c0 — delete_enumerated_saved_game_file */
+bool delete_enumerated_saved_game_file(int saved_game_file_index)
+{
+  char entry[0x208];
+  char root_path[8];
+  int16_t memory_unit;
+  int32_t file_index;
+  int16_t file_type;
+  bool success;
+
+  success = 0;
+
+  if (*(uint8_t *)0x4eacc7 != 0) {
+    FUN_001c5010();
+    error(2, "cannot delete enumerated files during enumeration");
+    return success;
+  }
+
+  memory_unit = (int16_t)((saved_game_file_index >> 8) & 0xff);
+  file_index = (saved_game_file_index >> 16) & 0xfff;
+  file_type = (int16_t)(saved_game_file_index & 0xf);
+
+  if (memory_unit != 0) {
+    display_assert("!memory_unit", "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x1ef, 1);
+    system_exit(-1);
+  }
+
+  if (file_type >= 2 || memory_unit >= 9 || file_index >= 100) {
+    error(2, "delete_enumerated_saved_game_file() failed because the game file index was invalid");
+    return success;
+  }
+
+  if (!get_nth_entry_in_mapfile(memory_unit, file_index, entry)) {
+    error(2, "get_nth_entry_in_mapfile() failed in delete_enumerated_saved_game_file()");
+    return success;
+  }
+
+  success = (memory_unit == 0);
+  if (!success) {
+    error(2, "failed to mount memory unit #%d", memory_unit);
+    return success;
+  }
+
+  if ((saved_game_file_index & 0x40000000) == 0) {
+    wide_to_ascii(((const wchar_t **)0x32eb94)[memory_unit], root_path, 8);
+    if (!xapi_delete_save_game(root_path, (const wchar_t *)(entry + 0x100))) {
+      error(2, "XDeleteSaveGame() failed... ghost meta data likely");
+      success = 0;
+    }
+  }
+
+  if (!remove_nth_entry_in_mapfile(memory_unit, (int16_t)file_index)) {
+    error(2, "remove_nth_entry_in_mapfile() failed");
+    success = 0;
+  }
+
+  return success;
+}
+
+/* 0x1c4850 — saved_game_file_open (enumerate_memory_units_test in kb.json) */
+bool enumerate_memory_units_test(file_ref_t *file_info, int32_t saved_game_file_index)
+{
+  char entry[0x208];
+  int16_t memory_unit;
+  int32_t file_index;
+  int16_t file_type;
+
+  memory_unit = (int16_t)((saved_game_file_index >> 8) & 0xff);
+  file_index = (saved_game_file_index >> 16) & 0xfff;
+  file_type = (int16_t)(saved_game_file_index & 0xf);
+
+  if (memory_unit != 0) {
+    display_assert("!memory_unit", "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x241, 1);
+    system_exit(-1);
+  }
+
+  if (file_info == NULL) {
+    display_assert("file_info != NULL", "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x244, 1);
+    system_exit(-1);
+  }
+
+  if (file_type >= 2) {
+    display_assert("type < NUMBER_OF_SAVED_GAME_FILE_TYPES",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x245, 1);
+    system_exit(-1);
+  }
+
+  if (memory_unit >= 9) {
+    display_assert("memory_unit < NUMBER_OF_MEMORY_UNITS",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x246, 1);
+    system_exit(-1);
+  }
+
+  if (file_index >= 100) {
+    display_assert("file_index < MAX_SAVED_GAME_FILES",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x247, 1);
+    system_exit(-1);
+  }
+
+  if (get_nth_entry_in_mapfile(memory_unit, file_index, entry) &&
+      file_reference_create_from_path(file_info, entry, 0) &&
+      memory_unit == 0 &&
+      file_open(file_info, 3)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+/* 0x1c4990 — synchronize_metadata_display_name_with_profile_name */
+bool synchronize_metadata_display_name_with_profile_name(int32_t saved_game_file_index, void *profile)
+{
+  char entry[0x208];
+  char root_path[8];
+  char new_dir_path[256];
+  char src_path[256];
+  char dst_path[256];
+  int16_t memory_unit;
+  int32_t file_index;
+  int16_t file_type;
+  const wchar_t *game_display_name;
+  char *sep;
+
+  game_display_name = (const wchar_t *)profile;
+  memory_unit = (int16_t)((saved_game_file_index >> 8) & 0xff);
+  file_index = (saved_game_file_index >> 16) & 0xfff;
+  file_type = (int16_t)(saved_game_file_index & 0xf);
+
+  if (memory_unit != 0) {
+    display_assert("!memory_unit", "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x306, 1);
+    system_exit(-1);
+  }
+
+  if (file_type >= 2) {
+    display_assert("type < NUMBER_OF_SAVED_GAME_FILE_TYPES",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x309, 1);
+    system_exit(-1);
+  }
+
+  if (memory_unit >= 9) {
+    display_assert("memory_unit < NUMBER_OF_MEMORY_UNITS",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x30a, 1);
+    system_exit(-1);
+  }
+
+  if (file_index < 0 || file_index >= 100) {
+    display_assert("file_index < MAX_SAVED_GAME_FILES",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x30b, 1);
+    system_exit(-1);
+  }
+
+  if (ustrlen(game_display_name) >= 0x80) {
+    display_assert("ustrlen(game_display_name)<MAXIMUM_SAVED_GAME_NAME_LENGTH",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x30d, 1);
+    system_exit(-1);
+  }
+
+  if (!get_nth_entry_in_mapfile(memory_unit, file_index, entry)) {
+    error(2, "get_nth_entry_in_mapfile() failed");
+    return 1;
+  }
+
+  if (game_display_name == NULL || *game_display_name == 0) {
+    return 1;
+  }
+
+  if (ustrcmp(game_display_name, (const wchar_t *)(entry + 0x100)) == 0) {
+    return 1;
+  }
+
+  if (memory_unit != 0) {
+    error(2, "failed to mount memory unit #%d", memory_unit);
+    return 1;
+  }
+
+  root_path[0] = '\0';
+  wide_to_ascii(((const wchar_t **)0x32eb94)[memory_unit], root_path, 8);
+
+  if (!xapi_create_save_game(root_path, game_display_name, 1, 0, new_dir_path, 256)) {
+    error(2, "XCreateSaveGame() failed in synchronize_metadata_display_name_with_profile_name()");
+    return 1;
+  }
+
+  if (file_type == 0) {
+    snprintf(dst_path, 255, "%s\\%s", new_dir_path, "blam.sav");
+    dst_path[255] = '\0';
+    if (xapi_copy_file(entry, dst_path, 1)) {
+      csstrncpy(src_path, entry, 255);
+      src_path[255] = '\0';
+      sep = crt_strstr(src_path, "blam.sav");
+      if (sep != NULL) {
+        *sep = '\0';
+        csstrncat(src_path, FUN_001c0720(), 255);
+        snprintf(dst_path, 255, "%s\\%s", new_dir_path, FUN_001c0720());
+        xapi_copy_file(src_path, dst_path, 1);
+      }
+      if (!xapi_delete_save_game(root_path, (const wchar_t *)(entry + 0x100))) {
+        error(2, "XDeleteSaveGame() failed to delete old saved game metadata in rename_metadata_display_name_with_profile_name()");
+      }
+      csstrncpy(entry, dst_path, 255);
+      ustrncpy((wchar_t *)(entry + 0x100), (wchar_t *)game_display_name, 0x7f);
+      if (!set_nth_entry_in_mapfile(memory_unit, (int16_t)file_index, entry)) {
+        error(2, "failed to update memory unit mapfile after renaming saved game metadata");
+        return 1;
+      }
+      return 1;
+    }
+  } else if (file_type == 1) {
+    snprintf(dst_path, 255, "%s\\%s", new_dir_path, "blam.lst");
+    dst_path[255] = '\0';
+    if (xapi_copy_file(entry, dst_path, 1)) {
+      if (!xapi_delete_save_game(root_path, (const wchar_t *)(entry + 0x100))) {
+        error(2, "XDeleteSaveGame() failed to delete old saved game metadata in rename_metadata_display_name_with_profile_name()");
+      }
+      csstrncpy(entry, dst_path, 255);
+      ustrncpy((wchar_t *)(entry + 0x100), (wchar_t *)game_display_name, 0x7f);
+      if (!set_nth_entry_in_mapfile(memory_unit, (int16_t)file_index, entry)) {
+        error(2, "failed to update memory unit mapfile after renaming saved game metadata");
+        return 1;
+      }
+      return 1;
+    }
+  } else {
+    display_assert("!\"unknown enumerated file type\"",
+                   "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x343, 1);
+    system_exit(-1);
+  }
+
+  if (!xapi_delete_save_game(root_path, game_display_name)) {
+    error(2, "XDeleteSaveGame() failed to delete empty saved game metadata in rename_metadata_display_name_with_profile_name()");
+  }
+
+  return 0;
+}
+
+/* 0x1c4da0 — saved_game_file_get_path_to_enclosing_directory */
+bool saved_game_file_get_path_to_enclosing_directory(int profile_index, char *path)
+{
+  char entry[0x208];
+  int16_t memory_unit;
+  int32_t file_index;
+  const char *filename;
+  char *sep;
+
+  if (path == NULL) {
+    display_assert("path", "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x38d, 1);
+    system_exit(-1);
+  }
+
+  path[0] = '\0';
+  if (profile_index == -1) {
+    return 0;
+  }
+
+  memory_unit = (int16_t)((profile_index >> 8) & 0xff);
+  file_index = (profile_index >> 16) & 0xfff;
+
+  if (memory_unit != 0) {
+    display_assert("!memory_unit", "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x397, 1);
+    system_exit(-1);
+  }
+
+  if (memory_unit < 0 || memory_unit >= 9 || file_index < 0 || file_index >= 100) {
+    error(2, "invalid saved game file index");
+    return 0;
+  }
+
+  if (!get_nth_entry_in_mapfile(memory_unit, file_index, entry)) {
+    error(2, "unable to locate the specified player profile file in memory unit %d", memory_unit);
+    return 0;
+  }
+
+  if (*(int16_t *)(entry + 0x200) == 0) {
+    filename = "blam.sav";
+  } else if (*(int16_t *)(entry + 0x200) == 1) {
+    filename = "blam.lst";
+  } else {
+    error(2, "unknown saved game file type");
+    return 0;
+  }
+
+  csstrncpy(path, entry, 255);
+  path[255] = '\0';
+
+  sep = crt_strstr(path, filename);
+  if (sep == NULL) {
+    error(2, "player profile pathname doesn't appear to be valid");
+    path[0] = '\0';
+    return 0;
+  }
+
+  *sep = '\0';
+  return 1;
+}
+
+/* 0x1c4f30 — saved_game_files_delete_all_custom_profiles */
+void FUN_001c4f30(void)
+{
+  char find_data[XGAME_FIND_DATA_SIZE];
+  char root_path[8];
+  int find_handle;
+  int count;
+
+  if (!enumerate_saved_game_files_start(0)) {
+    return;
+  }
+
+  wide_to_ascii(*(const wchar_t **)0x32eb94, root_path, 8);
+  find_handle = XFindFirstSaveGame(root_path, find_data);
+  count = 0;
+  if (find_handle != -1) {
+    do {
+      if (count >= 100) {
+        break;
+      }
+      if (!xapi_delete_save_game(root_path, (const wchar_t *)(find_data + 0x244))) {
+        error(2, "XDeleteSaveGame() failed to delete profile");
+      }
+      count++;
+    } while (XFindNextSaveGame(find_handle, find_data));
+
+    if (!XFindClose(find_handle)) {
+      error(2, "XFindClose() failed");
+    }
+  }
+
+  enumerate_default_playlist_profiles();
+  enumerate_default_player_profiles();
+  enumerate_saved_game_files_end(0);
 }
 
 /* 0x1c5010 — verify (and, if necessary, upgrade) the checksums of every
@@ -2299,4 +2983,178 @@ void FUN_001c5010(void)
   }
 
   *(uint8_t *)0x4eacc7 = 0;
+}
+
+/* 0x1c53f0 — saved_game_files_enumerate_available_to_local_player_index */
+void saved_game_files_enumerate_available_to_local_player_index(
+  int player_index, int saved_game_file_type, int *files_available,
+  int *file_indices, int filter_by_player)
+{
+  char entry[0x208];
+  int total_count;
+  int matched_count;
+  int i;
+  int32_t packed_index;
+
+  if (((player_index != -1 && (player_index < 0 || player_index >= 4)) ||
+       saved_game_file_type >= 2) ||
+      (files_available == NULL || file_indices == NULL)) {
+    display_assert(
+      "((player_index==NONE) || ((player_index>=0) && (player_index<MAXIMUM_GAMEPADS))) && "
+      "(saved_game_file_type<NUMBER_OF_SAVED_GAME_FILE_TYPES) && "
+      "(files_available != NULL) && (file_indices != NULL)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0xec, 1);
+    system_exit(-1);
+  }
+
+  if (!take_mutex(*(int **)0x4eacbc, 3600000)) {
+    error(2, "failed to take saved game files mutex");
+    *files_available = 0;
+    return;
+  }
+
+  if (*(uint8_t *)0x4eacc7 != 0) {
+    FUN_001c5010();
+  }
+
+  total_count = count_enumerated_profiles_in_mapfile(0);
+  matched_count = 0;
+
+  if (take_mutex(*(int **)0x4eacc0, 3600000)) {
+    if (enumerate_mapfile_start(0)) {
+      if (*files_available > 0) {
+        for (i = 0; i < total_count && matched_count < *files_available; i++) {
+          if (!enumerate_saved_game_file_from_mapfile(entry)) {
+            break;
+          }
+          if (*(int16_t *)(entry + 0x200) == (int16_t)saved_game_file_type &&
+              (filter_by_player != 0 || *(int8_t *)(entry + 0x204) == 0)) {
+            packed_index = (int32_t)build_saved_game_file_index(
+              i, 0, (int16_t)saved_game_file_type,
+              *(uint8_t *)(entry + 0x204), *(uint8_t *)(entry + 0x205));
+            file_indices[matched_count++] = packed_index;
+          }
+        }
+      }
+      enumerate_mapfile_end(0);
+    }
+    release_mutex(*(int **)0x4eacc0);
+  } else {
+    error(2, "failed to take mapfile mutex");
+  }
+
+  release_mutex(*(int **)0x4eacbc);
+  *files_available = matched_count;
+}
+
+/* 0x1c5560 — create_enumerated_saved_game_file */
+int FUN_001c5560(int param_1, int param_2, wchar_t *param_3)
+{
+  file_ref_t file_ref;
+  char header[0x200];
+  char entry[0x208];
+  char root_path[8];
+  char dir_name[256];
+  int16_t check_result;
+  int count;
+  int header_size;
+  uint32_t new_index;
+  int result_index;
+
+  if (param_1 >= 2 || (param_2 != -1 && (param_2 < 0 || param_2 >= 4)) || param_3 == NULL) {
+    display_assert(
+      "(saved_game_file_type<NUMBER_OF_SAVED_GAME_FILE_TYPES) && "
+      "((local_player_index==NONE) || ((local_player_index>=0) && (local_player_index<MAXIMUM_GAMEPADS))) && "
+      "(display_name != NULL)",
+      "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x14c, 1);
+    system_exit(-1);
+  }
+
+  if (*(uint8_t *)0x4eacc7 != 0) {
+    FUN_001c5010();
+  }
+
+  check_result = saved_game_perform_file_system_checks();
+  if (check_result == 1) {
+    display_error_abort_to_dashboard_deferred(0x21, 1);
+  } else if (check_result == 2) {
+    display_error_abort_to_dashboard_deferred(0x22, 1);
+  }
+  if (check_result != 0) {
+    return -1;
+  }
+
+  count = count_enumerated_profiles_in_mapfile(0);
+  if (count >= 100) {
+    error(2, "failed to create new saved game file because there are already the maximum number of files allowed");
+    display_error_deferred(0x24, -1, 1, 0);
+    return -1;
+  }
+
+  csmemset(root_path, 0, sizeof(root_path));
+  wide_to_ascii(((const wchar_t **)0x32eb94)[0], root_path, 8);
+
+  if (!xapi_create_save_game(root_path, param_3, 1, 0, dir_name, 256)) {
+    error(2, "XCreateSaveGame() failed to create meta data for a new saved game file");
+    return -1;
+  }
+
+  csmemset(entry, 0, 0x206);
+  ustrncpy((wchar_t *)(entry + 0x100), param_3, 0x7f);
+  *(int16_t *)(entry + 0x200) = (int16_t)param_1;
+  *(int16_t *)(entry + 0x202) = 0;
+  *(int16_t *)(entry + 0x204) = (int16_t)count;
+  *(uint8_t *)(entry + 0x205) = 0;
+
+  if (param_1 == 1) {
+    snprintf(entry, 0xff, "%s\\%s", dir_name, "blam.lst");
+    header_size = 0x68;
+  } else if (param_1 == 0) {
+    snprintf(entry, 0xff, "%s\\%s", dir_name, "blam.sav");
+    header_size = 0x30;
+    FUN_001c0cd0((int)dir_name);
+  } else {
+    header_size = 0;
+  }
+
+  if (file_reference_create_from_path(&file_ref, entry, 0) == NULL ||
+      !file_create(&file_ref)) {
+    error(2, "failed to create empty saved game file '%s'", entry);
+    xapi_delete_save_game(root_path, param_3);
+    return -1;
+  }
+
+  if (file_open(&file_ref, 2)) {
+    csmemset(header, 0, 0x200);
+    saved_game_file_generate_checksum(header, header_size, header + header_size);
+    if (file_write(&file_ref, 0x200, header)) {
+      *(uint8_t *)(entry + 0x205) = 1;
+    }
+    if (!file_close(&file_ref)) {
+      error(2, "file_close() failed in create_enumerated_saved_game_file()");
+    }
+  } else {
+    error(2, "failed to write blank saved game file block to disk");
+  }
+
+  if (append_entry_to_mapfile(0, entry, &new_index)) {
+    if ((int)new_index != count) {
+      display_assert("profile_index == file.index",
+                     "c:\\halo\\SOURCE\\saved games\\saved_game_files.c", 0x1b2, 1);
+      system_exit(-1);
+    }
+    result_index = (int)build_saved_game_file_index(
+      (int32_t)new_index, 0, param_1, *(uint8_t *)(entry + 0x204), *(uint8_t *)(entry + 0x205));
+    return result_index;
+  }
+
+  error(2, "append_entry_to_mapfile() failed; deleting newly created meta data");
+  xapi_delete_save_game(root_path, param_3);
+  return -1;
+}
+
+/* 0x1c58f0 — thunk to FUN_001c5010 */
+void FUN_001c58f0(void)
+{
+  FUN_001c5010();
 }

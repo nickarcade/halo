@@ -25397,7 +25397,8 @@
         {
           "addr": "0x1c1e20",
           "decl": "int playlist_profile_new(unsigned short local_player_index, wchar_t *name);",
-          "comment": "[NAME: playlist_profile_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: playlist_profile_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1c1f70",
@@ -25428,11 +25429,13 @@
         {
           "addr": "0x1c22e0",
           "decl": "boolean playlist_profile_create_default_profiles_on_disk(game_variant_t *variant@<ebx>, int unknown);",
-          "comment": "[param variant@<ebx> proven by TEST EBX,EBX at 0x1c22e9 before any write plus the \"variant\" assert condition string; one stack arg [EBP+0x8] tested signed (JNS 0x1c2362); byte return via MOV AL,[EBP-0x1] at every epilog]"
+          "comment": "[param variant@<ebx> proven by TEST EBX,EBX at 0x1c22e9 before any write plus the \"variant\" assert condition string; one stack arg [EBP+0x8] tested signed (JNS 0x1c2362); byte return via MOV AL,[EBP-0x1] at every epilog]",
+          "ported": true
         },
         {
           "addr": "0x1c2550",
-          "decl": "void playlist_profile_write(void);"
+          "decl": "unsigned long __stdcall playlist_profile_write(void *param);",
+          "ported": true
         },
         {
           "addr": "0x1c26b0",
@@ -25538,7 +25541,8 @@
         },
         {
           "addr": "0x1c31f0",
-          "decl": "char FUN_001c31f0(const char *path@<eax>);"
+          "decl": "char FUN_001c31f0(const char *path@<eax>);",
+          "ported": true
         },
         {
           "addr": "0x1c3250",
@@ -25602,7 +25606,8 @@
         {
           "addr": "0x1c3a30",
           "decl": "int16_t enumerate_default_playlist_profiles(void);",
-          "comment": "[NAME: enumerate_default_playlist_profiles \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: enumerate_default_playlist_profiles \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1c3c40",
@@ -25613,7 +25618,8 @@
         {
           "addr": "0x1c3e40",
           "decl": "bool get_nth_entry_in_mapfile(int16_t memory_unit_index@<ax>, int32_t entry_index@<edi>, void *entry);",
-          "comment": "[NAME: get_nth_entry_in_mapfile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: get_nth_entry_in_mapfile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1c4030",
@@ -25629,8 +25635,9 @@
         },
         {
           "addr": "0x1c43f0",
-          "decl": "void remove_nth_entry_in_mapfile(void);",
-          "comment": "[NAME: remove_nth_entry_in_mapfile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "bool remove_nth_entry_in_mapfile(int16_t memory_unit_index, int16_t entry_index);",
+          "comment": "[NAME: remove_nth_entry_in_mapfile \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1c4600",
@@ -25639,26 +25646,31 @@
         },
         {
           "addr": "0x1c46c0",
-          "decl": "char delete_enumerated_saved_game_file(int param_1);"
+          "decl": "bool delete_enumerated_saved_game_file(int saved_game_file_index);",
+          "ported": true
         },
         {
           "addr": "0x1c4850",
           "decl": "bool enumerate_memory_units_test(file_ref_t *file_info, int32_t saved_game_file_index);",
-          "comment": "[NAME: enumerate_memory_units_test \u2014 CEA PDB line-containment (high_confidence), cea-deferred 2026-09-03]"
+          "comment": "[NAME: enumerate_memory_units_test \u2014 CEA PDB line-containment (high_confidence), cea-deferred 2026-09-03]",
+          "ported": true
         },
         {
           "addr": "0x1c4990",
           "decl": "bool synchronize_metadata_display_name_with_profile_name(int32_t saved_game_file_index, void *profile);",
-          "comment": "[NAME: synchronize_metadata_display_name_with_profile_name \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: synchronize_metadata_display_name_with_profile_name \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1c4da0",
           "decl": "bool saved_game_file_get_path_to_enclosing_directory(int profile_index, char *path);",
-          "comment": "[NAME: saved_game_file_get_path_to_enclosing_directory \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: saved_game_file_get_path_to_enclosing_directory \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1c4f30",
-          "decl": "void FUN_001c4f30(void);"
+          "decl": "void FUN_001c4f30(void);",
+          "ported": true
         },
         {
           "addr": "0x1c5010",
@@ -25667,16 +25679,19 @@
         },
         {
           "addr": "0x1c53f0",
-          "decl": "void saved_game_files_enumerate_available_to_local_player_index(int, int, int *, int *, int);",
-          "comment": "[NAME: saved_game_files_enumerate_available_to_local_player_index \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void saved_game_files_enumerate_available_to_local_player_index(int player_index, int saved_game_file_type, int *files_available, int *file_indices, int filter_by_player);",
+          "comment": "[NAME: saved_game_files_enumerate_available_to_local_player_index \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1c5560",
-          "decl": "int FUN_001c5560(int param_1, int param_2, wchar_t *param_3);"
+          "decl": "int FUN_001c5560(int param_1, int param_2, wchar_t *param_3);",
+          "ported": true
         },
         {
           "addr": "0x1c58f0",
-          "decl": "void FUN_001c58f0(void);"
+          "decl": "void FUN_001c58f0(void);",
+          "ported": true
         }
       ],
       "name": "saved_game_files.obj",
