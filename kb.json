@@ -41385,7 +41385,8 @@
         },
         {
           "addr": "0x136bc0",
-          "decl": "void FUN_00136bc0(int current_object_handle@<edi>, void *collision_model, int material, void *damage_effect, void *damage_params, unsigned int *flags, float *shield_damage, float *body_damage);"
+          "decl": "void FUN_00136bc0(int current_object_handle@<edi>, void *collision_model, int material, void *damage_effect, void *damage_params, unsigned int *flags, float *shield_damage, float *body_damage);",
+          "ported": true
         },
         {
           "addr": "0x136f40",
@@ -41395,7 +41396,7 @@
         {
           "addr": "0x137170",
           "decl": "void FUN_00137170(float *incident_direction @<eax>, float *surface_normal @<ecx>, int object_handle @<esi>, int effect_tag_index, short marker_index, float *position);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x137370",
@@ -41419,7 +41420,8 @@
         },
         {
           "addr": "0x1377d0",
-          "decl": "void FUN_001377d0(int object_handle, int region_index, int node_index, float *impact_direction, void *collision_model, int material, void *damage_effect, void *damage_params, unsigned int *flags, float *body_damage, void **param_11, float scale);"
+          "decl": "void FUN_001377d0(int object_handle, int region_index, int node_index, float *impact_direction, void *collision_model, int material, void *damage_effect, void *damage_params, unsigned int *flags, float *body_damage, void **param_11, float scale);",
+          "ported": true
         },
         {
           "addr": "0x137d20",
@@ -41433,7 +41435,8 @@
         },
         {
           "addr": "0x138900",
-          "decl": "void FUN_00138900(void *damage_params, int object_handle, char recursive);"
+          "decl": "void FUN_00138900(void *damage_params, int object_handle, char recursive);",
+          "ported": true
         },
         {
           "addr": "0x138e30",
@@ -41462,12 +41465,14 @@
         },
         {
           "addr": "0x138f30",
-          "decl": "void shade_vector2d(void);",
-          "comment": "[NAME: shade_vector2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void shade_vector2d(float *output, float *vertex_c, float *vertex_d, float *base, float u, float v);",
+          "comment": "[NAME: shade_vector2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x138f70",
-          "decl": "void FUN_00138f70(float *output@<eax>, float *vertex_c@<ecx>, float *vertex_d@<edx>, float *base@<esi>, float u, float v);"
+          "decl": "void FUN_00138f70(float *output@<eax>, float *vertex_c@<ecx>, float *vertex_d@<edx>, float *base@<esi>, float u, float v);",
+          "ported": true
         },
         {
           "addr": "0x138fd0",
