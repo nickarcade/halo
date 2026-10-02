@@ -30730,7 +30730,7 @@
         {
           "addr": "0x1a2f40",
           "decl": "void FUN_001a2f40(void *physics@<esi>);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x1a4440",
