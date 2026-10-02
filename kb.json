@@ -32055,22 +32055,26 @@
         {
           "addr": "0x1b7020",
           "decl": "void create_ghost_effect(int vehicle_handle);",
-          "comment": "[NAME: create_ghost_effect \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: create_ghost_effect \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b72b0",
-          "decl": "void create_crashing_effects(void);",
-          "comment": "[NAME: create_crashing_effects \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void create_crashing_effects(int vehicle_handle, const float *prev_velocity, void *mass_points);",
+          "comment": "[NAME: create_crashing_effects \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b74d0",
-          "decl": "void update_suspension(void);",
-          "comment": "[NAME: update_suspension \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "bool update_suspension(int vehicle_handle);",
+          "comment": "[NAME: update_suspension \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b77f0",
-          "decl": "void create_slipping_effects(void);",
-          "comment": "[NAME: create_slipping_effects \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void create_slipping_effects(void *unused, void *mass_points);",
+          "comment": "[NAME: create_slipping_effects \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b79c0",
