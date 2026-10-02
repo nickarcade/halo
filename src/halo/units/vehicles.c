@@ -1130,3 +1130,359 @@ char vehicle_stuck(int vehicle_handle, float *vec)
 
   return 0;
 }
+
+/* 0x1b5ff0: update_human_tank_physics
+ * Computes tank tread velocities from forward throttle and steering inputs,
+ * updates cyclical tread texture scroll parameters (+0x43c and +0x440),
+ * and feeds powered mass points (in EDI) to physics_update.
+ */
+void update_human_tank_physics(int vehicle_handle, void *mass_points)
+{
+  char *vehicle;
+  char *vehicle_tag;
+  char *physics_tag;
+  float throttle;
+  float steering;
+  float diff;
+  float sum;
+  float period;
+  float scroll_left;
+  float scroll_right;
+  int32_t physics_model_type;
+  void *powered_mass_points;
+
+#ifdef _MSC_VER
+  __asm { mov powered_mass_points, edi }
+#else
+  __asm__ __volatile__("movl %%edi, %0" : "=r"(powered_mass_points));
+#endif
+
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  vehicle_tag = (char *)tag_get(0x76656869, *(uint32_t *)vehicle);
+  physics_tag = (char *)tag_get(0x70687973, *(uint32_t *)(vehicle_tag + 0x8c));
+
+  throttle = *(float *)(vehicle + 0x42c);
+  steering = *(float *)(vehicle + 0x434);
+  diff = throttle - steering;
+  sum = steering + throttle;
+
+  period = *(float *)(vehicle_tag + 0x310);
+
+  scroll_left = diff + *(float *)(vehicle + 0x43c);
+  scroll_left = x87_fmod(scroll_left, period);
+  if (scroll_left < *(float *)0x2533c0) {
+    scroll_left += period;
+  }
+  *(float *)(vehicle + 0x43c) = scroll_left;
+
+  scroll_right = sum + *(float *)(vehicle + 0x440);
+  scroll_right = x87_fmod(scroll_right, period);
+  if (scroll_right < *(float *)0x2533c0) {
+    scroll_right += period;
+  }
+  *(float *)(vehicle + 0x440) = scroll_right;
+
+  physics_model_type = *(int32_t *)(physics_tag + 0x68);
+  if (physics_model_type == 2) {
+    char *pmp = (char *)powered_mass_points;
+    *(float *)(pmp + 0x00) = diff;
+    *(uint32_t *)(pmp + 0x1c) = 0;
+    *(uint32_t *)(pmp + 0x20) = 0;
+    *(uint32_t *)(pmp + 0x24) = 0;
+    *(float *)(pmp + 0x28) = 1.0f;
+
+    *(float *)(pmp + 0x60) = sum;
+    *(uint32_t *)(pmp + 0x7c) = 0;
+    *(uint32_t *)(pmp + 0x80) = 0;
+    *(uint32_t *)(pmp + 0x84) = 0;
+    *(float *)(pmp + 0x88) = 1.0f;
+
+    physics_update(vehicle_handle, powered_mass_points, mass_points, NULL, NULL);
+  } else {
+    physics_update(vehicle_handle, NULL, mass_points, NULL, NULL);
+  }
+}
+
+/* 0x1b6140: update_human_jeep_physics
+ * Computes Warthog front wheel steering angles from steering yaw,
+ * updates wheel scroll parameters (+0x438), and feeds powered mass
+ * points (in EDI) with steering orientation vectors to physics_update.
+ */
+void update_human_jeep_physics(int vehicle_handle, void *mass_points)
+{
+  char *vehicle;
+  char *vehicle_tag;
+  char *physics_tag;
+  float throttle;
+  float steering;
+  float half_steer;
+  float period;
+  float scroll;
+  int32_t physics_model_type;
+  void *powered_mass_points;
+
+#ifdef _MSC_VER
+  __asm { mov powered_mass_points, edi }
+#else
+  __asm__ __volatile__("movl %%edi, %0" : "=r"(powered_mass_points));
+#endif
+
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  vehicle_tag = (char *)tag_get(0x76656869, *(uint32_t *)vehicle);
+  physics_tag = (char *)tag_get(0x70687973, *(uint32_t *)(vehicle_tag + 0x8c));
+
+  throttle = *(float *)(vehicle + 0x42c);
+  period = *(float *)(vehicle_tag + 0x310);
+
+  scroll = throttle + *(float *)(vehicle + 0x438);
+  scroll = x87_fmod(scroll, period);
+  if (scroll < *(float *)0x2533c0) {
+    scroll += period;
+  }
+  *(float *)(vehicle + 0x438) = scroll;
+
+  physics_model_type = *(int32_t *)(physics_tag + 0x68);
+  if (physics_model_type == 2) {
+    char *pmp;
+    float sin_steer;
+    float cos_steer;
+
+    steering = *(float *)(vehicle + 0x434);
+    half_steer = steering * *(float *)0x253398;
+    cos_steer = x87_fcos(half_steer);
+    sin_steer = x87_fsin(half_steer);
+
+    pmp = (char *)powered_mass_points;
+    *(float *)(pmp + 0x00) = throttle;
+    *(uint32_t *)(pmp + 0x1c) = 0;
+    *(uint32_t *)(pmp + 0x20) = 0;
+    *(float *)(pmp + 0x24) = sin_steer;
+    *(float *)(pmp + 0x28) = cos_steer;
+
+    *(float *)(pmp + 0x60) = throttle;
+    *(uint32_t *)(pmp + 0x7c) = 0;
+    *(uint32_t *)(pmp + 0x80) = 0;
+    *(float *)(pmp + 0x84) = -sin_steer;
+    *(float *)(pmp + 0x88) = cos_steer;
+
+    physics_update(vehicle_handle, powered_mass_points, mass_points, NULL, NULL);
+  } else {
+    physics_update(vehicle_handle, NULL, mass_points, NULL, NULL);
+  }
+}
+
+/* 0x1b79c0: vehicle_export_function_values
+ * Computes vehicle export function outputs (speed, steering, throttle,
+ * slip, RPM, etc.) for up to 4 functions defined in the vehicle tag (+0x31c),
+ * clamping each result to [0.0, 1.0] and storing at vehicle + 0xd4.
+ */
+void vehicle_export_function_values(int vehicle_handle)
+{
+  char *vehicle;
+  char *vehicle_tag;
+  float max_fwd_rev;
+  float max_side;
+  float max_yaw;
+  float abs_fwd;
+  float abs_rev;
+  float abs_side_l;
+  float abs_side_r;
+  float abs_yaw_l;
+  float abs_yaw_r;
+  int i;
+
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  vehicle_tag = (char *)tag_get(0x76656869, *(uint32_t *)vehicle);
+
+  abs_fwd = x87_fabs(*(float *)(vehicle_tag + 0x2f8));
+  abs_rev = x87_fabs(*(float *)(vehicle_tag + 0x2fc));
+  max_fwd_rev = (abs_fwd > abs_rev) ? abs_fwd : abs_rev;
+
+  abs_side_l = x87_fabs(*(float *)(vehicle_tag + 0x330));
+  abs_side_r = x87_fabs(*(float *)(vehicle_tag + 0x334));
+  max_side = (abs_side_l > abs_side_r) ? abs_side_l : abs_side_r;
+
+  abs_yaw_l = x87_fabs(*(float *)(vehicle_tag + 0x308));
+  abs_yaw_r = x87_fabs(*(float *)(vehicle_tag + 0x30c));
+  max_yaw = (abs_yaw_l > abs_yaw_r) ? abs_yaw_l : abs_yaw_r;
+
+  for (i = 0; i < 4; i++) {
+    int16_t func_type = *(int16_t *)(vehicle_tag + 0x31c + i * 2);
+    float val = *(float *)0x2533c0;
+
+    if (func_type == 0) {
+      continue;
+    }
+
+    switch (func_type) {
+    case 1:
+    case 0x1c:
+    case 0x1d:
+    case 0x1e:
+    case 0x1f:
+      val = x87_fabs(*(float *)(vehicle + 0x42c)) / max_fwd_rev;
+      break;
+
+    case 2:
+      if (*(float *)(vehicle + 0x42c) >= *(float *)0x2533c0) {
+        val = *(float *)(vehicle + 0x42c) / abs_fwd;
+      }
+      break;
+
+    case 3:
+      if (*(float *)(vehicle + 0x42c) <= *(float *)0x2533c0) {
+        val = x87_fabs(*(float *)(vehicle + 0x42c)) / abs_rev;
+      }
+      break;
+
+    case 4:
+      val = x87_fabs(*(float *)(vehicle + 0x430)) / max_side;
+      break;
+
+    case 5:
+      val = x87_fabs(*(float *)(vehicle + 0x430)) / abs_side_l;
+      break;
+
+    case 6:
+      val = x87_fabs(*(float *)(vehicle + 0x430)) / abs_side_r;
+      break;
+
+    case 7: {
+      float fwd_val = x87_fabs(*(float *)(vehicle + 0x42c)) / max_fwd_rev;
+      float side_val = x87_fabs(*(float *)(vehicle + 0x430)) / max_side;
+      val = (fwd_val > side_val) ? fwd_val : side_val;
+      break;
+    }
+
+    case 8:
+      val = x87_fabs(*(float *)(vehicle + 0x434)) / max_yaw;
+      break;
+
+    case 9:
+      val = x87_fabs(*(float *)(vehicle + 0x434)) / abs_yaw_l;
+      break;
+
+    case 10:
+      val = x87_fabs(*(float *)(vehicle + 0x434)) / abs_yaw_r;
+      break;
+
+    case 0xb:
+      if (*(uint8_t *)(vehicle + 0x425) & 4) {
+        val = *(float *)0x2533c8;
+      }
+      break;
+
+    case 0xc:
+      if (*(uint8_t *)(vehicle + 0x425) & 8) {
+        val = *(float *)0x2533c8;
+      }
+      break;
+
+    case 0xe:
+      val = FUN_00012fe0((float *)(vehicle + 0x18)) / max_fwd_rev;
+      break;
+
+    case 0xf:
+      if (*(uint8_t *)(vehicle + 5) & 0x1c) {
+        val = FUN_00012fe0((float *)(vehicle + 0x18)) / max_fwd_rev;
+      }
+      break;
+
+    case 0x10:
+      if (*(uint8_t *)(vehicle + 5) & 2) {
+        val = FUN_00012fe0((float *)(vehicle + 0x18)) / max_fwd_rev;
+      }
+      break;
+
+    case 0x11: {
+      float *vel = (float *)(vehicle + 0x18);
+      float *fwd = (float *)(vehicle + 0x24);
+      float dot = vel[0] * fwd[0] + vel[1] * fwd[1] + vel[2] * fwd[2];
+      val = x87_fabs(dot) / max_fwd_rev;
+      break;
+    }
+
+    case 0x12:
+    case 0x13: {
+      float *vel = (float *)(vehicle + 0x18);
+      float *up = (float *)(vehicle + 0x30);
+      float dot = vel[0] * up[0] + vel[1] * up[1] + vel[2] * up[2];
+      val = x87_fabs(dot) / max_fwd_rev;
+      break;
+    }
+
+    case 0x14:
+      val = *(float *)(vehicle + 0x43c) / *(float *)(vehicle_tag + 0x310);
+      break;
+
+    case 0x15:
+      val = *(float *)(vehicle + 0x440) / *(float *)(vehicle_tag + 0x310);
+      break;
+
+    case 0x16:
+      val = x87_fabs(*(float *)(vehicle + 0x42c) - *(float *)(vehicle + 0x434)) / max_fwd_rev;
+      break;
+
+    case 0x17:
+      val = x87_fabs(*(float *)(vehicle + 0x434) + *(float *)(vehicle + 0x42c)) / max_fwd_rev;
+      break;
+
+    case 0x18:
+    case 0x19:
+    case 0x1a:
+    case 0x1b:
+      val = *(float *)(vehicle + 0x438) / *(float *)(vehicle_tag + 0x310);
+      break;
+
+    case 0x20: {
+      float perp[3];
+      float par[3];
+      float mag;
+      FUN_0010b8a0((float *)(vehicle + 0x18), (float *)(vehicle + 0x24), par, perp);
+      mag = FUN_00012fe0(perp) * *(float *)0x254e6c;
+      val = mag * mag;
+      break;
+    }
+
+    case 0x21:
+      val = *(float *)(vehicle + 0x444);
+      break;
+
+    case 0x22:
+      val = *(float *)(vehicle + 0x448);
+      break;
+
+    case 0x23: {
+      float *vel = (float *)(vehicle + 0x18);
+      float *fwd = (float *)(vehicle + 0x24);
+      float dot = vel[0] * fwd[0] + vel[1] * fwd[1] + vel[2] * fwd[2];
+      float factor = ((float)*(uint8_t *)(vehicle + 0x428) * *(float *)0x2549d4 + *(float *)0x2533c8) * *(float *)0x253398;
+      if (factor < *(float *)0x2533c0) {
+        factor = *(float *)0x2533c0;
+      } else if (factor > *(float *)0x2533c8) {
+        factor = *(float *)0x2533c8;
+      }
+      val = factor * (x87_fabs(*(float *)(vehicle + 0x42c)) / abs_fwd) +
+            (*(float *)0x2533c8 - factor) * (x87_fabs(dot) / max_fwd_rev);
+      break;
+    }
+
+    case 0x24: {
+      float speed = FUN_00012fe0((float *)(vehicle + 0x18));
+      val = ((speed / *(float *)(vehicle_tag + 0x2f8)) * *(float *)(vehicle + 0x448) - *(float *)0x2533e8) * *(float *)0x2b7d40;
+      break;
+    }
+
+    default:
+      break;
+    }
+
+    if (val < *(float *)0x2533c0) {
+      val = *(float *)0x2533c0;
+    } else if (val > *(float *)0x2533c8) {
+      val = *(float *)0x2533c8;
+    }
+
+    *(float *)(vehicle + 0xd4 + i * 4) = val;
+  }
+}

@@ -32015,13 +32015,15 @@
         },
         {
           "addr": "0x1b5ff0",
-          "decl": "void update_human_tank_physics(void);",
-          "comment": "[NAME: update_human_tank_physics \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void update_human_tank_physics(int vehicle_handle, void *mass_points);",
+          "comment": "[NAME: update_human_tank_physics \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b6140",
-          "decl": "void update_human_jeep_physics(void);",
-          "comment": "[NAME: update_human_jeep_physics \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void update_human_jeep_physics(int vehicle_handle, void *mass_points);",
+          "comment": "[NAME: update_human_jeep_physics \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b6250",
@@ -32072,7 +32074,8 @@
         },
         {
           "addr": "0x1b79c0",
-          "decl": "void vehicle_export_function_values(void);"
+          "decl": "void vehicle_export_function_values(int vehicle_handle);",
+          "ported": true
         },
         {
           "addr": "0x1b7ee0",
