@@ -18371,12 +18371,14 @@
       "functions": [
         {
           "addr": "0x88d50",
-          "decl": "void first_person_camera_for_unit_and_vector(float *vector @<eax>, int32_t unit_index @<ecx>, void *result @<esi>);"
+          "decl": "void first_person_camera_for_unit_and_vector(float *vector @<eax>, int32_t unit_index @<ecx>, void *result @<esi>);",
+          "ported": true
         },
         {
           "addr": "0x89240",
-          "decl": "void first_person_camera_fake(void);",
-          "comment": "[NAME: first_person_camera_fake \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void first_person_camera_fake(int32_t unit_index, void *result);",
+          "comment": "[NAME: first_person_camera_fake \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x89270",
@@ -18396,7 +18398,8 @@
         },
         {
           "addr": "0x893a0",
-          "decl": "void flying_camera_update(void);"
+          "decl": "void flying_camera_update(float *camera, void *param_2, void *result);",
+          "ported": true
         },
         {
           "addr": "0x89850",
@@ -18418,7 +18421,8 @@
         {
           "addr": "0x89940",
           "decl": "float uniform_cubic_spline(float y0, float y1, float y2, float y3, float t0, float h, float t);",
-          "comment": "[NAME: uniform_cubic_spline \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: uniform_cubic_spline \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x89a20",
@@ -18432,11 +18436,13 @@
         },
         {
           "addr": "0x89c00",
-          "decl": "void FUN_00089c00(int unit_handle, int param_2, int param_3);"
+          "decl": "void FUN_00089c00(int unit_handle, float *param_2, float *param_3);",
+          "ported": true
         },
         {
           "addr": "0x89cd0",
-          "decl": "void following_camera_update(void);"
+          "decl": "void following_camera_update(void *camera, void *param_2, void *result);",
+          "ported": true
         },
         {
           "addr": "0x8a340",
@@ -18490,7 +18496,8 @@
         },
         {
           "addr": "0x8aa80",
-          "decl": "void observer_up_from_forward(float *forward, float *up);"
+          "decl": "void observer_up_from_forward(float *forward, float *up);",
+          "ported": true
         },
         {
           "addr": "0x8ab10",
@@ -18506,11 +18513,13 @@
         {
           "addr": "0x8ac70",
           "decl": "void observer_collision_test_differential(void);",
-          "comment": "[NAME: observer_collision_test_differential \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: observer_collision_test_differential \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x8acb0",
-          "decl": "void observer_set_camera(void);"
+          "decl": "void observer_set_camera(int16_t local_player_index, void *camera);",
+          "ported": true
         },
         {
           "addr": "0x8b060",
@@ -18570,8 +18579,9 @@
         },
         {
           "addr": "0x8cf30",
-          "decl": "void orbiting_camera_update(void);",
-          "comment": "[NAME: orbiting_camera_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void orbiting_camera_update(float *camera, void *param_2, void *result);",
+          "comment": "[NAME: orbiting_camera_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x8d3a0",

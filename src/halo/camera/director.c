@@ -566,7 +566,7 @@ int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3)
      * are type-only and do not change the pushed dwords. */
     FUN_00088c80(unit_handle, (float *)param_2, (float *)param_3);
   } else {
-    FUN_00089c00(unit_handle, param_2, param_3);
+    FUN_00089c00(unit_handle, (float *)param_2, (float *)param_3);
   }
 
   return result;

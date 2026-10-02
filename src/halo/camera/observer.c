@@ -2,6 +2,161 @@
 
 /* Camera observer — tracks camera position/orientation per player. */
 
+void observer_up_from_forward(float *forward, float *up);
+
+#define VALIDATE_CAMERA_COMMAND(command, file, line) \
+  do { \
+    if (*(uint32_t *)(command) & 1) { \
+      if (!valid_real_normal3d_perpendicular((float *)((char *)(command) + 0x24), (float *)((char *)(command) + 0x30)) || \
+          (*(uint32_t *)((char *)(command) + 0x04) & 0x7f800000) == 0x7f800000 || \
+          !(*(float *)((char *)(command) + 0x04) >= -5000.0f) || \
+          !(*(float *)((char *)(command) + 0x04) <= 5000.0f) || \
+          (*(uint32_t *)((char *)(command) + 0x08) & 0x7f800000) == 0x7f800000 || \
+          !(*(float *)((char *)(command) + 0x08) >= -5000.0f) || \
+          !(*(float *)((char *)(command) + 0x08) <= 5000.0f) || \
+          (*(uint32_t *)((char *)(command) + 0x0c) & 0x7f800000) == 0x7f800000 || \
+          !(*(float *)((char *)(command) + 0x0c) >= -5000.0f) || \
+          !(*(float *)((char *)(command) + 0x0c) <= 5000.0f) || \
+          (*(uint32_t *)((char *)(command) + 0x10) & 0x7f800000) == 0x7f800000 || \
+          !(*(float *)((char *)(command) + 0x10) >= -5000.0f) || \
+          !(*(float *)((char *)(command) + 0x10) <= 5000.0f) || \
+          (*(uint32_t *)((char *)(command) + 0x14) & 0x7f800000) == 0x7f800000 || \
+          !(*(float *)((char *)(command) + 0x14) >= -5000.0f) || \
+          !(*(float *)((char *)(command) + 0x14) <= 5000.0f) || \
+          (*(uint32_t *)((char *)(command) + 0x18) & 0x7f800000) == 0x7f800000 || \
+          !(*(float *)((char *)(command) + 0x18) >= -5000.0f) || \
+          !(*(float *)((char *)(command) + 0x18) <= 5000.0f) || \
+          !real_vector3d_valid((float *)((char *)(command) + 0x3c)) || \
+          (*(uint32_t *)((char *)(command) + 0x1c) & 0x7f800000) == 0x7f800000 || \
+          !(*(float *)((char *)(command) + 0x1c) >= 0.0f) || \
+          !(*(float *)((char *)(command) + 0x1c) <= 5000.0f) || \
+          (*(uint32_t *)((char *)(command) + 0x20) & 0x7f800000) == 0x7f800000 || \
+          !(*(float *)((char *)(command) + 0x20) >= 0.001f) || \
+          !(*(float *)((char *)(command) + 0x20) <= 1.5707964f) || \
+          (*(uint32_t *)((char *)(command) + 0x48) & 0x7f800000) == 0x7f800000 || \
+          !(*(float *)((char *)(command) + 0x48) >= 0.0f) || \
+          !(*(float *)((char *)(command) + 0x48) <= 3600.0f)) { \
+        char *msg = csprintf( \
+          (char *)0x5ab100, \
+          "Invalid camera command.\n" \
+          "F: (%f, %f, %f) U: (%f, %f, %f)\n" \
+          "P: (%f, %f, %f) O: (%f, %f, %f)\n" \
+          "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld", \
+          (double)*(float *)((char *)(command) + 0x24), (double)*(float *)((char *)(command) + 0x28), \
+          (double)*(float *)((char *)(command) + 0x2c), (double)*(float *)((char *)(command) + 0x30), \
+          (double)*(float *)((char *)(command) + 0x34), (double)*(float *)((char *)(command) + 0x38), \
+          (double)*(float *)((char *)(command) + 0x04), (double)*(float *)((char *)(command) + 0x08), \
+          (double)*(float *)((char *)(command) + 0x0c), (double)*(float *)((char *)(command) + 0x10), \
+          (double)*(float *)((char *)(command) + 0x14), (double)*(float *)((char *)(command) + 0x18), \
+          (double)*(float *)((char *)(command) + 0x1c), (double)*(float *)((char *)(command) + 0x3c), \
+          (double)*(float *)((char *)(command) + 0x40), (double)*(float *)((char *)(command) + 0x44), \
+          (double)*(float *)((char *)(command) + 0x20), (double)*(float *)((char *)(command) + 0x48), \
+          *(uint32_t *)(command)); \
+        display_assert(msg, (file), (line), 1); \
+        system_exit(-1); \
+      } \
+    } \
+  } while (0)
+
+/* Build first-person camera result for a unit and forward vector (0x88d50).
+ * [TU: c:\halo\SOURCE\camera\first_person_camera.c — __FILE__ assert xref]
+ * vector arrives in EAX, unit_index in ECX, result in ESI. */
+void first_person_camera_for_unit_and_vector(float *vector, int32_t unit_index,
+                                             void *result)
+{
+  float *zero;
+  void *unit;
+  int32_t parent_handle;
+  void *vehicle;
+  void *tag;
+  char *seat;
+  real_matrix4x3 matrix;
+  object_marker markers[1];
+
+  zero = *(float **)0x31fc38;
+  *(uint32_t *)((char *)result + 0x48) = 0;
+  *(uint32_t *)result = 0;
+  *(float *)((char *)result + 0x10) = zero[0];
+  *(float *)((char *)result + 0x14) = zero[1];
+  *(float *)((char *)result + 0x18) = zero[2];
+  *(uint32_t *)((char *)result + 0x1c) = 0;
+  *(float *)((char *)result + 0x24) = vector[0];
+  *(float *)((char *)result + 0x28) = vector[1];
+  *(float *)((char *)result + 0x2c) = vector[2];
+  *(float *)((char *)result + 0x20) = 1.2217305f;
+
+  observer_up_from_forward((float *)((char *)result + 0x24),
+                           (float *)((char *)result + 0x30));
+  if (!valid_real_normal3d_perpendicular((float *)((char *)result + 0x24),
+                                         (float *)((char *)result + 0x30))) {
+    display_assert("valid_real_vector3d_axes2(&result->forward, &result->up)",
+                   "c:\\halo\\SOURCE\\camera\\first_person_camera.c", 0x52, 1);
+    system_exit(-1);
+  }
+
+  if (unit_index != -1) {
+    unit = object_get_and_verify_type(unit_index, 3);
+    unit_set_seat_state(unit_index, (float *)((char *)result + 0x04));
+    object_get_root_location(unit_index, (float *)((char *)result + 0x3c), NULL);
+
+    parent_handle = *(int32_t *)((char *)unit + 0xcc);
+    if (parent_handle != -1) {
+      vehicle = object_try_and_get_and_verify_type(parent_handle, 2);
+      if (vehicle != NULL) {
+        tag = tag_get(0x76656869, *(int32_t *)vehicle);
+        seat = (char *)tag_block_get_element(
+          (char *)tag + 0x2e4, (int)*(int16_t *)((char *)unit + 0x2a0), 0x11c);
+        if (*(int8_t *)seat >= 0) {
+          matrix4x3_from_forward_up_position(
+            &matrix, (float *)((char *)vehicle + 0x0c),
+            (float *)((char *)vehicle + 0x24),
+            (float *)((char *)vehicle + 0x30));
+          real_matrix4x3_transform_point( /* dup-args-ok: confirmed PUSH EDI,EDI */
+            &matrix, (void *)((char *)result + 0x24),
+            (void *)((char *)result + 0x24));
+          observer_up_from_forward((float *)((char *)result + 0x24),
+                                   (float *)((char *)result + 0x30));
+          matrix_transform_vector( /* dup-args-ok: confirmed PUSH EDI,EDI */
+            (float *)&matrix,
+            (float *)((char *)result + 0x24),
+            (float *)((char *)result + 0x24));
+          matrix_transform_vector( /* dup-args-ok: confirmed PUSH EBX,EBX */
+            (float *)&matrix,
+            (float *)((char *)result + 0x30),
+            (float *)((char *)result + 0x30));
+        } else {
+          if (object_get_markers_by_string_id(
+                parent_handle, (void *)0x267238, markers, 1)) {
+            ((float *)((char *)result + 0x04))[0] = markers[0].matrix_position[0];
+            ((float *)((char *)result + 0x04))[1] = markers[0].matrix_position[1];
+            ((float *)((char *)result + 0x04))[2] = markers[0].matrix_position[2];
+            ((float *)((char *)result + 0x24))[0] = markers[0].matrix_forward[0];
+            ((float *)((char *)result + 0x24))[1] = markers[0].matrix_forward[1];
+            ((float *)((char *)result + 0x24))[2] = markers[0].matrix_forward[2];
+            ((float *)((char *)result + 0x30))[0] = markers[0].matrix_up[0];
+            ((float *)((char *)result + 0x30))[1] = markers[0].matrix_up[1];
+            ((float *)((char *)result + 0x30))[2] = markers[0].matrix_up[2];
+          }
+        }
+      }
+    }
+    *(uint32_t *)result = 1;
+  }
+
+  VALIDATE_CAMERA_COMMAND(result, "c:\\halo\\SOURCE\\camera\\first_person_camera.c", 0x85);
+}
+
+/* Fake first-person camera update from unit facing direction (0x89240).
+ * [TU: c:\halo\SOURCE\camera\first_person_camera.c — __FILE__ assert xref] */
+void first_person_camera_fake(int32_t unit_index, void *result)
+{
+  void *unit;
+
+  unit = object_get_and_verify_type(unit_index, 3);
+  first_person_camera_for_unit_and_vector(
+    (float *)((char *)unit + 0x1ec), unit_index, result);
+}
+
 /* Per-tick update for the first-person camera mode (0x89270).
  * [TU: c:\halo\SOURCE\camera\first_person_camera.c — __FILE__ assert xref]
  * param_2 points at a block whose leading int16_t is the local player index
@@ -75,6 +230,82 @@ void FUN_00089350(void *camera_data, float *position, float *forward)
   vector_to_angles((float *)(camera + 0xc), forward);
 }
 
+/* Per-tick update for flying debug camera mode (0x893a0).
+ * [TU: c:\halo\SOURCE\camera\flying_camera.c — __FILE__ assert xref] */
+void flying_camera_update(float *camera, void *param_2, void *result)
+{
+  float *zero;
+  float cos_yaw, sin_yaw;
+  float dx, dy, dz;
+  float pitch;
+
+  if (camera == NULL) {
+    display_assert("camera", "c:\\halo\\SOURCE\\camera\\flying_camera.c", 0x29, 1);
+    system_exit(-1);
+  }
+  if (param_2 == NULL) {
+    display_assert("controls", "c:\\halo\\SOURCE\\camera\\flying_camera.c", 0x2a, 1);
+    system_exit(-1);
+  }
+  if (result == NULL) {
+    display_assert("result", "c:\\halo\\SOURCE\\camera\\flying_camera.c", 0x2b, 1);
+    system_exit(-1);
+  }
+
+  if (*(int8_t *)((char *)param_2 + 2)) {
+    camera[3] += *(float *)((char *)param_2 + 0x08);
+    pitch = camera[4] + *(float *)((char *)param_2 + 0x0c);
+    if (pitch < -1.5676548f) {
+      pitch = -1.5676548f;
+    } else if (pitch > 1.5676548f) {
+      pitch = 1.5676548f;
+    }
+    camera[4] = pitch;
+    camera[5] += *(float *)((char *)param_2 + 0x10);
+  }
+
+  if (*(int16_t *)0x325716 >= 1) {
+    camera[3] = 0.0f;
+    camera[4] = 0.0f;
+    camera[5] = 0.0f;
+    *(int16_t *)0x325716 -= 1;
+  }
+
+  *(float *)((char *)result + 0x48) = 0.3f;
+  angles_to_vector((float *)((char *)result + 0x24), &camera[3]);
+  observer_up_from_forward((float *)((char *)result + 0x24),
+                           (float *)((char *)result + 0x30));
+  rotate_vector3d_by_sincos((float *)((char *)result + 0x30),
+                            (float *)((char *)result + 0x24),
+                            (float)x87_fsin(camera[5]),
+                            (float)x87_fcos(camera[5]));
+
+  if (*(int8_t *)((char *)param_2 + 2)) {
+    cos_yaw = (float)x87_fcos(camera[3]);
+    sin_yaw = (float)x87_fsin(camera[3]);
+    dx = *(float *)((char *)param_2 + 0x14);
+    dy = *(float *)((char *)param_2 + 0x18);
+    dz = *(float *)((char *)param_2 + 0x1c);
+    camera[0] += cos_yaw * dx - sin_yaw * dy;
+    camera[1] += sin_yaw * dx + cos_yaw * dy;
+    camera[2] += dz;
+  }
+
+  *(float *)((char *)result + 0x04) = camera[0];
+  *(float *)((char *)result + 0x08) = camera[1];
+  *(float *)((char *)result + 0x0c) = camera[2];
+
+  zero = *(float **)0x31fc38;
+  *(float *)((char *)result + 0x10) = zero[0];
+  *(float *)((char *)result + 0x14) = zero[1];
+  *(float *)((char *)result + 0x18) = zero[2];
+  *(uint32_t *)((char *)result + 0x1c) = 0;
+  *(float *)((char *)result + 0x20) = camera[6];
+  *(uint32_t *)result = 1;
+
+  VALIDATE_CAMERA_COMMAND(result, "c:\\halo\\SOURCE\\camera\\flying_camera.c", 0x95);
+}
+
 /* Initialize following-camera state (0x89850). The independently accessed
  * fields remain mechanical because the state layout has not been recovered. */
 void following_camera_new(void *camera_data)
@@ -146,6 +377,39 @@ float arcsine(float x)
 #else
   return (float)asin((double)x);
 #endif
+}
+
+/* Uniform cubic spline evaluation across four equidistant points (0x89940).
+ * [TU: c:\halo\SOURCE\camera\following_camera.c — __FILE__ assert xref] */
+float uniform_cubic_spline(float y0, float y1, float y2, float y3, float t0,
+                           float h, float t)
+{
+  float dy0, dy1, dy2;
+  float d2y0, d2y1;
+  float term3, term2, term1;
+
+  if (h <= 0.0f) {
+    display_assert("h > 0.0f", "..\\math\\real_math.h", 0x5e4, 1);
+    system_exit(-1);
+  }
+  if (t < t0 || t > t0 + 3.0f * h) {
+    display_assert("t >= t0 && t <= t0 + 3.0f*h", "..\\math\\real_math.h",
+                   0x5e5, 1);
+    system_exit(-1);
+  }
+
+  dy0 = y1 - y0;
+  dy1 = y2 - y1;
+  dy2 = y3 - y2;
+
+  d2y0 = dy1 - dy0;
+  d2y1 = dy2 - dy1;
+
+  term3 = ((t - (t0 + 2.0f * h)) * (d2y1 - d2y0)) / (3.0f * h) + d2y0;
+  term2 = ((t - (t0 + h)) * term3) / (2.0f * h) + dy0;
+  term1 = ((t - t0) / h) * term2 + y0;
+
+  return term1;
 }
 
 /* Evaluate the scalar interpolator uniform_cubic_spline once per component of a
@@ -232,6 +496,178 @@ have_track:
     (float *)tag_block_get_element(points, index + 2, 0x3c),
     (float *)tag_block_get_element((char *)tag_data + 4, index + 3, 0x3c),
     (float)index * step, step, t);
+}
+
+/* Deterministic following-camera position & facing computation (0x89c00).
+ * Evaluates unit camera tag and spline track offset without controller state. */
+void FUN_00089c00(int unit_handle, float *param_2, float *param_3)
+{
+  float offset[3];
+  void *unit;
+  void *camera_tag;
+  void *vehicle;
+  void *tag_data;
+  uint8_t *tag_element;
+  float t;
+  float dist;
+  float inv_dist;
+  float fwd_x;
+  float fwd_y;
+
+  unit = object_get_and_verify_type(unit_handle, 3);
+  unit_camera_get(unit_handle);
+  unit_set_seat_state(unit_handle, param_2);
+
+  param_3[0] = *(float *)((char *)unit + 0x1ec);
+  param_3[1] = *(float *)((char *)unit + 0x1f0);
+  param_3[2] = *(float *)((char *)unit + 0x1f4);
+
+  t = arcsine(param_3[2]);
+
+  camera_tag = (char *)tag_get(0x756e6974, *(int *)unit) + 0x1a8;
+  if (*(int *)((char *)unit + 0xcc) != -1) {
+    vehicle = object_try_and_get_and_verify_type(*(int *)((char *)unit + 0xcc), 2);
+    if (vehicle != NULL) {
+      tag_data = tag_get(0x76656869, *(int *)vehicle);
+      tag_element = (uint8_t *)tag_block_get_element(
+        (char *)tag_data + 0x2e4, (int)*(int16_t *)((char *)unit + 0x2a0), 0x11c);
+      if ((tag_element[0] & 0x15) != 0) {
+        camera_tag = tag_element + 0x84;
+      }
+    }
+  }
+
+  camera_track_splut(camera_tag, t, offset);
+
+  fwd_x = param_3[0];
+  fwd_y = param_3[1];
+  dist = x87_sqrt(fwd_x * fwd_x + fwd_y * fwd_y);
+  if (x87_fabs(dist) >= 0.0001f) {
+    inv_dist = 1.0f / dist;
+    fwd_x *= inv_dist;
+    fwd_y *= inv_dist;
+  }
+
+  param_2[0] += offset[0] * fwd_x + offset[1] * fwd_y;
+  param_2[1] += offset[0] * fwd_y - offset[1] * fwd_x;
+  param_2[2] += offset[2];
+}
+
+/* Per-tick update for following-camera mode (0x89cd0).
+ * [TU: c:\halo\SOURCE\camera\following_camera.c — __FILE__ assert xref] */
+void following_camera_update(void *camera_data, void *param_2, void *result)
+{
+  char *camera;
+  int camera_info[6];
+  float track_offset[3];
+  float angles_sum[2];
+  float *angles;
+  float pitch;
+  float track_dist;
+  void *unit;
+  bool crouching;
+
+  if (camera_data == NULL) {
+    display_assert("camera", "c:\\halo\\SOURCE\\camera\\following_camera.c", 0x8a, 1);
+    system_exit(-1);
+  }
+  if (result == NULL) {
+    display_assert("result", "c:\\halo\\SOURCE\\camera\\following_camera.c", 0x8b, 1);
+    system_exit(-1);
+  }
+
+  camera = (char *)camera_data;
+  player_control_get_unit_camera_info(*(int16_t *)param_2, camera_info);
+
+  *(float *)((char *)result + 0x04) = *(float *)&camera_info[3];
+  *(float *)((char *)result + 0x08) = *(float *)&camera_info[4];
+  *(float *)((char *)result + 0x0c) = *(float *)&camera_info[5];
+  *(float *)((char *)result + 0x48) = 0.0f;
+  *(uint32_t *)result = 0;
+  *(float *)((char *)result + 0x20) = 1.2217305f;
+
+  if (camera[0] != 0) {
+    if (camera_info[0] != *(int *)(camera + 8) ||
+        (int16_t)camera_info[1] != *(int16_t *)(camera + 0xc)) {
+      *(float *)((char *)result + 0x48) = 1.0f;
+    }
+  }
+
+  *(int16_t *)(camera + 0xc) = (int16_t)camera_info[1];
+  *(int *)(camera + 8) = camera_info[0];
+
+  if (*(void **)&camera_info[2] != NULL) {
+    unit = object_get_and_verify_type(camera_info[0], 3);
+    crouching = (*(uint8_t *)((char *)unit + 0x1b8) & 3) != 0;
+    if (crouching != (bool)camera[2]) {
+      *(uint8_t *)((char *)result + 0x4d) = 1;
+      if (*(float *)((char *)result + 0x58) < 0.5f) {
+        *(float *)((char *)result + 0x58) = 0.5f;
+      }
+      camera[2] = (char)crouching;
+    }
+
+    if (*(int8_t *)((char *)param_2 + 2) != 0) {
+      *(float *)(camera + 0x10) += *(float *)((char *)param_2 + 8);
+      *(float *)(camera + 0x14) += *(float *)((char *)param_2 + 0xc);
+      *(uint8_t *)((char *)result + 0x50) = 1;
+      if (*(float *)((char *)result + 0x64) < 0.4f) {
+        *(float *)((char *)result + 0x64) = 0.4f;
+      }
+    } else if (*(float *)(camera + 0x10) != 0.0f || *(float *)(camera + 0x14) != 0.0f) {
+      *(float *)(camera + 0x10) = 0.0f;
+      *(float *)(camera + 0x14) = 0.0f;
+    }
+
+    angles = player_control_get_facing_angles(*(int16_t *)param_2);
+    angles_sum[0] = angles[0] + *(float *)(camera + 0x10);
+    pitch = angles[1] + *(float *)(camera + 0x14);
+    if (pitch < -1.5707964f) {
+      pitch = -1.5707964f;
+    } else if (pitch > 1.5707964f) {
+      pitch = 1.5707964f;
+    }
+    angles_sum[1] = pitch;
+ 
+    angles_to_vector((float *)((char *)result + 0x24), angles_sum);
+    {
+      float fwd_len = x87_sqrt(
+        *(float *)((char *)result + 0x24) * *(float *)((char *)result + 0x24) +
+        *(float *)((char *)result + 0x28) * *(float *)((char *)result + 0x28) +
+        *(float *)((char *)result + 0x2c) * *(float *)((char *)result + 0x2c));
+      if (fwd_len <= 0.9999f || fwd_len >= 1.0001f) {
+        display_assert("magnitude3d(&result->forward) > 0.9999f && magnitude3d(&result->forward) < 1.0001f",
+                       "c:\\halo\\SOURCE\\camera\\following_camera.c", 0xd4, 1);
+        system_exit(-1);
+      }
+    }
+
+    camera_track_splut(*(void **)&camera_info[2], pitch, track_offset);
+    track_dist = x87_sqrt(
+      track_offset[0] * track_offset[0] +
+      track_offset[1] * track_offset[1] +
+      track_offset[2] * track_offset[2]);
+    *(float *)((char *)result + 0x1c) = track_dist;
+    *(float *)((char *)result + 0x10) = (float)((x87_fcos(pitch) * track_dist + track_offset[0]) * *(float *)(camera + 0x18));
+    *(float *)((char *)result + 0x14) = -(track_offset[1] * *(float *)(camera + 0x18));
+    *(float *)((char *)result + 0x18) = (float)((x87_fsin(pitch) * track_dist + track_offset[2]) * *(float *)(camera + 0x18));
+
+    track_dist = (track_dist - 0.6f) * *(float *)(camera + 0x18) + 0.6f;
+    if (track_dist <= 0.6f) {
+      track_dist = 0.6f;
+    }
+    *(float *)((char *)result + 0x1c) = track_dist;
+
+    object_get_root_location(camera_info[0], (float *)((char *)result + 0x3c), NULL);
+    *(uint32_t *)result |= 1;
+  }
+
+  observer_up_from_forward((float *)((char *)result + 0x24),
+                           (float *)((char *)result + 0x30));
+
+  VALIDATE_CAMERA_COMMAND(result, "c:\\halo\\SOURCE\\camera\\following_camera.c", 0xee);
+
+  camera[0] = 1;
 }
 
 void observer_initialize(void)
@@ -544,6 +980,29 @@ void observer_obsolete_position(int16_t local_player_index)
   observer_result_initialize((char *)0x33571c + local_player_index * 0x29c);
 }
 
+/* Compute camera up vector perpendicular to forward vector (0x8aa80).
+ * [TU: c:\halo\SOURCE\camera\observer.c — __FILE__ assert xref] */
+void observer_up_from_forward(float *forward, float *up)
+{
+  float cross[3];
+  float len;
+
+  cross[0] = forward[1];
+  cross[1] = -forward[0];
+  cross[2] = 0.0f;
+
+  len = normalize3d(cross);
+  if (len == 0.0f) {
+    cross[0] = 1.0f;
+    cross[1] = 0.0f;
+    cross[2] = 0.0f;
+  }
+
+  up[0] = cross[1] * forward[2] - cross[2] * forward[1];
+  up[1] = cross[2] * forward[0] - cross[0] * forward[2];
+  up[2] = cross[0] * forward[1] - cross[1] * forward[0];
+}
+
 /* Rotate two vectors about a rotational-displacement axis (0x8ab10).
  * The EAX argument is a rotation vector whose direction is the axis and whose
  * magnitude is the angle in radians. A local copy is normalized in place by
@@ -620,6 +1079,46 @@ bool FUN_0008ab90(float *out_fraction, bool indoor, float *ray_origin,
   *(int16_t *)0x4761d8 -= 1;
 
   return result;
+}
+
+/* Differential collision test for observer camera (0x8ac70).
+ * [TU: c:\halo\SOURCE\camera\observer.c — __FILE__ assert xref]
+ * Dead/unreferenced in Xbox debug 2276 (0 binary call sites). */
+void observer_collision_test_differential(void)
+{
+  /* Original assembly at 0x8ac70:
+   *   vector3_t endpoint = origin + t * delta;
+   *   FUN_0008ab90(out_fraction, indoor, ray_origin, (float *)&endpoint);
+   * Unused in cachebeta.xbe. */
+}
+
+/* Assign active camera command block to local player observer (0x8acb0).
+ * [TU: c:\halo\SOURCE\camera\observer.c — __FILE__ assert xref] */
+void observer_set_camera(int16_t local_player_index, void *camera)
+{
+  char *obs;
+
+  if (local_player_index < 0 || local_player_index >= 4) {
+    display_assert("local_player_index>=0 && local_player_index<NUMBEROF(observers)",
+                   "c:\\halo\\SOURCE\\camera\\observer.c", 0x72, 1);
+    system_exit(-1);
+  }
+
+  if (camera != NULL) {
+    VALIDATE_CAMERA_COMMAND(camera, "c:\\halo\\SOURCE\\camera\\observer.c", 0xe9);
+  }
+
+  obs = (char *)0x33571c + (int)local_player_index * 0x29c;
+  *(void **)(obs + 0x04) = camera;
+  obs[0x70] = 0;
+  if (obs[0x71] == 0) {
+    obs[0x71] = 1;
+    if (camera != NULL) {
+      *(float *)((char *)camera + 0x48) = 0.0f;
+      *(uint32_t *)camera |= 8;
+      csmemset((char *)camera + 0x54, 0, 0x14);
+    }
+  }
 }
 
 /* Copy/stage camera command block from director into observer state (0x8b060).
@@ -1757,6 +2256,59 @@ void orbiting_camera_new(float *orbiting_camera, float distance, float *vector)
 {
   orbiting_camera[2] = distance;
   vector_to_angles(orbiting_camera, vector);
+}
+
+/* Per-tick update for orbiting camera mode (0x8cf30).
+ * [TU: c:\halo\SOURCE\camera\orbiting_camera.c — __FILE__ assert xref] */
+void orbiting_camera_update(float *camera, void *param_2, void *result)
+{
+  float *zero;
+  int camera_info[6];
+  float pitch;
+  float dist;
+
+  player_control_get_unit_camera_info(*(int16_t *)param_2, camera_info);
+
+  *(float *)((char *)result + 0x04) = *(float *)&camera_info[3];
+  *(float *)((char *)result + 0x08) = *(float *)&camera_info[4];
+  *(float *)((char *)result + 0x0c) = *(float *)&camera_info[5];
+
+  if (*(int8_t *)((char *)param_2 + 2) != 0) {
+    camera[0] -= *(float *)((char *)param_2 + 8);
+    pitch = camera[1] - *(float *)((char *)param_2 + 0xc);
+    if (pitch < -1.5676548f) {
+      pitch = -1.5676548f;
+    } else if (pitch > 1.5676548f) {
+      pitch = 1.5676548f;
+    }
+    camera[1] = pitch;
+    director_set_local_player_context(*(int16_t *)param_2);
+  }
+
+  dist = camera[2] - *(float *)((char *)param_2 + 0x20) * 0.033333335f;
+  if (dist <= 0.6f) {
+    dist = 0.6f;
+  }
+  camera[2] = dist;
+
+  if (camera_info[0] != -1) {
+    angles_to_vector((float *)((char *)result + 0x24), camera);
+    observer_up_from_forward((float *)((char *)result + 0x24),
+                             (float *)((char *)result + 0x30));
+    object_get_root_location(camera_info[0], (float *)((char *)result + 0x3c), NULL);
+    *(uint32_t *)result = 1;
+    *(float *)((char *)result + 0x0c) += 0.52f;
+  }
+
+  zero = *(float **)0x31fc38;
+  *(float *)((char *)result + 0x10) = zero[0];
+  *(float *)((char *)result + 0x14) = zero[1];
+  *(float *)((char *)result + 0x18) = zero[2];
+  *(float *)((char *)result + 0x1c) = camera[2];
+  *(float *)((char *)result + 0x20) = 0.87266463f;
+  *(float *)((char *)result + 0x48) = 0.5f;
+
+  VALIDATE_CAMERA_COMMAND(result, "c:\\halo\\SOURCE\\camera\\orbiting_camera.c", 0x47);
 }
 
 /* Fill in a static (scripted) camera command block (0x8d3a0).
