@@ -2995,7 +2995,7 @@ void trigger_create_projectiles(int weapon_handle, int16_t trigger_index)
         origin[1] = up[1] * offset[2] + y;
         origin[2] = up[2] * offset[2] + origin[2];
 
-        target_object = player_aim_projectile((int16_t)player_index, origin, forward);
+        target_object = player_aim_projectile(player_index, origin, forward);
       } else if (actor_index != -1) {
         target_object = actor_aim_projectile(actor_index, origin, forward, &error_angle);
       }

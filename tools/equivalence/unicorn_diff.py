@@ -228,8 +228,9 @@ if TOUCHED_PAGES_OUT:
 # better source, because the image is not width-limited -- see
 # `_xbe_global_bytes` below and test_known_globals_vs_xbe.py.
 def _load_known_globals():
-    """Load global bytes from known_globals.json, falling back to hardcoded defaults."""
-    json_path = Path(__file__).resolve().parent / "known_globals.json"
+    """Load an ignored local byte corpus, falling back to minimal defaults."""
+    json_path = (Path(__file__).resolve().parents[2] / "artifacts" / "local" /
+                 "known_globals.json")
     if json_path.exists():
         import json as _json
         raw = _json.loads(json_path.read_text(encoding="utf-8"))

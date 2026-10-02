@@ -235,54 +235,54 @@ void dead_camera_new(void *camera, int16_t local_player_index, int handle)
   *(int *)(dst + 0x24) = *(int *)(dst + 0x20);
 }
 
-/* 2276 director +0xc8 has four {value, velocity, delta} triples. */
-typedef struct {
-  real value;
-  real velocity;
-  real delta;
-} director_variable_instance_t;
-cs(director_variable_instance_t, 0x0c);
-co(director_variable_instance_t, velocity, 0x04);
-co(director_variable_instance_t, delta, 0x08);
+/* camera_director_t, director_globals_t, director_scripting_t and
+ * editor_camera_globals_t live in types.h (kb.json data symbols).
+ *
+ * Original entry addresses of the camera update procs held in
+ * camera_director_t.camera_proc.  The slot is written and compared by
+ * director code that still runs as original code (director_choose_game_
+ * perspective and director_script_camera are dormant lifts, and
+ * director_load_camera is unported); that code stores these ORIGINAL
+ * addresses.  Taking the address of the C function would instead yield the
+ * address of our implementation (the original entry only holds the
+ * redirect), so an identity test against the symbol would never match a slot
+ * the original code wrote — the lip-sync class of bug in lift-learnings
+ * section 54.  Every camera_proc store and test in director.obj must switch
+ * to the function symbols together, once all of them are active lifts. */
+enum {
+  SCRIPTED_CAMERA_UPDATE_ENTRY = 0x853c0,     /* scripted_camera_update */
+  DEAD_CAMERA_UPDATE_ENTRY = 0x85c80,         /* dead_camera_update */
+  FIRST_PERSON_CAMERA_UPDATE_ENTRY = 0x89270, /* first_person_camera_update */
+  FLYING_CAMERA_UPDATE_ENTRY = 0x893a0,       /* flying_camera_update */
+  FOLLOWING_CAMERA_UPDATE_ENTRY = 0x89cd0,    /* following_camera_update */
+  ORBITING_CAMERA_UPDATE_ENTRY = 0x8cf30      /* orbiting_camera_update */
+};
 
-typedef struct {
-  int16_t negative_bit;
-  int16_t positive_bit;
-  int16_t reset_bit;
-  uint8_t pad_06[2];
-  real scale;
-  real initial_value;
-  real minimum;
-  real maximum;
-  uint8_t has_hyper_scale;
-  uint8_t pad_19[3];
-} director_variable_definition_t;
-cs(director_variable_definition_t, 0x1c);
-co(director_variable_definition_t, scale, 0x08);
-co(director_variable_definition_t, initial_value, 0x0c);
-co(director_variable_definition_t, minimum, 0x10);
-co(director_variable_definition_t, maximum, 0x14);
-co(director_variable_definition_t, has_hyper_scale, 0x18);
 
-typedef struct {
-  int16_t camera_mode_index;
-  uint8_t pad_02[2];
-  real camera_change_pause;
-  int32_t camera_proc;
-  uint8_t camera_data[0x40];
-  uint8_t pad_4c[0x0c];
-  camera_command_t command;
-  uint8_t debug_controls;
-  uint8_t pad_c1[3];
-  real debug_input_scale;
-  director_variable_instance_t debug_variables[4];
-} camera_director_t;
-cs(camera_director_t, 0xf8);
-co(camera_director_t, camera_data, 0x0c);
-co(camera_director_t, command, 0x58);
-co(camera_director_t, debug_controls, 0xc0);
-co(camera_director_t, debug_input_scale, 0xc4);
-co(camera_director_t, debug_variables, 0xc8);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* dead_camera_update (0x85c80). Preserve the original no-player fallback
  * (the command pointer), which is also present in PAL 2342. */
@@ -536,86 +536,86 @@ int16_t director_get_perspective(int16_t local_player_index)
 }
 
 /*
- * director_desired_perspective — classify the perspective a unit wants.
+ * director_desired_perspective (0x864b0) — classify the perspective a unit
+ * wants and whether the director should use the following camera.
  *
- * Writes a perspective word through *perspective (0 = none, 1, 2, 3) and
- * returns a 16-bit flag in AX. The seat flags come from the parent unit's
- * unit tag seat block (group tag 'unit', block at +0x2e4, element size 0x11c).
+ * Writes a perspective word through *perspective (0 = none, 1 = entering a
+ * seat, 2 = seated, 3 = exiting) and returns the 16-bit "following" flag.
+ * The seat flags come from the parent unit's 'unit' tag seat block.
  *
- * Binary notes (0x864b0):
- *  - *perspective is zeroed first, so the parent_handle == -1 arm re-reads the
- *    value it just stored; the (==1 || ==3) test is preserved verbatim.
- *  - TEST DL,0x3 after SHL EDX,CL is reproduced as (1 << (n & 0x1f)) & 3.
- *  - EBX (the returned flag) is set by seat flag bit 4 BEFORE the bit-6 test.
- *
- * 0x864b0 / director.obj
+ * Single exit: every perspective arm falls through to the (== 1 || == 3)
+ * test, which raises the flag for the enter/exit-seat states.  When the unit
+ * has no parent that test re-reads the zero stored at entry, as in the
+ * reference.
  */
 int16_t director_desired_perspective(int unit_handle, int16_t *perspective)
 {
-  char *unit;
-  int *unit_definition;
-  int parent_handle;
-  int seat_index;
-  unsigned int *seat;
-  unsigned int seat_flags;
-  unsigned char wants_perspective;
-  char animation_state;
-  int16_t result;
+  int16_t following = 0;
 
-  result = 0;
   *perspective = 0;
-
   if (unit_handle != -1) {
-    unit = (char *)object_get_and_verify_type(unit_handle, 3);
-    parent_handle = *(int *)(unit + 0xcc);
+    unit_data_t *unit = (unit_data_t *)object_get_and_verify_type(
+      unit_handle, _object_mask_unit);
 
-    if (parent_handle != -1) {
-      unit_definition = (int *)object_get_and_verify_type(parent_handle, -1);
+    if (unit->object.parent_object_index.value != -1) {
+      object_data_t *parent_object = (object_data_t *)object_get_and_verify_type(
+        unit->object.parent_object_index.value, _object_mask_all);
 
-      if (((1 << *(unsigned char *)((char *)unit_definition + 0x64)) & 3) !=
-          0) {
-        seat_index = (int)*(short *)(unit + 0x2a0);
-        seat = (unsigned int *)tag_block_get_element(
-          (void *)((char *)tag_get(0x756e6974, *unit_definition) + 0x2e4),
-          seat_index, 0x11c);
+      if ((FLAG(parent_object->type) & _object_mask_unit) != 0) {
+        bool third_person_on_enter;
+        unit_seat_t *seat = (unit_seat_t *)tag_block_get_element(
+          &((unit_definition_t *)tag_get(TAG_GROUP_UNIT,
+                                         parent_object->tag_index))
+             ->seats,
+          (short)unit->unk_672 /* parent seat index */, sizeof(unit_seat_t));
 
-        seat_flags = *seat;
-        wants_perspective = (unsigned char)((seat_flags >> 6) & 1);
-
-        if ((seat_flags & 0x10) != 0)
-          result = 1;
-
-        if (wants_perspective != 0) {
-          animation_state = *(char *)(unit + 0x253);
-          if (animation_state == 0x1a) {
+        third_person_on_enter =
+          (seat->flags & FLAG(_unit_seat_third_person_on_enter_bit)) != 0;
+        if ((seat->flags & FLAG(_unit_seat_third_person_camera_bit)) != 0)
+          following = 1;
+        if (third_person_on_enter) {
+          /* unk_595 = animation state */
+          if ((char)unit->unk_595 == _unit_state_entering_seat)
             *perspective = 1;
-            return 1;
-          }
-          if (animation_state == 0x1b) {
+          else if ((char)unit->unk_595 == _unit_state_exiting_seat)
             *perspective = 3;
-            return 1;
-          }
+          else
+            *perspective = 2;
+        } else {
+          *perspective = 2;
         }
+      } else {
+        *perspective = 2;
       }
-
-      *perspective = 2;
-      return result;
     }
 
-    goto no_parent;
+    if (*perspective == 1 || *perspective == 3)
+      following = 1;
   }
 
-  goto ret_zero;
-
-  /* Cold tail: the reference lays this arm out after the epilogue (0x8657b),
-   * reached only by the forward JZ at 0x864e0. */
-no_parent:
-  if (*perspective == 1 || *perspective == 3)
-    return 1;
-
-ret_zero:
-  return 0;
+  return following;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /*
  * FUN_000865a0 — set player director mode entry fields.
@@ -628,23 +628,23 @@ ret_zero:
  */
 void FUN_000865a0(int16_t local_player_index, int param_1, bool param_2)
 {
-  char *base;
+  camera_director_t *director;
 
-  if (local_player_index < 0 ||
-      local_player_index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS) {
-    display_assert("local_player_index>=0 && "
-                   "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
-                   "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, 1);
-    system_exit(-1);
-  }
-  base = (char *)0x3352b0 + (int)local_player_index * 0xf8;
-  *(int *)(base + 0x8) = param_1;
-  *(int *)(base + 0xc4) = 0x3f800000;
-  *(unsigned char *)(base + 0xc0) = 0;
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  director = &director_globals.local_players[local_player_index];
+  director->camera_proc = param_1;
+  director->debug_input_scale = 1.0f;
+  director->debug_controls = 0;
   if (param_2) {
-    *(int *)(base + 0x4) = 0x3f800000;
+    director->camera_change_pause = 1.0f;
   }
 }
+
+
 
 /* Per-player default-state init (0x86600). Fills four 12-byte slots at
  * struct offset 0x194/0x1a0/0x1ac/0x1b8 (relative to 0x3352b4 + player*0xf8).
@@ -829,100 +829,101 @@ int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3)
  * SI, 16-bit TEST/CMP), force @<bl> (read by five TEST BL,BL, never written).
  * Sole caller: director_set_player_camera_normal (0x86ed5).
  *
- * Director slot base 0x3352b0 + index*0xf8: +0x08 camera update proc,
- * +0x0c camera data, +0x54 last perspective word. The camera procs are
- * stored as their original addresses (0x89270 first_person_camera_update,
- * 0x89cd0 following_camera_update) because other director code compares the
- * slot against those literals. */
-void director_choose_game_perspective(int local_player_index, char force)
+ * The director slot is director_globals.local_players[index]: camera_proc,
+ * camera_data and the last perspective word (seat_state). The camera procs
+ * are stored as their original entry addresses (the *_UPDATE_ENTRY enum)
+ * because other director code compares the slot against those values; see
+ * the note on the enum. */
+void director_choose_game_perspective(int16_t local_player_index, char force)
 {
-  char *director;
+  camera_director_t *director;
   int16_t following;
   int16_t perspective;
+  int unit_index;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, (int16_t)local_player_index >= 0 &&
-              (int16_t)local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
+              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
-  director = (char *)0x3352b0 + (int)(int16_t)local_player_index * 0xf8;
-  following = director_desired_perspective(
-    player_control_get_unit_index((int16_t)local_player_index), &perspective);
-  if (force || *(int16_t *)(director + 0x54) != perspective) {
+  director = &director_globals.local_players[local_player_index];
+  unit_index = player_control_get_unit_index(local_player_index);
+  following = director_desired_perspective(unit_index, &perspective);
+  if (force || director->seat_state != perspective) {
     if (following == 1) {
-      if (force || *(int *)(director + 0x8) == 0x89270) {
-        following_camera_new(director + 0xc);
-        FUN_000865a0((int16_t)local_player_index, 0x89cd0, !force);
+      if (force || director->camera_proc == FIRST_PERSON_CAMERA_UPDATE_ENTRY) {
+        following_camera_new(director->camera_data);
+        FUN_000865a0(local_player_index, FOLLOWING_CAMERA_UPDATE_ENTRY, !force);
       }
-    } else if (force || *(int *)(director + 0x8) == 0x89cd0) {
-      first_person_camera_new(director + 0xc);
-      FUN_000865a0((int16_t)local_player_index, 0x89270, !force);
+    } else if (force || director->camera_proc == FOLLOWING_CAMERA_UPDATE_ENTRY) {
+      first_person_camera_new(director->camera_data);
+      FUN_000865a0(local_player_index, FIRST_PERSON_CAMERA_UPDATE_ENTRY, !force);
     }
-    *(int16_t *)(director + 0x54) = perspective;
+    director->seat_state = perspective;
   }
 }
 
 /* director_script_camera (0x86cb0) — enable or disable scripted camera control
  * for every local player.
  *
- * Stores the low byte of the argument into the director scripting state byte
- * (*(char**)0x5ab200), then walks the four per-player entries (base 0x3352b4,
- * stride 0xf8; the reference walks them through EDI seeded at 0x335374 =
- * base + 0xc0):
+ * Stores the low byte of the argument into
+ * director_camera_scripted->camera_scripted, then walks the four
+ * director_globals.local_players slots. Each iteration asserts the player index
+ * (director.c line 0xb3, the director_get check) and then:
  *
- *   script_control != 0: install the debug/free camera fn (0x853c0) at +0x4,
- *     prime the timer at +0xc0 to 1.0f, clear the byte flag at +0xbc.
- *   script_control == 0: restore gameplay — classify the player's unit via
- *     director_desired_perspective (0x864b0) and either re-init the following
- *     camera data (0x89850) + install 0x89cd0, or the first-person camera data
- *     (0x88c40) + install 0x89270. The classification word is kept at +0x50.
+ *   value != 0: install the scripted camera fn (0x853c0) through
+ *     FUN_000865a0 with the top-timer flag clear. The reference inlines that
+ *     helper: fn at slot +0x08, 1.0f at +0xc4, byte clear at +0xc0, each
+ *     addressed off EDI = slot + 0xc4 (0x335374 for player 0).
  *
- * Either way FUN_00084fe0 (0x84fe0, bored-camera enable flag) is called once
- * per iteration with the same byte.
+ *   value == 0: forced re-evaluation of the gameplay camera, i.e.
+ *     director_choose_game_perspective(i, TRUE), which the reference also
+ *     inlines (its own index assert is the third 0xb3 site). With force set
+ *     every gate in that function is taken, so the player's unit is
+ *     classified by director_desired_perspective (0x864b0) and either the
+ *     following camera (0x89850 data init, 0x89cd0 update fn) or the
+ *     first-person camera (0x88c40 data init, 0x89270 update fn) is
+ *     installed with the top-timer flag clear; the perspective word is
+ *     stored at slot +0x54.
  *
- * The reference keeps the perspective out-slot in the upper half of the
- * incoming argument slot ([EBP+0xa]) rather than allocating a frame local;
- * we use a plain local, which is behaviourally identical. */
+ * Either way scripted_camera_enable (0x84fe0) is called once per iteration
+ * with the same byte; the reference pushes the whole incoming dword (PUSH
+ * EBX), which is the same low byte the callee reads.
+ *
+ * Residual shape gaps (measured, not behavioural):
+ *  - the reference keeps the perspective out-slot of the inlined
+ *    classification in the upper half of the incoming argument slot
+ *    ([EBP+0xa]); our compile allocates a frame local instead;
+ *  - the reference calls first_person_camera_new (0x88c40) out of line,
+ *    while our compile inlines it into the classification arm;
+ *  - the reference reuses its strength-reduced slot pointer (EDI) for the
+ *    inlined classification; ours recomputes index * 0xf8 there.
+ *
+ * Earlier revisions spelled the slot writes out by hand at +0x04/+0xbc/+0xc0
+ * of 0x3352b4 and duplicated the classification inline. Those are the same
+ * addresses as the helper calls above (0x3352b4 + n == 0x3352b0 + n + 4);
+ * calling the helpers reproduces the reference's three index asserts and its
+ * call sequence. Behaviour is unchanged: the same stores, the same callees.
+ */
+/* The scripted camera proc is installed by its original entry address,
+ * SCRIPTED_CAMERA_UPDATE_ENTRY, for the reason given on the enum. */
 void director_script_camera(unsigned char value)
 {
-  unsigned char script_control;
   int16_t i;
-  char *base;
-  int unit_handle;
-  int16_t perspective;
-  void *camera_fn;
 
-  script_control = (unsigned char)value;
-  **(char **)0x5ab200 = (char)script_control;
-
+  director_camera_scripted->camera_scripted = value;
   for (i = 0; i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS; i++) {
-    assert_halt(i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                       "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                       i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
-    base = (char *)0x3352b4 + (int)i * 0xf8;
-
-    if (script_control != 0) {
-      assert_halt(i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
-
-      *(uint32_t *)(base + 4) = 0x853c0;
-      *(float *)(base + 0xc0) = 1.0f;
-      *(uint8_t *)(base + 0xbc) = 0;
+    if (value != 0) {
+      /* Install the scripted camera without priming the top timer. */
+      FUN_000865a0(i, SCRIPTED_CAMERA_UPDATE_ENTRY, 0);
     } else {
-      assert_halt(i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
-
-      unit_handle = player_control_get_unit_index(i);
-      if (director_desired_perspective(unit_handle, &perspective) == 1) {
-        /* 0x89850: following-camera data init; cdecl(camera_data_ptr). */
-        following_camera_new((void *)(base + 8));
-        camera_fn = (void *)0x89cd0;
-      } else {
-        /* 0x88c40: first-person camera data init; cdecl(camera_data_ptr). */
-        first_person_camera_new((void *)(base + 8));
-        camera_fn = (void *)0x89270;
-      }
-
-      camera_internal_set_camera_fn(i, camera_fn, 0);
-      *(int16_t *)(base + 0x50) = perspective;
+      /* Forced re-evaluation of the gameplay camera for this player. */
+      director_choose_game_perspective(i, 1);
     }
 
-    scripted_camera_enable(script_control);
+    scripted_camera_enable(value);
   }
 }
 
@@ -1597,45 +1598,45 @@ void editor_camera_set_focus(const uint32_t *position, const uint32_t *angles)
 }
 
 /* editor_camera_set_position (0x879d0) — push a new focus into the editor/
- * flying camera.  When the live camera-data pointer at 0x3356b0 is NULL the
- * values are parked in the cached focus globals via editor_camera_set_focus
- * and the "focus initialized" byte at 0x33569a is raised; otherwise the three
- * position dwords and two angle dwords are written straight into the live
- * camera data at +0x00..+0x08 and +0x0c/+0x10.
+ * flying camera.  When there is no live editor camera
+ * (editor_camera_globals.camera == NULL) the values are parked in the cached
+ * focus via editor_camera_set_focus and editor_camera_globals.initialized is
+ * raised; otherwise position and facing are written straight into the live
+ * camera.
  *
  * Both in-pointers are asserted non-NULL first; the assert strings and line
- * numbers (0x94, 0x95) come from editor_flying_camera.c, so they are spelled
- * explicitly rather than via assert_halt (which would stamp director.c).
- * The reference copies every field as a plain dword MOV, so the copy is
- * written on uint32_t lvalues rather than float ones. */
+ * numbers (0x94, 0x95) come from editor_flying_camera.c, so they use
+ * assert_halt_at rather than assert_halt (which would stamp director.c).
+ *
+ * The reference copies every field as a plain dword MOV: the position is one
+ * 12-byte struct copy (through a second pointer register) and the facing an
+ * 8-byte one, so both are written as struct assignments, never as float
+ * loads/stores.  The in-pointers stay uint32_t (kb.json prototype); they
+ * point at a real_point3d and a real_euler_angles2d.
+ *
+ * The live camera pointer is read once into a local and tested; the reference
+ * keeps it in EAX for the stores and copies it to ECX for the position copy,
+ * which is what the struct assignment through `camera` produces.
+ *
+ * editor_camera_globals is the kb.json data symbol for the editor camera
+ * state block; no raw addresses are used here.
+ */
 void editor_camera_set_position(const uint32_t *point, const uint32_t *angles)
 {
-  uint32_t *camera_data;
+  flying_camera_t *camera;
 
-  if (point == 0) {
-    display_assert("point", "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c",
-                   0x94, 1);
-    system_exit(-1);
-  }
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x94, point);
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x95, angles);
 
-  if (angles == 0) {
-    display_assert("angles", "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c",
-                   0x95, 1);
-    system_exit(-1);
-  }
-
-  camera_data = *(uint32_t **)0x3356b0;
-  if (camera_data == 0) {
+  camera = editor_camera_globals.camera;
+  if (camera == 0) {
     editor_camera_set_focus(point, angles);
-    *(char *)0x33569a = 1;
+    editor_camera_globals.initialized = 1;
     return;
   }
 
-  camera_data[0] = point[0];
-  camera_data[1] = point[1];
-  camera_data[2] = point[2];
-  camera_data[3] = angles[0];
-  camera_data[4] = angles[1];
+  camera->position = *(const real_point3d *)point;
+  camera->facing = *(const real_euler_angles2d *)angles;
 }
 
 /* FUN_00087ac0 (0x87ac0) — set the editor/flying-camera enable byte at
@@ -1667,62 +1668,62 @@ char FUN_00087ac0(char enabled)
   return previous;
 }
 
-/* editor_camera_set_mode (0x87b00) — switch the editor/flying camera mode
- * word at 0x3356c4, running the per-mode translation callbacks on the way out
- * of the old mode and into the new one.
+/* editor_camera_set_mode (0x87b00) — switch the editor/flying camera mode,
+ * running the per-mode translation callbacks on the way out of the old mode
+ * and into the new one.
  *
- * Two parallel dispatch tables share an 8-byte-stride array of mode records:
- * the _translate_from entry lives at 0x2ee67c and the _translate_to entry at
- * 0x2ee680 (the same record, +0 and +4).  Both are indexed by the sign-
- * extended mode word (MOVSX ECX,AX / MOVSX ESI,DI) and are called cdecl with
- * the live camera-data pointer re-loaded from 0x3356b0 at each call site
- * (MOV EAX,[0x3356b0] at 0x87b60, MOV ECX,[0x3356b0] at 0x87ba4).
+ * translate_funcs is a [mode][_translate_from/_translate_to] table of
+ * callbacks taking the live editor camera.  The callbacks only run when
+ * there is a live camera and the mode actually changes; the mode store and
+ * the console_printf of the mode name happen on every path.
  *
- * The translation callbacks only run when the camera-data pointer is non-NULL
- * and the mode actually changes; the mode word store and the console_printf
- * of the mode name (dword-stride name table at 0x2ee68c) happen on every path.
  * The assert strings and line numbers (0x12e, 0x134) come from
- * editor_flying_camera.c, so they are spelled explicitly rather than via
+ * editor_flying_camera.c, so they use assert_halt_msg_at rather than
  * assert_halt (which would stamp director.c).
  *
  * The stack parameter is a 16-bit word: the reference reads it with
- * MOV DI,word ptr [EBP+0x8] and stores it back with
- * MOV word ptr [0x3356c4],DI. */
+ * MOV DI,word ptr [EBP+0x8] and stores it back with a word MOV. */
 void editor_camera_set_mode(int16_t mode)
 {
-  int16_t current;
-  const char *mode_name;
-
-  if (*(void **)0x3356b0 != 0) {
-    current = *(int16_t *)0x3356c4;
-    if (current != mode) {
-      if (current != 0) {
-        if (*(void **)(0x2ee67c + (int)current * 8) == 0) {
-          display_assert("translate_funcs[camera_mode][_translate_from]",
+  if (editor_camera_globals.camera && editor_camera_globals.mode != mode) {
+    if (editor_camera_globals.mode) {
+      assert_halt_msg_at("translate_funcs[camera_mode][_translate_from]",
                          "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c",
-                         0x12e, 1);
-          system_exit(-1);
-        }
-        (*(void (**)(void *))(0x2ee67c + (int)*(volatile int16_t *)0x3356c4 *
-                                           8))(*(void **)0x3356b0);
-      }
-
-      if (mode != 0) {
-        if (*(void **)(0x2ee680 + (int)mode * 8) == 0) {
-          display_assert("translate_funcs[mode][_translate_to]",
+                         0x12e,
+                         translate_funcs[editor_camera_globals.mode][_translate_from]);
+      translate_funcs[editor_camera_globals.mode][_translate_from](
+        editor_camera_globals.camera);
+    }
+    if (mode) {
+      assert_halt_msg_at("translate_funcs[mode][_translate_to]",
                          "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c",
-                         0x134, 1);
-          system_exit(-1);
-        }
-        (*(void (**)(void *))(0x2ee680 + (int)mode * 8))(*(void **)0x3356b0);
-      }
+                         0x134, translate_funcs[mode][_translate_to]);
+      translate_funcs[mode][_translate_to](editor_camera_globals.camera);
     }
   }
 
-  mode_name = *(const char **)(0x2ee68c + (int)mode * 4);
-  *(int16_t *)0x3356c4 = mode;
-  console_printf(0, mode_name);
+  editor_camera_globals.mode = mode;
+  console_printf(0, editor_camera_mode_names[mode]);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* 28-byte camera state block exchanged by FUN_00087c00 (0x87c00).  The
  * reference only ever moves it as seven dwords (MOV ECX,0x7 / REP MOVSD) or
@@ -2061,96 +2062,4 @@ void FUN_00088200(void *state)
   vector_to_angles((float *)&block->field_0c,
                    (float *)(*(char **)0x2ee670 + 0x1c));
   FUN_00087eb0(*(void **)0x2ee66c);
-}
-
-/* first_person_camera_new (0x88c40) — reset the first-person camera data
- * block.  Ghidra types this void(void) and reports the stack parameter as
- * in_stack_00000004; the disassembly loads it at [EBP+8] into ESI
- * (MOV ESI,[EBP+8] at 0x88c44), so it is a single cdecl pointer parameter.
- *
- * The null check at 0x88c47 (TEST ESI,ESI / JNZ 0x88c68) is an assert: the
- * pushed arguments at 0x88c4b-0x88c54 are display_assert("camera",
- * "c:\halo\SOURCE\camera\first_person_camera.c", 0x18, true) followed by
- * system_exit(-1) at 0x88c60.  The .rdata reason string is "camera", so the
- * original condition was written on a parameter of that name; the assert is
- * stamped with the first_person_camera.c TU, not director.c, so the file and
- * line are pinned with assert_halt_at.
- *
- * The body is a single dword store of 0 (MOV [ESI],0x0 at 0x88c68); the width
- * is a dword, and nothing else in the block is touched here. */
-void first_person_camera_new(void *camera)
-{
-  assert_halt_at("c:\\halo\\SOURCE\\camera\\first_person_camera.c", 0x18,
-                 camera);
-
-  *(uint32_t *)camera = 0;
-}
-
-/* FUN_00088c80 (0x88c80) — produce the first-person camera's eye position and
- * forward vector for a unit.
- *
- * Ghidra types this void(void) and reports the three cdecl arguments as
- * in_stack_00000004/8/c; the disassembly loads them at [EBP+8] (EDI, then
- * ESI after the first call), [EBP+0xc] (EBX) and [EBP+0x10] (EDI) at
- * 0x88c89/0x88c94/0x88ca0, so it is a three-parameter cdecl function.
- *
- * Baseline: unit_get_camera_position fills the caller's position vector, and the
- * unit's own aiming vector at +0x1ec..+0x1f4 is copied out as the forward
- * vector.  Both copies are plain dword moves in the reference
- * (MOV EDX,[EAX] / MOV [ECX],EDX at 0x88ca9..0x88cb8), so they are spelled as
- * dword copies here rather than float assignments.
- *
- * Override: if the unit is riding something (+0xcc is a valid object handle,
- * type mask 2), the vehicle's seat definition is fetched from the 'vehi'
- * definition's seat block at +0x2e4, indexed by the unit's seat index at
- * +0x2a0 with element size 0x11c.  The reference reads only the low byte of
- * the seat definition and branches on its sign (MOV CL,[EAX] / TEST CL,CL /
- * JNS at 0x88cfd..0x88d04) — a seat flag whose bit 7 selects the marker-driven
- * camera.  In that case the "primary trigger" marker on the vehicle supplies
- * both vectors: the marker record's forward vector at +0x3c and its position
- * at +0x60, matching the marker layout used by player_control (0x6c-byte
- * record, one marker requested).
- *
- * Note the two halves are written to opposite parameters: the marker position
- * (+0x60, read at [EBP-0xc]) goes to the EBX parameter that unit_get_camera_position
- * filled, and the marker forward (+0x3c, read at [EBP-0x30]) goes to the EDI
- * parameter that received the unit's aiming vector. */
-void FUN_00088c80(int unit_handle, float *out_position, float *out_forward)
-{
-  char *unit;
-  char *vehicle;
-  char *seat;
-  char marker_buf[0x6c]; /* object_get_marker_by_name output */
-
-  unit = (char *)object_get_and_verify_type(unit_handle, 3);
-  unit_get_camera_position(unit_handle, out_position);
-
-  ((uint32_t *)out_forward)[0] = *(uint32_t *)(unit + 0x1ec);
-  ((uint32_t *)out_forward)[1] = *(uint32_t *)(unit + 0x1f0);
-  ((uint32_t *)out_forward)[2] = *(uint32_t *)(unit + 0x1f4);
-
-  if (*(int *)(unit + 0xcc) != NONE) {
-    vehicle =
-      (char *)object_try_and_get_and_verify_type(*(int *)(unit + 0xcc), 2);
-    if (vehicle != NULL) {
-      /* one nested expression: the original cleans both calls with a single
-       * ADD ESP,0x14 at 0x88cff */
-      seat = (char *)tag_block_get_element(
-        (char *)tag_get(0x76656869 /* 'vehi' */, *(int *)vehicle) + 0x2e4,
-        *(int16_t *)(unit + 0x2a0), 0x11c);
-
-      if (*seat < 0) {
-        if (object_get_marker_by_name(*(int *)(unit + 0xcc),
-                                            (void *)"primary trigger",
-                                            marker_buf, 1) != 0) {
-          ((uint32_t *)out_position)[0] = *(uint32_t *)(marker_buf + 0x60);
-          ((uint32_t *)out_position)[1] = *(uint32_t *)(marker_buf + 0x64);
-          ((uint32_t *)out_position)[2] = *(uint32_t *)(marker_buf + 0x68);
-          ((uint32_t *)out_forward)[0] = *(uint32_t *)(marker_buf + 0x3c);
-          ((uint32_t *)out_forward)[1] = *(uint32_t *)(marker_buf + 0x40);
-          ((uint32_t *)out_forward)[2] = *(uint32_t *)(marker_buf + 0x44);
-        }
-      }
-    }
-  }
 }

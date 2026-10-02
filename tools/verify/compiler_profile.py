@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Measure VC71 optimization profiles against a fixed corpus.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Measure VC71 optimization profiles against a fixed corpus.
 
 This is deliberately a measurement lane: it never changes the production build
 or verifier defaults.  A profile is adopted only after a corpus run shows a
@@ -73,7 +76,7 @@ def score_case(source: str, function: str, opt: str) -> dict[str, Any]:
     context_path = SCORE_CONTEXT / f"{function}.json"
     result: dict[str, Any] = {
         "source": source, "function": function, "opt": opt,
-        "returncode": process.returncode,
+        "returncode": process.returncode, "metric": "mnemonic_similarity_not_raw_bytes",
     }
     if process.returncode != 0:
         result["error"] = "VC71 verifier failed"

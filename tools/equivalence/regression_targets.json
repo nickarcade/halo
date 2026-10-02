@@ -1252,7 +1252,7 @@
         "--real-callees",
         "--mem-trace",
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/player_count.json"
+        "host_snapshots/provenance-local/player_count.json"
       ],
       "reason": "real-callee + live snapshot: data_iterator loop executes over the 'players' data_array (73.4% weak -> 100% high)"
     },
@@ -1278,7 +1278,7 @@
         "--real-callees",
         "--mem-trace",
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/evaluate_game_complexity.json"
+        "host_snapshots/provenance-local/evaluate_game_complexity.json"
       ],
       "reason": "real-callee + live snapshot: player + vehicle-seat counting via data_iterator + global complexity-flag branches"
     },
@@ -1415,7 +1415,7 @@
       "seeds": 20,
       "flags": [
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/oddball_engine_update_countdown.json",
+        "host_snapshots/provenance-local/oddball_engine_update_countdown.json",
         "--allow-stubs",
         "--real-callees",
         "--trace-all-stubs",
@@ -1433,7 +1433,7 @@
       "seeds": 20,
       "flags": [
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/oddball_engine_update_spawn.json",
+        "host_snapshots/provenance-local/oddball_engine_update_spawn.json",
         "--allow-stubs",
         "--real-callees",
         "--trace-all-stubs",
@@ -1451,7 +1451,7 @@
       "seeds": 20,
       "flags": [
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/oddball_engine_update_announce.json",
+        "host_snapshots/provenance-local/oddball_engine_update_announce.json",
         "--allow-stubs",
         "--real-callees",
         "--trace-all-stubs",
@@ -1469,7 +1469,7 @@
       "seeds": 20,
       "flags": [
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/oddball_engine_update_announce_noteams.json",
+        "host_snapshots/provenance-local/oddball_engine_update_announce_noteams.json",
         "--allow-stubs",
         "--real-callees",
         "--trace-all-stubs",
@@ -1487,7 +1487,7 @@
       "seeds": 20,
       "flags": [
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/ctf_get_player_score_ctf_t700.json",
+        "host_snapshots/provenance-local/ctf_get_player_score_ctf_t700.json",
         "--allow-stubs",
         "--real-callees",
         "--trace-all-stubs",
@@ -1505,7 +1505,7 @@
       "seeds": 20,
       "flags": [
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/king_get_player_score_king_t300.json",
+        "host_snapshots/provenance-local/king_get_player_score_king_t300.json",
         "--allow-stubs",
         "--real-callees",
         "--trace-all-stubs",
@@ -1523,7 +1523,7 @@
       "seeds": 20,
       "flags": [
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/oddball_get_player_score_oddball_t1200.json",
+        "host_snapshots/provenance-local/oddball_get_player_score_oddball_t1200.json",
         "--allow-stubs",
         "--real-callees",
         "--trace-all-stubs",
@@ -1541,7 +1541,7 @@
       "seeds": 20,
       "flags": [
         "--state-snapshot",
-        "tools/equivalence/regression_snapshots/race_get_player_score_race_t300.json",
+        "host_snapshots/provenance-local/race_get_player_score_race_t300.json",
         "--allow-stubs",
         "--real-callees",
         "--trace-all-stubs",

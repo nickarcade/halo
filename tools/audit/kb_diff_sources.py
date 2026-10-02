@@ -9,7 +9,8 @@ change but not for the common case of a rename/ported-flag/decl edit
 touching a handful of functions. This script narrows that: it diffs kb.json
 structurally (by address, not by line) and reports only the source files that
 own a changed, added, or removed function, so the gate can pass them to
-`vc71_regression.py check --strict --source <files>` instead of a full sweep.
+`vc71_regression.py mnemonic-check --strict --source <files>` for explicit mnemonic analysis.
+Raw-XBE regression gates check all callers after KB edits.
 
 Usage: kb_diff_sources.py --base <git-rev> [--head <git-rev-or-omit-for-worktree>]
 """

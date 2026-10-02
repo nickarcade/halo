@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Triage batch_verify divergences and maintain the divergence ledger.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Triage batch_verify divergences and maintain the divergence ledger.
 
 A batch reports N divergences; that number is not actionable on its own,
 because most divergences are produced by the harness rather than by the lift.
@@ -892,7 +895,7 @@ def print_bug_list(ledger: dict, limit: int = 0) -> None:
     print(f"\n{'='*104}")
     print(f"PRIORITIZED BUG LIST ({len(open_real)} suspect-real)")
     print(f"{'='*104}")
-    print(f"{'Pri':<4} {'Function':<48} {'VC71':>6}  {'Seeds':>6}  {'Category':<14} Evidence")
+    print(f"{'Pri':<4} {'Function':<48} {'Mnemonic':>8}  {'Seeds':>6}  {'Category':<14} Evidence")
     print(f"{'-'*4} {'-'*48} {'-'*6}  {'-'*6}  {'-'*14} {'-'*20}")
     for e in open_real:
         vc = f"{e['vc71_match']:.1f}" if e["vc71_match"] is not None else "  n/a"

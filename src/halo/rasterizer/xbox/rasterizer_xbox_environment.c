@@ -1,3 +1,9 @@
+/* 0x160910 — empty body.
+ * Binary: bare RET (C3). */
+void _rasterizer_environment_lightmap_end(void)
+{
+}
+
 /* 0x160920 — end rasterizer profile section 3.
  * Binary: PUSH 0x3 / CALL FUN_0016fa40 / POP ECX / RET.
  * FUN_0016fa40 takes an int16_t profile index; the semantic role of the
@@ -5,6 +11,12 @@
 void _rasterizer_environment_lightmaps_end(void)
 {
   FUN_0016fa40(3);
+}
+
+/* 0x160930 — empty body.
+ * Binary: bare RET (C3). */
+void _rasterizer_environment_diffuse_light_end(void)
+{
 }
 
 /* 0x160940 — begin the HUD rasterizer profile section.
@@ -26,12 +38,24 @@ void _rasterizer_environment_diffuse_textures_end(void)
   FUN_0016fa40(8);
 }
 
+/* 0x160970 — empty body.
+ * Binary: bare RET (C3). */
+void _rasterizer_hud_end(void)
+{
+}
+
 /* 0x160980 — end rasterizer profile section 0xb.
  * Binary: PUSH 0xb / CALL FUN_0016fa40 / POP ECX / RET.
  * The profile index semantic role is unproven. */
 void _rasterizer_environment_specular_lights_end(void)
 {
   FUN_0016fa40(0xb);
+}
+
+/* 0x160990 — empty body.
+ * Binary: bare RET (C3). */
+void FUN_00160990(void)
+{
 }
 
 /* 0x1609a0 — end rasterizer profile section 0xc.
@@ -190,6 +214,12 @@ void FUN_001609b0(void *shader, int a2, int vertices_per_primitive, int a4,
       }
     }
   }
+}
+
+/* 0x160bb0 — empty body.
+ * Binary: bare RET (C3). */
+void FUN_00160bb0(void)
+{
 }
 
 /* 0x160bc0 — begin rasterizer profile section 0xd.
@@ -1065,6 +1095,212 @@ void FUN_00161f00(void)
   }
 }
 
+/* Light definition fields read by 0x1621c0.  The three period names come
+ * from the assert strings at __FILE__ lines 0x2ec..0x2ee
+ * ("light->definition->gel.yaw_period>0.0f" and the pitch/roll forms).  Each
+ * *_function word is the short passed to FUN_0010a5e0 together with its
+ * period, at -2 from that period.  The enclosing gel sub-struct start is
+ * unproven, so the fields are flat here.
+ *   +0x70  dword passed to rasterizer_set_texture as bitmap_tag_index */
+typedef struct {
+  char pad_00[0x70];
+  int32_t field_70;       /* offset=0x70 */
+  char pad_74[0x1a];
+  int16_t yaw_function;   /* offset=0x8e */
+  real yaw_period;        /* offset=0x90 */
+  char pad_94[2];
+  int16_t roll_function;  /* offset=0x96 */
+  real roll_period;       /* offset=0x98 */
+  char pad_9c[2];
+  int16_t pitch_function; /* offset=0x9e */
+  real pitch_period;      /* offset=0xa0 */
+} rasterizer_light_definition_t;
+co(rasterizer_light_definition_t, field_70, 0x70);
+co(rasterizer_light_definition_t, yaw_function, 0x8e);
+co(rasterizer_light_definition_t, yaw_period, 0x90);
+co(rasterizer_light_definition_t, roll_function, 0x96);
+co(rasterizer_light_definition_t, roll_period, 0x98);
+co(rasterizer_light_definition_t, pitch_function, 0x9e);
+co(rasterizer_light_definition_t, pitch_period, 0xa0);
+
+/* One rasterizer_lights entry: base 0x5a37e4, stride 0x38
+ * (IMUL ESI,ESI,0x38 at 0x16223d), count at 0x5a37e0.
+ *   +0x00  definition  (assert text "light->definition->gel...")
+ *   +0x04  position    three dwords copied raw into vs constant 0 .xyz
+ *   +0x10  forward     rotated into the 3x3 frame's forward row
+ *   +0x1c  up          rotated into the 3x3 frame's up row
+ *   +0x28  color       passed to real_rgb_color_to_pixel32
+ *   +0x34  radius      (assert text "light->radius>0.0f") */
+typedef struct {
+  rasterizer_light_definition_t *definition; /* offset=0x00 */
+  real_point3d position;                     /* offset=0x04 */
+  real_vector3d forward;                     /* offset=0x10 */
+  real_vector3d up;                          /* offset=0x1c */
+  real_rgb_color color;                      /* offset=0x28 */
+  real radius;                               /* offset=0x34 */
+} rasterizer_light_t;
+cs(rasterizer_light_t, 0x38);
+co(rasterizer_light_t, position, 0x04);
+co(rasterizer_light_t, forward, 0x10);
+co(rasterizer_light_t, up, 0x1c);
+co(rasterizer_light_t, color, 0x28);
+co(rasterizer_light_t, radius, 0x34);
+
+/* 0x1621c0 — set up the environment diffuse-light gel pass for one rasterizer
+ * light: bind the light definition's gel bitmap to stage 1 (clamp, linear),
+ * rotate the light's forward/up by yaw/pitch/roll taken from three periodic
+ * functions of game time, upload position + 0.5/radius and the negated basis
+ * as five vertex-shader constants at -0x51, and set render state 0x40a60
+ * (shadowed at 0x1fb6c0) to the light color as a pixel32.
+ *
+ * Signature: sole caller 0x17cc60 is a tail-jump thunk forwarding its own
+ * stack argument; the body reads [EBP+8] (MOV ESI,[EBP+8] at 0x16220e) and
+ * returns with a bare RET, so cdecl with one int.  Assert text names it
+ * light_index.
+ *
+ * Frame: 0x80 bytes.  The 3x3 frame lives at EBP-0x30 (forward -0x30, left
+ * -0x24, up -0x18), the angles at -0xc/-0x8/-0x4 and the 4x3 rotation at
+ * -0x64; the 20-float constant buffer at -0x80 reuses the rotation's slots
+ * after it dies, so the two live in disjoint inner blocks.
+ *
+ * The cross product is inlined (no CALL): left = forward x up, each component
+ * stored straight into the frame's left row, then normalize3d (result
+ * discarded, FSTP ST0 at 0x162484).
+ *
+ * Globals:
+ *   0x476ab0  void *  global_d3d_device (assert at __FILE__ line 0x2d3)
+ *   0x3256bc  uint16  mode selector; only value 0 is accepted
+ *   0x3256cb  uint8   enable flag (must be non-zero)
+ *   0x5a5e18  float   game time in seconds (also read by
+ *                     rasterizer_xbox_environment_fog.c)
+ *   0x2533c0 = 0.0f, 0x255a54 = 2*pi, 0x253398 = 0.5f */
+void FUN_001621c0(int light_index)
+{
+  rasterizer_light_t *light;
+  real_matrix3x3 gel_matrix;
+  unsigned int color;
+
+  if (*(void **)0x476ab0 == 0) {
+    display_assert(
+      "global_d3d_device",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+      0x2d3, true);
+    system_exit(-1);
+  }
+
+  if (*(uint16_t *)0x3256bc == 0 && *(uint8_t *)0x3256cb != 0) {
+    if (light_index < 0 || light_index >= *(int *)0x5a37e0) {
+      display_assert(
+        "light_index>=0 && light_index<rasterizer_lights.light_count",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+        0x2d9, true);
+      system_exit(-1);
+    }
+
+    light = (rasterizer_light_t *)0x5a37e4 + light_index;
+
+    if (!(light->radius > *(float *)0x2533c0)) {
+      display_assert(
+        "light->radius>0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+        0x2dc, true);
+      system_exit(-1);
+    }
+
+    rasterizer_set_texture(1, 2, 1, light->definition->field_70, 0);
+    D3DDevice_SetTextureStageState(1, 10, 3);
+    D3DDevice_SetTextureStageState(1, 0xb, 3);
+    D3DDevice_SetTextureStageState(1, 0xc, 3);
+    D3DDevice_SetTextureStageState(1, 0xd, 2);
+    D3DDevice_SetTextureStageState(1, 0xe, 2);
+    D3DDevice_SetTextureStageState(1, 0xf, 2);
+
+    if (!(light->definition->yaw_period > *(float *)0x2533c0)) {
+      display_assert(
+        "light->definition->gel.yaw_period>0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+        0x2ec, true);
+      system_exit(-1);
+    }
+    if (!(light->definition->pitch_period > *(float *)0x2533c0)) {
+      display_assert(
+        "light->definition->gel.pitch_period>0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+        0x2ed, true);
+      system_exit(-1);
+    }
+    if (!(light->definition->roll_period > *(float *)0x2533c0)) {
+      display_assert(
+        "light->definition->gel.roll_period>0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+        0x2ee, true);
+      system_exit(-1);
+    }
+
+    {
+      {
+        real yaw = FUN_0010a5e0(light->definition->yaw_function,
+                                *(float *)0x5a5e18 /
+                                  light->definition->yaw_period) *
+                   *(float *)0x255a54;
+        real pitch = FUN_0010a5e0(light->definition->pitch_function,
+                                  *(float *)0x5a5e18 /
+                                    light->definition->pitch_period) *
+                     *(float *)0x255a54;
+        real roll = FUN_0010a5e0(light->definition->roll_function,
+                                 *(float *)0x5a5e18 /
+                                   light->definition->roll_period) *
+                    *(float *)0x255a54;
+        real_matrix4x3 rotation;
+
+        FUN_00109e90((float *)&rotation, yaw, pitch, roll);
+        matrix_transform_vector((float *)&rotation, (float *)&light->forward,
+                                (float *)&gel_matrix.forward);
+        matrix_transform_vector((float *)&rotation, (float *)&light->up,
+                                (float *)&gel_matrix.up);
+      }
+
+      gel_matrix.left.i = gel_matrix.up.k * gel_matrix.forward.j -
+                          gel_matrix.up.j * gel_matrix.forward.k;
+      gel_matrix.left.j = gel_matrix.up.i * gel_matrix.forward.k -
+                          gel_matrix.up.k * gel_matrix.forward.i;
+      gel_matrix.left.k = gel_matrix.up.j * gel_matrix.forward.i -
+                          gel_matrix.up.i * gel_matrix.forward.j;
+      normalize3d((float *)&gel_matrix.left);
+
+      {
+        real vertex_constants[20];
+
+        vertex_constants[0] = light->position.x;
+        vertex_constants[1] = light->position.y;
+        vertex_constants[2] = light->position.z;
+        vertex_constants[3] = 0.5f / light->radius;
+        vertex_constants[4] = -gel_matrix.forward.i;
+        vertex_constants[5] = -gel_matrix.forward.j;
+        vertex_constants[6] = -gel_matrix.forward.k;
+        vertex_constants[7] = 1.0f;
+        vertex_constants[8] = -gel_matrix.left.i;
+        vertex_constants[9] = -gel_matrix.left.j;
+        vertex_constants[10] = -gel_matrix.left.k;
+        vertex_constants[11] = 1.0f;
+        vertex_constants[12] = -gel_matrix.up.i;
+        vertex_constants[13] = -gel_matrix.up.j;
+        vertex_constants[14] = -gel_matrix.up.k;
+        vertex_constants[15] = 1.0f;
+        vertex_constants[16] = 0.0f;
+        vertex_constants[17] = 0.0f;
+        vertex_constants[18] = 0.0f;
+        vertex_constants[19] = 1.0f;
+        D3DDevice_SetVertexShaderConstant(-0x51, vertex_constants, 5);
+      }
+    }
+
+    color = real_rgb_color_to_pixel32((float *)&light->color);
+    D3DDevice_SetRenderState_Simple(0x40a60, color);
+    *(unsigned long *)0x1fb6c0 = color;
+  }
+}
+
 /* 0x162560 — draw one environment geometry batch with the shader's lightmap
  * bitmap (or no bitmap) bound to texture stage 0.
  *
@@ -1352,28 +1588,19 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
                   int vertices_per_primitive, int a4, int triangle_count,
                   int vertex_buffer_arg)
 {
-  void *shader;
-  void *vbuf;
   void *shader_data;
   void *texture_globals;
   float constants[12];
-  uint32_t size0; /* EBP-0x04 */
-  uint32_t size1; /* EBP-0x08 */
-  uint32_t size2; /* EBP-0x10 */
-  uint32_t size3; /* EBP-0x1c */
-  float stage1_u; /* EBP-0x24 */
-  float stage1_v; /* EBP-0x20 */
-  float stage2_u; /* EBP-0x0c */
-  float stage2_v; /* EBP-0x08 */
-  float stage3_u; /* EBP-0x18 */
-  float stage3_v; /* ST0 */
-  float size0_u;
-  float size0_v; /* EBP-0x04 */
+  /* bitmap size: two int16 halves read back with MOVSX word */
+  struct fun_00162920_size {
+    int16_t x;
+    int16_t y;
+  } size0, size1, size2, size3; /* EBP-0x04 / -0x08 / -0x10 / -0x1c */
+  real_vector2d stage1; /* EBP-0x24 */
+  real_vector2d stage2; /* EBP-0x0c */
+  real_vector2d stage3; /* EBP-0x18; .j stays in ST0 */
   int permutation;
   int static_vertices;
-
-  shader = (void *)shader_arg;
-  vbuf = (void *)vertex_buffer_arg;
 
   if (*(void **)0x476ab0 == 0) {
     display_assert(
@@ -1393,15 +1620,15 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
     return;
   }
 
-  if (shader == 0) {
+  if ((void *)shader_arg == 0) {
     display_assert(
       "shader",
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
       0x3d5, true);
     system_exit(-1);
   }
-  shader_data = FUN_001906b0(shader, 3);
-  if (vbuf == 0) {
+  shader_data = FUN_001906b0((void *)shader_arg, 3);
+  if ((void *)vertex_buffer_arg == 0) {
     display_assert(
       "vertex_buffer",
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
@@ -1409,10 +1636,10 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
     system_exit(-1);
   }
 
-  permutation = shader_get_vertex_shader_permutation(shader);
-  FUN_00178b40(0x28, *(uint16_t *)vbuf, permutation);
+  permutation = shader_get_vertex_shader_permutation((void *)shader_arg);
+  FUN_00178b40(0x28, *(uint16_t *)vertex_buffer_arg, permutation);
 
-  size0 = *(uint32_t *)rasterizer_set_texture(
+  size0 = *(struct fun_00162920_size *)rasterizer_set_texture(
     0, 0, 1, *(int *)((char *)shader_data + 0x94), frame_index_arg);
   D3DDevice_SetTextureStageState(0, 10, 1);
   D3DDevice_SetTextureStageState(0, 0xb, 1);
@@ -1420,7 +1647,7 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
   D3DDevice_SetTextureStageState(0, 0xe, 2);
   D3DDevice_SetTextureStageState(0, 0xf, 2);
 
-  size1 = *(uint32_t *)rasterizer_set_texture(
+  size1 = *(struct fun_00162920_size *)rasterizer_set_texture(
     1, 0, 2, *(int *)((char *)shader_data + 0xc4), frame_index_arg);
   D3DDevice_SetTextureStageState(1, 10, 1);
   D3DDevice_SetTextureStageState(1, 0xb, 1);
@@ -1428,7 +1655,7 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
   D3DDevice_SetTextureStageState(1, 0xe, 2);
   D3DDevice_SetTextureStageState(1, 0xf, 2);
 
-  size2 = *(uint32_t *)rasterizer_set_texture(
+  size2 = *(struct fun_00162920_size *)rasterizer_set_texture(
     2, 0, 2, *(int *)((char *)shader_data + 0xd8), frame_index_arg);
   D3DDevice_SetTextureStageState(2, 10, 1);
   D3DDevice_SetTextureStageState(2, 0xb, 1);
@@ -1436,7 +1663,7 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
   D3DDevice_SetTextureStageState(2, 0xe, 2);
   D3DDevice_SetTextureStageState(2, 0xf, 2);
 
-  size3 = *(uint32_t *)rasterizer_set_texture(
+  size3 = *(struct fun_00162920_size *)rasterizer_set_texture(
     3, 0, 2, *(int *)((char *)shader_data + 0x108), frame_index_arg);
   D3DDevice_SetTextureStageState(3, 10, 1);
   D3DDevice_SetTextureStageState(3, 0xb, 1);
@@ -1445,38 +1672,36 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
   D3DDevice_SetTextureStageState(3, 0xf, 2);
 
   if (*(uint8_t *)((char *)shader_data + 0x6c) & 1) {
-    size0_u = (float)(int16_t)(size0 & 0xffff);
-    size0_v = (float)(int16_t)(size0 >> 16);
-    stage1_u = size0_u / (float)(int16_t)(size1 & 0xffff);
-    stage1_v = size0_v / (float)(int16_t)(size1 >> 16);
-    stage2_u = size0_u / (float)(int16_t)(size2 & 0xffff);
-    stage2_v = size0_v / (float)(int16_t)(size2 >> 16);
-    stage3_u = size0_u / (float)(int16_t)(size3 & 0xffff);
-    stage3_v = size0_v / (float)(int16_t)(size3 >> 16);
+    stage1.i = (float)size0.x / (float)size1.x;
+    stage1.j = (float)size0.y / (float)size1.y;
+    stage2.i = (float)size0.x / (float)size2.x;
+    stage2.j = (float)size0.y / (float)size2.y;
+    stage3.i = (float)size0.x / (float)size3.x;
+    stage3.j = (float)size0.y / (float)size3.y;
   } else {
-    stage3_v = 1.0f;
-    stage3_u = 1.0f;
-    stage2_v = 1.0f;
-    stage2_u = 1.0f;
-    stage1_v = 1.0f;
-    stage1_u = 1.0f;
+    stage3.j = 1.0f;
+    stage3.i = 1.0f;
+    stage2.j = 1.0f;
+    stage2.i = 1.0f;
+    stage1.j = 1.0f;
+    stage1.i = 1.0f;
   }
 
   texture_globals = *(void **)0x5a5e18;
-  constants[0] = stage1_u * *(float *)((char *)shader_data + 0xb4);
-  constants[1] = stage1_v * *(float *)((char *)shader_data + 0xb4);
+  constants[0] = stage1.i * *(float *)((char *)shader_data + 0xb4);
+  constants[1] = stage1.j * *(float *)((char *)shader_data + 0xb4);
   constants[4] = 1.0f;
   constants[5] = 0.0f;
   constants[7] = 0.0f;
   constants[8] = 0.0f;
-  constants[2] = stage2_u * *(float *)((char *)shader_data + 0xc8);
+  constants[2] = stage2.i * *(float *)((char *)shader_data + 0xc8);
   constants[9] = 1.0f;
   constants[11] = 0.0f;
-  constants[3] = stage2_v * *(float *)((char *)shader_data + 0xc8);
-  constants[6] = stage3_u * *(float *)((char *)shader_data + 0xf8);
-  constants[10] = stage3_v * *(float *)((char *)shader_data + 0xf8);
+  constants[3] = stage2.j * *(float *)((char *)shader_data + 0xc8);
+  constants[6] = stage3.i * *(float *)((char *)shader_data + 0xf8);
+  constants[10] = stage3.j * *(float *)((char *)shader_data + 0xf8);
   shader_environment_texture_animation_evaluate(
-    shader, texture_globals, &constants[7], &constants[11]);
+    (void *)shader_arg, texture_globals, &constants[7], &constants[11]);
 
   D3DDevice_SetVertexShaderConstant(-0x54, &constants[0], 3);
 
@@ -1491,12 +1716,21 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
     *(uint32_t *)0x5a5ac4 = 0x181c0000;
     *(uint32_t *)0x5a5b2c = 0xc0;
     *(uint32_t *)0x5a5b28 = 0xc00;
+    *(uint32_t *)0x5a5b74 = 0xc00;
     break;
   case 1:
     *(uint32_t *)0x5a5ac0 = 0x381a1819;
     *(uint32_t *)0x5a5b48 = 0x380a1809;
     *(uint32_t *)0x5a5b2c = 0;
     *(uint32_t *)0x5a5b28 = 0xc00;
+    *(uint32_t *)0x5a5b74 = 0xc00;
+    break;
+  case 2:
+    *(uint32_t *)0x5a5ac0 = 0x18200000;
+    *(uint32_t *)0x5a5b28 = 0xc0;
+    *(uint32_t *)0x5a5b48 = 0x380a1809;
+    *(uint32_t *)0x5a5b2c = 0;
+    *(uint32_t *)0x5a5b74 = 0xc00;
     break;
   default:
     display_assert(
@@ -1504,21 +1738,21 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
       0x479, true);
     system_exit(-1);
-  case 2:
-    *(uint32_t *)0x5a5ac0 = 0x18200000;
-    *(uint32_t *)0x5a5b28 = 0xc0;
-    *(uint32_t *)0x5a5b48 = 0x380a1809;
-    *(uint32_t *)0x5a5b2c = 0;
     break;
   }
-  *(uint32_t *)0x5a5b74 = 0xc00;
 
   switch (*(int16_t *)((char *)shader_data + 0xb0)) {
   case 0:
     *(uint32_t *)0x5a5b4c = 0x80c080c;
+    *(uint32_t *)0x5a5b78 = 0xc00;
     break;
   case 1:
     *(uint32_t *)0x5a5b4c = 0x80c0000;
+    *(uint32_t *)0x5a5b78 = 0xc00;
+    break;
+  case 2:
+    *(uint32_t *)0x5a5b4c = 0x8204c20;
+    *(uint32_t *)0x5a5b78 = 0xc00;
     break;
   default:
     display_assert(
@@ -1526,20 +1760,23 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
       0x48b, true);
     system_exit(-1);
-  case 2:
-    *(uint32_t *)0x5a5b4c = 0x8204c20;
     break;
   }
-  *(uint32_t *)0x5a5b78 = 0xc00;
   *(uint32_t *)0x5a5ac8 = 0x1c1b0000;
   *(uint32_t *)0x5a5b30 = 0xc0;
 
   switch (*(int16_t *)((char *)shader_data + 0xf4)) {
   case 0:
     *(uint32_t *)0x5a5b50 = 0xc0b0c0b;
+    *(uint32_t *)0x5a5b7c = 0xc00;
     break;
   case 1:
     *(uint32_t *)0x5a5b50 = 0xc0b0000;
+    *(uint32_t *)0x5a5b7c = 0xc00;
+    break;
+  case 2:
+    *(uint32_t *)0x5a5b50 = 0xc204b20;
+    *(uint32_t *)0x5a5b7c = 0xc00;
     break;
   default:
     display_assert(
@@ -1547,11 +1784,8 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
       0x4a0, true);
     system_exit(-1);
-  case 2:
-    *(uint32_t *)0x5a5b50 = 0xc204b20;
     break;
   }
-  *(uint32_t *)0x5a5b7c = 0xc00;
 
   *(uint32_t *)0x5a5ae4 = 0x1c00;
   switch (*(int16_t *)0x3256bc) {
@@ -1580,7 +1814,7 @@ void FUN_00162920(int shader_arg, int frame_index_arg,
   rasterizer_set_pixel_shader((void *)0x5a5ac0);
   rasterizer_draw_dynamic_triangles_static_vertices(
     vertices_per_primitive, a4, triangle_count,
-    vbuf);
+    (void *)vertex_buffer_arg);
 
   if (*(uint16_t *)0x3256ba == 2) {
     *(int *)0x5a5468 = *(int *)0x5a5468 + 1;
@@ -1663,6 +1897,173 @@ void FUN_00162f90(void)
     D3DDevice_SetRenderState_Simple(0x4035c, 0);
     *(unsigned long *)0x1fb798 = 0;
     D3DDevice_SetRenderState_ZBias(0);
+  }
+}
+
+/* 0x1631d0 — set up the gel-mapped (spot) specular lighting pass for one
+ * rasterizer light: upload five vertex-shader constants built from the
+ * light's position and orientation basis, bind the gel bitmap to texture
+ * stage 1, program that stage, and install the pixel shader built in the
+ * shared 0x5a5ac0 block.  Only caller: FUN_00163590, on its deferred path.
+ *
+ * Signature: MOV ESI,EAX at 0x1631da is the only read of the argument
+ * (@<eax>); the function ends in a bare RET.  The assert string at 0x525
+ * names it light_index.
+ *
+ * Light record: base 0x5a37e4, stride 0x38 (IMUL ESI,ESI,0x38 at 0x16324c),
+ * count at 0x5a37e0.  Offsets read here:
+ *   +0x00  owner light definition (char *, see below)
+ *   +0x04..+0x0c  three dwords copied verbatim into vs constant 0 (raw MOVs)
+ *   +0x10  vector copied as raw dwords (forward), negated into constant 1 and
+ *          scaled into constant 4
+ *   +0x1c  vector copied as raw dwords (up), negated into constant 3
+ *   +0x34  radius (assert "light->radius>0.0f" at 0x528:
+ *          FLD/FCOMP [0x2533c0] / TEST AH,0x41 / JZ)
+ * Owner fields: +0x70 bitmap tag index, replaced by +0x88 when it is -1
+ * (CMP EDI,-1 at 0x16328c); +0x24 is light_definition_t's
+ * specular_radius_multiplier (FLD [EAX+0x24] at 0x1632ff).  The owner is
+ * re-read from the record for that FLD (MOV EAX,[ESI] at 0x1632fd).
+ *
+ * The side vector is the cross product forward x up, written inline (the
+ * three FSUBP blocks at 0x163297..0x1632f3 store i, j, k in order), and is
+ * then normalized in place (CALL 0x13010; the result is discarded with
+ * FSTP ST0).  The cross product reads the record through two pointers
+ * (LEA EAX,[ESI+0x10] / LEA ECX,[ESI+0x1c]), not the stack copies.
+ *
+ * Stack: a real_matrix4x3 local spans EBP-0x34..-0x1 (SUB ESP,0x84 =
+ * 0x50 vertex constants + 0x34 matrix).  Only its forward (-0x30), left
+ * (-0x24) and up (-0x18) rows are written; scale (-0x34) and position
+ * (-0xc) are never touched.
+ *
+ * Constants: 0x2533c0 = 0.0f, 0x253398 = 0.5f, 0x2533c8 = 1.0f.
+ * The 0x5a5ac0 store order and the call order are binary-fixed. */
+void FUN_001631d0(int light_index)
+{
+  /* Same 0x38-byte record as rasterizer_light_t; vector3_t rows here so the
+   * forward/up copies assign straight into real_matrix4x3's rows. */
+  struct point_light_t {
+    char *owner;
+    real_point3d position;
+    vector3_t forward;
+    vector3_t up;
+    float field_28[3];
+    float radius;
+  };
+  const struct point_light_t *light;
+  int gel_bitmap_index;
+  real_matrix4x3 matrix;
+  float vertex_constants[20];
+  float radius;
+  float cone_scale;
+
+  if (*(void **)0x476ab0 == 0) {
+    display_assert(
+      "global_d3d_device",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+      0x51f, true);
+    system_exit(-1);
+  }
+
+  if (*(uint16_t *)0x3256bc == 0 && *(uint8_t *)0x3256ce != 0) {
+    if (light_index < 0 || light_index >= *(int *)0x5a37e0) {
+      display_assert(
+        "light_index>=0 && light_index<rasterizer_lights.light_count",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+        0x525, true);
+      system_exit(-1);
+    }
+
+    light = (const struct point_light_t *)0x5a37e4 + light_index;
+
+    if (!(light->radius > 0.0f)) {
+      display_assert(
+        "light->radius>0.0f",
+        "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment.c",
+        0x528, true);
+      system_exit(-1);
+    }
+
+    gel_bitmap_index = *(int *)(light->owner + 0x70);
+    if (gel_bitmap_index == NONE) {
+      gel_bitmap_index = *(int *)(light->owner + 0x88);
+    }
+
+    matrix.forward = light->forward;
+    matrix.up = light->up;
+    {
+      const vector3_t *a = &light->forward;
+      const vector3_t *b = &light->up;
+      matrix.left.x = a->y * b->z - a->z * b->y;
+      matrix.left.y = a->z * b->x - a->x * b->z;
+      matrix.left.z = a->x * b->y - a->y * b->x;
+    }
+    normalize3d((float *)&matrix.left);
+
+    radius = *(float *)(light->owner + 0x24) * light->radius;
+    cone_scale = 1.0f / (radius - radius * 0.5f);
+
+    *(real_point3d *)&vertex_constants[0] = light->position;
+    vertex_constants[3] = 0.5f / radius;
+    vertex_constants[4] = -matrix.forward.x;
+    vertex_constants[5] = -matrix.forward.y;
+    vertex_constants[6] = -matrix.forward.z;
+    vertex_constants[7] = 1.0f;
+    vertex_constants[8] = -matrix.left.x;
+    vertex_constants[9] = -matrix.left.y;
+    vertex_constants[10] = -matrix.left.z;
+    vertex_constants[11] = 1.0f;
+    vertex_constants[12] = -matrix.up.x;
+    vertex_constants[13] = -matrix.up.y;
+    vertex_constants[14] = -matrix.up.z;
+    vertex_constants[15] = 1.0f;
+    vertex_constants[16] = matrix.forward.x * cone_scale;
+    vertex_constants[17] = matrix.forward.y * cone_scale;
+    vertex_constants[18] = matrix.forward.z * cone_scale;
+    vertex_constants[19] = -(cone_scale * (radius * 0.5f));
+
+    D3DDevice_SetVertexShaderConstant(-0x51, vertex_constants, 5);
+
+    rasterizer_set_texture(1, 2, 1, gel_bitmap_index, 0);
+
+    D3DDevice_SetTextureStageState(1, 10, 3);
+    D3DDevice_SetTextureStageState(1, 0xb, 3);
+    D3DDevice_SetTextureStageState(1, 0xc, 3);
+    D3DDevice_SetTextureStageState(1, 0xd, 2);
+    D3DDevice_SetTextureStageState(1, 0xe, 2);
+    D3DDevice_SetTextureStageState(1, 0xf, 2);
+
+    csmemset((void *)0x5a5ac0, 0, 0xf0);
+    *(unsigned long *)0x5a5b98 = 0x18c61;
+    *(unsigned long *)0x5a5b94 = 0x11006;
+    *(unsigned long *)0x5a5ae8 = 0xff;
+    *(unsigned long *)0x5a5ac0 = 0x4b204b20;
+    *(unsigned long *)0x5a5b28 = 0x20400;
+    *(unsigned long *)0x5a5b48 = 0x484a0000;
+    *(unsigned long *)0x5a5b74 = 0x20c0;
+    *(unsigned long *)0x5a5aec = 0xff;
+    *(unsigned long *)0x5a5ac4 = 0x4a204a20;
+    *(unsigned long *)0x5a5b2c = 0x20500;
+    *(unsigned long *)0x5a5b4c = 0x48cc8a40;
+    *(unsigned long *)0x5a5b78 = 0x10d00;
+    *(unsigned long *)0x5a5ac8 = 0x2c120c11;
+    *(unsigned long *)0x5a5b30 = 0xc00;
+    *(unsigned long *)0x5a5b50 = 0xcd4b0809;
+    *(unsigned long *)0x5a5b7c = 0x20d0;
+    *(unsigned long *)0x5a5acc = 0xd0d1415;
+    *(unsigned long *)0x5a5b34 = 0xd5;
+    *(unsigned long *)0x5a5b54 = 0x2c020c01;
+    *(unsigned long *)0x5a5b80 = 0xc00;
+    *(unsigned long *)0x5a5ad0 = 0x1d1d151c;
+    *(unsigned long *)0x5a5b38 = 0xd5;
+    *(unsigned long *)0x5a5b58 = 0xc091c09;
+    *(unsigned long *)0x5a5b84 = 0x110cd;
+    *(unsigned long *)0x5a5ad4 = 0x1d1d0000;
+    *(unsigned long *)0x5a5b3c = 0xd0;
+    *(unsigned long *)0x5a5b5c = 0xc150d1d;
+    *(unsigned long *)0x5a5b88 = 0x10cd;
+    *(unsigned long *)0x5a5ae0 = 0xc0f0000;
+    *(unsigned long *)0x5a5ae4 = 0x1d330d00;
+    rasterizer_set_pixel_shader((void *)0x5a5ac0);
   }
 }
 

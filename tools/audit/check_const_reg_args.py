@@ -11,7 +11,7 @@ This bug is invisible to every gate we already have:
 
 * It never crashes and never trips an assert -- the callee gets a valid-looking
   handle (datum handle 0 is a real player), just the wrong one.
-* VC71 byte-match does NOT catch it and frequently *rewards* it: the wrong
+* VC71 mnemonic match does NOT catch it and frequently *rewards* it: the wrong
   ``push 0`` is one instruction, while the correct ``push [ebp+N]`` can be two,
   and neither matches the original's ``push ebx`` when the parameter arrives in
   a register. Fixing FUN_000acd00 on 2026-07-31 LOWERED its score 85.7 -> 82.1.

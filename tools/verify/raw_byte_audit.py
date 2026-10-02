@@ -64,7 +64,9 @@ def _same_symbol(left, right):
         if "@" in name and name.rsplit("@", 1)[1].isdigit():
             name = name.rsplit("@", 1)[0]
         return name
-    return undecorate(left) == undecorate(right)
+    # A C name that itself starts with "_" is decorated to "__name"; stripping
+    # both sides would compare "_name" against "name" and never match.
+    return undecorate(left) in (undecorate(right), right)
 
 
 def extract_coff_function(obj_path, function):

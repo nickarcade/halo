@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+
 Matching percentage tracking using objdiff (clang mnemonic sequence similarity).
 
 NOTE: This computes a *clang*-build vs original mnemonic-sequence similarity. It is

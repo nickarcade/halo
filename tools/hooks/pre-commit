@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Portable entry point for: git config core.hooksPath tools/hooks
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+exec bash "$ROOT/tools/hooks/pre-commit.sh" "$@"

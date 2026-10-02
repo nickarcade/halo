@@ -4,7 +4,7 @@
 When Git squashes multiple commits (via interactive rebase, merge --squash, etc.),
 it concatenates the original commit messages together. This script detects and
 consolidates those messages into the repository's standard single-commit format:
-  - Exactly one synthesized subject line (with batch count or function names, object, and average VC71 score)
+  - Exactly one synthesized subject line (with batch count or function names, object, and average mnemonic similarity)
   - A single deduplicated 'Functions ported:' section sorted by address
   - Consolidated 'Functions renamed:' and 'Callee decls corrected:' sections
   - A single net 'Coverage:' line (e.g. start% -> end% (count/total symbols))
@@ -27,7 +27,7 @@ from collections import Counter
 from pathlib import Path
 
 PORTED_LINE_RE = re.compile(
-    r"^-\s*(\*?\w+)\s*@\s*(0x[0-9a-fA-F]+)\s*\(([^)]+)\)(?:\s*\[([\d.]+)%\s*VC71(?:,\s*(\d+)/(\d+)\s*insns)?\])?$"
+    r"^-\s*(\*?\w+)\s*@\s*(0x[0-9a-fA-F]+)\s*\(([^)]+)\)(?:\s*\[([\d.]+)%\s*(?:VC71|mnemonic similarity)(?:,\s*(\d+)/(\d+)\s*insns)?\])?$"
 )
 RENAMED_LINE_RE = re.compile(
     r"^-\s*(\w+)\s*->\s*(\w+)\s*@\s*(0x[0-9a-fA-F]+)\s*\(([^)]+)\)$"
@@ -173,9 +173,9 @@ def consolidate_message(text: str) -> str | None:
         else:
             equiv_tag = f"{equivs[-1]} equiv"
 
-    # Compute average VC71 score
+    # Compute average mnemonic similarity
     scores = [p["score"] for p in ports.values() if p["score"] is not None]
-    vc71_str = f"{sum(scores) / len(scores):.1f}% VC71" if scores else None
+    vc71_str = f"{sum(scores) / len(scores):.1f}% mnemonic similarity" if scores else None
 
     match_parts = []
     if vc71_str:
@@ -217,7 +217,7 @@ def consolidate_message(text: str) -> str | None:
         for addr, p in sorted(ports.items(), key=lambda x: int(x[0], 16)):
             insn_part = f", {p['insn_c']}/{p['insn_r']} insns" if p["insn_c"] else ""
             score_part = (
-                f" [{p['score']:.1f}% VC71{insn_part}]"
+                f" [{p['score']:.1f}% mnemonic similarity{insn_part}]"
                 if p["score"] is not None
                 else ""
             )

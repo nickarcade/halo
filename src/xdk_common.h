@@ -102,6 +102,7 @@ static const int _scenario_type_main_menu = 2;
 #define TAG_GROUP_PHYS 0x70687973 /* 'phys' */
 #define TAG_GROUP_SHDR 0x73686472 /* 'shdr' */
 #define TAG_GROUP_SND  0x736e6421 /* 'snd!' */
+#define TAG_GROUP_UNIT 0x756e6974 /* 'unit' */
 #define TAG_GROUP_VEHI 0x76656869 /* 'vehi' */
 #define TAG_GROUP_WEAP 0x77656170 /* 'weap' */
 

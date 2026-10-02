@@ -6,7 +6,7 @@
 # The lift writes e.g. datum_get(player_data, 0) at a site where the original
 # does PUSH EAX with EAX holding the function's @<eax> player_handle. The
 # callee then operates on player slot 0 for every player. Nothing else catches
-# it: no crash, no assert, and VC71 byte-match often scores the WRONG version
+# it: no crash, no assert, and VC71 mnemonic match often scores the WRONG version
 # higher (fixing FUN_000acd00 on 2026-07-31 dropped it 85.7% -> 82.1%, because
 # push 0 is one instruction and push [ebp+N] can be two, and neither matches
 # the original's push ebx).

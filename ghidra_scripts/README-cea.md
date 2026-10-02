@@ -1,18 +1,13 @@
-# CEA Ghidra scripts
+# Retired CEA Ghidra workflow
 
-These scripts support the Halo CE Anniversary (CEA) PDB/type corpus workflow. Run them from Ghidra's Script Manager with a program containing the Halo Xbox image where applicable. Paths below are the defaults compiled into each script; Ghidra script arguments are positional and should be supplied as one argument string as supported by the local Ghidra setup.
+This file is a historical inventory for provenance remediation. The CEA/PDB
+workflow is outside the public project's normal process and must not supply
+authoritative names, layouts, implementation bodies, or source shape. See
+`PROVENANCE.md`. Remaining scripts are retained temporarily so existing
+CEA-derived changes can be traced; move them out of the public tree after the
+remediation ledger records their dependent claims.
 
 ## Scripts
-
-### `CeaPdbExtract.java`
-
-Extracts Halo `.obj` procedure symbols and source-line ranges from a PDB without modifying the open program.
-
-- **Overrides:** `getScriptArgs()[0]` = PDB path; `[1]` = output TSV path. Empty values retain the defaults.
-- **Default input:** `C:\path\to\Halo_1_Combat_Evolved_Anniversary_(Jun_24,_2011)\en_us\HCEX_Release.pdb` (placeholder; supply the real PDB path via `getScriptArgs()[0]`)
-- **Default output:** `G:\dev\halo\artifacts\ghidra_groom\cea_corpus\cea_procs_raw.tsv`
-- **Artifact:** tab-separated module/procedure/segment/offset/length/source-file/line-range records, including totals printed in the Ghidra console.
-- **Remaining non-portable paths:** both default Windows paths are compiled-in constants (Ghidra scripts have no config-file or env-var lookup, only positional `getScriptArgs()`), so a placeholder is baked into the class; always pass the real PDB path explicitly. The extractor also filters PDB module names containing `\\halo\\` and ending in `.obj`.
 
 ### `CeaTypeExtract.java`
 
@@ -22,7 +17,8 @@ Extracts named and anonymous structs, unions, enums, fields, and type references
 - **Default input:** `C:\path\to\Halo_1_Combat_Evolved_Anniversary_(Jun_24,_2011)\en_us\HCEX.pdb` (placeholder; supply the real PDB path via `getScriptArgs()[0]`)
 - **Default output:** `G:\dev\halo\artifacts\ghidra_groom\type_corpus\cea_debug_types_raw.json`
 - **Artifact:** JSON array of composite and enum type records, including sizes, fields, offsets, type indices, and enum members.
-- **Remaining non-portable paths:** both default Windows paths are compiled-in constants, same limitation as `CeaPdbExtract` above; always pass the real PDB path explicitly.
+- **Remaining non-portable paths:** both default Windows paths. This script is
+  retained only to trace historical provenance and is not part of normal use.
 
 ### `CeaAssertLines.java`
 
@@ -73,4 +69,6 @@ Imports CEA game enums from a flat TSV into the `/halo/cea` Ghidra data-type cat
 
 ## Important corpus distinction
 
-`CeaPdbExtract` and `CeaTypeExtract` consume HCEX PDB files and produce intermediate CEA symbol/type artifacts. Those HCEX PDB outputs are **not** the `halocea` decompiled corpus; do not treat the generated procedure or type records as the decompiled source corpus itself.
+`CeaTypeExtract` consumes an HCEX PDB and produces intermediate CEA type
+artifacts. Those outputs are distinct from the `halocea` decompiled corpus,
+but both remain external hypotheses under `PROVENANCE.md`.

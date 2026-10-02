@@ -500,133 +500,133 @@ void FUN_0018b930(float *plane, float *flipped, float *normal, float *point)
   flipped[3] = -plane[3];
 }
 
-/* 0x18b990 — build an oriented-box clip volume for a visibility/portal query.
+/* PUSH 6 before render_structure_shadows at 0x18bc3e. */
+#define NUMBER_OF_SHADOW_VOLUME_PLANES 6
+
+/* 0x18b990 — render_object_shadow_end: close one object's shadow by clipping
+ * the structure against the shadow volume, then end the rasterizer shadow.
  *
- * The ECX descriptor holds three axis vectors A (+0x10), B (+0x1c) and a
- * direction axis C (+0x28), a center point P (+0x34) and a scalar extent r
- * (+0x40). Two products are produced and forwarded to render_structure_shadows:
- *   - a 6-plane array {nx,ny,nz,d} (24 floats): +C/-C (asymmetric extents
- *     r*0.5 in front, r*4.0 behind), +A/-A and +B/-B (extent r each). d is the
- *     signed plane offset dot(axis,P) - extent.
- *   - a 6-scalar axis-expanded bound around P. For x/y the direction-axis
- *     contribution uses a sign-selected multiplier (component<=0 -> *4.0f,
- *     component>0 -> *-0.5f); z uses the fixed 4.0f/0.5f pair. The absolute
- *     sums |A.i|+|B.i| widen each bound.
- * Then runs the profile-exit pair FUN_0017cd00 (0-arg thunk).
- * Fastcall: descriptor pointer in ECX. */
-void FUN_0018b990(void *volume)
+ * Name and shape: HCEX PDB proc render_object_shadow_end and PAL 2342
+ * render_objects.c (T2). The volume is a box around the shadow matrix of
+ * render_object_shadow_begin (0x18b830): six planes, up/down along up (offset
+ * by radius*0.5 above and radius*4 below), then +-forward and +-left (offset
+ * by radius). The bounds rectangle is the same box, axis-aligned.
+ *
+ * PAL calls the static shadow_volume_plane_pair three times. 2276 inlines it
+ * at every site (its out-of-line copy FUN_0018b930 has no callers), so the
+ * pairs are written out here. Each copies the normal, sets d to
+ * dot(normal, position) (accumulated z, y, x as in the original), and stores
+ * the negated plane after it.
+ *
+ * The bounds use 4.0f below the shadow and -0.5f above it: the constant at
+ * 0x255964 is -0.5f, and z1 subtracts up.z * 0.5f (0x253398).
+ * Register arg: data @<ecx>. */
+void render_object_shadow_end(object_render_data *data)
 {
-  float *A;
-  float *B;
-  float *Cv;
-  float *P;
-  float r;
-  float r4;
-  float dot;
-  float ax, bx, ay, by, az, bz; /* |A.x|,|B.x|,|A.y|,|B.y|,|A.z|,|B.z| */
-  float mlx, mhx, mly, mhy; /* sign-selected multipliers for x/y bounds */
-  float planes[24]; /* 6 planes {nx,ny,nz,d}, EBP-0x80..-0x24 */
-  float scalars[6]; /* expanded bound, EBP-0x20..-0xc */
+  real_plane3d shadow_volume_planes[NUMBER_OF_SHADOW_VOLUME_PLANES];
+  real_rectangle3d shadow_volume_bounds;
 
-  A = (float *)((char *)volume + 0x10);
-  B = (float *)((char *)volume + 0x1c);
-  Cv = (float *)((char *)volume + 0x28);
-  P = (float *)((char *)volume + 0x34);
-  r = *(float *)((char *)volume + 0x40);
+  shadow_volume_planes[0].normal[0] = data->shadow_matrix.up.x;
+  shadow_volume_planes[0].normal[1] = data->shadow_matrix.up.y;
+  shadow_volume_planes[0].normal[2] = data->shadow_matrix.up.z;
+  shadow_volume_planes[0].d =
+    data->shadow_matrix.up.z * data->shadow_matrix.position.z +
+    data->shadow_matrix.up.y * data->shadow_matrix.position.y +
+    data->shadow_matrix.up.x * data->shadow_matrix.position.x;
+  shadow_volume_planes[1].normal[0] = -shadow_volume_planes[0].normal[0];
+  shadow_volume_planes[1].normal[1] = -shadow_volume_planes[0].normal[1];
+  shadow_volume_planes[1].normal[2] = -shadow_volume_planes[0].normal[2];
+  shadow_volume_planes[1].d = -shadow_volume_planes[0].d;
+  shadow_volume_planes[0].d -= data->shadow_bounding_radius * 0.5f;
+  shadow_volume_planes[1].d -= data->shadow_bounding_radius * 4.0f;
 
-  /* plane 0: +C, d = dot(C,P) - r*0.5 (dot accumulates z,y,x per the original)
-   */
-  dot = Cv[2] * P[2] + Cv[1] * P[1] + Cv[0] * P[0];
-  planes[0] = Cv[0];
-  planes[1] = Cv[1];
-  planes[2] = Cv[2];
-  planes[3] = dot - r * *(const float *)0x253398;
-  /* plane 1: -C, d = -dot(C,P) - r*4.0 */
-  r4 = r * *(const float *)0x2533d8;
-  planes[4] = -Cv[0];
-  planes[5] = -Cv[1];
-  planes[6] = -Cv[2];
-  planes[7] = -dot - r4;
+  shadow_volume_planes[2].normal[0] = data->shadow_matrix.forward.x;
+  shadow_volume_planes[2].normal[1] = data->shadow_matrix.forward.y;
+  shadow_volume_planes[2].normal[2] = data->shadow_matrix.forward.z;
+  shadow_volume_planes[2].d =
+    data->shadow_matrix.forward.z * data->shadow_matrix.position.z +
+    data->shadow_matrix.forward.y * data->shadow_matrix.position.y +
+    data->shadow_matrix.forward.x * data->shadow_matrix.position.x;
+  shadow_volume_planes[3].normal[0] = -shadow_volume_planes[2].normal[0];
+  shadow_volume_planes[3].normal[1] = -shadow_volume_planes[2].normal[1];
+  shadow_volume_planes[3].normal[2] = -shadow_volume_planes[2].normal[2];
+  shadow_volume_planes[3].d = -shadow_volume_planes[2].d;
+  shadow_volume_planes[2].d -= data->shadow_bounding_radius;
+  shadow_volume_planes[3].d -= data->shadow_bounding_radius;
 
-  /* plane 2: +A, d = dot(A,P) - r */
-  dot = A[2] * P[2] + A[1] * P[1] + A[0] * P[0];
-  planes[8] = A[0];
-  planes[9] = A[1];
-  planes[10] = A[2];
-  planes[11] = dot - r;
-  /* plane 3: -A, d = -dot(A,P) - r */
-  planes[12] = -A[0];
-  planes[13] = -A[1];
-  planes[14] = -A[2];
-  planes[15] = -dot - r;
+  shadow_volume_planes[4].normal[0] = data->shadow_matrix.left.x;
+  shadow_volume_planes[4].normal[1] = data->shadow_matrix.left.y;
+  shadow_volume_planes[4].normal[2] = data->shadow_matrix.left.z;
+  shadow_volume_planes[4].d =
+    data->shadow_matrix.left.z * data->shadow_matrix.position.z +
+    data->shadow_matrix.left.y * data->shadow_matrix.position.y +
+    data->shadow_matrix.left.x * data->shadow_matrix.position.x;
+  shadow_volume_planes[5].normal[0] = -shadow_volume_planes[4].normal[0];
+  shadow_volume_planes[5].normal[1] = -shadow_volume_planes[4].normal[1];
+  shadow_volume_planes[5].normal[2] = -shadow_volume_planes[4].normal[2];
+  shadow_volume_planes[5].d = -shadow_volume_planes[4].d;
+  shadow_volume_planes[4].d -= data->shadow_bounding_radius;
+  shadow_volume_planes[5].d -= data->shadow_bounding_radius;
 
-  /* plane 4: +B, d = dot(B,P) - r */
-  dot = B[2] * P[2] + B[1] * P[1] + B[0] * P[0];
-  planes[16] = B[0];
-  planes[17] = B[1];
-  planes[18] = B[2];
-  planes[19] = dot - r;
-  /* plane 5: -B, d = -dot(B,P) - r */
-  planes[20] = -B[0];
-  planes[21] = -B[1];
-  planes[22] = -B[2];
-  planes[23] = -dot - r;
+  shadow_volume_bounds.x1 =
+    (data->shadow_matrix.forward.x < 0.0f ? -data->shadow_matrix.forward.x :
+                                            data->shadow_matrix.forward.x) +
+    (data->shadow_matrix.left.x < 0.0f ? -data->shadow_matrix.left.x :
+                                         data->shadow_matrix.left.x);
+  shadow_volume_bounds.x0 = -shadow_volume_bounds.x1;
+  shadow_volume_bounds.y1 =
+    (data->shadow_matrix.forward.y < 0.0f ? -data->shadow_matrix.forward.y :
+                                            data->shadow_matrix.forward.y) +
+    (data->shadow_matrix.left.y < 0.0f ? -data->shadow_matrix.left.y :
+                                         data->shadow_matrix.left.y);
+  shadow_volume_bounds.y0 = -shadow_volume_bounds.y1;
+  shadow_volume_bounds.z1 =
+    (data->shadow_matrix.forward.z < 0.0f ? -data->shadow_matrix.forward.z :
+                                            data->shadow_matrix.forward.z) +
+    (data->shadow_matrix.left.z < 0.0f ? -data->shadow_matrix.left.z :
+                                         data->shadow_matrix.left.z);
+  shadow_volume_bounds.z0 = -shadow_volume_bounds.z1;
 
-  /* per-component absolute values of the A and B axes (FCOM 0 + FCHS) */
-  ax = A[0];
-  if (ax >= 0.0f) {
-  } else {
-    ax = -ax;
-  }
-  bx = B[0];
-  if (bx >= 0.0f) {
-  } else {
-    bx = -bx;
-  }
-  ay = A[1];
-  if (ay >= 0.0f) {
-  } else {
-    ay = -ay;
-  }
-  by = B[1];
-  if (by >= 0.0f) {
-  } else {
-    by = -by;
-  }
-  az = A[2];
-  if (az >= 0.0f) {
-  } else {
-    az = -az;
-  }
-  bz = B[2];
-  if (bz >= 0.0f) {
-  } else {
-    bz = -bz;
-  }
+  shadow_volume_bounds.x0 += (data->shadow_matrix.up.x <= 0.0f) ?
+                               data->shadow_matrix.up.x * 4.0f :
+                               data->shadow_matrix.up.x * -0.5f;
+  shadow_volume_bounds.x1 += (data->shadow_matrix.up.x > 0.0f) ?
+                               data->shadow_matrix.up.x * 4.0f :
+                               data->shadow_matrix.up.x * -0.5f;
+  shadow_volume_bounds.y0 += (data->shadow_matrix.up.y <= 0.0f) ?
+                               data->shadow_matrix.up.y * 4.0f :
+                               data->shadow_matrix.up.y * -0.5f;
+  shadow_volume_bounds.y1 += (data->shadow_matrix.up.y > 0.0f) ?
+                               data->shadow_matrix.up.y * 4.0f :
+                               data->shadow_matrix.up.y * -0.5f;
+  shadow_volume_bounds.z0 += data->shadow_matrix.up.z * 4.0f;
+  shadow_volume_bounds.z1 -= data->shadow_matrix.up.z * 0.5f;
 
-  /* direction-axis sign-selected multipliers for the x/y expanded bounds */
-  mlx = -*(const float *)0x255964;
-  if (Cv[0] <= *(const float *)0x2533c0)
-    mlx = *(const float *)0x2533d8;
-  mhx = -*(const float *)0x255964;
-  if (Cv[0] > *(const float *)0x2533c0)
-    mhx = *(const float *)0x2533d8;
-  mly = -*(const float *)0x255964;
-  if (Cv[1] <= *(const float *)0x2533c0)
-    mly = *(const float *)0x2533d8;
-  mhy = -*(const float *)0x255964;
-  if (Cv[1] > *(const float *)0x2533c0)
-    mhy = *(const float *)0x2533d8;
+  shadow_volume_bounds.x0 =
+    shadow_volume_bounds.x0 * data->shadow_bounding_radius +
+    data->shadow_matrix.position.x;
+  shadow_volume_bounds.x1 =
+    shadow_volume_bounds.x1 * data->shadow_bounding_radius +
+    data->shadow_matrix.position.x;
+  shadow_volume_bounds.y0 =
+    shadow_volume_bounds.y0 * data->shadow_bounding_radius +
+    data->shadow_matrix.position.y;
+  shadow_volume_bounds.y1 =
+    shadow_volume_bounds.y1 * data->shadow_bounding_radius +
+    data->shadow_matrix.position.y;
+  shadow_volume_bounds.z0 =
+    shadow_volume_bounds.z0 * data->shadow_bounding_radius +
+    data->shadow_matrix.position.z;
+  shadow_volume_bounds.z1 =
+    shadow_volume_bounds.z1 * data->shadow_bounding_radius +
+    data->shadow_matrix.position.z;
 
-  scalars[0] = (Cv[0] * mlx + -(bx + ax)) * r + P[0];
-  scalars[1] = (Cv[0] * mhx + bx + ax) * r + P[0];
-  scalars[2] = (Cv[1] * mly + -(by + ay)) * r + P[1];
-  scalars[3] = (Cv[1] * mhy + by + ay) * r + P[1];
-  scalars[4] = (Cv[2] * *(const float *)0x2533d8 + -(bz + az)) * r + P[2];
-  scalars[5] = ((bz + az) - Cv[2] * *(const float *)0x255964) * r + P[2];
-
-  render_structure_shadows(P, r4, scalars, 6, planes);
-  FUN_0017cd00();
+  render_structure_shadows((float *)&data->shadow_matrix.position,
+                           data->shadow_bounding_radius * 4.0f,
+                           (float *)&shadow_volume_bounds,
+                           NUMBER_OF_SHADOW_VOLUME_PLANES,
+                           (float *)shadow_volume_planes);
+  rasterizer_environment_shadow_end();
 }
 
 /* 0x18bc60 — refresh a cached object render-state's lighting
@@ -859,7 +859,7 @@ void *scenario_leaf_index_from_point(int object_handle, float lod)
  * (size fade stored/reloaded through a local with immediate 0/1 stores; dark
  * fade clamped on the FPU stack against the 0.0/1.0 globals); if the blob
  * shadow drew (FUN_0018b830 returns non-zero), submits the object tree
- * (FUN_0018b190 with a NULL effect) and the shadow volume (FUN_0018b990
+ * (FUN_0018b190 with a NULL effect) and the shadow volume (render_object_shadow_end
  * @<ecx>). Render pass: visibility is false only for attached objects
  * (flags bit0, +0xc8 == NONE) whose attachment 0x11c fails widgets_need_lighting —
  * and a NONE 0x11c returns outright; fetches the 'obje' tag def, resolves
@@ -926,7 +926,7 @@ void FUN_0018c100(void *record)
                                     dark_fade)) *
                                 size_fade)) {
           FUN_0018b190(rec, (void *)0, *(int *)rec);
-          FUN_0018b990(rec);
+          render_object_shadow_end((object_render_data *)rec);
         }
       }
     }
@@ -2848,9 +2848,9 @@ void *FUN_0018e7d0(int param_1)
  * BSP's per-cluster sound-data bitvector for source cluster_index. Asserts the
  * BSP is loaded (*0x5064e0, scenario.c:0xc5) and that cluster_index1 is in
  * range [0, structure_bsp->clusters.count) (bsp+0x134, scenario.c:0x1d4).
- * Returns the tested bit as 0/1. cdecl: cluster_index [EBP+8] (int, passed as
- * the callee's int16_t arg), cluster_index1 [EBP+0xc] (MOVSX int16_t). */
-bool scenario_ensure_point_within_world(int cluster_index,
+ * Returns the tested bit as 0/1. cdecl, both indices int16_t: callers
+ * 0x41768/0x442d7 push the 16-bit registers without extension. */
+bool scenario_ensure_point_within_world(int16_t cluster_index,
                                         int16_t cluster_index1)
 {
   void *bsp;
@@ -2863,7 +2863,7 @@ bool scenario_ensure_point_within_world(int cluster_index,
   }
   bsp = *(void **)0x5064e0;
   sound_data =
-    structure_bsp_get_cluster_sound_data(bsp, (int16_t)cluster_index);
+    structure_bsp_get_cluster_sound_data(bsp, cluster_index);
   if (cluster_index1 < 0 ||
       (int)cluster_index1 >= *(int *)((char *)bsp + 0x134)) {
     display_assert(

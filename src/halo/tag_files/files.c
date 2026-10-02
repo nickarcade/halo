@@ -1,7 +1,7 @@
 #define FILE_REF_MAGIC 0x66696C6F
 
-/* File-reference flag families. See docs/halocea/README.md for the corpus and
- * .claude/skills/naming-confidence for the name_source tiers.
+/* File-reference flag families. See PROVENANCE.md for the evidence classes
+ * behind the name_source tiers below.
  *
  * All four BOUNDS were read out of this build before the corpus was consulted,
  * and all four agree with it exactly:

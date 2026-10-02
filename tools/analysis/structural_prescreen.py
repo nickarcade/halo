@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Structural pre-screener for auto-lift target selection.
 
-Analyzes delinked reference .obj files to predict VC71 match difficulty
+Analyzes delinked reference .obj files to predict VC71 mnemonic match difficulty
 BEFORE spending tokens on a full lift. Extracts instruction-level features
 that correlate with low match percentages.
 

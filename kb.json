@@ -4738,7 +4738,113 @@
    ],
    "name": "ai.obj",
    "source": "ai/ai.c",
-   "source_path": "src/halo/ai/ai.c"
+   "source_path": "src/halo/ai/ai.c",
+   "data": [
+    {
+     "addr": "0x632574",
+     "decl": "ai_globals_t *ai_globals;",
+     "comment": "game_state_malloc(\"ai globals\", NULL, 0x8dc) result stored by ai_initialize (0x3f677)"
+    }
+   ]
+  },
+  {
+   "functions": [
+    {
+     "addr": "0xa54b0",
+     "decl": "void FUN_000a54b0(void);",
+     "ported": true
+    },
+    {
+     "addr": "0xa5590",
+     "decl": "float FUN_000a5590(float value, float range);",
+     "ported": true
+    },
+    {
+     "addr": "0xa55e0",
+     "decl": "float FUN_000a55e0(float arg1, float arg2, float arg3, float arg4);",
+     "ported": true
+    },
+    {
+     "addr": "0xa5610",
+     "decl": "bool unit_get_aim_assist_parameters(int unit_handle@<eax>, float *out_params@<ebx>, int zoom_level);",
+     "comment": "[NAME: unit_get_aim_assist_parameters \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
+    },
+    {
+     "addr": "0xa5700",
+     "decl": "int compare_targets(const void *a, const void *b);",
+     "comment": "[NAME: compare_targets \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
+    },
+    {
+     "addr": "0xa57a0",
+     "decl": "real reciprocal_square_root(real value);",
+     "comment": "[NAME: reciprocal_square_root \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
+    },
+    {
+     "addr": "0xa57b0",
+     "decl": "boolean limit3d(real_vector3d *vector, real length);",
+     "ported": true
+    },
+    {
+     "addr": "0xa5810",
+     "decl": "void set_real_euler_angles2d(real *angles, real angle_04, real angle_00);",
+     "comment": "[NAME: set_real_euler_angles2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
+    },
+    {
+     "addr": "0xa5830",
+     "decl": "char FUN_000a5830(float *point, void *elem_data, float *arg3, int arg4);",
+     "ported": false
+    },
+    {
+     "addr": "0xa5920",
+     "decl": "void object_compute_autoaim_target(float *point@<ebx>, float *direction@<esi>, float *out_point@<edi>, int object_index);",
+     "comment": "[NAME: object_compute_autoaim_target \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": false
+    },
+    {
+     "addr": "0xa5ac0",
+     "decl": "int FUN_000a5ac0(float *cone_spec, int object_index, float *point, float *direction, void *out_record);",
+     "ported": false
+    },
+    {
+     "addr": "0xa5c60",
+     "decl": "void FUN_000a5c60(void);"
+    },
+    {
+     "addr": "0xa5d70",
+     "decl": "int16_t FUN_000a5d70(void *param_1, int object_handle, float *arg_p3, float *arg_p4, float arg_p5, float arg_sine, float arg_cosine, int exclude_handle, int16_t query_team, int16_t max_count, void *out_buffer);",
+     "ported": true
+    },
+    {
+     "addr": "0xa5f00",
+     "decl": "int16_t FUN_000a5f00(float *cone_spec /* @<edi> */, int16_t starting_cluster, float *point, float *direction, float *arg4, float *arg5, int max_count, void *out_buffer);",
+     "ported": false,
+     "reg_args": {
+      "cone_spec": "edi"
+     }
+    },
+    {
+     "addr": "0xa6030",
+     "decl": "char FUN_000a6030(float *cone_spec, float *point, float *direction, int ignore_object_index, int16_t team_index, void *out_struct);",
+     "ported": true
+    },
+    {
+     "addr": "0xa6130",
+     "decl": "int player_aim_projectile(int player_index, float *origin, float *forward);",
+     "ported": false
+    },
+    {
+     "addr": "0xa6470",
+     "decl": "int local_player_aim_assist(short local_player_index, real *autoaim_level, real *field_0x30, void *lead_vector, void *arg5);",
+     "comment": "[NAME: local_player_aim_assist \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": false
+    }
+   ],
+   "name": "aim_assist.obj",
+   "source": "game/aim_assist.c"
   },
   {
    "functions": [
@@ -5559,95 +5665,6 @@
   },
   {
    "functions": [
-    {
-     "addr": "0xa54b0",
-     "decl": "void FUN_000a54b0(void);",
-     "ported": true
-    },
-    {
-     "addr": "0xa5590",
-     "decl": "float FUN_000a5590(float value, float range);",
-     "ported": true
-    },
-    {
-     "addr": "0xa55e0",
-     "decl": "float FUN_000a55e0(float arg1, float arg2, float arg3, float arg4);",
-     "ported": true
-    },
-    {
-     "addr": "0xa5610",
-     "decl": "bool unit_get_aim_assist_parameters(int unit_handle@<eax>, float *out_params@<ebx>, int zoom_level);",
-     "comment": "[NAME: unit_get_aim_assist_parameters \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "ported": true
-    },
-    {
-     "addr": "0xa5700",
-     "decl": "int compare_targets(const void *a, const void *b);",
-     "comment": "[NAME: compare_targets \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "ported": true
-    },
-    {
-     "addr": "0xa57a0",
-     "decl": "real reciprocal_square_root(real value);",
-     "comment": "[NAME: reciprocal_square_root \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "ported": true
-    },
-    {
-     "addr": "0xa57b0",
-     "decl": "boolean limit3d(real_vector3d *vector, real length);",
-     "ported": true
-    },
-    {
-     "addr": "0xa5810",
-     "decl": "void set_real_euler_angles2d(real *angles, real angle_04, real angle_00);",
-     "comment": "[NAME: set_real_euler_angles2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "ported": true
-    },
-    {
-     "addr": "0xa5830",
-     "decl": "char FUN_000a5830(float *point, void *elem_data, float *arg3, int arg4);",
-     "ported": false
-    },
-    {
-     "addr": "0xa5920",
-     "decl": "void object_compute_autoaim_target(void);",
-     "comment": "[NAME: object_compute_autoaim_target \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
-    },
-    {
-     "addr": "0xa5ac0",
-     "decl": "char FUN_000a5ac0(void *param_1, int object_handle, float *arg_p3, float *arg_p4, void *out_record);"
-    },
-    {
-     "addr": "0xa5c60",
-     "decl": "void FUN_000a5c60(void);"
-    },
-    {
-     "addr": "0xa5d70",
-     "decl": "int16_t FUN_000a5d70(void *param_1, int object_handle, float *arg_p3, float *arg_p4, float arg_p5, float arg_sine, float arg_cosine, int exclude_handle, int16_t query_team, int16_t max_count, void *out_buffer);",
-     "ported": true
-    },
-    {
-     "addr": "0xa5f00",
-     "decl": "int16_t FUN_000a5f00(float *cone_spec /* @<edi> */, int16_t starting_cluster, float *point, float *direction, float *arg4, float *arg5, int max_count, void *out_buffer);",
-     "ported": false,
-     "reg_args": {
-      "cone_spec": "edi"
-     }
-    },
-    {
-     "addr": "0xa6030",
-     "decl": "char FUN_000a6030(float *cone_spec, float *point, float *direction, float *arg4, float *arg5, void *out_struct);",
-     "ported": true
-    },
-    {
-     "addr": "0xa6130",
-     "decl": "int player_aim_projectile(int16_t player_index, float *origin, float *forward);"
-    },
-    {
-     "addr": "0xa6470",
-     "decl": "int local_player_aim_assist(short local_player_index, real *autoaim_level, real *field_0x30, void *lead_vector, void *arg5);",
-     "comment": "[NAME: local_player_aim_assist \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
-    },
     {
      "addr": "0xa65e0",
      "decl": "void cheats_initialize(void);",
@@ -7398,13 +7415,15 @@
     },
     {
      "addr": "0x17ccf0",
-     "decl": "void FUN_0017ccf0(void *shader, int param_2, int vertices_per_primitive, int a2, int triangle_count, void *vertex_buffer);",
-     "ported": true
+     "decl": "void rasterizer_environment_shadow_draw(void *shader, short bitmap_index, int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer);",
+     "ported": true,
+     "comment": "[NAME: rasterizer_environment_shadow_draw \u2014 name_source=pal-2342 method=crossbuild tier=T2 (Ghidra: forwards its args to 0x173090 (_rasterizer_environment_shadow_draw); only reference is a DATA xref from render_structure_shadows (0x196225), the callback PAL structure_render_shadow passes), 2026-10-01]"
     },
     {
      "addr": "0x17cd00",
-     "decl": "void FUN_0017cd00(void);",
-     "ported": false
+     "decl": "void rasterizer_environment_shadow_end(void);",
+     "ported": true,
+     "comment": "[NAME: rasterizer_environment_shadow_end \u2014 name_source=pal-2342 method=crossbuild tier=T2 (Ghidra: thunk to 0x1726a0 (_rasterizer_environment_shadow_end), sole caller render_object_shadow_end; PAL 2342 rasterizer.c rasterizer_environment_shadow_end is that wrapper), 2026-10-01]"
     },
     {
      "addr": "0x17cd10",
@@ -7438,6 +7457,31 @@
    "source": "effects/decals.c"
   },
   {
+   "data": [
+    {
+     "addr": "0x2ee67c",
+     "decl": "editor_camera_translate_function translate_funcs[2][2];",
+     "comment": "editor camera mode callbacks {_translate_from, _translate_to}; name from the editor_camera_set_mode assert strings"
+    },
+    {
+     "addr": "0x2ee68c",
+     "decl": "const char *editor_camera_mode_names[2];",
+     "comment": "console_printf(0, names[mode]) in editor_camera_set_mode"
+    },
+    {
+     "addr": "0x3352a8",
+     "decl": "director_globals_t director_globals;"
+    },
+    {
+     "addr": "0x335698",
+     "decl": "editor_camera_globals_t editor_camera_globals;"
+    },
+    {
+     "addr": "0x5ab200",
+     "decl": "director_scripting_t *director_camera_scripted;",
+     "comment": "game_state_malloc(\"director scripting\", 0, 4) in director_initialize"
+    }
+   ],
    "functions": [
     {
      "addr": "0x85a40",
@@ -7546,7 +7590,7 @@
     },
     {
      "addr": "0x86be0",
-     "decl": "void director_choose_game_perspective(int local_player_index@<eax>, char force_flag@<bl>);",
+     "decl": "void director_choose_game_perspective(int16_t local_player_index@<eax>, char force_flag@<bl>);",
      "ported": false,
      "comment": "[NAME: director_choose_game_perspective -- PAL 2342 source/camera/director.c, call-for-call structural match (T2)]"
     },
@@ -7667,7 +7711,14 @@
      "addr": "0x887e0",
      "decl": "void editor_camera_orbiting_update(void);",
      "comment": "[NAME: editor_camera_orbiting_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
-    },
+    }
+   ],
+   "name": "director.obj",
+   "source": "camera/director.c"
+  },
+  {
+   "data": [],
+   "functions": [
     {
      "addr": "0x88c40",
      "decl": "void first_person_camera_new(void *camera);",
@@ -7677,10 +7728,25 @@
      "addr": "0x88c80",
      "decl": "void FUN_00088c80(int unit_handle, float *out_position, float *out_forward);",
      "ported": true
+    },
+    {
+     "addr": "0x88d50",
+     "decl": "void first_person_camera_for_unit_and_vector(float *vector @<eax>, int32_t unit_index @<ecx>, void *result @<esi>);",
+     "ported": false
+    },
+    {
+     "addr": "0x89240",
+     "decl": "void first_person_camera_fake(int unit_index, void *result);",
+     "comment": "[NAME: first_person_camera_fake \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+    },
+    {
+     "addr": "0x89270",
+     "decl": "void first_person_camera_update(void *camera, void *param_2, void *result);",
+     "ported": true
     }
    ],
-   "name": "director.obj",
-   "source": "camera/director.c"
+   "name": "first_person_camera.obj",
+   "source": "camera/first_person_camera.c"
   },
   {
    "functions": [
@@ -8976,6 +9042,12 @@
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
+     "addr": "0xb4ad0",
+     "decl": "bool slayer_initialize_for_new_map(void);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
+    },
+    {
      "addr": "0xb4b10",
      "decl": "void FUN_000b4b10(unsigned int player_handle);",
      "ported": true
@@ -8985,6 +9057,18 @@
      "decl": "void FUN_000b4b40(void);",
      "ported": false,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
+    },
+    {
+     "addr": "0xb4b50",
+     "decl": "void FUN_000b4b50(void);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
+    },
+    {
+     "addr": "0xb4bd0",
+     "decl": "bool FUN_000b4bd0(int param_1, int param_2);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
     },
     {
      "addr": "0xb4bf0",
@@ -9051,6 +9135,18 @@
      "decl": "void FUN_000b53a0(void);",
      "ported": false,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
+    },
+    {
+     "addr": "0xb53b0",
+     "decl": "bool FUN_000b53b0(void);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
+    },
+    {
+     "addr": "0xb5460",
+     "decl": "bool FUN_000b5460(int param_1, int param_2);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
     },
     {
      "addr": "0xb5490",
@@ -9165,7 +9261,14 @@
     }
    ],
    "name": "game_allegiance.obj",
-   "source": "game/game_allegiance.c"
+   "source": "game/game_allegiance.c",
+   "data": [
+    {
+     "addr": "0x2efdf8",
+     "decl": "char *const global_game_team_names[10];",
+     "comment": "default, player, human, covenant, flood, sentinel, unused6..unused9"
+    }
+   ]
   },
   {
    "functions": [
@@ -10112,6 +10215,12 @@
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
+     "addr": "0xaffa0",
+     "decl": "void FUN_000affa0(void);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
+    },
+    {
      "addr": "0xb0000",
      "decl": "void FUN_000b0000(int player_handle@<esi>, int team@<ebx>, int flag_weapon);",
      "ported": true,
@@ -10563,6 +10672,18 @@
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
+     "addr": "0xb3940",
+     "decl": "void FUN_000b3940(void);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
+    },
+    {
+     "addr": "0xb3990",
+     "decl": "void FUN_000b3990(void);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
+    },
+    {
      "addr": "0xb39a0",
      "decl": "void FUN_000b39a0(int player_handle@<eax>);",
      "ported": true,
@@ -10593,11 +10714,29 @@
      "src": "src/halo/game/game_engine.c"
     },
     {
+     "addr": "0xb3dd0",
+     "decl": "void FUN_000b3dd0(int damaging_player_index, int dead_player_index, int damage_type);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
+    },
+    {
+     "addr": "0xb3de0",
+     "decl": "void FUN_000b3de0(int param_1, int param_2, int param_3, bool param_4);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
+    },
+    {
      "addr": "0xb3df0",
      "decl": "char race_engine_display_score(int player_index, int event_type, int player_handle, wchar_t *buffer, int buffer_size);",
      "ported": true,
      "src": "src/halo/game/game_engine.c",
      "comment": "[NAME: race_engine_display_score \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+    },
+    {
+     "addr": "0xb40e0",
+     "decl": "void FUN_000b40e0(int player_index);",
+     "ported": true,
+     "comment": "Game-engine vtable entry missing from kb.json (seed XBE stubbed it to return 0); found 2026-10-01."
     }
    ],
    "name": "game_engine.obj",
@@ -18667,21 +18806,6 @@
   {
    "functions": [
     {
-     "addr": "0x88d50",
-     "decl": "void first_person_camera_for_unit_and_vector(float *vector @<eax>, int32_t unit_index @<ecx>, void *result @<esi>);",
-     "ported": false
-    },
-    {
-     "addr": "0x89240",
-     "decl": "void first_person_camera_fake(int unit_index, void *result);",
-     "comment": "[NAME: first_person_camera_fake \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
-    },
-    {
-     "addr": "0x89270",
-     "decl": "void first_person_camera_update(void *camera, void *param_2, void *result);",
-     "ported": true
-    },
-    {
      "addr": "0x89330",
      "decl": "void flying_camera_new(void *flying_camera);",
      "ported": true,
@@ -18885,7 +19009,14 @@
     }
    ],
    "name": "observer.obj",
-   "source": "camera/observer.c"
+   "source": "camera/observer.c",
+   "data": [
+    {
+     "addr": "0x335718",
+     "decl": "observer_globals_t observer_globals;",
+     "comment": "delta time, then the four per-local-player observers (stride 0x29c)"
+    }
+   ]
   },
   {
    "functions": [
@@ -20006,12 +20137,12 @@
     {
      "addr": "0xe1500",
      "decl": "void player_ui_begin_editing_profile(int profile_index);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xe15b0",
      "decl": "bool player_ui_save_profile(void);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xe1760",
@@ -22678,7 +22809,7 @@
     {
      "addr": "0x16e160",
      "decl": "void _rasterizer_hud_motion_sensor_blip_draw(float *position, float intensity, float size, float *color, bool large_blip);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x16e2e0",
@@ -23111,7 +23242,19 @@
     }
    ],
    "name": "rasterizer.obj",
-   "source": "rasterizer/rasterizer.c"
+   "source": "rasterizer/rasterizer.c",
+   "data": [
+    {
+     "addr": "0x3256b8",
+     "decl": "rasterizer_debug_options_t rasterizer_debug_options;",
+     "comment": "PAL 2342 rasterizer.c rasterizer_debug_options (T2); its rasterizer_debug_options.h offsets match every 2276 read (0x3256ba stats, 0x3256ca environment_shadows, 0x3256f6/0x3256f7 shadows_convolution/shadows_debug)"
+    },
+    {
+     "addr": "0x5a5bc0",
+     "decl": "rasterizer_window_begin_parameters global_window_parameters;",
+     "comment": "PAL 2342 global_window_parameters (struct rasterizer_window_begin_parameters, T2); rasterizer_target at +0 (CMP word [0x5a5bc0],0)"
+    }
+   ]
   },
   {
    "functions": [
@@ -23174,7 +23317,14 @@
     }
    ],
    "name": "rasterizer_common.obj",
-   "source": "rasterizer/common/rasterizer_common.c"
+   "source": "rasterizer/common/rasterizer_common.c",
+   "data": [
+    {
+     "addr": "0x476204",
+     "decl": "game_globals_rasterizer_data *global_rasterizer_data;",
+     "comment": "Ghidra: rasterizer_initialize_for_new_map stores tag_block_get_element(game_globals + 0x134, 0, 0x1ac); rasterizer_dispose_from_old_map clears it; assert string \"global_rasterizer_data\""
+    }
+   ]
   },
   {
    "functions": [
@@ -23186,14 +23336,15 @@
     },
     {
      "addr": "0x1580b0",
-     "decl": "void FUN_001580b0(int framebuffer_blend_function);",
+     "decl": "void FUN_001580b0(short framebuffer_blend_function);",
      "ported": true
     },
     {
      "addr": "0x158140",
-     "decl": "void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear, int zbuffer);",
+     "decl": "void rasterizer_set_target(short target, short mipmap_index, uint32_t clear_color, boolean clear, boolean zbuffer);",
      "ported": true,
-     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_decals.c"
+     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox_decals.c",
+     "comment": "[NAME: rasterizer_set_target \u2014 name_source=pal-2342 method=crossbuild tier=T2 (PAL 2342 symbol _rasterizer_set_target; its rasterizer_xbox.c assert lines 2280/2287/2293/2298/2340 equal Ghidra's 0x8e8/0x8ef/0x8f5/0x8fa/0x924, same assert strings), 2026-10-01]"
     },
     {
      "addr": "0x1584f0",
@@ -23564,7 +23715,14 @@
     }
    ],
    "name": "rasterizer_decals.obj",
-   "source": "rasterizer/xbox/rasterizer_xbox_decals.c"
+   "source": "rasterizer/xbox/rasterizer_xbox_decals.c",
+   "data": [
+    {
+     "addr": "0x29da7c",
+     "decl": "const int32_t framebuffer_blend_function_states[3][9];",
+     "comment": "PAL 2342 rasterizer_xbox.c static framebuffer_blend_function_states[NUMBER_OF_FRAMEBUFFER_BLEND_STATES][NUMBER_OF_SHADER_FRAMEBUFFER_BLEND_FUNCTIONS + 1]; the 27 .rdata dwords match PAL's initialiser; Ghidra: only reader is FUN_001580b0"
+    }
+   ]
   },
   {
    "data_items": [
@@ -23807,7 +23965,74 @@
     }
    ],
    "name": "rasterizer_xbox.obj",
-   "source": "rasterizer/xbox/rasterizer_xbox.c"
+   "source": "rasterizer/xbox/rasterizer_xbox.c",
+   "data": [
+    {
+     "addr": "0x5a5ac0",
+     "decl": "pixel_shader_definition global_pixel_shader;",
+     "comment": "PAL 2342 pixel_shader (struct pixel_shader_definition, T2): csmemset(&pixel_shader, 0, 0xf0) then rasterizer_set_pixel_shader(&pixel_shader) in _rasterizer_environment_shadow_draw (PUSH 0x5a5ac0 at 0x17330d/0x1733d0)"
+    },
+    {
+     "addr": "0x476a5c",
+     "decl": "void *global_d3d_surface_render_primary;",
+     "comment": "Ghidra: D3DDevice_GetBackBuffer(0, 0, &0x476a5c) in FUN_00157010; PAL 2342 rasterizer_xbox.c order puts it before render_primary_z"
+    },
+    {
+     "addr": "0x476a60",
+     "decl": "void *global_d3d_surface_render_primary_z;",
+     "comment": "Ghidra: GetDepthStencilSurface(&0x476a60) in FUN_00157010, error string \"...&global_d3d_surface_render_primary_z)\""
+    },
+    {
+     "addr": "0x476a6c",
+     "decl": "void *global_d3d_surface_render_secondary;",
+     "comment": "Ghidra: FUN_00157010 (device/target creation, rasterizer_xbox.c) fills it; the binary's own IDirect3D* error string there names it (GetSurfaceLevel(global_d3d_texture_render_secondary, 0, &global_d3d_surface_render_secondary)); checked non-NULL right after"
+    },
+    {
+     "addr": "0x476a70",
+     "decl": "void *global_d3d_surface_render_secondary_z;",
+     "comment": "Ghidra: zeroed in FUN_00157010 after the render_secondary surface; PAL 2342 name (slot after global_d3d_surface_render_secondary)"
+    },
+    {
+     "addr": "0x476a78",
+     "decl": "void *global_d3d_surface_shadow_primary;",
+     "comment": "Ghidra: FUN_00157010 (device/target creation, rasterizer_xbox.c) fills it; the binary's own IDirect3D* error string there names it (&global_d3d_surface_shadow_primary)"
+    },
+    {
+     "addr": "0x476a80",
+     "decl": "void *global_d3d_surface_shadow_secondary;",
+     "comment": "Ghidra: FUN_00157010 (device/target creation, rasterizer_xbox.c) fills it; the binary's own IDirect3D* error string there names it (&global_d3d_surface_shadow_secondary)"
+    },
+    {
+     "addr": "0x476a88",
+     "decl": "void *global_d3d_surface_sun_glow_primary;",
+     "comment": "Ghidra: FUN_00157010 (device/target creation, rasterizer_xbox.c) fills it; the binary's own IDirect3D* error string there names it (&global_d3d_surface_sun_glow_primary)"
+    },
+    {
+     "addr": "0x476a90",
+     "decl": "void *global_d3d_surface_sun_glow_secondary;",
+     "comment": "Ghidra: FUN_00157010 (device/target creation, rasterizer_xbox.c) fills it; the binary's own IDirect3D* error string there names it (&global_d3d_surface_sun_glow_secondary)"
+    },
+    {
+     "addr": "0x476a98",
+     "decl": "void *global_d3d_surface_water[4];",
+     "comment": "Ghidra: FUN_00157010 (device/target creation, rasterizer_xbox.c) fills it; the binary's own IDirect3D* error string there names it (&global_d3d_surface_water[mipmap_index], loop bound 4 = RASTERIZER_TARGET_WATER_MAX_MIPMAP_LEVELS)"
+    },
+    {
+     "addr": "0x476aac",
+     "decl": "void *global_d3d_surface_render_primary_copy;",
+     "comment": "Ghidra: FUN_00157010 debug_malloc(0x18) copy of the back-buffer surface header; PAL 2342 name for that slot"
+    },
+    {
+     "addr": "0x476ab0",
+     "decl": "void *global_d3d_device;",
+     "comment": "Ghidra: written by Direct3D_CreateDevice in FUN_00157010, error string \"...&global_d3d_device)\"; asserted as \"global_d3d_device\""
+    },
+    {
+     "addr": "0x5a5e18",
+     "decl": "rasterizer_frame_begin_parameters global_frame_parameters;",
+     "comment": "PAL 2342 global_frame_parameters (T2). Ghidra: FUN_00157940 (_rasterizer_frame_begin; assert line 0x4e8 = PAL 1256) stores parameters->game_time_sec here"
+    }
+   ]
   },
   {
    "functions": [
@@ -25719,7 +25944,7 @@
      "addr": "0x1c1e20",
      "decl": "int playlist_profile_new(unsigned short local_player_index, wchar_t *name);",
      "comment": "[NAME: playlist_profile_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1c1f70",
@@ -26427,8 +26652,9 @@
     },
     {
      "addr": "0x18b990",
-     "decl": "void FUN_0018b990(void *volume @<ecx>);",
-     "ported": true
+     "decl": "void render_object_shadow_end(object_render_data *data @<ecx>);",
+     "ported": true,
+     "comment": "[NAME: render_object_shadow_end \u2014 name_source=cea-pdb+pal-2342 method=crossbuild tier=T2 (HCEX PDB proc render_object_shadow_end; PAL 2342 render_objects.c _code_0017b1e0 has the same 0x2d0 size and body), 2026-10-01]"
     },
     {
      "addr": "0x18bc60",
@@ -26601,7 +26827,7 @@
     },
     {
      "addr": "0x18e800",
-     "decl": "bool scenario_ensure_point_within_world(int cluster_index, int16_t cluster_index1);",
+     "decl": "bool scenario_ensure_point_within_world(int16_t cluster_index, int16_t cluster_index1);",
      "ported": true
     },
     {
@@ -28598,7 +28824,7 @@
     {
      "addr": "0x196a60",
      "decl": "int FUN_00196a60(float *cull_bounds @<ecx>, float *bounds @<edx>);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x196b10",
@@ -34373,7 +34599,14 @@
     }
    ],
    "name": "rasterizer_sprites.obj",
-   "source": "rasterizer/rasterizer_sprites.c"
+   "source": "rasterizer/rasterizer_sprites.c",
+   "data": [
+    {
+     "addr": "0x5a5400",
+     "decl": "rasterizer_frame_statistics_globals rasterizer_frame_statistics;",
+     "comment": "Ghidra: FUN_0017eb90 csmemset(0x5a5400, 0, 0x170); rasterizer_frame_statistics_update prints +0x30..+0x3c as \"shadows (%d)\" and +0xf4..+0x100 as \"model shadows (%d)\"; PAL 2342 rasterizer_frame_statistics.h (T2)"
+    }
+   ]
   },
   {
    "functions": [
@@ -37609,7 +37842,118 @@
    "source": "ai/actor_perception.c"
   },
   {
-   "data": [],
+   "data": [
+    {
+     "addr": "0x257cb8",
+     "decl": "const int16_t communication_player_speaking_priorities[8];",
+     "comment": "per-priority speaking priority for the player; {0,2,3,4,4,6,6,7}"
+    },
+    {
+     "addr": "0x257e34",
+     "decl": "const real communication_player_absolute_range;",
+     "comment": "30.0"
+    },
+    {
+     "addr": "0x257e38",
+     "decl": "const real communication_player_ideal_range_min;",
+     "comment": "3.0"
+    },
+    {
+     "addr": "0x257e3c",
+     "decl": "const real communication_player_ideal_range_max;",
+     "comment": "15.0"
+    },
+    {
+     "addr": "0x257e40",
+     "decl": "const real communication_player_ideal_fov;",
+     "comment": "0.70710677 (cos 45 deg)"
+    },
+    {
+     "addr": "0x257e44",
+     "decl": "const real communication_player_rating_low_priority;",
+     "comment": "2.0"
+    },
+    {
+     "addr": "0x257c68",
+     "decl": "const int16_t communication_speech_priorities[8];",
+     "comment": "per communication priority"
+    },
+    {
+     "addr": "0x257c78",
+     "decl": "const real communication_notification_delays[8];",
+     "comment": "per communication priority, seconds"
+    },
+    {
+     "addr": "0x257c98",
+     "decl": "const int16_t communication_protagonist_default_look_priorities[8];",
+     "comment": "per communication priority"
+    },
+    {
+     "addr": "0x257ca8",
+     "decl": "const int16_t communication_recipient_default_look_priorities[8];",
+     "comment": "per communication priority"
+    },
+    {
+     "addr": "0x257cd0",
+     "decl": "const communication_timer_tolerance_t communication_timer_tolerances[8];",
+     "comment": "[priority][near_player][timer type], seconds; 0x140 bytes up to communication_play_delays"
+    },
+    {
+     "addr": "0x257e10",
+     "decl": "const real communication_play_delays[5];",
+     "comment": "per timer type, seconds"
+    },
+    {
+     "addr": "0x257e48",
+     "decl": "const dialogue_usage_t global_dialogue_table[];",
+     "comment": "stride 0x28; runs up to global_reply_table"
+    },
+    {
+     "addr": "0x258eb0",
+     "decl": "const reply_usage_t global_reply_table[];",
+     "comment": "stride 0x24; sentinel original_vocalization_type == -1"
+    },
+    {
+     "addr": "0x2c8d48",
+     "decl": "const char *global_communication_priority_names[];",
+     "comment": "indexed by communication priority"
+    },
+    {
+     "addr": "0x2c8d68",
+     "decl": "const char *global_communication_team_names[];",
+     "comment": "two names per team; code reads [2 * team + 1]"
+    },
+    {
+     "addr": "0x2c8d78",
+     "decl": "const char *global_communication_type_names[];",
+     "comment": "indexed by communication type"
+    },
+    {
+     "addr": "0x331f08",
+     "decl": "int16_t global_dialogue_event_count;",
+     "comment": "number of global_dialogue_table entries; bounds the dialogue_type_index asserts"
+    },
+    {
+     "addr": "0x331f0c",
+     "decl": "dialogue_event_status_t *global_dialogue_events;",
+     "comment": "per (dialogue entry, team) timers"
+    },
+    {
+     "addr": "0x331f14",
+     "decl": "dialogue_event_status_t *global_reply_events;",
+     "comment": "per (reply entry, team) timers"
+    },
+    {
+     "addr": "0x632500",
+     "decl": "int16_t global_communication_table_indices[0x39];",
+     "comment": "index map built by ai_communication initialize"
+    },
+    {
+     "addr": "0x6324ec",
+     "decl": "data_t *conversation_data;",
+     "comment": "data_new(\"ai conversation\") result stored at 0x42b56"
+    }
+   ],
    "functions": [
     {
      "addr": "0x42a30",
@@ -37896,7 +38240,73 @@
    "source_path": "ai/ai_communication.c"
   },
   {
-   "data": [],
+   "data": [
+    {
+     "addr": "0x5abaa0",
+     "decl": "ai_profile_globals_t ai_profile;",
+     "comment": "AI profile switches + 28 meters; header names from the hs-global table (ai_profile_disable .. ai_show_sound_distance), cleared as 0xeec bytes by ai_profile_initialize"
+    },
+    {
+     "addr": "0x5aca14",
+     "decl": "uint32_t ai_debug_communication_suppress_vector[2];",
+     "comment": "bit per communication type; tested by ai_communication_event"
+    },
+    {
+     "addr": "0x5aca1c",
+     "decl": "uint32_t ai_debug_communication_ignore_vector[2];",
+     "comment": "bit per communication type; tested by ai_communication_event"
+    },
+    {
+     "addr": "0x5aca24",
+     "decl": "uint32_t ai_debug_communication_focus_vector[8];",
+     "comment": "bit per vocalization type; runs up to ai_debug_communication_focus_enable"
+    },
+    {
+     "addr": "0x5aca44",
+     "decl": "boolean ai_debug_communication_focus_enable;",
+     "comment": "hs global"
+    },
+    {
+     "addr": "0x5aca45",
+     "decl": "boolean ai_debug_communication_random_disabled;",
+     "comment": "hs global"
+    },
+    {
+     "addr": "0x5aca46",
+     "decl": "boolean ai_debug_communication_timeout_disabled;",
+     "comment": "hs global"
+    },
+    {
+     "addr": "0x5aca4f",
+     "decl": "boolean ai_print_communication;",
+     "comment": "hs global"
+    },
+    {
+     "addr": "0x5aca50",
+     "decl": "boolean ai_print_communication_player;",
+     "comment": "hs global"
+    },
+    {
+     "addr": "0x5aca51",
+     "decl": "boolean ai_print_vocalizations;",
+     "comment": "hs global"
+    },
+    {
+     "addr": "0x5aca53",
+     "decl": "boolean ai_print_speech;",
+     "comment": "hs global"
+    },
+    {
+     "addr": "0x5aca55",
+     "decl": "boolean ai_print_allegiance;",
+     "comment": "hs global"
+    },
+    {
+     "addr": "0x5aca5f",
+     "decl": "boolean ai_print_conversations;",
+     "comment": "hs global"
+    }
+   ],
    "functions": [
     {
      "addr": "0x48f50",
@@ -42248,7 +42658,8 @@
     },
     {
      "addr": "0x136bc0",
-     "decl": "void FUN_00136bc0(int current_object_handle@<edi>, void *collision_model, int material, void *damage_effect, void *damage_params, unsigned int *flags, float *shield_damage, float *body_damage);"
+     "decl": "void FUN_00136bc0(int current_object_handle@<edi>, void *collision_model, int material, void *damage_effect, void *damage_params, unsigned int *flags, float *shield_damage, float *body_damage);",
+     "ported": false
     },
     {
      "addr": "0x136f40",
@@ -42422,7 +42833,13 @@
    "source": "objects/object_lights.c"
   },
   {
-   "data": [],
+   "data": [
+    {
+     "addr": "0x1fb698",
+     "decl": "uint32_t D3D__RenderState[0x90];",
+     "comment": "XDK D3D render-state cache. Ghidra: D3DDevice_SetRenderStateNotInline stores [state*4 + 0x1fb698]; FUN_00156d80 copies 0x90 dwords from it"
+    }
+   ],
    "functions": [
     {
      "addr": "0x1cfa3f",
@@ -43830,13 +44247,15 @@
     },
     {
      "addr": "0x173090",
-     "decl": "void FUN_00173090(void *shader, int param_2, int vertices_per_primitive, int a2, int triangle_count, void *vertex_buffer);",
-     "ported": true
+     "decl": "void _rasterizer_environment_shadow_draw(void *shader, short bitmap_index, int dynamic_triangle_buffer_index, int first_triangle_index, int triangle_count, const vertex_buffer *vertex_buffer);",
+     "ported": true,
+     "comment": "[NAME: _rasterizer_environment_shadow_draw \u2014 name_source=pal-2342 method=crossbuild tier=T2 (PAL 2342 symbol __rasterizer_environment_shadow_draw; same assert line 404 (0x194), confirmed in Ghidra), 2026-10-01]"
     },
     {
      "addr": "0x1726a0",
-     "decl": "void FUN_001726a0(void);",
-     "ported": true
+     "decl": "void _rasterizer_environment_shadow_end(void);",
+     "ported": true,
+     "comment": "[NAME: _rasterizer_environment_shadow_end \u2014 name_source=pal-2342 method=crossbuild tier=T2 (PAL 2342 symbol __rasterizer_environment_shadow_end; same assert line 563 (0x233) and the same empty-shadow warning string; Ghidra: then calls rasterizer_set_target as PAL does), 2026-10-01]"
     },
     {
      "addr": "0x172a30",
@@ -43845,7 +44264,19 @@
     }
    ],
    "name": "rasterizer_xbox_shadows.obj",
-   "source": "rasterizer/xbox/rasterizer_xbox_shadows.c"
+   "source": "rasterizer/xbox/rasterizer_xbox_shadows.c",
+   "data": [
+    {
+     "addr": "0x47e46c",
+     "decl": "environment_shadows_globals rasterizer_environment_shadows_globals;",
+     "comment": "PAL 2342 rasterizer_xbox_shadows.c rasterizer_environment_shadows_globals (T2); shadow_color passed to real_rgb_color_to_pixel32 (PUSH 0x47e46c at 0x173317)"
+    },
+    {
+     "addr": "0x3251fc",
+     "decl": "boolean shadow_restored;",
+     "comment": "PAL 2342 rasterizer_xbox_shadows.c static shadow_restored (T2); Ghidra: cleared by FUN_00172a30 (shadow begin), tested and set by _rasterizer_environment_shadow_end and _draw"
+    }
+   ]
   },
   {
    "functions": [
@@ -44584,7 +45015,7 @@
     },
     {
      "addr": "0x001e9000",
-     "decl": "void D3DDevice_SetScissors(void);"
+     "decl": "void __stdcall D3DDevice_SetScissors(unsigned long count, int exclusive, const void *rects);"
     },
     {
      "addr": "0x001e92f0",
@@ -52167,7 +52598,8 @@
     },
     {
      "addr": "0x1621c0",
-     "decl": "void FUN_001621c0(int light_index);"
+     "decl": "void FUN_001621c0(int light_index);",
+     "ported": true
     },
     {
      "addr": "0x162560",
@@ -52182,7 +52614,7 @@
     {
      "addr": "0x162920",
      "decl": "void FUN_00162920(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x162f90",
@@ -52191,7 +52623,8 @@
     },
     {
      "addr": "0x1631d0",
-     "decl": "void FUN_001631d0(int light_index@<eax>);"
+     "decl": "void FUN_001631d0(int light_index@<eax>);",
+     "ported": false
     },
     {
      "addr": "0x163590",
@@ -52252,7 +52685,8 @@
     {
      "addr": "0x160930",
      "decl": "void _rasterizer_environment_diffuse_light_end(void);",
-     "comment": "[NAME: _rasterizer_environment_diffuse_light_end \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: _rasterizer_environment_diffuse_light_end \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x160940",
@@ -52267,12 +52701,14 @@
     },
     {
      "addr": "0x160970",
-     "decl": "void _rasterizer_hud_end(void);"
+     "decl": "void _rasterizer_hud_end(void);",
+     "ported": true
     },
     {
      "addr": "0x160980",
      "decl": "void _rasterizer_environment_specular_lights_end(void);",
-     "comment": "[NAME: _rasterizer_environment_specular_lights_end \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "comment": "[NAME: _rasterizer_environment_specular_lights_end \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x1609a0",
@@ -52282,19 +52718,19 @@
     {
      "addr": "0x160990",
      "decl": "void FUN_00160990(void);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
      "addr": "0x160bb0",
      "decl": "void FUN_00160bb0(void);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     },
     {
      "addr": "0x160910",
      "decl": "void _rasterizer_environment_lightmap_end(void);",
-     "ported": false,
+     "ported": true,
      "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
     }
    ]
@@ -52614,8 +53050,9 @@
     },
     {
      "addr": "0x16b2b0",
-     "decl": "void rasterizer_model_draw_environment_shader(void *shader, short shader_permutation_index, void *triangle_buffer, int dynamic_triangle_buffer_index, int triangle_count, void *vertex_buffer, int dynamic_vertex_buffer_index);",
-     "comment": "[NAME: rasterizer_model_draw_environment_shader \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+     "decl": "void rasterizer_model_draw_environment_shader(void *shader, short shader_permutation_index, triangle_buffer *triangle_buffer, int dynamic_triangle_buffer_index, int triangle_count, vertex_buffer *vertex_buffer, int dynamic_vertex_buffer_index);",
+     "comment": "[NAME: rasterizer_model_draw_environment_shader \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+     "ported": true
     },
     {
      "addr": "0x16bed0",

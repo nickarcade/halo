@@ -17,7 +17,7 @@ from collections import defaultdict
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 KB_PATH = os.path.join(ROOT_DIR, 'kb.json')
 KB_META_PATH = os.path.join(ROOT_DIR, 'kb_meta.json')
-DEFAULT_CACHE = os.path.join(ROOT_DIR, 'build', 'function_sizes.json')
+DEFAULT_BOUNDS = os.path.join(ROOT_DIR, 'tools', 'verify', 'function_bounds.json')
 
 
 def bar(pct, width=40):
@@ -33,9 +33,34 @@ def fmt_bytes(n):
     return f'{n:,} bytes'
 
 
-def load_function_cache(path):
-    with open(path) as f:
-        return json.load(f)
+def load_function_sizes(bounds_path):
+    """Function sizes from function_bounds.json; code size from the XBE header.
+
+    Bounds cover .text and the library code sections (D3D, DSOUND, XNET, BINK*,
+    XPP, ...), so the denominator is every section holding a bounded function.
+    """
+    from equivalence.xbe_image import load_xbe, section_at
+
+    with open(bounds_path) as f:
+        bounds = json.load(f)
+    _, secs = load_xbe()
+
+    functions = {}
+    code_sections = {}
+    for addr_str, info in bounds.items():
+        if addr_str == '_meta':
+            continue
+        addr = int(addr_str, 16)
+        functions[addr_str] = {'size': int(info['end'], 16) - addr}
+        sec = section_at(secs, addr)
+        if sec is not None:
+            code_sections[sec.name] = sec.vsize
+    return {
+        'text_section_size': sum(code_sections.values()),
+        'total_functions': len(functions),
+        'total_function_bytes': sum(f['size'] for f in functions.values()),
+        'functions': functions,
+    }
 
 
 def load_meta(meta_path):
@@ -70,8 +95,8 @@ def load_kb_objects(kb_path):
     return obj_map
 
 
-def compute(cache_path, kb_path, meta_path):
-    cache = load_function_cache(cache_path)
+def compute(bounds_path, kb_path, meta_path):
+    cache = load_function_sizes(bounds_path)
     meta_addrs = load_meta(meta_path)
     obj_map = load_kb_objects(kb_path)
 
@@ -149,9 +174,9 @@ def print_report(s, by_object=False):
 
     print('Halo: Combat Evolved — Reimplementation Progress')
     print()
-    print(f'  .text section:        {fmt_bytes(text_size):>12s}')
+    print(f'  Code sections:        {fmt_bytes(text_size):>12s}')
     print(f'  Total functions:      {total_funcs:>12,}')
-    print(f'  Total function bytes: {fmt_bytes(total_func_bytes):>12s}  ({total_func_bytes * 100 / text_size:.1f}% of .text)')
+    print(f'  Total function bytes: {fmt_bytes(total_func_bytes):>12s}  ({total_func_bytes * 100 / text_size:.1f}% of code)')
     print()
     print(f'  Byte coverage:  {bar(ported_bytes * 100 / text_size)} {ported_bytes * 100 / text_size:.2f}%')
     print(f'    {fmt_bytes(ported_bytes)} ported / {fmt_bytes(text_size)} total')
@@ -191,30 +216,10 @@ def print_report(s, by_object=False):
         print()
 
 
-def find_cache_file(cache_path):
-    """Find the function size cache file, checking multiple locations."""
-    # Check the specified/default path first
-    if os.path.exists(cache_path):
-        return cache_path
-    
-    # Check alternative locations
-    alternatives = [
-        os.path.join(ROOT_DIR, 'function_sizes.json'),
-        os.path.join(os.getcwd(), 'function_sizes.json'),
-        os.path.join(os.getcwd(), 'build', 'function_sizes.json'),
-    ]
-    
-    for alt in alternatives:
-        if os.path.exists(alt):
-            return alt
-    
-    return None
-
-
 def main():
     ap = argparse.ArgumentParser(description='Report reimplementation progress')
-    ap.add_argument('--cache', default=DEFAULT_CACHE,
-                    help='Path to function_sizes.json cache from Ghidra')
+    ap.add_argument('--bounds', default=DEFAULT_BOUNDS,
+                    help='Path to function_bounds.json')
     ap.add_argument('--kb', default=KB_PATH)
     ap.add_argument('--meta', default=KB_META_PATH)
     ap.add_argument('--by-object', action='store_true',
@@ -223,29 +228,7 @@ def main():
                     help='Output machine-readable JSON only')
     args = ap.parse_args()
 
-    # Ensure build directory exists (for when Ghidra script runs)
-    build_dir = os.path.dirname(DEFAULT_CACHE)
-    if not os.path.exists(build_dir):
-        os.makedirs(build_dir, exist_ok=True)
-
-    # Try to find the cache file
-    cache_path = find_cache_file(args.cache)
-    
-    if cache_path is None:
-        print(f'Error: function size cache not found at {args.cache}', file=sys.stderr)
-        print(f'', file=sys.stderr)
-        print(f'To generate this file:', file=sys.stderr)
-        print(f'  1. Open the XBE in Ghidra', file=sys.stderr)
-        print(f'  2. Go to Window -> Script Manager', file=sys.stderr)
-        print(f'  3. Click the script directories icon (+) and add:', file=sys.stderr)
-        print(f'     {os.path.join(ROOT_DIR, "ghidra_scripts")}', file=sys.stderr)
-        print(f'  4. Run: ExportFunctionSizes.java', file=sys.stderr)
-        print(f'  5. The file will be saved to: {DEFAULT_CACHE}', file=sys.stderr)
-        print(f'', file=sys.stderr)
-        print(f'Or specify a custom path with --cache', file=sys.stderr)
-        sys.exit(1)
-
-    s = compute(cache_path, args.kb, args.meta)
+    s = compute(args.bounds, args.kb, args.meta)
 
     if args.json:
         print(json.dumps({
@@ -259,14 +242,6 @@ def main():
         }, indent=2))
     else:
         print_report(s, by_object=args.by_object)
-        
-        # Suggest auto-discovery if many functions are undeclared
-        undeclared = s['total_funcs'] - s['declared_count']
-        if undeclared > 1000:
-            print()
-            print(f'Note: {undeclared:,} functions are not yet in kb.json')
-            print(f'Run the following to auto-discover and add them:')
-            print(f'  python3 tools/analysis/auto_discover.py --auto-add')
 
 
 if __name__ == '__main__':

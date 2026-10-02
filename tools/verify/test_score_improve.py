@@ -59,19 +59,19 @@ class TestParseScores(unittest.TestCase):
         self.assertIsNone(scores["legacy"]["operand_score"])
 
 
-class TestCompare(unittest.TestCase):
+class TestMnemonicCompare(unittest.TestCase):
     def baseline(self):
         return {"scores": {"target": score(80), "neighbor": score(90)}}
 
     def test_accepts_target_improvement_without_neighbor_regression(self):
         current = {"scores": {"target": score(80.5), "neighbor": score(90)}}
-        report = score_improve.compare(self.baseline(), current, {"target"}, 0.01)
+        report = score_improve.compare_mnemonic(self.baseline(), current, {"target"}, 0.01)
         self.assertTrue(report["passed"])
         self.assertEqual(report["improvements"], {"target": 0.5})
 
     def test_rejects_neutral_target(self):
         current = {"scores": {"target": score(80), "neighbor": score(90)}}
-        report = score_improve.compare(self.baseline(), current, {"target"}, 0.01)
+        report = score_improve.compare_mnemonic(self.baseline(), current, {"target"}, 0.01)
         self.assertFalse(report["passed"])
         self.assertIn("target", report["score_regressions"])
 
@@ -82,16 +82,45 @@ class TestCompare(unittest.TestCase):
                 "neighbor": score(89.9, {"fpu": ["new warning"]}),
             }
         }
-        report = score_improve.compare(self.baseline(), current, {"target"}, 0.01)
+        report = score_improve.compare_mnemonic(self.baseline(), current, {"target"}, 0.01)
         self.assertFalse(report["passed"])
         self.assertIn("neighbor", report["score_regressions"])
         self.assertIn("neighbor", report["warning_regressions"])
 
     def test_rejects_missing_baseline_score(self):
         current = {"scores": {"target": score(80.5)}}
-        report = score_improve.compare(self.baseline(), current, {"target"}, 0.01)
+        report = score_improve.compare_mnemonic(self.baseline(), current, {"target"}, 0.01)
         self.assertFalse(report["passed"])
         self.assertEqual(report["missing"], ["neighbor"])
+
+
+class TestByteCompare(unittest.TestCase):
+    def snapshot(self, matched=8, source_hash="before"):
+        from test_byte_regression import record
+        item = record(matched)
+        return {"metric": "raw_xbe_aligned_byte_lower_bound", "source": "src/example.c",
+                "inputs": {"src/example.c": source_hash, "src/header.h": "stable"},
+                "environment": {"compiler": "same"}, "records": [item]}
+
+    def test_byte_improvement_accepted(self):
+        result = score_improve.compare(self.snapshot(), self.snapshot(9, "after"), {"example"}, 0.01)
+        self.assertTrue(result["passed"])
+        self.assertGreater(result["improvements"]["example"], 0)
+
+    def test_byte_loss_and_stale_shared_inputs_rejected(self):
+        self.assertFalse(score_improve.compare(self.snapshot(), self.snapshot(7), {"example"}, 0.01)["passed"])
+        current = self.snapshot(9)
+        current["inputs"]["src/header.h"] = "changed"
+        self.assertFalse(score_improve.compare(self.snapshot(), current, {"example"}, 0.01)["passed"])
+        current = self.snapshot(9)
+        current["environment"]["compiler"] = "different"
+        self.assertFalse(score_improve.compare(self.snapshot(), current, {"example"}, 0.01)["passed"])
+
+    def test_mnemonic_baseline_is_not_a_byte_floor(self):
+        result = score_improve.compare({"scores": {"example": {"score": 100}}},
+                                       self.snapshot(10), {"example"}, 0.01)
+        self.assertFalse(result["passed"])
+        self.assertIn("not mnemonic scores", result["errors"][0])
 
 
 class TestParser(unittest.TestCase):

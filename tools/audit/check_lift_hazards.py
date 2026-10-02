@@ -1208,7 +1208,7 @@ def check_wide_out_params(filepath, content, lines):
     visible and light sources rendered straight through walls.
 
     Nothing else catches this: it never crashes, never trips an assert, and
-    VC71 byte-match barely moves (the frame is only 4 bytes short).
+    VC71 mnemonic match barely moves (the frame is only 4 bytes short).
 
     Conservative: only flags when the argument resolves to a scalar local
     declared in the same file.  Arrays (`unsigned int ts[2];`), 64-bit types

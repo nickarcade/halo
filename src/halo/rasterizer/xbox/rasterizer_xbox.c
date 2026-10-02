@@ -1291,7 +1291,7 @@ char rasterizer_set_texture_non_blocking(short stage, short type, short usage,
  * `XOR ESI,ESI` — i.e. a NULL-initialised result variable that each case
  * overwrites, tail-duplicated by MSVC into per-case epilogues.
  *
- * The surface globals match the table already documented for FUN_00158140 in
+ * The surface globals match the table already documented for rasterizer_set_target in
  * rasterizer_xbox_decals.c (which inlines the same selection):
  *   0x476a5c  target 0    0x476a80  target 3    0x476a98[4] target 6 (water)
  *   0x476a6c  target 1    0x476a88  target 4

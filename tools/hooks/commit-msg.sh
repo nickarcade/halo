@@ -45,8 +45,8 @@ if [ -x "$(command -v python3)" ] && [ -f "tools/audit/consolidate_squash_msg.py
     echo "    python3 tools/audit/consolidate_squash_msg.py --in-place $msg_file" >&2
     echo "" >&2
     echo "  Or edit the commit message to follow the repo standard:" >&2
-    echo "    Port func1, func2 (object.obj) (score% VC71)" >&2
-    echo "    Port N functions from object.obj (score% VC71)" >&2
+    echo "    Port func1, func2 (object.obj) (score% mnemonic similarity)" >&2
+    echo "    Port N functions from object.obj (score% mnemonic similarity)" >&2
     echo "" >&2
     echo "  Bypass with: git commit --no-verify" >&2
     exit 1

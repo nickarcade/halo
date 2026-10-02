@@ -1,0 +1,13 @@
+{
+  "policy": "Exact-content exceptions for reviewed constructed inputs, not directory exemptions. Changing a fixture requires another provenance review. These eight fixtures use zero-filled buffers, controlled sentinel fields, and deterministic test records; no live-capture metadata is present.",
+  "sha256": {
+    "tools/equivalence/regression_snapshots/system_link_add_player_ingame.json": "31273bebf9dc3260c678e0ae50650d898e1bafaec8c107c2ccdfed8f9cbb4537",
+    "tools/equivalence/regression_snapshots/system_link_client_loaded.json": "4041db9191b1b0c750b2ccbf67e0ad4be21f242343201a6f7e159bba1575ebf4",
+    "tools/equivalence/regression_snapshots/system_link_game_start_countdown.json": "e36c18d22f75f9a30f90f3ea6dad72db7849e974267d1d8bbfbb07f32aafcb81",
+    "tools/equivalence/regression_snapshots/system_link_queue_player_copy.json": "422fb14dcc61479de1d29a012df6dbe3f105d9e09b35c5eb18e805616975680c",
+    "tools/equivalence/regression_snapshots/system_link_remove_player_helper.json": "c5b1ed6575a08fa224d1a6c1f2fbc6a08ec58e4051cc2f62aea28a14e4987fcf",
+    "tools/equivalence/regression_snapshots/system_link_remove_player_postgame.json": "46ca5d04ec06203e07bb9ceb84a4a1faea89f61003e9a6b1fc64ccd0738e7265",
+    "tools/equivalence/regression_snapshots/system_link_remove_player_postgame_decode_fail.json": "9aea39ab66cdea3c6f9b411195f482a253345addab4e731fcaa14684776329a0",
+    "tools/equivalence/regression_snapshots/system_link_remove_player_postgame_wrong_state.json": "256484f9a75feac4f83e6baffcb41ec18d3eb93f8c13a7dae1912d2e218fe349"
+  }
+}

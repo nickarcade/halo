@@ -1215,6 +1215,21 @@ bool target_is_valid(int candidate_handle, int player_handle,
   return result;
 }
 
+/* slayer_initialize_for_new_map (0xb4ad0) — "slayer" record slot +0x0c
+ * (initialize_for_new_map, called by game_engine_initialize_for_new_map):
+ * clears both score tables and reports success.
+ *
+ * Disassembly (0xb4ad0): PUSH 0x40; PUSH 0; PUSH 0x456fe0; CALL csmemset;
+ * PUSH 0x40; PUSH 0; PUSH 0x457020; CALL csmemset; ADD ESP,0x18;
+ * MOV AL,1; RET. */
+bool slayer_initialize_for_new_map(void)
+{
+  csmemset(slayer_globals.team_scores, 0, sizeof(slayer_globals.team_scores));
+  csmemset(slayer_globals.player_scores, 0,
+           sizeof(slayer_globals.player_scores));
+  return true;
+}
+
 /* FUN_000b4b10 (0xb4b10) — invalidate a player's race timestamp
  *
  * Looks up the player record for the given handle and stores -1 into the
@@ -1231,6 +1246,26 @@ void FUN_000b4b10(unsigned int player_handle)
 
   player = (player_data_t *)datum_get(player_data, player_handle);
   player->target_player_index = -1;
+}
+
+/* FUN_000b4b50 (0xb4b50) — "slayer" record slot +0x1c: posts the
+ * team (0x23) or free-for-all (0x15) game event.
+ *
+ * Disassembly (0xb4b50): CALL game_engine_has_teams; NEG AL; SBB EAX,EAX;
+ * AND EAX,0xe; ADD EAX,0x15; PUSH EAX; CALL game_engine_post_event;
+ * POP ECX; RET. */
+void FUN_000b4b50(void)
+{
+  game_engine_post_event(game_engine_has_teams() ? 0x23 : 0x15);
+}
+
+/* FUN_000b4bd0 (0xb4bd0) — "slayer" record slot +0x58 (the slot
+ * ctf_allow_weapon_pick_up fills): always allows.
+ *
+ * Disassembly (0xb4bd0): MOV AL,1; RET. */
+bool FUN_000b4bd0(int param_1, int param_2)
+{
+  return true;
 }
 
 /* update_speed_for_score (0xb4bf0)
@@ -1682,6 +1717,24 @@ void slayer_engine_display_score(int player_index)
   if (table_score >= variant->score_limit) {
     game_engine_start_over();
   }
+}
+
+/* FUN_000b53b0 (0xb53b0) — "stub" record slot +0x0c
+ * (initialize_for_new_map): reports success.
+ *
+ * Disassembly (0xb53b0): MOV AL,1; RET. */
+bool FUN_000b53b0(void)
+{
+  return true;
+}
+
+/* FUN_000b5460 (0xb5460) — "stub" record slot +0x58 (the slot
+ * ctf_allow_weapon_pick_up fills): always allows.
+ *
+ * Disassembly (0xb5460): MOV AL,1; RET. */
+bool FUN_000b5460(int param_1, int param_2)
+{
+  return true;
 }
 
 /* 0xb5490 — FUN_000b5490

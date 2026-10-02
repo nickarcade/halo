@@ -15,7 +15,7 @@ That gap is real and was exploited once already (lift-learnings §61):
 Two similarly-named kb.json functions were confused at lift time; a later
 automated rebase fixup then REORDERED the arguments to conform to the wrong
 callee's decl, which made the error type-check cleanly and hid it from every
-shape-based audit.  It survived ~7 days and cost 4.2pp of VC71 match.
+shape-based audit.  It survived ~7 days and cost 4.2pp of VC71 mnemonic match.
 
 Method
 ------

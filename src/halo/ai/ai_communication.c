@@ -32,94 +32,94 @@
  */
 
 #include "../../x87_math.h"
-
+#include "../math/real_math.h"
+#include "encounters.h"
 /* ---------- TU-local types and globals ----------
  * Names are T2 (PAL 2342 source of this same TU, source/ai/ai_communication.c);
  * the layouts are re-confirmed against 2276 code where noted. */
 
-/* Dialogue table entry (0x257e48, stride 0x28 per the LEA [EAX+EAX*4] /
- * [EDI*8+0x257e48] indexing).  +0x00 and +0x02 are read by
- * ai_communication_started (0x44fd0) and ai_communication_notify (0x45290). */
-typedef struct {
-  int16_t communication_type;         /* +0x00 */
-  int16_t communication_priority;     /* +0x02 */
-  int16_t vocalization_type;          /* +0x04 */
-  int16_t animation_type;             /* +0x06 */
-  int16_t protagonist_type;           /* +0x08 */
-  int16_t protagonist_look_priority;  /* +0x0a */
-  int16_t recipient_look_direction;   /* +0x0c */
-  int16_t recipient_look_priority;    /* +0x0e */
-  real weight;                        /* +0x10 */
-  real repeat_delay;                  /* +0x14 */
-  int16_t flags;                      /* +0x18 */
-  int16_t required_group;             /* +0x1a */
-  int16_t required_hostility;         /* +0x1c */
-  int16_t required_enemy_status;      /* +0x1e */
-  int16_t required_subject_race;      /* +0x20 */
-  int16_t required_cause_race;        /* +0x22 */
-  int16_t required_damage;            /* +0x24 */
-  char pad_26[2];                     /* +0x26 */
-} dialogue_usage_t;
-cs(dialogue_usage_t, 0x28);
+/* dialogue_usage_t, reply_usage_t and dialogue_event_status_t live in
+ * types.h; global_dialogue_table, global_reply_table,
+ * global_dialogue_event_count, global_dialogue_events, global_reply_events,
+ * communication_speech_priorities, communication_notification_delays,
+ * communication_protagonist_default_look_priorities and
+ * global_communication_team_names (two names per team; the code always
+ * reads [2 * team + 1]) are kb.json data symbols. */
 
-/* Reply table entry (0x258eb0, stride 0x24).  Every field below is read by
- * ai_communication_find_actor_to_reply_to_player (0x460e0) or
- * ai_communication_finished (0x46530) at the listed offset. */
-typedef struct {
-  int16_t original_vocalization_type; /* +0x00 */
-  int16_t original_damage_category;   /* +0x02  -1 = any */
-  int16_t protagonist_type;           /* +0x04 */
-  int16_t vocalization_type;          /* +0x06 */
-  int16_t animation_type;             /* +0x08 */
-  int16_t communication_priority;     /* +0x0a */
-  uint16_t flags;                     /* +0x0c  bit 0: allowed during scripted dialog */
-  char pad_0e[2];                     /* +0x0e */
-  real chance;                        /* +0x10 */
-  real player_chance;                 /* +0x14 */
-  real delay_time;                    /* +0x18  seconds */
-  real repeat_delay;                  /* +0x1c */
-  bool (*reply_filter)(int original_unit_index, void *information,
-                       int reply_actor_index); /* +0x20  TEST AL on return */
-} reply_usage_t;
-cs(reply_usage_t, 0x24);
 
-/* Per-(entry, team) timer record in the dialogue (0x331f0c) and reply
- * (0x331f14) status tables; initialize_for_new_map sets both dwords to -1. */
-typedef struct {
-  int32_t last_time_spoken;           /* +0x00 */
-  int32_t disable_until_time;         /* +0x04 */
-} dialogue_event_status_t;
-cs(dialogue_event_status_t, 0x8);
 
-#define global_dialogue_table ((const dialogue_usage_t *)0x257e48)
-#define global_reply_table ((const reply_usage_t *)0x258eb0)
-#define global_dialogue_event_count (*(int16_t *)0x331f08)
-#define global_dialogue_events (*(dialogue_event_status_t **)0x331f0c)
-#define global_reply_events (*(dialogue_event_status_t **)0x331f14)
-#define communication_speech_priorities ((const int16_t *)0x257c68)
-#define communication_notification_delays ((const real *)0x257c78)
-#define communication_protagonist_default_look_priorities \
-  ((const int16_t *)0x257c98)
-/* Two names per team; the code always reads [2 * team + 1]. */
-#define global_communication_team_names ((char *const *)0x2c8d68)
 
-/* ai_get_player_rating tunables (.data floats). */
-#define communication_player_absolute_range (*(real *)0x257e34)  /* 30.0 */
-#define communication_player_ideal_range_min (*(real *)0x257e38) /* 3.0 */
-#define communication_player_ideal_range_max (*(real *)0x257e3c) /* 15.0 */
-#define communication_player_ideal_fov (*(real *)0x257e40)       /* 0.7071 */
 
-/* ai globals (*(char **)0x632574) byte +0x10. */
-#define ai_dialogue_triggers_enabled (*(char *)(*(char **)0x632574 + 0x10))
 
-/* ai_debug bytes. */
-#define ai_debug_communication_focus_vector ((const uint32_t *)0x5aca24)
-#define ai_debug_communication_focus_enable (*(char *)0x5aca44)
-#define ai_debug_communication_random_disabled (*(char *)0x5aca45)
-#define ai_debug_communication_timeout_disabled (*(char *)0x5aca46)
-#define ai_debug_print_communication (*(char *)0x5aca4f)
-#define ai_debug_print_vocalizations (*(char *)0x5aca51)
-#define ai_debug_print_speech (*(char *)0x5aca53)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ai_get_player_rating tunables: communication_player_absolute_range,
+ * communication_player_ideal_range_min/_max, communication_player_ideal_fov
+ * and communication_player_rating_low_priority are kb.json data symbols
+ * (const reals in .rdata), as is communication_player_speaking_priorities.
+ */
+
+/* ai_globals (ai_globals_t *), the ai_print_* / ai_debug_communication_*
+ * hs-global bytes and the communication bit vectors are kb.json data
+ * symbols. */
+
+
+
+
+
+
+
+
 /* SAR 5 / AND 0x1f / SHL / TEST dword — signed index, as in the binary. */
 #define ai_debug_communication_focused(type)                                \
   ((ai_debug_communication_focus_vector[(type) >> 5] &                      \
@@ -177,8 +177,8 @@ co(ai_conversation_datum_t, participant_mask, 0x14);
 co(ai_conversation_datum_t, dialogue_indices, 0x18);
 co(ai_conversation_datum_t, actor_indices, 0x28);
 
-#define conversation_data (*(data_t **)0x6324ec)
-#define ai_debug_conversations (*(char *)0x5aca5f)
+/* conversation_data and ai_print_conversations: kb.json data symbols. */
+
 
 /* ai_communication_initialize: count comm dialogue/reply table entries,
  * allocate per-entry status tables via game_state_malloc, build a dialogue
@@ -2099,7 +2099,6 @@ float ai_communication_get_player_rating(int unit_handle, char test_line_of_sigh
   char blocked;
   short cluster_index;
   short player_cluster_index;
-  short depth;
 
   closest_unit = -1;
   best_rating = 0.0f;
@@ -2112,12 +2111,12 @@ float ai_communication_get_player_rating(int unit_handle, char test_line_of_sigh
     if ((int)player->unit_handle != -1) {
       any_players = 1;
       unit_get_head_position(player->unit_handle, (float *)&player_position);
-      vector.i = position.x - player_position.x;
-      vector.j = position.y - player_position.y;
-      vector.k = position.z - player_position.z;
-      /* summed z, x, y — binary order */
-      distance_squared =
-        vector.k * vector.k + vector.i * vector.i + vector.j * vector.j;
+      vector_from_points3d(&player_position, &position, &vector);
+      distance_squared = magnitude_squared3d(&vector);
+
+
+
+
       if (distance_squared < communication_player_absolute_range *
                                communication_player_absolute_range) {
         clear_line_of_sight = 0;
@@ -2136,28 +2135,29 @@ float ai_communication_get_player_rating(int unit_handle, char test_line_of_sigh
                                                   player_cluster_index)) {
             goto next;
           }
-          ++*(short *)0x5ac5d4; /* ai profile collision meter */
-          if (*(short *)0x4761d8 >= 0x20) {
+          ai_profile.meters[_ai_meter_collisions].accumulator++;
+          if (global_current_collision_user_depth >= 0x20) {
             display_assert("global_current_collision_user_depth < "
                            "MAXIMUM_COLLISION_USER_STACK_DEPTH",
                            "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0xe91, 1);
             system_exit(-1);
           }
-          depth = *(short *)0x4761d8;
-          *(short *)0x4761d8 = depth + 1;
-          line_of_sight_vector.i = position.x - player_position.x;
-          line_of_sight_vector.j = position.y - player_position.y;
-          /* global_current_collision_users[depth] = _collision_user_ai_comms */
-          *(int16_t *)(0x5a8c80 + (int)depth * 2) = 3;
-          line_of_sight_vector.k = position.z - player_position.z;
+          /* Push _collision_user_ai_comms (3); the depth is post-incremented
+           * in place here and pre-decremented after the test, both directly
+           * on the kb data symbols (the reference's INC/DEC word ptr forms
+           * need the named global, not an absolute-address cast). */
+          collision_user_stack[global_current_collision_user_depth++] = 3;
+          vector_from_points3d(&player_position, &position,
+                               &line_of_sight_vector);
+
           blocked = FUN_0014df70(0x27, (float *)&player_position,
                                  (float *)&line_of_sight_vector, -1, collision);
-          if (*(short *)0x4761d8 <= 1) {
+          if (global_current_collision_user_depth <= 1) {
             display_assert("global_current_collision_user_depth > 1",
                            "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0xe97, 1);
             system_exit(-1);
           }
-          --*(short *)0x4761d8;
+          --global_current_collision_user_depth;
           if (distance_squared < communication_player_ideal_range_min *
                                    communication_player_ideal_range_min ||
               !blocked) {
@@ -2182,10 +2182,10 @@ float ai_communication_get_player_rating(int unit_handle, char test_line_of_sigh
           }
           if (distance > 0.0001f /* _real_epsilon, 0x253f44 */) {
             unit_get_aiming_vector(player->unit_handle, &aiming_vector);
-            /* summed z, y, x — binary order */
-            facing = (aiming_vector.k * vector.k + aiming_vector.j * vector.j +
-                      vector.i * aiming_vector.i) /
-                     distance;
+            facing = dot_product3d(&aiming_vector, &vector) / distance;
+
+
+
             if (facing > communication_player_ideal_fov) {
               rating = (0.7f - (1.0f - facing) /
                                  (1.0f - communication_player_ideal_fov) *
@@ -2715,7 +2715,7 @@ char ai_conversation_find_participant(int16_t participant_index,
     }
   }
 
-  if (!assigned && ai_debug_conversations) {
+  if (!assigned && ai_print_conversations) {
     name_index = participant->preexisting_name_index;
     if (name_index == -1) {
       name_index = participant->new_name_index;
@@ -2799,13 +2799,9 @@ finalize:
 void ai_communication_started(int unit_handle, uint16_t priority, uint16_t type,
                               void *comm_data)
 {
-  char string[1024];
-  char actor_string[512];
-  char speech_string[512];
-  char name[256];
   unit_data_t *unit;
   actor_t *actor;
-  char *encounter;
+  encounter_definition *encounter;
   ai_information_packet_t *information;
   const char *vocalization_name;
 
@@ -2818,30 +2814,34 @@ void ai_communication_started(int unit_handle, uint16_t priority, uint16_t type,
   case 10:
     break;
   default:
-    if (ai_debug_print_vocalizations) {
+    if (ai_print_vocalizations) {
+      char string[1024];
+      char name[256];
+
       unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
       if (unit->actor_index.value != -1) {
         actor = (actor_t *)datum_get(actor_data, unit->actor_index.value);
         if (actor->field_034 == (uint32_t)-1) {
           csstrcpy(name, "<no encounter>");
         } else {
-          /* scenario ai_encounters block +0x42c (0xb0 each), squads block
-           * at encounter +0x80 (0xe8 each); both names are at +0 */
-          encounter = (char *)tag_block_get_element(
-            (char *)global_scenario_get() + 0x42c, actor->field_034 & 0xffff,
-            0xb0);
-          crt_sprintf(name, "%s/%s", encounter,
-                      (char *)tag_block_get_element(encounter + 0x80,
-                                                    actor->field_03a, 0xe8));
+          /* field_034 = encounter index, field_03a = squad index */
+          encounter = (encounter_definition *)tag_block_get_element(
+            &global_scenario_get()->ai_encounters, actor->field_034 & 0xffff,
+            sizeof(encounter_definition));
+          crt_sprintf(name, "%s/%s", encounter->name,
+                      ((squad_definition_t *)tag_block_get_element(
+                         &encounter->squads, actor->field_03a,
+                         sizeof(squad_definition_t)))->name);
         }
         crt_sprintf(string, "%s/%s: ", name,
                     actor_type_get_name(actor->meta_type));
       } else if (unit->object.unk_106 != -1) {
-        /* scenario object_names block +0x204 (0x24 each) */
+        /* unk_106 = scenario object name index */
         crt_sprintf(string, "%s: ",
-                    (char *)tag_block_get_element(
-                      (char *)global_scenario_get() + 0x204,
-                      unit->object.unk_106, 0x24));
+                    ((scenario_object_name_t *)tag_block_get_element(
+                       &global_scenario_get()->object_names,
+                       unit->object.unk_106, sizeof(scenario_object_name_t)))
+                      ->name);
       } else if (unit->unk_456.value != -1) {
         crt_sprintf(string, "player %d: ", unit->unk_456.value & 0xffff);
       } else {
@@ -2865,7 +2865,10 @@ void ai_communication_started(int unit_handle, uint16_t priority, uint16_t type,
       }
       console_printf(0, string);
     }
-    if (ai_debug_print_speech) {
+    if (ai_print_speech) {
+      char actor_string[512];
+      char speech_string[512];
+
       unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
       /* unit +0x338 = current speech item priority, compared signed */
       if ((int16_t)unit->unk_824 > 0) {
@@ -2916,74 +2919,80 @@ void ai_communication_started(int unit_handle, uint16_t priority, uint16_t type,
 void ai_communication_notify(int unit_handle, uint16_t priority, uint16_t type,
                              void *comm_data)
 {
-  char *data;
-  char *unit;
+  ai_information_packet_t *information;
+  unit_data_t *unit;
   actor_t *actor;
-  char *prop;
+  prop_t *prop;
   int prop_handle;
   short dialogue_type_index;
   float sense_block[14];
-  int iter[7];
-  float position[3];
+  actor_iterator_t actors;
+  real_point3d speaker_head;
   short team;
-  char *location;
+  void *location;
   short volume;
+  int parent_object_index;
 
-  data = (char *)comm_data;
-  if (*(short *)(data + 0x14) == 1) {
-    ai_handle_allegiance_broken_notification(*(uint16_t *)(data + 0x18),
-                                             *(uint16_t *)(data + 0x1a),
-                                             *(uint8_t *)(data + 0x1c));
+  information = (ai_information_packet_t *)comm_data;
+  switch (information->information_type) {
+  case 1: /* allegiance information */
+    ai_handle_allegiance_broken_notification(
+      (uint16_t)information->information_data.allegiance.team1_index,
+      (uint16_t)information->information_data.allegiance.team2_index,
+      (uint8_t)information->information_data.allegiance.broken);
+    break;
   }
-  if (*(short *)(data + 0x14) != 0 || *(short *)(data + 0x0c) > 0) {
-    unit = (char *)object_get_and_verify_type(unit_handle, 3);
-    location = unit + 0x48;
-    team = *(short *)(unit + 0x68);
+  if (information->information_type != 0 || information->look_priority > 0) {
+    unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+    location = &unit->object.unk_72; /* object location, +0x48 */
+    team = unit->object.owner_team_index;
     volume = 1;
-    unit_get_head_position(unit_handle, position);
-    dialogue_type_index = *(short *)(data + 0x06);
+    unit_get_head_position(unit_handle, (float *)&speaker_head);
+    dialogue_type_index = information->dialogue_type_index;
     if (dialogue_type_index != -1) {
       assert_halt_msg_at(
         "(ai_information->dialogue_type_index >= 0) && "
         "(ai_information->dialogue_type_index < global_dialogue_event_count)",
         "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x894,
         dialogue_type_index >= 0 &&
-          dialogue_type_index < *(int16_t *)0x331f08);
-      if (*(short *)(0x257e4a + *(short *)(data + 0x06) * 0x28) >= 4) {
+          dialogue_type_index < global_dialogue_event_count);
+      if (global_dialogue_table[information->dialogue_type_index]
+            .communication_priority >= 4) {
         volume = 3;
       }
     }
-    if (*(int *)(unit + 0xcc) != -1) {
-      location = (char *)object_get_and_verify_type(
-                   object_get_root_parent(unit_handle), -1) +
-                 0x48;
+    if (unit->object.parent_object_index.value != -1) {
+      parent_object_index = object_get_root_parent(unit_handle);
+      location = &((object_data_t *)object_get_and_verify_type(
+                     parent_object_index, -1))->unk_72;
     }
-    actor_iterator_new(iter, 1);
-    actor = (actor_t *)actor_iterator_next(iter);
+    actor_iterator_new(&actors, 1);
+    actor = (actor_t *)actor_iterator_next(&actors);
     while (actor != NULL) {
+      real_vector3d vector;
+
       if (actor->meta_unit_index != unit_handle &&
           !game_allegiance_get_team_is_friendly(actor->field_03e, team) &&
-          (position[0] - actor->field_120) * (position[0] - actor->field_120) +
-              (position[1] - actor->field_124) *
-                (position[1] - actor->field_124) +
-              (position[2] - actor->field_128) *
-                (position[2] - actor->field_128) <=
-            *(float *)0x254e00) {
-        prop_handle = prop_get_base_by_unit_index(iter[5], unit_handle, 1, 1);
+          !(magnitude_squared3d(vector_from_points3d(
+              &actor->head_position, &speaker_head, &vector)) > 900.0f)) {
+        prop_handle =
+          prop_get_base_by_unit_index(actors.index, unit_handle, 1, 1);
         if (prop_handle != -1) {
-          prop = (char *)datum_get(prop_data, prop_handle);
-          actor_perception_find_sense_position(iter[5], position, prop_handle,
-                                               sense_block);
+          prop = (prop_t *)datum_get(prop_data, prop_handle);
+          actor_perception_find_sense_position(
+            actors.index, (float *)&speaker_head, prop_handle, sense_block);
           if ((short)actor_audibility_at_point(
-                iter[5], sense_block, position, location, volume, 1.0f,
-                *(uint16_t *)(prop + 0x38)) >= 2) {
-            actor_handle_communication(iter[5], prop_handle, (int)comm_data);
-            ai_communication_handle_received_looking(iter[5], comm_data,
+                actors.index, sense_block, (float *)&speaker_head, location,
+                volume,
+                0x3f800000 /* the 1.0f bit pattern; kb types this slot int */,
+                (uint16_t)prop->line_of_sight) >= 2) {
+            actor_handle_communication(actors.index, prop_handle, (int)comm_data);
+            ai_communication_handle_received_looking(actors.index, comm_data,
                                                      prop_handle);
           }
         }
       }
-      actor = (actor_t *)actor_iterator_next(iter);
+      actor = (actor_t *)actor_iterator_next(&actors);
     }
   }
 }
@@ -3867,240 +3876,238 @@ void ai_communication_finished(int unit_handle, short priority,
                                short vocalization_type, char reply_to_player,
                                int preselected_reply_actor, void *information)
 {
-  char consider_string[512];
-  char debug_string[1024];
-  unit_speech_item_t speech;
-  ai_information_packet_t *packet;
-  char not_focused;
-  char any_replies;
-  const reply_usage_t *reply;
-  int reply_index;
-  unit_data_t *unit;
-  actor_t *speaker_actor;
-  int speech_priority;
-  int reply_actor;
-  int reply_unit_handle;
-  unit_data_t *reply_unit;
-  float random_value;
-  int sound_definition_index;
-  float weight;
-  short reply_voc;
-  short delay_ticks;
-  short play_type;
-  char play_reply;
+  ai_information_packet_t *packet = (ai_information_packet_t *)information;
 
   (void)priority; /* [EBP+0xc] is never read */
-  packet = (ai_information_packet_t *)information;
-  if (!ai_dialogue_triggers_enabled || vocalization_type == -1) {
-    return;
-  }
-  not_focused = 0;
-  any_replies = 0;
-  if (ai_debug_print_communication) {
-    crt_sprintf(debug_string, "REPLY %s: ",
-                dialogue_get_vocalization_name(vocalization_type, 0));
-  }
-  if (ai_debug_communication_focus_enable) {
-    not_focused = !ai_debug_communication_focused(vocalization_type);
-  }
-  reply = global_reply_table;
-  reply_index = 0;
-  /* the binary enters the body without a sentinel test */
-  do {
-    if (reply->original_vocalization_type != vocalization_type) {
-      goto next;
+  if (ai_globals->dialogue_triggers_enabled && vocalization_type != -1) {
+    char consider_string[512];
+    char debug_string[1024];
+    const reply_usage_t *reply;
+    char not_focused = 0;
+    char any_replies = 0;
+    int reply_index;
+
+    if (ai_print_communication) {
+      crt_sprintf(debug_string, "REPLY %s: ",
+                  dialogue_get_vocalization_name(vocalization_type, 0));
     }
-    unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
-    if (unit->actor_index.value == -1) {
-      speaker_actor = NULL;
-    } else {
-      speaker_actor = (actor_t *)datum_get(actor_data, unit->actor_index.value);
+    if (ai_debug_communication_focus_enable) {
+      not_focused = !ai_debug_communication_focused(vocalization_type);
     }
-    speech_priority = (uint16_t)
-      communication_speech_priorities[reply->communication_priority];
-    any_replies = 1;
-    if (ai_debug_print_communication) {
-      csstrcat(debug_string,
-               csprintf(error_string_buffer, "%s:",
-                        dialogue_get_vocalization_name(
-                          reply->vocalization_type, 0)));
-    }
-    if (ai_debug_communication_focus_enable &&
-        ai_debug_communication_focused(reply->vocalization_type)) {
-      not_focused = 0;
-    }
-    if (reply->original_damage_category != -1 &&
-        reply->original_damage_category != packet->damage_category) {
-      if (ai_debug_print_communication) {
-        csstrcat(debug_string, "wrong-dmg ");
-      }
-      goto next;
-    }
-    if (sound_scripted_dialog_is_playing() && (reply->flags & 1) == 0) {
-      if (ai_debug_print_communication) {
-        csstrcat(debug_string, "override-scripted ");
-      }
-      goto next;
-    }
-    if (preselected_reply_actor == -1) {
-      assert_halt_at("c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x9e5,
-                     !reply_to_player);
-      reply_actor = -1;
-      switch (reply->protagonist_type) {
-      case 2:
-        if (speaker_actor != NULL &&
-            speaker_actor->field_034 != (uint32_t)-1) {
-          /* EAX = encounter & 0xffff, ESI = -1, EDI = unit_handle; stack
-           * arg 1 is 9.0f, forwarded as bits by the int-typed callee */
-          reply_actor = ai_communication_find_specific_actor_to_talk(
-            0x41100000 /* 9.0f */, -1,
-            (uint16_t)reply->communication_priority, speech_priority,
-            (uint16_t)reply->vocalization_type,
-            (uint16_t)reply->animation_type, 0,
-            speaker_actor->field_034 & 0xffff, -1, unit_handle);
-        } else {
-          reply_actor = ai_communication_find_global_actor_to_talk(
-            1, -1, 0x41100000 /* 9.0f */, -1,
-            (uint16_t)reply->communication_priority, speech_priority,
-            (uint16_t)reply->vocalization_type,
-            (uint16_t)reply->animation_type, 0, unit_handle,
-            unit->object.owner_team_index);
-        }
-        break;
-      case 3:
-        if (object_try_and_get_and_verify_type(packet->target_unit_index, 3) ==
-            NULL) {
-          goto nobody;
-        }
-        reply_unit_handle = packet->target_unit_index;
-        goto have_unit;
-      case 4:
-        reply_actor = ai_communication_find_global_actor_to_talk(
-          2, -1, 0x41100000 /* 9.0f */, -1,
-          (uint16_t)reply->communication_priority, speech_priority,
-          (uint16_t)reply->vocalization_type, (uint16_t)reply->animation_type,
-          0, unit_handle, unit->object.owner_team_index);
-        break;
-      }
-      if (reply_actor == -1) {
-        goto nobody;
-      }
-    } else {
-      reply_actor = preselected_reply_actor;
-    }
-    reply_unit_handle =
-      ((actor_t *)datum_get(actor_data, reply_actor))->meta_unit_index;
-  have_unit:
-    if (reply_unit_handle == -1) {
-    nobody:
-      if (ai_debug_print_communication) {
-        csstrcat(debug_string, "nobody ");
-      }
-      goto next;
-    }
-    reply_unit =
-      (unit_data_t *)object_get_and_verify_type(reply_unit_handle, 3);
-    if (reply_unit->unk_456.value != -1) { /* unit +0x1c8 player index */
-      if (ai_debug_print_communication) {
-        csstrcat(debug_string, "playercant ");
-      }
-      goto next;
-    }
-    play_reply = 1;
-    if (!reply_to_player) {
-      if (reply->chance > 0.0f) {
-        random_value = random_math_real(
-          (unsigned int *)get_global_random_seed_address());
-        if ((game_connection() != 0 ||
-             !ai_debug_communication_random_disabled) &&
-            !(random_value < reply->chance)) {
-          if (!ai_debug_print_communication) {
-            goto next;
-          }
+
+    reply = global_reply_table;
+    reply_index = 0;
+    /* the binary enters the body without a sentinel test: the original
+     * reply table was initialized in this TU, so entry 0 was known valid */
+    do {
+      if (reply->original_vocalization_type == vocalization_type) {
+        unit_data_t *unit =
+          (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
+        actor_t *speaker_actor =
+          unit->actor_index.value == -1
+            ? NULL
+            : (actor_t *)datum_get(actor_data, unit->actor_index.value);
+        int speech_priority = (uint16_t)
+          communication_speech_priorities[reply->communication_priority];
+
+        any_replies = 1;
+        if (ai_print_communication) {
           csstrcat(debug_string,
-                   csprintf(error_string_buffer, "rand %.2f>%.2f ",
-                            (double)random_value, (double)reply->chance));
-          play_reply = 0;
+                   csprintf(error_string_buffer, "%s:",
+                            dialogue_get_vocalization_name(
+                              reply->vocalization_type, 0)));
         }
-      } else {
-        if (!ai_debug_print_communication) {
-          goto next;
+        if (ai_debug_communication_focus_enable &&
+            ai_debug_communication_focused(reply->vocalization_type)) {
+          not_focused = 0;
         }
-        csstrcat(debug_string, "0-chance ");
-        play_reply = 0;
+
+        if (reply->original_damage_category != -1 &&
+            reply->original_damage_category != packet->damage_category) {
+          if (ai_print_communication) {
+            csstrcat(debug_string, "wrong-dmg ");
+          }
+        } else if (sound_scripted_dialog_is_playing() &&
+                   (reply->flags & 1) == 0) {
+          if (ai_print_communication) {
+            csstrcat(debug_string, "override-scripted ");
+          }
+        } else {
+          int reply_unit_handle = -1;
+
+          if (preselected_reply_actor == -1) {
+            int reply_actor = -1;
+
+            assert_halt_at("c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x9e5,
+                           !reply_to_player);
+            switch (reply->protagonist_type) {
+            case 2:
+              if (speaker_actor != NULL &&
+                  speaker_actor->field_034 != (uint32_t)-1) {
+                /* EAX = encounter & 0xffff, ESI = -1, EDI = unit_handle;
+                 * stack arg 1 is 9.0f, forwarded as bits by the int-typed
+                 * callee */
+                reply_actor = ai_communication_find_specific_actor_to_talk(
+                  0x41100000 /* 9.0f */, -1,
+                  (uint16_t)reply->communication_priority, speech_priority,
+                  (uint16_t)reply->vocalization_type,
+                  (uint16_t)reply->animation_type, 0,
+                  speaker_actor->field_034 & 0xffff, -1, unit_handle);
+              } else {
+                reply_actor = ai_communication_find_global_actor_to_talk(
+                  1, -1, 0x41100000 /* 9.0f */, -1,
+                  (uint16_t)reply->communication_priority, speech_priority,
+                  (uint16_t)reply->vocalization_type,
+                  (uint16_t)reply->animation_type, 0, unit_handle,
+                  unit->object.owner_team_index);
+              }
+              break;
+            case 3:
+              if (object_try_and_get_and_verify_type(packet->target_unit_index,
+                                                     3)) {
+                reply_unit_handle = packet->target_unit_index;
+              }
+              break;
+            case 4:
+              reply_actor = ai_communication_find_global_actor_to_talk(
+                2, -1, 0x41100000 /* 9.0f */, -1,
+                (uint16_t)reply->communication_priority, speech_priority,
+                (uint16_t)reply->vocalization_type,
+                (uint16_t)reply->animation_type, 0, unit_handle,
+                unit->object.owner_team_index);
+              break;
+            }
+            if (reply_actor != -1) {
+              reply_unit_handle =
+                ((actor_t *)datum_get(actor_data, reply_actor))
+                  ->meta_unit_index;
+            }
+          } else {
+            reply_unit_handle =
+              ((actor_t *)datum_get(actor_data, preselected_reply_actor))
+                ->meta_unit_index;
+          }
+
+          if (reply_unit_handle != -1) {
+            unit_data_t *reply_unit =
+              (unit_data_t *)object_get_and_verify_type(reply_unit_handle, 3);
+
+            if (reply_unit->unk_456.value == -1) { /* unit +0x1c8 player */
+              char play_reply = 1;
+
+              if (!reply_to_player) {
+                if (reply->chance > 0.0f) {
+                  float random_value = random_math_real(
+                    (unsigned int *)get_global_random_seed_address());
+
+                  if ((game_connection() != 0 ||
+                       !ai_debug_communication_random_disabled) &&
+                      !(random_value < reply->chance)) {
+                    if (ai_print_communication) {
+                      csstrcat(debug_string,
+                               csprintf(error_string_buffer, "rand %.2f>%.2f ",
+                                        (double)random_value,
+                                        (double)reply->chance));
+                    }
+                    play_reply = 0;
+                  }
+                } else {
+                  if (ai_print_communication) {
+                    csstrcat(debug_string, "0-chance ");
+                  }
+                  play_reply = 0;
+                }
+              }
+
+              if (!play_reply) {
+                if (ai_print_communication) {
+                  csstrcat(debug_string, "rand-failed ");
+                }
+              } else if (reply->reply_filter != NULL &&
+                         !reply->reply_filter(unit_handle, information,
+                                              reply_unit->actor_index.value)) {
+                if (ai_print_communication) {
+                  csstrcat(debug_string, "filter ");
+                }
+              } else {
+                short reply_voc = reply->vocalization_type;
+                int sound_definition_index = -1;
+                float weight = 1.0f;
+                short delay_ticks = (short)(int)(reply->delay_time * 30.0f);
+                short play_type = ai_communication_consider_speech(
+                  &sound_definition_index, &reply_voc, (short)speech_priority,
+                  reply_unit_handle, reply->communication_priority,
+                  delay_ticks, 0, 0, &weight, consider_string);
+
+                if (play_type > 0) {
+                  unit_speech_item_t speech;
+
+                  /* +0x0e and packet +0x10 are left unwritten, as in the
+                   * binary */
+                  speech.priority = (int16_t)speech_priority;
+                  speech.vocalization_type = reply_voc;
+                  speech.sound_definition_index = sound_definition_index;
+                  speech.delay_time = delay_ticks;
+                  speech.ai_notification_delay = (int16_t)(int)(
+                    communication_notification_delays
+                      [reply->communication_priority] *
+                    30.0f);
+                  speech.pause_time = 0x18;
+                  speech.ai.target_unit_index = unit_handle;
+                  speech.ai.communication_type = -1;
+                  speech.ai.dialogue_type_index = -1;
+                  speech.ai.damage_category = -1;
+                  speech.ai.updated_dialogue_timers = 1;
+                  speech.ai.look_priority = 0;
+                  speech.ai.look_type = 0;
+                  speech.ai.information_type = 0;
+                  csmemset(&speech.ai.information_data, 0,
+                           sizeof(speech.ai.information_data));
+                  unit_speak(reply_unit_handle, play_type, &speech);
+                  ai_communication_update_speech_timers(
+                    reply_unit_handle, (int16_t)speech_priority, reply_voc,
+                    -1, (int16_t)reply_index);
+                  /* EAX = -1 prop, EBX = reply unit's actor, EDI =
+                   * unit_handle; look type 8 = communicating prop */
+                  ai_communication_look_secondary_at_unit(
+                    -1, reply_unit->actor_index.value, unit_handle, 8,
+                    communication_protagonist_default_look_priorities
+                      [reply->communication_priority]);
+                  if (ai_print_communication) {
+                    csstrcat(debug_string,
+                             strupr(csprintf(error_string_buffer, ">>%s<<",
+                                             dialogue_get_vocalization_name(
+                                               speech.vocalization_type, 1))));
+                  }
+                  break;
+                }
+
+                if (ai_print_communication) {
+                  csstrcat(debug_string,
+                           csprintf(error_string_buffer, "u-%s-%s ",
+                                    weight > 0.0f ? "dis" : "n/a",
+                                    consider_string));
+                }
+              }
+            } else {
+              if (ai_print_communication) {
+                csstrcat(debug_string, "playercant ");
+              }
+            }
+          } else {
+            if (ai_print_communication) {
+              csstrcat(debug_string, "nobody ");
+            }
+          }
+        }
       }
+      reply++;
+      reply_index++;
+    } while (reply->original_vocalization_type != -1);
+
+    if (any_replies && ai_print_communication && !not_focused) {
+      error(2, debug_string);
     }
-    if (!play_reply) {
-      if (ai_debug_print_communication) {
-        csstrcat(debug_string, "rand-failed ");
-      }
-      goto next;
-    }
-    if (reply->reply_filter != NULL &&
-        !reply->reply_filter(unit_handle, information,
-                             reply_unit->actor_index.value)) {
-      if (ai_debug_print_communication) {
-        csstrcat(debug_string, "filter ");
-      }
-      goto next;
-    }
-    sound_definition_index = -1;
-    weight = 1.0f;
-    reply_voc = reply->vocalization_type;
-    delay_ticks = (short)(int)(reply->delay_time * 30.0f);
-    play_type = ai_communication_consider_speech(
-      &sound_definition_index, &reply_voc, (short)speech_priority,
-      reply_unit_handle, reply->communication_priority, delay_ticks, 0, 0,
-      &weight, consider_string);
-    if (play_type > 0) {
-      /* +0x0e and packet +0x10 are left unwritten, as in the binary */
-      speech.priority = (int16_t)speech_priority;
-      speech.vocalization_type = reply_voc;
-      speech.sound_definition_index = sound_definition_index;
-      speech.delay_time = delay_ticks;
-      speech.ai_notification_delay = (int16_t)(int)(
-        communication_notification_delays[reply->communication_priority] *
-        30.0f);
-      speech.pause_time = 0x18;
-      speech.ai.target_unit_index = unit_handle;
-      speech.ai.communication_type = -1;
-      speech.ai.dialogue_type_index = -1;
-      speech.ai.damage_category = -1;
-      speech.ai.updated_dialogue_timers = 1;
-      speech.ai.look_priority = 0;
-      speech.ai.look_type = 0;
-      speech.ai.information_type = 0;
-      csmemset(&speech.ai.information_data, 0,
-               sizeof(speech.ai.information_data));
-      unit_speak(reply_unit_handle, play_type, &speech);
-      ai_communication_update_speech_timers(reply_unit_handle,
-                                            (int16_t)speech_priority, reply_voc,
-                                            -1, (int16_t)reply_index);
-      /* EAX = -1 prop, EBX = reply unit's actor, EDI = unit_handle;
-       * look type 8 = communicating prop */
-      ai_communication_look_secondary_at_unit(
-        -1, reply_unit->actor_index.value, unit_handle, 8,
-        communication_protagonist_default_look_priorities
-          [reply->communication_priority]);
-      if (ai_debug_print_communication) {
-        csstrcat(debug_string,
-                 strupr(csprintf(error_string_buffer, ">>%s<<",
-                                 dialogue_get_vocalization_name(
-                                   speech.vocalization_type, 1))));
-      }
-      break;
-    }
-    if (ai_debug_print_communication) {
-      csstrcat(debug_string,
-               csprintf(error_string_buffer, "u-%s-%s ",
-                        weight > 0.0f ? "dis" : "n/a", consider_string));
-    }
-  next:
-    reply++;
-    reply_index++;
-  } while (reply->original_vocalization_type != -1);
-  if (any_replies && ai_debug_print_communication && !not_focused) {
-    error(2, debug_string);
   }
 }
 
@@ -4343,20 +4350,6 @@ typedef struct {
 } ai_communication_encounter_view_t;
 co(ai_communication_encounter_view_t, enemy_visible_timer, 0x50);
 
-/* ai globals (*(char **)0x632574): the event reads +0x10 and walks three
- * two-entry time arrays from +0x14 (4-byte stride per team). */
-typedef struct {
-  char pad_00[0x10];
-  boolean dialogue_triggers_enabled;  /* +0x10 */
-  char pad_11[0x3];
-  int32_t last_chatter_time[2];       /* +0x14 */
-  int32_t last_talk_time[2];          /* +0x1c */
-  int32_t last_shout_time[2];         /* +0x24 */
-} ai_communication_globals_view_t;
-co(ai_communication_globals_view_t, last_shout_time, 0x24);
-#define ai_communication_globals \
-  (*(ai_communication_globals_view_t **)0x632574)
-
 /* One candidate line (EBP-0x56c array, stride 0x38 per IMUL EAX,EAX,0x38). */
 typedef struct {
   real weight;                          /* +0x00 */
@@ -4397,23 +4390,20 @@ typedef struct {
 cs(ai_communication_secondary_look_t, 0x10);
 
 #define MAXIMUM_COMMUNICATION_POSSIBILITIES 16
-#define global_communication_table_indices ((const int16_t *)0x632500)
-#define global_communication_type_names ((char *const *)0x2c8d78)
-#define global_communication_priority_names ((char *const *)0x2c8d48)
-#define global_game_team_names ((char *const *)0x2efdf8)
-#define communication_player_speaking_priorities ((const int16_t *)0x257cb8)
-#define communication_recipient_default_look_priorities \
-  ((const int16_t *)0x257ca8)
-/* [priority][near_player][chatter, talk, -, shout, minimum], seconds. */
-typedef real communication_timer_tolerance_t[2][5];
-#define communication_timer_tolerances \
-  ((const communication_timer_tolerance_t *)0x257cd0)
-#define communication_play_delays ((const real *)0x257e10)
-#define communication_player_rating_low_priority (*(real *)0x257e44) /* 2.0 */
-#define ai_debug_communication_suppress_vector ((const uint32_t *)0x5aca14)
-#define ai_debug_communication_ignore_vector ((const uint32_t *)0x5aca1c)
-#define ai_debug_print_communication_player (*(char *)0x5aca50)
-#define ai_debug_print_allegiance (*(char *)0x5aca55)
+/* global_communication_table_indices, global_communication_type_names and
+ * global_communication_priority_names are kb.json data symbols. */
+/* communication_player_speaking_priorities: kb.json data symbol. */
+/* communication_recipient_default_look_priorities,
+ * communication_timer_tolerances and communication_play_delays are kb.json
+ * data symbols. */
+/* communication_player_rating_low_priority: kb.json data symbol. */
+#ifndef TEST_FLAG
+#define TEST_FLAG(flags, bit) (((flags) & (unsigned)FLAG(bit)) != 0)
+#endif
+#ifndef SET_FLAG
+#define SET_FLAG(f, b, v) \
+  ((v) ? ((f) |= (unsigned)FLAG(b)) : ((f) &= (unsigned)~FLAG(b)))
+#endif
 #define ai_debug_bit_test(vector, index) \
   (((vector)[(index) >> 5] & (1u << ((index) & 0x1f))) != 0)
 
@@ -4627,7 +4617,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
         hostility = 4; /* _comm_hostility_traitor */
       }
 
-      if (ai_debug_print_allegiance) {
+      if (ai_print_allegiance) {
         console_printf(0, "incident between teams %s and %s: %s, %s",
                        global_game_team_names[subject_team],
                        global_game_team_names[cause_team],
@@ -4645,7 +4635,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
           ai_handle_allegiance_broken_notification(cause_team, subject_team,
                                                    broken);
         }
-        if (ai_debug_print_allegiance && !broken) {
+        if (ai_print_allegiance && !broken) {
           int16_t incident_threshold;
           int16_t incidents = game_allegiance_get_incidents(
             cause_team, subject_team, &incident_threshold);
@@ -4664,7 +4654,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
     }
   }
 
-  if (ai_debug_print_communication) {
+  if (ai_print_communication) {
     char hostility_characters[5];
 
     hostility_characters[0] = 'n';
@@ -4737,13 +4727,13 @@ void ai_communication_event(short communication_type, int subject_unit_index,
     int ticks;
 
     ticks = event_time -
-            ai_communication_globals->last_shout_time[communication_team];
+            ai_globals->last_shout_time[communication_team];
     shout_ticks[communication_team] = (int16_t)(ticks < 0 ? 0 : ticks);
     ticks = event_time -
-            ai_communication_globals->last_talk_time[communication_team];
+            ai_globals->last_talk_time[communication_team];
     talk_ticks[communication_team] = (int16_t)(ticks < 0 ? 0 : ticks);
     ticks = event_time -
-            ai_communication_globals->last_chatter_time[communication_team];
+            ai_globals->last_chatter_time[communication_team];
     chatter_ticks[communication_team] = (int16_t)(ticks < 0 ? 0 : ticks);
     /* 0x2546a4 = 1/30 */
     shout_seconds[communication_team] =
@@ -4807,8 +4797,8 @@ void ai_communication_event(short communication_type, int subject_unit_index,
     }
   }
 
-  if (!ai_communication_globals->dialogue_triggers_enabled) {
-    if (ai_debug_print_communication) {
+  if (!ai_globals->dialogue_triggers_enabled) {
+    if (ai_print_communication) {
       csstrcat(debug_string, "DISABLED");
       error(2, debug_string);
     }
@@ -4848,7 +4838,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
 
       if (usage->required_hostility != -1 &&
           !hostility_matches[usage->required_hostility]) {
-        if (ai_debug_print_communication) {
+        if (ai_print_communication) {
           const char *hostility_names[5];
 
           hostility_names[0] = "none";
@@ -4867,13 +4857,13 @@ void ai_communication_event(short communication_type, int subject_unit_index,
       } else if (sound_scripted_dialog_is_playing() &&
                  usage->communication_priority < 6 &&
                  (usage->flags & 0x40) == 0) { /* override-scripted bit */
-        if (ai_debug_print_communication) {
+        if (ai_print_communication) {
           csstrcat(requirements_string, "[scripted-override] ");
         }
         any_requirements_failed = true;
       } else if (usage->required_enemy_status != -1 &&
                  !enemy_status[usage->required_enemy_status]) {
-        if (ai_debug_print_communication) {
+        if (ai_print_communication) {
           const char *enemy_status_names[6];
 
           enemy_status_names[0] = "never";
@@ -4894,7 +4884,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
                  (subject_unit_index == -1 ||
                   (short)(usage->required_subject_race & subject_race) ==
                     0)) {
-        if (ai_debug_print_communication) {
+        if (ai_print_communication) {
           csstrcat(requirements_string,
                    csprintf(error_string_buffer, "[%s/%d nosubrace] ",
                             dialogue_get_vocalization_name(
@@ -4905,7 +4895,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
       } else if (usage->required_cause_race != -1 &&
                  (cause_unit_index == -1 ||
                   (short)(usage->required_cause_race & cause_race) == 0)) {
-        if (ai_debug_print_communication) {
+        if (ai_print_communication) {
           csstrcat(requirements_string,
                    csprintf(error_string_buffer, "[%s/%d nocausrace] ",
                             dialogue_get_vocalization_name(
@@ -4915,7 +4905,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
         any_requirements_failed = true;
       } else if (usage->required_damage != -1 &&
                  usage->required_damage != damage_type) {
-        if (ai_debug_print_communication) {
+        if (ai_print_communication) {
           csstrcat(requirements_string,
                    csprintf(error_string_buffer, "[%s/%d nodmg] ",
                             dialogue_get_vocalization_name(
@@ -4970,18 +4960,12 @@ void ai_communication_event(short communication_type, int subject_unit_index,
             /* bit0 allow lookup (usage bit0), bit1 near to players,
              * bit2 same vehicle (usage 0x10), bit3 allow subject
              * (usage 0x20), bit4 allow cause */
-            find_actor_flags = (short)((usage->flags & 1) | 2);
-            if (usage->flags & 0x10) {
-              find_actor_flags |= 4;
-            } else {
-              find_actor_flags &= ~4;
-            }
-            if (usage->flags & 0x20) {
-              find_actor_flags |= 8;
-            } else {
-              find_actor_flags &= ~8;
-            }
-            find_actor_flags |= 0x10;
+            find_actor_flags = 0;
+            SET_FLAG(find_actor_flags, 0, TEST_FLAG(usage->flags, 0));
+            SET_FLAG(find_actor_flags, 1, true);
+            SET_FLAG(find_actor_flags, 2, TEST_FLAG(usage->flags, 4));
+            SET_FLAG(find_actor_flags, 3, TEST_FLAG(usage->flags, 5));
+            SET_FLAG(find_actor_flags, 4, true);
 
             if (subject_encounter_index != -1) {
               /* EAX = encounter absolute index, ESI = cause unit,
@@ -5017,17 +5001,11 @@ void ai_communication_event(short communication_type, int subject_unit_index,
           if (find_other_actor) {
             short find_actor_flags;
 
-            find_actor_flags = (short)((usage->flags & 1) | 2);
-            if (usage->flags & 0x10) {
-              find_actor_flags |= 4;
-            } else {
-              find_actor_flags &= ~4;
-            }
-            if (usage->flags & 0x20) {
-              find_actor_flags |= 8;
-            } else {
-              find_actor_flags &= ~8;
-            }
+            find_actor_flags = 0;
+            SET_FLAG(find_actor_flags, 0, TEST_FLAG(usage->flags, 0));
+            SET_FLAG(find_actor_flags, 1, true);
+            SET_FLAG(find_actor_flags, 2, TEST_FLAG(usage->flags, 4));
+            SET_FLAG(find_actor_flags, 3, TEST_FLAG(usage->flags, 5));
             other_actor_index = ai_communication_find_global_actor_to_talk(
               2 /* _find_actor_mode_enemy */, cause_unit_index,
               0x41400000 /* 12.0f */, communication_type,
@@ -5079,7 +5057,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
               (protagonist_actor->state_action == 0xb &&
                !protagonist_actor->field_0a0))) ||
             !valid) {
-          if (ai_debug_print_communication) {
+          if (ai_print_communication) {
             char protagonist_code =
               usage->protagonist_type == 0   ? 's'
               : usage->protagonist_type == 1 ? 'c'
@@ -5105,7 +5083,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
             friend_actor_index = reply_actor_index;
           }
           if (reply_actor_index == -1) {
-            if (ai_debug_print_communication) {
+            if (ai_print_communication) {
               csstrcat(debug_string,
                        csprintf(error_string_buffer, "[%s/%d noplyreply] ",
                                 dialogue_get_vocalization_name(
@@ -5118,7 +5096,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
 
         if (valid && usage->required_group != -1 && protagonist_groups &&
             !protagonist_groups[usage->required_group]) {
-          if (ai_debug_print_communication) {
+          if (ai_print_communication) {
             char group_code = usage->required_group == 0   ? 'e'
                               : usage->required_group == 1 ? 't'
                                                            : '?';
@@ -5142,7 +5120,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
             player_rating = ai_communication_get_player_rating(
               protagonist_unit_index, 1, NULL, NULL);
             if (player_rating == 0.0f) {
-              if (ai_debug_print_communication) {
+              if (ai_print_communication) {
                 csstrcat(debug_string,
                          csprintf(error_string_buffer, "[%s/%d 0-playrat] ",
                                   dialogue_get_vocalization_name(
@@ -5202,7 +5180,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
                     "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x639,
                     communication_priority < 6);
 
-                  if (ai_debug_print_communication) {
+                  if (ai_print_communication) {
                     const real *tolerance = communication_timer_tolerances
                       [communication_priority][near_player];
 
@@ -5257,7 +5235,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
                         remaining += 30;
                       }
                       if (remaining > 0) {
-                        if (ai_debug_print_communication) {
+                        if (ai_print_communication) {
                           csstrcat(
                             debug_string,
                             csprintf(error_string_buffer,
@@ -5367,7 +5345,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
                 communication_priority, delay_time,
                 (char)(usage->flags & 1), 0, &speech_weight, speech_string);
               if (play_type == 0) { /* _unit_play_speech_none */
-                if (ai_debug_print_communication) {
+                if (ai_print_communication) {
                   csstrcat(debug_string,
                            csprintf(error_string_buffer, "[%s/%d u-%s-%s] ",
                                     dialogue_get_vocalization_name(
@@ -5439,7 +5417,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
                 }
                 possibility_count++;
 
-                if (ai_debug_print_communication) {
+                if (ai_print_communication) {
                   csstrcat(
                     debug_string,
                     csprintf(error_string_buffer,
@@ -5473,7 +5451,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
     }
   }
 
-  if (ai_debug_print_communication_player && !player_involved) {
+  if (ai_print_communication_player && !player_involved) {
     suppress_output = true;
   }
 
@@ -5498,7 +5476,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
       assert_halt_msg_at("total_possibility_weight > 0.0f",
                          "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x76e,
                          total_possibility_weight > 0.0f);
-      if (ai_debug_print_communication) {
+      if (ai_print_communication) {
         csstrcat(debug_string,
                  csprintf(error_string_buffer, "[%d/%.1f force %d/%.1f] ",
                           (int)possibility_count, (double)original_weight,
@@ -5521,7 +5499,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
         }
       }
       selected_possibility = &possibilities[index];
-      if (ai_debug_print_communication) {
+      if (ai_print_communication) {
         csstrcat(debug_string,
                  csprintf(error_string_buffer, "[rnd%.1f tot%.1f cum%.1f@%d] ",
                           (double)random_weight,
@@ -5656,7 +5634,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
                                             dialogue_type_index, -1);
     }
 
-    if (ai_debug_print_communication) {
+    if (ai_print_communication) {
       csstrcat(debug_string,
                strupr(csprintf(error_string_buffer, ">>%s<<",
                                dialogue_get_vocalization_name(
@@ -5665,7 +5643,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
         error(2, debug_string);
       }
     }
-  } else if (ai_debug_print_communication) {
+  } else if (ai_print_communication) {
     if (any_requirements_failed && !any_protagonist_considered) {
       csstrcat(debug_string, requirements_string);
     }

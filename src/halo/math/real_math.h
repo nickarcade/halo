@@ -11,6 +11,15 @@
 
 #include "../../types.h"
 
+/* Exponent-not-all-ones test on the float's bits.  Inlined in the camera
+ * command validators (observer_set_camera, first_person_camera_for_unit_and_
+ * vector): the by-value float is stored to a stack slot and reloaded as an
+ * integer before the AND/CMP 0x7f800000. */
+static __inline boolean valid_real(real n)
+{
+  return (*(long *)&n & 0x7f800000) != 0x7f800000;
+}
+
 /* result = b - a.  Inlined in lightning_submit (0x135818, 0x135c6f). */
 static __inline real_vector3d *vector_from_points3d(real_point3d const *a,
                                                     real_point3d const *b,
@@ -30,6 +39,19 @@ static __inline real_vector3d *scale_vector3d(real_vector3d const *a, real c,
   result->j = c * a->j;
   result->k = c * a->k;
   return result;
+}
+
+/* |v|^2.  Inlined in ai_communication_get_player_rating. */
+static __inline real magnitude_squared3d(real_vector3d const *v)
+{
+  return v->i * v->i + v->j * v->j + v->k * v->k;
+}
+
+/* a . b.  Inlined in ai_communication_get_player_rating. */
+static __inline real dot_product3d(real_vector3d const *a,
+                                   real_vector3d const *b)
+{
+  return a->i * b->i + a->j * b->j + a->k * b->k;
 }
 
 #endif /* HALO_MATH_REAL_MATH_H */

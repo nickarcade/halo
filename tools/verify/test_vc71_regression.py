@@ -23,6 +23,17 @@ SPEC.loader.exec_module(vc71)
 SOURCE = "tools/verify/test_vc71_regression.py"
 
 
+class TestByteCompatibility(unittest.TestCase):
+    def test_default_check_delegates_to_byte_gate(self):
+        from types import SimpleNamespace
+        args = vc71.build_parser().parse_args(["check", "--strict"])
+        with patch.object(vc71.subprocess, "run", return_value=SimpleNamespace(returncode=0)) as run:
+            self.assertEqual(vc71.cmd_check(args), 0)
+        command = run.call_args.args[0]
+        self.assertTrue(command[1].endswith("byte_regression.py"))
+        self.assertEqual(command[2:], ["local", "--working-tree"])
+
+
 class TestStrictCheck(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -46,7 +57,7 @@ class TestStrictCheck(unittest.TestCase):
         with patch.object(vc71, "BASELINE_PATH", self.baseline_path):
             with patch.object(vc71, "run_vc71_verify", runner or self.runner()):
                 with patch.object(vc71, "_func_span", return_value=10):
-                    return vc71.cmd_check(args)
+                    return vc71.cmd_mnemonic_check(args)
 
     @staticmethod
     def runner(results=None, status="ok", drops=None):
@@ -108,7 +119,7 @@ class TestStrictCheck(unittest.TestCase):
                     with patch.object(vc71, "BASELINE_PATH", self.baseline_path):
                         with patch.object(vc71, "run_vc71_verify",
                                           self.runner(result)):
-                            self.assertEqual(vc71.cmd_check(self.args), 0)
+                            self.assertEqual(vc71.cmd_mnemonic_check(self.args), 0)
 
     def test_missing_reference_drop_fails_strict(self):
         scores = {"fn": {"score": 90, "source": SOURCE}}
@@ -126,7 +137,7 @@ class TestStrictCheck(unittest.TestCase):
         self.assertNotEqual(self.run_check(scores, self.runner(regressed)), 0)
 
     def test_strict_flag_is_explicit_parser_option(self):
-        args = vc71.build_parser().parse_args(["check", "--strict"])
+        args = vc71.build_parser().parse_args(["mnemonic-check", "--strict"])
         self.assertTrue(args.strict)
 
 
@@ -143,7 +154,7 @@ class TestLegacyCheckSkipsEvidenceGaps(unittest.TestCase):
             baseline.write_text(json.dumps({"scores": {}}))
             args = SimpleNamespace(source=None, threshold=2.0, quiet=True, strict=False)
             with patch.object(vc71, "BASELINE_PATH", baseline):
-                self.assertEqual(vc71.cmd_check(args), 0)
+                self.assertEqual(vc71.cmd_mnemonic_check(args), 0)
 
             baseline.write_text(json.dumps({
                 "scores": {"fn": {"score": 90, "source": SOURCE}},
@@ -152,7 +163,7 @@ class TestLegacyCheckSkipsEvidenceGaps(unittest.TestCase):
             with patch.object(vc71, "BASELINE_PATH", baseline):
                 with patch.object(vc71, "run_vc71_verify", runner):
                     with patch.object(vc71, "_func_span", return_value=10):
-                        self.assertEqual(vc71.cmd_check(args), 0)
+                        self.assertEqual(vc71.cmd_mnemonic_check(args), 0)
 
 
 class TestFuncSpanDelegatesWhenImported(unittest.TestCase):
@@ -602,7 +613,7 @@ class CheckHarness(unittest.TestCase):
         with patch.object(vc71, "BASELINE_PATH", self.baseline_path):
             with patch.object(vc71, "run_vc71_verify", run):
                 with contextlib.redirect_stdout(buf):
-                    rc = vc71.cmd_check(args)
+                    rc = vc71.cmd_mnemonic_check(args)
         return rc, buf.getvalue()
 
 

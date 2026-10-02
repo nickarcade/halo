@@ -175,14 +175,22 @@ int memcmp(const void *a, const void *b, size_t size)
   return 0;
 }
 
+/* memset and memcpy use the sequences VC71 inlines for variable sizes:
+ * size/4 dwords, then size&3 bytes, forward. memcpy does no overlap check,
+ * so an overlapping copy behaves as it does in the original binary. Inline
+ * asm also keeps clang from turning the loops back into memset/memcpy calls. */
 void *memset(void *buffer, int c, size_t size)
 {
-  uint8_t *p;
-  size_t i;
+  void *dst;
+  size_t count;
+  uint32_t fill;
 
-  p = (uint8_t *)buffer;
-  for (i = 0; i < size; i++)
-    p[i] = (uint8_t)c;
+  dst = buffer;
+  count = size >> 2;
+  fill = (uint8_t)c * 0x01010101u;
+  __asm__ volatile("rep stosl" : "+D"(dst), "+c"(count) : "a"(fill) : "memory");
+  count = size & 3;
+  __asm__ volatile("rep stosb" : "+D"(dst), "+c"(count) : "a"(fill) : "memory");
   return buffer;
 }
 
@@ -191,14 +199,16 @@ void *memset(void *buffer, int c, size_t size)
 #endif
 void *memcpy(void *destination, const void *source, size_t size)
 {
-  uint8_t *dst;
-  const uint8_t *src;
-  size_t i;
+  void *dst;
+  const void *src;
+  size_t count;
 
-  dst = (uint8_t *)destination;
-  src = (const uint8_t *)source;
-  for (i = 0; i < size; i++)
-    dst[i] = src[i];
+  dst = destination;
+  src = source;
+  count = size >> 2;
+  __asm__ volatile("rep movsl" : "+D"(dst), "+S"(src), "+c"(count) : : "memory");
+  count = size & 3;
+  __asm__ volatile("rep movsb" : "+D"(dst), "+S"(src), "+c"(count) : : "memory");
   return destination;
 }
 #endif /* !defined(_MSC_VER) || defined(__clang__) */

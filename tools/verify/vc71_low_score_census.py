@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Build a reproducible summary of VC71 floor scores and score contexts."""
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Build a reproducible summary of VC71 mnemonic floor scores and score contexts."""
 
 import argparse
 import hashlib

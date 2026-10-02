@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
 import sys, os
 _tools_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _tools_dir not in sys.path:
@@ -231,7 +232,7 @@ def source_files_changed(since_ref=None):
 
 
 _VC71_LINE_RE = re.compile(
-    r"(?:PASS|FAIL)\s+(\S+):\s+([\d.]+)%\s+match\s+\((\d+)/(\d+)\s+insns\)"
+    r"(?:PASS|FAIL)\s+(\S+):\s+([\d.]+)%\s+(?:mnemonic\s+)?match\s+\((\d+)/(\d+)\s+insns\)"
 )
 
 
@@ -308,7 +309,7 @@ _EQUIV_RESULTS_RE = re.compile(
 )
 
 def _find_latest_vc71_match(ports=None):
-    """Find the VC71 match % from the most recent timestamped lift run summary.
+    """Find the VC71 mnemonic match % from the most recent timestamped lift run summary.
 
     When staged ports are known, only accept a summary whose target_pick stage
     names one of them — otherwise a recent run for a DIFFERENT (e.g. reverted)
@@ -402,7 +403,7 @@ def _build_match_tag(vc71_match, equivalence):
     """Format the verification tag for the commit title."""
     parts = []
     if vc71_match:
-        parts.append(f"{vc71_match}% VC71")
+        parts.append(f"{vc71_match}% mnemonic similarity")
     if equivalence:
         parts.append(f"{equivalence} equiv")
     if not parts:
@@ -428,7 +429,7 @@ def generate_message(batch_name=None, since_ref=None, vc71_match=None,
     ported_after, total_after, pct_after = kb_summary()
     prev = previous_kb_summary()
 
-    # --- Fresh VC71 scores from staged source files -------------------------
+    # --- Fresh VC71 mnemonic scores from staged source files -------------------------
     vc71_scores = _run_vc71_on_staged_sources(ports, since_ref)
 
     if vc71_match is None:
@@ -498,7 +499,7 @@ def generate_message(batch_name=None, since_ref=None, vc71_match=None,
             score_info = _lookup_vc71_score(addr, decl, vc71_scores)
             if score_info:
                 score_tag = (
-                    f" [{score_info['score']:.1f}% VC71,"
+                    f" [{score_info['score']:.1f}% mnemonic similarity,"
                     f" {score_info['n_c']}/{score_info['n_r']} insns]"
                 )
             else:
@@ -541,10 +542,9 @@ def generate_message(batch_name=None, since_ref=None, vc71_match=None,
             f"Coverage: {pct_after:.1f}% ({ported_after}/{total_after} symbols)"
         )
 
-    # NOTE: the VC71 regression floor is refreshed exactly once per commit by the
-    # pre-commit hook (tools/hooks/pre-commit-vc71-regression.sh), which also
-    # re-stages vc71_scores.json. Message generation no longer runs `update` to
-    # avoid a redundant second compile+diff pass on every commit.
+    # Mnemonic numbers in the message are advisory similarity diagnostics.
+    # The pre-commit hook independently gates fresh raw-XBE bytes and never
+    # rewrites or auto-stages mnemonic floors.
 
     return "\n".join(lines)
 
@@ -640,7 +640,7 @@ def main():
                          "and print no commit message. For callers that consume "
                          "the exit code and stderr and discard stdout.")
     ap.add_argument("--vc71-match", default=None,
-                    help="VC71 match %% to include in commit title (auto-detected from latest lift run if omitted)")
+                    help="VC71 mnemonic match %% to include in commit title (auto-detected from latest lift run if omitted)")
     ap.add_argument("--equivalence", default=None,
                     help="Equivalence result to include in commit title, e.g. '100/100' "
                          "(auto-detected from latest artifacts/equivalence/*_smoke.log if omitted)")

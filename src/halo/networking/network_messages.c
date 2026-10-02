@@ -40,7 +40,6 @@
  * Source: data_encoding.c line 0xb6. */
 bool data_encode_string(data_encoding_state_t *state, const char *string, short maximum_length)
 {
-  /* names: PAL 2342 memory/data_encoding.c:323 */
   short string_length;
   int destination;
 
@@ -174,7 +173,6 @@ __declspec(noinline) int data_decode_memory(data_encoding_state_t *state, short 
  * Source: data_encoding.c. */
 __declspec(noinline) unsigned char data_decode_byte(data_encoding_state_t *state)
 {
-  /* name: PAL 2342 memory/data_encoding.c:447 */
   int new_offset;
   unsigned char *value;
 
@@ -200,7 +198,6 @@ __declspec(noinline) unsigned char data_decode_byte(data_encoding_state_t *state
  * Source: data_encoding.c. */
 short data_decode_short(data_encoding_state_t *state)
 {
-  /* name: PAL 2342 memory/data_encoding.c:455 */
   short *value;
 
   if (!(state != NULL && state->buffer != NULL && state->offset >= 0 &&
@@ -870,7 +867,6 @@ boolean hashtable_search(short *table_, void *key, unsigned short *slot_index_ou
  * Source: hashtable.c line 0x4d. */
 int hashtable_get(short *table_, void *key)
 {
-  /* name: PAL 2342 memory/hashtable.c:165 */
   hashtable_t *table;
   short element_index;
   int result = 0;

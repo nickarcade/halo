@@ -19,6 +19,8 @@ artifacts
 
 # Patched game output (contains copyrighted game assets)
 /halo-patched
+*.xbe
+*.xex
 *.iso
 
 # Generated source files (created from kb.json by tools/knowledge.py)
@@ -82,6 +84,10 @@ stabbed.txt
 /ghidra_plugins/delinker_control/build/
 /ghidra_plugins/delinker_control/dist/
 
+# Ghidra plugins & scripts
+/ghidra_plugins/*
+/ghidra_scripts/*
+
 # Local capture artifacts
 /screenshots/
 /xemu-screenshot.ppm
@@ -130,6 +136,11 @@ opencode.json
 .agents/skills/*
 .agents/*
 .agent/*
+
+# Generic agentic LLM stuff
+.claude/*
+.opencode/*
+.rtk/*
 
 # Semantic-retrieval index (rebuildable from kb.json + sources)
 tools/retrieval/index.duckdb
@@ -195,9 +206,19 @@ scratch/*
 skills-lock.json
 .grok/*
 
-# Host-local CEA corpus root (machine-specific path); see
-# tools/analysis/cea_corpus.path.example for the format.
-tools/analysis/cea_corpus.path
-
 # Host-only CI snapshot (converted live RAM capture; never committed).
 /ci/
+
+# Provenance boundary: target/runtime byte corpora and standalone seeded builds.
+/tools/equivalence/_global_bytes.py
+/tools/equivalence/known_globals.json
+/halo_decompiled/
+/halo_2276_functions.txt
+/build-standalone*/
+*.dbg
+*.sym
+*.savestate
+*.ram
+
+# Live capture inputs preserved locally by the provenance audit.
+host_snapshots/provenance-local/

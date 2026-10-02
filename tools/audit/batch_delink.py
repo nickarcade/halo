@@ -83,7 +83,7 @@ def global_func_starts() -> list[int]:
     A fixed byte window (the old RANGE_PAD_PER_FUNC) overshoots for any function
     smaller than the window, pulling dozens of following functions into the chunk
     under a single symbol — which compare_obj then attributes wholesale to the one
-    function, inflating its reference instruction count and collapsing VC71 match.
+    function, inflating its reference instruction count and collapsing VC71 mnemonic match.
     """
     global _GLOBAL_FUNC_STARTS
     if _GLOBAL_FUNC_STARTS is None:

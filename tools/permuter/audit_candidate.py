@@ -20,7 +20,7 @@ Measured on units.c (2026-08-13), three targets, three best-ranked candidates:
 Two of three were broken.  Neither is caught by the campaign's own gates.  The
 `unit_get_seat_enter_position` candidate was applied as a probe and measured:
 
-  VC71 official match  92.4% -> 93.9%   (+1.5pp -- the gate REWARDS the bug)
+  VC71 mnemonic similarity  92.4% -> 93.9%   (+1.5pp -- the gate REWARDS the bug)
   VC71 opnd            58.0% -> 67.1%   (+9.1pp)
   equivalence          60/60 seeds pass, 30.7% coverage, "moderate"
   stub-arg diff        420 calls, 0 mismatches

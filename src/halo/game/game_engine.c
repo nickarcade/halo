@@ -6475,6 +6475,15 @@ void ctf_engine_game_ending(void)
 {
 }
 
+/* FUN_000affa0 (0xaffa0) — "ctf" record slot +0x1c: posts game event 0x16.
+ *
+ * Disassembly (0xaffa0): PUSH 0x16; CALL game_engine_post_event; POP ECX;
+ * RET. */
+void FUN_000affa0(void)
+{
+  game_engine_post_event(0x16);
+}
+
 /* CTF: score a flag capture for a player's team (b0000). Register-arg
  * pass-through. */
 void FUN_000b0000(int player_handle, int team, int flag_weapon)
@@ -8334,7 +8343,7 @@ int game_engine_get_score_sound_duration(int event_index /* @<esi> */)
 /* Queue a score event. If the event has a sound, enqueue it with a delay
  * equal to the sound duration + 5 ticks. Plays immediately if it's the
  * first/only entry. Events not in the lookup table play directly. */
-void game_engine_post_event(int event_type)
+__declspec(noinline) void game_engine_post_event(int event_type)
 {
   int count;
 
@@ -9434,6 +9443,16 @@ void race_engine_game_ending(void)
 {
 }
 
+/* Race record slot +0x1c (game_starting): empty (0xb3940). */
+void FUN_000b3940(void)
+{
+}
+
+/* Race record slot +0x30: empty (0xb3990). */
+void FUN_000b3990(void)
+{
+}
+
 /* Race: score a lap completion for a player (b39a0). EAX = player_handle. */
 void FUN_000b39a0(int player_handle)
 {
@@ -9645,6 +9664,17 @@ void FUN_000b3cf0(void)
 
 /* Race: per-player validate (b3900 already above). */
 
+/* Race record slot +0x5c (player_damaged_player): empty (0xb3dd0). */
+void FUN_000b3dd0(int damaging_player_index, int dead_player_index,
+                  int damage_type)
+{
+}
+
+/* Race record slot +0x60 (player_killed_player): empty (0xb3de0). */
+void FUN_000b3de0(int param_1, int param_2, int param_3, bool param_4)
+{
+}
+
 /* race_engine_display_score (0xb3df0)
  *
  * Formats the race/CTF message for game-engine event `event_type` into
@@ -9798,4 +9828,9 @@ char race_engine_display_score(int player_index, int event_type,
     break;
   }
   return result;
+}
+
+/* Race record slot +0x6c (prespawn_player_update): empty (0xb40e0). */
+void FUN_000b40e0(int player_index)
+{
 }

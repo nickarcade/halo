@@ -752,11 +752,11 @@ def _check(path: Path, manifest: dict[str, Any], object_arg: str, skip_vc71: boo
             if not assertion["ok"]:
                 result["failures"].extend("assertion: " + error for error in assertion["errors"])
         if skip_vc71:
-            result["skipped"].append("vc71_regression.py check --strict")
+            result["skipped"].append("byte_regression.py local --working-tree")
         else:
             result["vc71_passed"] = _run_vc71(source) == 0
             if not result["vc71_passed"]:
-                result["failures"].append("strict VC71 regression check failed")
+                result["failures"].append("raw-XBE byte regression check failed")
     except (OSError, ValueError, RecoveryError, KeyError) as exc:
         result["failures"].append(str(exc))
     if skip_vc71:

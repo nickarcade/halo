@@ -19,21 +19,23 @@
 #
 # CONCURRENCY. Everything runs at the same time:
 #   * the read-only gates, HALO_HOOK_JOBS at a time (default 6; 1 = serial);
-#   * the two heavy gates (Unicorn regression-test, VC71 check) in their own
+#   * the two heavy gates (Unicorn regression-test, raw-XBE byte check) in their own
 #     background slots from the very start, so they overlap the light gates too.
 # Each hook's output is buffered to its own file and printed in a fixed order
 # (glob order, then regression-test, then vc71-regression), so output never
 # interleaves; every failure is reported, and the exit code is the first non-zero
 # in that same order.
 #
-# vc71-regression is split (HALO_VC71_PHASE): its `check` runs concurrently, but the
-# `update` (which rewrites and stages vc71_scores.json) only runs after every gate
-# has passed -- exactly as when the tail was serial, a rejected commit leaves the
-# index untouched.
+# The compatibility filename vc71-regression now runs the raw-XBE byte gate.
+# HALO_VC71_PHASE is retained for hook compatibility; `update` is a no-op.
+# Byte measurements never rewrite or stage mnemonic score files.
 #
 # HALO_HOOK_TIMING=1 prints per-hook wall time to stderr.
 
-DIR="$(git rev-parse --show-toplevel)/tools/hooks"
+ROOT="$(git rev-parse --show-toplevel)"
+python3 "$ROOT/tools/audit/check_proprietary_artifacts.py" --staged || exit $?
+
+DIR="$ROOT/tools/hooks"
 JOBS="${HALO_HOOK_JOBS:-6}"
 HEAVY=" pre-commit-regression-test.sh pre-commit-vc71-regression.sh "
 

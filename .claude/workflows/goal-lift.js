@@ -770,18 +770,13 @@ the fast single-function path, keeping only improvements.
   rtk python3 tools/lift/research_bundle.py prepare --target ${addr} --json --current-attempt
 Read classification only from the returned artifact_paths.score_context.
 
-PAL REFERENCE (shape hint — check whether our implementation can be improved):
-  rtk python3 tools/bytematch/pal_campaign.py pal ${name}
-prints the matching function from the PAL build 2342 decompilation
-(/mnt/g/dev/halo-pal-2342); "no PAL definition" means skip this step. Never
-read PAL files directly. Compare it with our body and try its SHAPE as a lever:
-statement order, expression form, temporaries, local types, loop form, early
-returns, call-site argument order, adjacent-store order. An object status of
-Matching makes the hint stronger. Binding limits: 2276 is the source of
-truth — never import behavior 2276 does not show (an extra call, changed
-constant, new branch); when PAL and our body disagree on behavior keep ours.
-Never copy a PAL struct layout (offsets come only from src/types.h). PAL names
-are T2 evidence. Do not mention PAL in source comments or commit text.
+PROVENANCE BOUNDARY:
+Use only the 2276 target disassembly, target call sites, embedded strings and
+tables, independently observed runtime behavior, and already target-verified
+source. Cross-build PAL/CEA/PDB material is not an implementation-shape or
+naming lever. If historical notes show such influence, preserve that disclosure
+and independently re-derive the relevant branch, expression, ABI, and field
+role from 2276 before accepting a change.
 
 WORKED EXAMPLES (similar already-ported functions with their VC71 %; match
 their idioms — casts, x87 order, struct-store shape — if a lever here mirrors

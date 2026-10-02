@@ -120,7 +120,7 @@ def _load_pack_meta() -> dict:
     """name -> {has_neighbors, difficulty} from the context-cache packs.
 
     `difficulty` is the decompiled-C character length — a non-circular proxy for
-    function complexity (an *input* to the lift, unlike the VC71 match, which is
+    function complexity (an *input* to the lift, unlike the VC71 mnemonic match, which is
     an outcome). Used to stratify the neighbor-vs-no-neighbor comparison so
     "neighbors surface on harder functions" is separable from "neighbors help".
     Only packs that carry decompile_c get a difficulty."""
@@ -229,7 +229,8 @@ def _summarize_lift_outcomes(context_summary: dict, pack_meta: dict | None = Non
             for st in stages:
                 if isinstance(st, dict) and st.get("name") == "vc71_verify":
                     details = str(st.get("details", ""))
-                    marker = "% match"
+                    # Historical summaries omitted the mnemonic label.
+                    marker = "% mnemonic match" if "% mnemonic match" in details else "% match"
                     if marker in details:
                         try:
                             vc71_match = float(details.split(marker, 1)[0].split()[-1])

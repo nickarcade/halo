@@ -1514,7 +1514,7 @@
   {
     "addr": "0xa5830",
     "name": "FUN_000a5830",
-    "object": "cheats.obj",
+    "object": "aim_assist.obj",
     "reason": "pre-existing ported:false with no source_path; the only detected \"impl\" is the raw-address forwarding thunk added in src/halo/unported_thunks.c (build-fix), which behaves identically to the ported:false patch.py fallback (calls the original address either way) -- not a new/active bisection",
     "since": "2026-08-27"
   },

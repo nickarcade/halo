@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Choose the next lift action from current, fingerprinted evidence.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Choose the next lift action from current, fingerprinted evidence.
 
 This deliberately contains no provider/model policy.  It says *what kind of
 work is justified*; the caller can choose any currently available provider for
@@ -82,7 +85,7 @@ def _load_json(path: str) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--score", type=float,
-                        help="Current VC71 official score; defaults to score-context data.")
+                        help="Current VC71 mnemonic similarity; defaults to score-context data.")
     parser.add_argument("--score-context", default="", metavar="JSON",
                         help="Fingerprint-matched VC71 score-context artifact.")
     parser.add_argument("--pipeline-summary", default="", metavar="JSON",

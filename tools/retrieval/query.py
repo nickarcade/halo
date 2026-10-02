@@ -1,4 +1,7 @@
-"""Nearest-neighbor query against the semantic-retrieval index.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Nearest-neighbor query against the semantic-retrieval index.
 
 At query time the agent has Ghidra pseudocode for an unported target. We
 embed that pseudocode and search two columns:
@@ -255,7 +258,7 @@ def format_for_prompt(neighbors: list[Neighbor], max_c_lines: int = 40) -> str:
     parts = ["## Similar already-ported functions\n"]
     for i, n in enumerate(neighbors, 1):
         parts.append(f"### {i}. {n.name} @ {n.addr} ({n.obj_name})")
-        score_info = f"VC71: {n.vc71_score:.1f}%" if n.vc71_score is not None else "VC71: N/A"
+        score_info = f"Mnemonic: {n.vc71_score:.1f}%" if n.vc71_score is not None else "Mnemonic: N/A"
         parts.append(f"Decl: `{n.decl}`  ")
         parts.append(f"Similarity: {n.similarity:.3f} (matched on {n.match_column}) | {score_info}\n")
         if n.c_source:
@@ -277,7 +280,7 @@ def format_hazard_warnings(warnings: list[HazardWarning], max_chars: int = 1000)
         score_str = f"{w.vc71_score:.1f}%" if w.vc71_score is not None else "N/A"
         parts.append(
             f"- **{w.source_name}** ({w.similarity:.2f} similar, "
-            f"{w.verdict.upper()}, {score_str} VC71)"
+            f"{w.verdict.upper()}, {score_str} mnemonic)"
         )
         if w.failure_reason:
             reason = w.failure_reason[:150]
@@ -366,7 +369,7 @@ def main() -> int:
     else:
         for n in neighbors:
             score = f"{n.vc71_score:.1f}%" if n.vc71_score is not None else "N/A"
-            print(f"{n.similarity:.3f}  {n.name:40s} @ {n.addr}  ({n.obj_name})  VC71={score}")
+            print(f"{n.similarity:.3f}  {n.name:40s} @ {n.addr}  ({n.obj_name})  mnemonic={score}")
 
     return 0
 

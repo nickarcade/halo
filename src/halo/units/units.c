@@ -15,8 +15,8 @@
 #define MAXIMUM_WEAPONS_PER_UNIT 4
 #define MAXIMUM_COLLISION_USER_STACK_DEPTH 32
 
-/* Unit selector enums. See docs/halocea/README.md for the corpus and
- * .claude/skills/naming-confidence for the name_source tiers.
+/* Unit selector enums. See PROVENANCE.md for the evidence classes
+ * behind the name_source tiers below.
  *
  * Every BOUND below was read out of this build before the corpus was consulted,
  * and all six agree with it exactly — the 0563 binary added no unit selector in

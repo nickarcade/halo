@@ -1,3 +1,4 @@
+#include "x87_math.h"
 #ifdef HALO_RNG_TRACE
 #include "halo/math/rng_trace.h"
 #endif
@@ -488,6 +489,213 @@ void object_deplete_shield(int object_handle)
     *(int *)(obj + 0x98) = 0;
     FUN_00136a00(object_handle, 0);
   }
+}
+
+/* FUN_00136bc0 (0x136bc0) — Shield step of object_cause_damage: split the
+ * incoming damage between the object's shield and its body.
+ *
+ * On entry *body_damage holds the total damage. On exit *shield_damage holds
+ * the part the shield absorbed and *body_damage holds the part left for the
+ * body (object_cause_damage then passes it to object_damage_body).
+ *
+ * collision_model is the 'coll' tag (the assert at line 0x60e calls it
+ * damage_resistance). material is a pointer to a 0x48-byte 'coll' material
+ * block element, passed as int by the kb decl. damage_params (arg 5) is
+ * never read.
+ *
+ * Confirmed (disassembly 0x136bc0-0x136f3d):
+ *  - EDI = object handle (caller 0x1382d8 MOV EDI,[EBP-0x20]); 7 stack args,
+ *    caller cleans ADD ESP,0x1c at 0x1382fc.
+ *  - object+0x94 shield vitality (float), +0x8c maximum shield vitality,
+ *    +0x98/+0xa4 floats clamped to 1.0f, +0xac dword zeroed, +0xb4 word set
+ *    from _ftol2, +0xb6 bits 0x2/0x8/0x10, +0xb7 bit 0x8 (no shield loss).
+ *  - FUN_000b55b0(2, MOVSX team) scales the maximum shield unless
+ *    !game_engine_running() && damage_effect+2 == 1 && object team == 1.
+ *  - coll+0xd2 is asserted 0 <= x < 33 (string at 0x29aee0) and indexes the
+ *    float array at damage_effect+0x3c.
+ *  - transition_function_evaluate(word coll+0xec, shield / coll+0xf0) result
+ *    is used as (1 - coll+0xf4) * r + coll+0xf4.
+ *  - FUN_001369e0(@eax = handle, coll+0x194) at 0x136e15.
+ *  - Stun ticks: (int16)_ftol2(coll+0x10c * 30.0f) at 0x136f10.
+ * Every float compare below was written from its FNSTSW/TEST/Jcc form so
+ * the NaN direction matches the original. */
+void FUN_00136bc0(int current_object_handle, void *collision_model,
+                  int material, void *damage_effect, void *damage_params,
+                  unsigned int *flags, float *shield_damage, float *body_damage)
+{
+  object_data_t *object;
+  object_data_t *shield_object;
+  char *damage_resistance;
+  char *damage_material;
+  float maximum_shield_vitality;
+  float shield_vitality_scale;
+  float shield_amount;
+  float body_amount;
+  float damage;
+  float shield_vitality_damage;
+  float shield_vitality_damage_narrow;
+  float shield_material_damage;
+  float remaining_shield;
+  float function_value;
+  float difficulty_scale;
+  float excess;
+  float recent_damage;
+  int16_t material_type;
+  boolean ignore_difficulty;
+  boolean negligible_damage;
+
+  object =
+    (object_data_t *)object_get_and_verify_type(current_object_handle, -1);
+  body_amount = *body_damage;
+  shield_amount = body_amount;
+  negligible_damage = 0;
+  ignore_difficulty = 0;
+  damage_resistance = (char *)collision_model;
+  damage_material = (char *)material;
+
+  if (!game_engine_running() &&
+      *(int16_t *)((char *)damage_effect + 0x02) == 1 &&
+      object->owner_team_index == 1) {
+    ignore_difficulty = 1;
+  }
+
+  if (object->unk_148 > 0.0f) {
+    shield_object =
+      (object_data_t *)object_get_and_verify_type(current_object_handle, -1);
+    maximum_shield_vitality = shield_object->unk_140;
+    if (!ignore_difficulty) {
+      maximum_shield_vitality =
+        FUN_000b55b0(2, shield_object->owner_team_index) *
+        maximum_shield_vitality;
+      HALO_FLT_ROUNDTRIP(maximum_shield_vitality); /* FSTP [EBP-0x10] */
+    }
+    if (maximum_shield_vitality > 0.0f) {
+      shield_vitality_scale = 1.0f / maximum_shield_vitality;
+      HALO_FLT_ROUNDTRIP(shield_vitality_scale); /* FSTP [EBP-0x14] */
+    } else {
+      shield_vitality_scale = 0.0f;
+    }
+
+    if ((*flags & 0x10) == 0 || (*(uint8_t *)damage_resistance & 4) == 0) {
+      /* Material +0x28: fraction that leaks through to the body. */
+      shield_amount = (1.0f - *(float *)(damage_material + 0x28)) * body_amount;
+      HALO_FLT_ROUNDTRIP(shield_amount); /* FSTP [EBP-8] at 0x136c8d */
+      if (object->unk_148 <= *(float *)(damage_resistance + 0xf0) &&
+          *(float *)(damage_resistance + 0xf0) > 0.0f) {
+        function_value = transition_function_evaluate(
+          *(int16_t *)(damage_resistance + 0xec),
+          object->unk_148 / *(float *)(damage_resistance + 0xf0));
+        shield_amount =
+          ((1.0f - *(float *)(damage_resistance + 0xf4)) * function_value +
+           *(float *)(damage_resistance + 0xf4)) *
+          shield_amount;
+        HALO_FLT_ROUNDTRIP(shield_amount); /* FSTP [EBP-8] at 0x136cef */
+      }
+    }
+
+    if ((object->damage_flags & 0x10) != 0) {
+      /* 0x136cfd: the shield takes everything, the body nothing. */
+      shield_amount = body_amount;
+      body_amount = 0.0f;
+    } else {
+      if (shield_amount < 0.0f) {
+        shield_amount = 0.0f;
+      }
+      body_amount = body_amount - shield_amount;
+      HALO_FLT_ROUNDTRIP(body_amount); /* FSTP [EBP-0xc] at 0x136d33 */
+      if ((*flags & 0x10) != 0 && (*flags & 0x20) != 0) {
+        difficulty_scale = FUN_000b5590(0);
+        if (difficulty_scale > 0.0f) {
+          shield_amount = shield_amount / difficulty_scale;
+          HALO_FLT_ROUNDTRIP(shield_amount); /* FSTP [EBP-8] at 0x136d58 */
+        }
+      }
+      /* Material +0x2c: shield damage multiplier. */
+      shield_material_damage =
+        shield_amount * *(float *)(damage_material + 0x2c);
+      /* FSTP [EBP+8] at 0x136d70 */
+      HALO_FLT_ROUNDTRIP(shield_material_damage);
+      material_type = *(int16_t *)(damage_resistance + 0xd2);
+      assert_halt_msg_at(
+        "damage_resistance->shield_material_type>=0 && "
+        "damage_resistance->shield_material_type<NUMBER_OF_MATERIAL_TYPES",
+        "c:\\halo\\SOURCE\\objects\\damage.c", 0x60e,
+        material_type >= 0 && material_type < 33);
+      /* Stays wide in ST(0)/ST(1) through 0x136e2f (no store). */
+      damage = shield_material_damage *
+               *(float *)((char *)damage_effect + 0x3c +
+                          *(int16_t *)(damage_resistance + 0xd2) * 4);
+      if (damage < 0.0001f) {
+        negligible_damage = 1;
+      }
+      /* 0x136dbd-0x136dc5: FMUL ST(1) / FST [EBP+8] / FCOMP [ESI+0x94].
+       * The product stays wide in ST(0) for the compare; only the FST copy
+       * is narrowed to float, and 0x136dec subtracts that narrowed copy.
+       * Subtracting the wide value instead leaves ~1e-9 of shield after the
+       * third 25-damage pistol hit on a 75-point shield, so the shot that
+       * should deplete it (and let the headshot through) is absorbed. */
+      shield_vitality_damage = shield_vitality_scale * damage;
+      shield_vitality_damage_narrow = shield_vitality_damage;
+      HALO_FLT_ROUNDTRIP(shield_vitality_damage_narrow);
+      if (shield_vitality_damage > object->unk_148 ||
+          *(int16_t *)damage_effect == 3) {
+        /* 0x136e26: shield is gone; the overflow goes to the body. */
+        excess = damage - maximum_shield_vitality * object->unk_148;
+        if (excess > 0.0f) {
+          body_amount = excess + body_amount;
+          HALO_FLT_ROUNDTRIP(body_amount); /* FSTP [EBP-0xc] at 0x136e41 */
+        }
+        object->unk_148 = 0.0f;
+        if ((object->damage_flags & 8) == 0) {
+          object_deplete_shield(current_object_handle);
+          *flags |= 8;
+        }
+      } else {
+        if ((object->unk_183 & 8) == 0) {
+          /* FSTP [ESI+0x94] narrows; 0x136df9 reloads it for the compare. */
+          remaining_shield = object->unk_148 - shield_vitality_damage_narrow;
+          HALO_FLT_ROUNDTRIP(remaining_shield);
+          object->unk_148 = remaining_shield;
+        }
+        if ((object->damage_flags & 2) == 0 &&
+            object->unk_148 < *(float *)(damage_resistance + 0x184)) {
+          FUN_001369e0(current_object_handle,
+                       *(int *)(damage_resistance + 0x194));
+          object->damage_flags |= 2;
+        }
+      }
+    }
+
+    if (!negligible_damage) {
+      recent_damage = (*body_damage - body_amount) * shield_vitality_scale;
+      object->unk_172 = 0;
+      /* +0x98 is a float (0x136eab FLD / FCOMP 1.0f, stores 0x3f800000) but
+       * object_data_t still types it uint32_t unk_152, so it is read through
+       * a float pointer here rather than converted as an integer. */
+      if ((object->damage_flags & 8) == 0) {
+        *(float *)&object->unk_152 = 1.0f;
+      }
+      recent_damage = recent_damage + object->unk_164;
+      object->unk_164 = recent_damage;
+      if (*(float *)&object->unk_152 > 1.0f) {
+        *(float *)&object->unk_152 = 1.0f;
+      }
+      if (recent_damage > 1.0f) {
+        object->unk_164 = 1.0f;
+      }
+    }
+  } else {
+    shield_amount = 0.0f;
+    object->unk_148 = 0.0f;
+  }
+
+  if (shield_amount >= *(float *)(damage_resistance + 0x108) ||
+      object->unk_148 == 0.0f) {
+    object->unk_180 =
+      (int16_t)(int)(*(float *)(damage_resistance + 0x10c) * 30.0f);
+  }
+  *shield_damage = shield_amount;
+  *body_damage = body_amount;
 }
 
 /* FUN_00136f40 (0x136f40) — Apply damage velocity and scoring effects to an
@@ -1051,9 +1259,12 @@ void object_damage_body(int object_handle, int region_index, int node_index,
 
   obj = object_get_and_verify_type(object_handle, -1);
   damage = scale * *(float *)((char *)material + 0x3c);
+  HALO_FLT_ROUNDTRIP(damage); /* FSTP [EBP-4] at 0x1377fb */
   pinned_driver = 0;
 
-  if (((*(unsigned char *)damage_params & 0x40) != 0) &&
+  /* 0x1377e7: MOV ECX,[EBP+0x18] / MOV AL,[ECX] / TEST AL,0x40 — the flag
+   * byte is collision_model's (arg 5), not damage_params' (arg 8). */
+  if (((*(unsigned char *)collision_model & 0x40) != 0) &&
       (*(short *)((char *)obj + 0x64) == 1)) {
     unit = object_get_and_verify_type(object_handle, 3);
     if (*(int *)((char *)unit + 0x2d4) == -1) {
@@ -1072,13 +1283,18 @@ void object_damage_body(int object_handle, int region_index, int node_index,
   if (!pinned_driver) {
     max_vitality =
       FUN_000b55b0(1, *(unsigned short *)((char *)obj + 0x68)) * max_vitality;
+    HALO_FLT_ROUNDTRIP(max_vitality); /* FSTP [EBP+0x34] at 0x13786f */
   }
   vitality_scale = (max_vitality <= 0.0f) ? 0.0f : (1.0f / max_vitality);
+  HALO_FLT_ROUNDTRIP(vitality_scale); /* FSTP [EBP-8] at 0x13788b */
 
   applied = damage;
   if ((*flags & 0x10) != 0) {
     applied = (1.0f - *(float *)((char *)collision_model + 0x44)) * damage;
     if ((*flags & 0x20) != 0) {
+      /* 0x1378b6 FST [EBP+0x34]: this arm reloads the narrowed copy
+       * (FDIVR / FLD [EBP+0x34]); the other arm keeps ST(0) wide. */
+      HALO_FLT_ROUNDTRIP(applied);
       distance_scale = FUN_000b5590(0);
       if (distance_scale > 0.0f) {
         applied = applied / distance_scale;
@@ -1086,6 +1302,7 @@ void object_damage_body(int object_handle, int region_index, int node_index,
     }
   }
   applied = applied * vitality_scale;
+  HALO_FLT_ROUNDTRIP(applied); /* FSTP [EBP+0x34] at 0x1378eb */
 
   material_type = *(short *)((char *)material + 0x24);
   if (material_type < 0 || 0x20 < material_type) {
@@ -1096,6 +1313,7 @@ void object_damage_body(int object_handle, int region_index, int node_index,
   }
   applied =
     applied * *(float *)((char *)damage_effect + material_type * 4 + 0x3c);
+  HALO_FLT_ROUNDTRIP(applied); /* FSTP [EBP+0x34] at 0x13792b */
 
   if ((*(unsigned char *)((char *)obj + 0xb7) & 8) == 0) {
     if ((damage > 0.0f) &&

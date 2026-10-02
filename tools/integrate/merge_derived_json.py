@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""3-way merge for derived JSON dict caches during a rebase.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+3-way merge for derived JSON dict caches during a rebase.
 
 Several tracked files are generated caches keyed by function/addr
 (kb_reg_baseline.json, vc71_scores.json, leaf_cache.json...). Both `main` and a

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+
 file_attribution.py - recover per-function source-file attribution from the
 pristine XBE's assert __FILE__ strings, and audit kb.json object naming
 against it.

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Automated VC71 score improvement via mechanical source fixes.
+"""Automated raw-XBE byte improvement via mechanical source fixes.
 
 Reads score-context packs (artifacts/score_context/*.json) to find fixable
-diagnostics, generates candidate source edits, and gates each with a VC71
+diagnostics, generates candidate source edits, and gates each with a raw-XBE byte
 recompile + score check.  Only improvements are kept; regressions are reverted.
 
 Usage:
@@ -308,7 +308,7 @@ def cmd_scan(source, refresh=False):
 
 
 # ---------------------------------------------------------------------------
-# fix subcommand -- apply mechanical fixes with per-edit VC71 gate
+# fix subcommand -- apply mechanical fixes with per-edit raw-XBE byte gate
 # ---------------------------------------------------------------------------
 
 def _refresh_packs(source):
@@ -536,78 +536,21 @@ def _gen_fpu_fixes(source_path, diag):
 # --- Gate ---
 
 def _gate_edit(source, func_name, baseline, description):
-    """Recompile and check if the edit improved the target score."""
+    """Accept only raw-XBE byte improvements without a TU regression."""
+    from tools.verify.score_improve import compare
     try:
-        current = _measure(source)
-    except Exception as e:
-        return {"accepted": False, "reason": "measure failed: %s" % str(e)[:200]}
-
-    report = {
-        "accepted": False,
-        "description": description,
-        "function": func_name,
-    }
-
-    baseline_scores = baseline.get("scores", {})
-    current_scores = current.get("scores", {})
-
-    if func_name not in baseline_scores:
-        report["reason"] = "function not in baseline"
-        return report
-    if func_name not in current_scores:
-        report["reason"] = "function not in current measurement"
-        return report
-
-    before = baseline_scores[func_name]["score"]
-    after = current_scores[func_name]["score"]
-    delta = after - before
-
-    report["score_before"] = before
-    report["score_after"] = after
-    report["delta"] = delta
-
-    if delta < 0:
-        report["reason"] = "score regressed by %.2f%%" % abs(delta)
-        return report
-
-    for name in baseline_scores:
-        if name == func_name:
-            continue
-        if name not in current_scores:
-            report["reason"] = "function %s disappeared" % name
-            return report
-        other_before = baseline_scores[name]["score"]
-        other_after = current_scores[name]["score"]
-        if other_after < other_before:
-            report["reason"] = "%s regressed (%.2f -> %.2f)" % (
-                name, other_before, other_after)
-            return report
-
-    before_warnings = 0
-    after_warnings = 0
-    for cat in ("fpu", "loadw", "imm", "fcom"):
-        before_warnings += len(baseline_scores[func_name].get(
-            "warnings", {}).get(cat, []))
-        after_warnings += len(current_scores[func_name].get(
-            "warnings", {}).get(cat, []))
-    warnings_improved = after_warnings < before_warnings
-
-    if delta < 0.005 and not warnings_improved:
-        report["reason"] = "no measurable improvement (delta=%.4f%%)" % delta
-        return report
-
-    report["accepted"] = True
-    if warnings_improved:
-        report["reason"] = "warnings reduced (%d -> %d), score delta %.2f%%" % (
-            before_warnings, after_warnings, delta)
-    else:
-        report["reason"] = "score improved by %.2f%%" % delta
-    return report
+        result = compare(baseline, _measure(source), {func_name}, 0.005)
+    except Exception as exc:
+        return {"accepted": False, "reason": "byte measurement failed: " + str(exc)[:200]}
+    return {"accepted": result["passed"], "description": description,
+            "function": func_name, "metric": "raw_xbe_aligned_byte_lower_bound",
+            "delta": result.get("improvements", {}).get(func_name),
+            "reason": "; ".join(result["errors"]) or "raw-XBE byte accuracy improved"}
 
 
 def cmd_fix(source, rule_filter=None, func_filter=None, dry_run=False,
             refresh=False):
-    """Apply mechanical fixes with per-edit VC71 gate."""
+    """Apply mechanical fixes with per-edit raw-XBE byte gate."""
     source_path = (ROOT / source).resolve()
     if not source_path.is_file():
         return {"ok": False, "error": "source not found: %s" % source}
@@ -743,7 +686,7 @@ def main(argv=None):
     p_scan.add_argument("--refresh", action="store_true",
                         help="re-run vc71_verify before scanning")
 
-    p_fix = sub.add_parser("fix", help="apply mechanical fixes with VC71 gate")
+    p_fix = sub.add_parser("fix", help="apply mechanical fixes with raw-XBE byte gate")
     p_fix.add_argument("--source", required=True,
                        help="C source file relative to repo root")
     p_fix.add_argument("--rule",

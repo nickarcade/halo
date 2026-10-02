@@ -31,6 +31,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import struct
 import sys
 from datetime import datetime, timezone
@@ -316,17 +317,35 @@ def _raw_addresses_for_name(name):
     ``_foo`` and ``foo`` ambiguous with each other.
     """
     exact = _c_name(name)
-    bounds = xref._bounds()
-    matches = [address for address, entry in bounds.items() if entry.get("name") == exact]
+    by_name, by_normal_name = _bounds_name_index()
+    matches = list(by_name.get(exact, ()))
     if matches:
         return matches
     if exact in _CRT_HELPER_ADDRESSES:
         return [_CRT_HELPER_ADDRESSES[exact]]
-    normalized = _normal_name(name)
-    for address, entry in bounds.items():
-        if _normal_name(entry.get("name")) == normalized:
-            matches.append(address)
-    return matches
+    return list(by_normal_name.get(_normal_name(name), ()))
+
+
+_NAME_INDEX = (None, None, None)
+
+
+def _bounds_name_index():
+    """Index the bounds table by exact and normalized name, in table order.
+
+    Every relocation used to scan the whole table twice; on a full sweep that
+    linear scan was about half of the comparison time.  Rebuilt whenever
+    ``xref._bounds()`` hands back a different table object.
+    """
+    global _NAME_INDEX
+    bounds = xref._bounds()
+    if _NAME_INDEX[0] is not bounds:
+        by_name, by_normal_name = {}, {}
+        for address, entry in bounds.items():
+            name = entry.get("name")
+            by_name.setdefault(name, []).append(address)
+            by_normal_name.setdefault(_normal_name(name), []).append(address)
+        _NAME_INDEX = (bounds, by_name, by_normal_name)
+    return _NAME_INDEX[1], _NAME_INDEX[2]
 
 
 _KB_DATA_ADDRESSES = None
@@ -1237,7 +1256,7 @@ def audit(candidate_obj, function, address, source=None):
               # fail validation.
               "reference": {"path": str(xref.XBE), "sha256": _hash_path(xref.XBE)}}
     if source is not None:
-        record["source"] = {"path": str(source), "sha256": strict.sha256_file(source)}
+        record["source"] = {"path": str(source), "sha256": _hash_path(source)}
     if reference is None:
         record.update({"verdict": "not comparable", "confidence": "low", "reason": error})
         record["verification"] = verification_evidence(record)
@@ -1333,8 +1352,24 @@ def _write_record(record, output):
         output.with_suffix(".md").write_text(verification_markdown(record), encoding="utf-8")
 
 
+_HASH_CACHE = {}
+
+
 def _hash_path(path):
-    return strict.sha256_file(path) if path.is_file() else None
+    # Each record hashes the XBE, bounds table, decl.h and its source.  Re-reading
+    # ~6 MB per function off the 9p mount cost more than the comparison itself,
+    # so digests are reused while the file's identity, size and mtime hold.
+    try:
+        info = os.stat(path)
+    except OSError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        return None
+    key = (str(path), info.st_ino, info.st_size, info.st_mtime_ns)
+    digest = _HASH_CACHE.get(key)
+    if digest is None:
+        digest = _HASH_CACHE[key] = strict.sha256_file(path)
+    return digest
 
 
 _REG_ARG_CACHE = {}
@@ -1456,6 +1491,8 @@ def _eligible_functions(source_filter=None):
     else:
         entries = list(kb)
     eligible = {}
+    # ~6600 ported entries share ~200 sources; a stat on the 9p mount costs ~2 ms.
+    source_present = {}
     for entry in entries:
         if not isinstance(entry, dict) or entry.get("ported") is not True:
             continue
@@ -1477,7 +1514,8 @@ def _eligible_functions(source_filter=None):
         selection_reason = None
         if source is None:
             selection_reason = "ported function has no source path"
-        elif not source.is_file():
+        elif not (source_present[source] if source in source_present
+                  else source_present.setdefault(source, source.is_file())):
             selection_reason = "ported function source file is missing: %s" % source_path
             source = None
         # kb.json often omits the name; the VC71 snapshot records the symbol

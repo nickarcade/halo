@@ -1,0 +1,26 @@
+name: Provenance Artifact Guard
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  artifact-guard:
+    name: Reject proprietary artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 -m unittest discover -s tools/audit/tests -p test_check_proprietary_artifacts.py
+      - run: python3 tools/audit/check_proprietary_artifacts.py --tree
+      - name: Inspect every introduced blob, including files later deleted
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 tools/audit/check_proprietary_artifacts.py --range "$BASE" "$HEAD"

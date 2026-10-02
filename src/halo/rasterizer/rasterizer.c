@@ -104,7 +104,7 @@ double pow(double x, double y);
  *  - 0016df55 PUSH EBX(=1) / PUSH 0 / PUSH ESI: last push is the first
  *    argument, so xbox_texture_cache_get_hardware_format(bitmap, 0, 1).
  *  - 0016df7d PUSH 0 / PUSH EBX / PUSH 0 / PUSH 0 / PUSH 4 =>
- *    FUN_00158140(4, 0, 0, 1, 0); the shared ADD ESP,0x1c at 0016df99 also
+ *    rasterizer_set_target(4, 0, 0, 1, 0); the shared ADD ESP,0x1c at 0016df99 also
  *    retires rasterizer_set_texture_bitmap_data's two pushes (cdecl group).
  *  - 0016e077 PUSH 0 / PUSH 8 / PUSH 4 => FUN_00178b40(4, 8, 0).
  *  - vs_const is the EBP-0x50..EBP-0x4 dword block (20 dwords) uploaded by
@@ -133,7 +133,7 @@ void FUN_0016dee0(void)
       xbox_texture_cache_get_hardware_format(background_bitmap, 0, 1) != 0) {
     *(char *)0x47e007 = 1;
 
-    FUN_00158140(4, 0, 0, 1, 0);
+    rasterizer_set_target(4, 0, 0, 1, 0);
     rasterizer_set_texture_bitmap_data(0, blip_bitmap);
 
     D3DDevice_SetTextureStageState(0, 10, 4);
@@ -265,7 +265,7 @@ void _rasterizer_hud_motion_sensor_blip_draw(float *position, float intensity,
  *      drawn through the viewport-derived orthographic projection built from
  *      the rectangle2d at 0x5a5bf4 ({top,left,bottom,right} int16).
  * If any gate fails but the feature/ready bytes are still both set, the pass
- * only restores the render target (FUN_00158140 at 0x16ea50).
+ * only restores the render target (rasterizer_set_target at 0x16ea50).
  *
  * Argument evidence (disassembly at 0016e2e0):
  *  - Ghidra reports `void __cdecl FUN_0016e2e0(void)` but the body reads
@@ -288,7 +288,7 @@ void _rasterizer_hud_motion_sensor_blip_draw(float *position, float intensity,
  *    vs FADD direction at each site (FSUB [EBP-4] = value - size, FADD = size
  *    + value), not from the decompiler.
  *  - 0016e76e PUSH ESI(1)/PUSH 0/PUSH 0/PUSH 0/PUSH EDX(=zero-extended word
- *    at 0x5a5bc0) => FUN_00158140(target, 0, 0, 0, 1).
+ *    at 0x5a5bc0) => rasterizer_set_target(target, 0, 0, 0, 1).
  *  - 0016e784 PUSH 0 / PUSH 4 / PUSH 0 => FUN_001584f0(0, 4, 0).
  *  - 0016e486 and 0016e84a PUSH 0 / PUSH 8 / PUSH 4 => FUN_00178b40(4, 8, 0).
  *
@@ -432,7 +432,7 @@ void FUN_0016e2e0(float *position, float param_2)
       D3DDevice_End();
 
       /* ---- pass 3: the screen-space blip quad ---- */
-      FUN_00158140((int)*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
+      rasterizer_set_target((int)*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
       FUN_001584f0(0, 4, 0);
 
       D3DDevice_SetTextureStageState(0, 10, 3);
@@ -507,7 +507,7 @@ void FUN_0016e2e0(float *position, float param_2)
     }
 
     if (*(char *)0x3256db != 0 && *(char *)0x47e007 != 0) {
-      FUN_00158140((int)*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
+      rasterizer_set_target((int)*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
     }
   }
 }
@@ -5079,7 +5079,7 @@ void FUN_001795c0(void *shader)
       *(int *)0x5a5b6c = water_alpha_to_pixel32(alpha) | 0x8080ff;
     }
     rasterizer_set_pixel_shader((void *)0x5a5ac0);
-    FUN_00158140(6, layer, 0, 0, 0);
+    rasterizer_set_target(6, layer, 0, 0, 0);
 
     scale = 1.0f / (float)(0x80 >> layer);
     horizontal_offset = scale * *(float *)0x25eeac;
@@ -5124,7 +5124,7 @@ void FUN_001795c0(void *shader)
     layer_index++;
   }
 
-  FUN_00158140(*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
+  rasterizer_set_target(*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
   FUN_00158ae0(2);
   if (!success) {
     error(2, "### ERROR rasterizer_water_build_bumpmap failed");

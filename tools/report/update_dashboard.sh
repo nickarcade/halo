@@ -4,36 +4,37 @@ NAME="${0##*/}"
 VENV="${VENV_PYTHON:-.venv/bin/python3}"
 
 usage() {
-    echo "Usage: $NAME [--batch] [--vc71|--full-vc71] [--raw [--raw-workers N]] [--run-id NAME]"
+    echo "Usage: $NAME [--batch] [--raw [--raw-workers N]] [--mnemonic|--full-mnemonic] [--run-id NAME]"
     echo ""
     echo "Refresh the local progress dashboard from the latest build."
     echo ""
     echo "By default this ONLY re-renders the dashboard from the existing"
     echo "scores — it does NOT run VC71 verification.  Verification is expensive"
     echo "and now happens at lift time (the lift pipeline runs an incremental"
-    echo "populate for the TU it just changed) and via the pre-commit hook, so a"
+    echo "analysis for the TU it just changed); byte regression hooks compile isolated snapshots, so a"
     echo "dashboard refresh no longer needs to re-verify anything.  Opt in with"
-    echo "--vc71 / --full-vc71 when you explicitly want to recompute scores."
+    echo "--raw to recompute byte accuracy; --mnemonic is optional similarity analysis."
     echo ""
     echo "  --batch       Run batch equivalence tests first (slow; skips existing results)."
-    echo "  --vc71        Refresh VC71 scores incrementally before rendering"
+    echo "  --mnemonic    Refresh mnemonic similarity (NOT raw byte accuracy) incrementally"
     echo "               (only TUs whose inputs changed are re-verified)."
-    echo "  --full-vc71   Refresh VC71 scores, re-verifying every TU (full pass)."
+    echo "  --full-mnemonic  Refresh mnemonic similarity for every TU (NOT raw byte accuracy)."
     echo "  --skip-vc71   Accepted for back-compat; now the default (no-op)."
+    echo "  --vc71 / --full-vc71  Compatibility aliases for --raw (byte accuracy)."
     echo "  --raw         Refresh raw-XBE aligned byte accuracy for every ported"
-    echo "               function before rendering (raw_xbe_structural populate;"
+    echo "               function before rendering (fresh byte_regression measurement;"
     echo "               slow: recompiles every TU)."
     echo "  --raw-workers N  Parallel workers for --raw (default 4)."
     echo "  --run-id NAME Tag the snapshot with a custom run label."
     echo "               Default: 'local-<timestamp>'"
-    echo "  --help        This message. --batch combines with --vc71 or --full-vc71."
+    echo "  --help        This message. --batch combines with byte or mnemonic refresh."
     exit 0
 }
 
 RUN_ID="local-$(date +%Y%m%d-%H%M%S)"
 DO_BATCH=false
 # Render-only by default: verification is decoupled from dashboard rendering.
-# --vc71 (incremental) or --full-vc71 (full) opt back in to running populate.
+# --raw (including legacy --vc71 aliases) measures bytes; --mnemonic selects optional analysis.
 DO_VC71=false
 VC71_MODE="--incremental"
 DO_RAW=false
@@ -42,8 +43,9 @@ RAW_WORKERS=4
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --batch)     DO_BATCH=true; shift ;;
-        --vc71)      DO_VC71=true; VC71_MODE="--incremental"; shift ;;
-        --full-vc71) DO_VC71=true; VC71_MODE=""; shift ;;
+        --vc71|--full-vc71) DO_RAW=true; shift ;;
+        --mnemonic)  DO_VC71=true; VC71_MODE="--incremental"; shift ;;
+        --full-mnemonic) DO_VC71=true; VC71_MODE=""; shift ;;
         --skip-vc71) DO_VC71=false; shift ;;
         --raw)       DO_RAW=true; shift ;;
         --raw-workers) RAW_WORKERS="$2"; shift 2 ;;
@@ -65,16 +67,22 @@ fi
 
 if $DO_VC71; then
     if [[ -n "$VC71_MODE" ]]; then
-        echo "=== Refreshing VC71 scores (incremental) ==="
+        echo "=== Refreshing mnemonic similarity (NOT raw byte accuracy) (incremental) ==="
     else
-        echo "=== Refreshing VC71 scores (full) ==="
+        echo "=== Refreshing mnemonic similarity (NOT raw byte accuracy) (full) ==="
     fi
     $VENV tools/verify/vc71_regression.py populate $VC71_MODE
 fi
 
 if $DO_RAW; then
     echo "=== Refreshing raw-XBE byte accuracy ==="
-    $VENV tools/verify/raw_xbe_structural.py populate --workers "$RAW_WORKERS"
+    RAW_OUTPUT="artifacts/byte_measurements/$RUN_ID-$(date +%s%N)"
+    mkdir -p "$RAW_OUTPUT"
+    printf '{"sources":null}\n' > "$RAW_OUTPUT/plan.json"
+    $VENV tools/verify/byte_regression.py measure \
+        --commit "$(git rev-parse HEAD)" --run-id "$RUN_ID" \
+        --plan "$RAW_OUTPUT/plan.json" --output "$RAW_OUTPUT/snapshot.json" \
+        --workers "$RAW_WORKERS" --allow-dirty --publish
 fi
 
 echo "=== Generating CI status page ==="

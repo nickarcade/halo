@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Structural object diff helper used by lift_pipeline.py.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Structural object diff helper used by lift_pipeline.py.
 
 Runs objdiff-cli between a Ghidra-delinked reference object and the clang-built
 candidate object, extracts mnemonic sequences, and computes an LCS match %.

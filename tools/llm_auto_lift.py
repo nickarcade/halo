@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Auto-Lift Target Selector & Context Cache.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Auto-Lift Target Selector & Context Cache.
 
 Provides liftability scoring, frontier-aware target selection, and Ghidra
 context caching. Code generation is delegated to the /lift skill which runs
@@ -766,7 +769,7 @@ def _load_vc71_scores() -> dict[str, dict]:
 
 
 def _prior_vc71_score(name: str) -> Optional[float]:
-    """Return this target's last recorded VC71 match %, or None if never scored.
+    """Return this target's last recorded VC71 mnemonic match %, or None if never scored.
 
     A target that has already been measured has a known ceiling.  Surfacing it
     in the selector row lets a consumer route the work correctly up front --
@@ -2382,7 +2385,7 @@ def cmd_select(args: argparse.Namespace):
             # parked_attempts/parked_best_score to stop re-lifting a target that
             # has already resisted several attempts.
             row.update(_parked_state(item.target.name))
-            # Last recorded byte-match, if this target has ever been scored.
+            # Last recorded mnemonic similarity, if this target has ever been scored.
             # Same reasoning as prior_fail above: without it in --json, every
             # consumer re-derives a number already on disk. A target sitting at
             # 87% has a known ceiling and wants the permuter or score-improve,

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Retroactive equivalence campaign driver (Task 12).
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Retroactive equivalence campaign driver (Task 12).
 
 Builds a priority queue of ported functions most in need of behavioral
 verification, then runs unicorn_diff.py on each, appending one-line verdicts

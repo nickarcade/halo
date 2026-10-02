@@ -1947,7 +1947,7 @@
     },
     "0xa55e0": {
       "name": "FUN_000a55e0",
-      "obj": "cheats.obj",
+      "obj": "aim_assist.obj",
       "addr": "0xa55e0",
       "category": "genuine",
       "bucket": "suspect-real",

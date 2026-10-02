@@ -18,7 +18,7 @@ working file is never touched. Per-function optimization flags come from the
 real path.
 
 The pre-commit hook passes the waivable set to
-``vc71_regression.py check --waive`` and ``update --lower``. Only those
+``vc71_regression.py mnemonic-check --waive`` and ``update --lower``. Only those
 functions' floors can drop.
 
 Exit status: 0 when the report was produced, 1 on measurement failure.
@@ -36,7 +36,7 @@ sys.path.insert(0, str(ROOT / "tools" / "verify"))
 sys.path.insert(0, str(ROOT / "tools" / "bytematch"))
 
 import raw_xbe_structural as raw  # noqa: E402
-from pal_campaign import aligned  # noqa: E402
+from target_campaign import aligned  # noqa: E402
 
 
 def _git_blob(spec):

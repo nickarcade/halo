@@ -216,9 +216,21 @@ class TestCaptureOverBss(unittest.TestCase):
             import unicorn  # noqa: F401
         except ImportError:
             self.skipTest("unicorn not installed")
-        if not xbe_image.PRISTINE_XBE.exists():
-            self.skipTest("no pristine XBE")
-        self.raw, self.secs = xbe_image.load_xbe()
+        from unittest.mock import patch
+        # Constructed file-backed bytes and BSS, independent of game captures.
+        # Preserve the overwrite/seed assertions without a proprietary corpus.
+        base = 0x400000
+        self.raw = b"\x19" * 0x1000
+        self.secs = [xbe_image.Section("synthetic", base, 0x2000, 0, 0x1000)]
+        seeds = {base + i * 4: b"\xff" * 4 for i in range(128)}
+        seeds[base + 0x1000] = b"\x42" * 4
+        seeds[base + 0x1004] = b"\x24" * 4
+        seeds[base + 0x3000] = b"\x66" * 4  # Outside mapped image: exclude.
+        globals_patch = patch.object(ud, "_KNOWN_GLOBAL_BYTES", seeds)
+        cache_patch = patch.object(ud, "_BSS_SEED_CACHE", {})
+        globals_patch.start(); cache_patch.start()
+        self.addCleanup(globals_patch.stop)
+        self.addCleanup(cache_patch.stop)
 
     def test_it_seeds_something(self):
         """If this ever returns 0, sharing the image silently replaced the
@@ -227,7 +239,8 @@ class TestCaptureOverBss(unittest.TestCase):
         uc = unicorn.Uc(unicorn.UC_ARCH_X86, unicorn.UC_MODE_32)
         xbe_image.map_image(uc, self.raw, self.secs)
         n = ud._seed_capture_over_bss(uc, self.raw, self.secs)
-        self.assertGreater(n, 0)
+        self.assertEqual(n, 2)
+        self.assertEqual(bytes(uc.mem_read(0x401000, 8)), b"\x42" * 4 + b"\x24" * 4)
 
     def test_it_leaves_file_backed_bytes_exactly_as_mapped(self):
         """H11.  A file-backed address is ground truth from this build; the

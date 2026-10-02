@@ -2672,12 +2672,32 @@ void rasterizer_environment_shadow_model_end(void)
   FUN_00172640();
 }
 
-/* Tail-call thunk to rasterizer decal rendering (FUN_00173090). */
-void FUN_0017ccf0(void *shader, int param_2, int vertices_per_primitive, int a2,
-                  int triangle_count, void *vertex_buffer)
+/* 0x17ccf0: PUSH EBP / MOV EBP,ESP / POP EBP / JMP 0x173090. The
+ * rasterizer.c dispatch to the Xbox shadow draw; render_structure_shadows
+ * passes it as the surface-draw callback (its only reference, a DATA xref at
+ * 0x196225), as PAL 2342 structure_render_shadow passes
+ * rasterizer_environment_shadow_draw (T2). 2276's slot order differs from
+ * PAL's (draw before end, three slots for PAL's four), so the name rests on
+ * the target and the callback use, not on position. */
+void rasterizer_environment_shadow_draw(void *shader, short bitmap_index,
+                                        int dynamic_triangle_buffer_index,
+                                        int first_triangle_index,
+                                        int triangle_count,
+                                        const vertex_buffer *vertex_buffer)
 {
-  FUN_00173090(shader, param_2, vertices_per_primitive, a2, triangle_count,
-               vertex_buffer);
+  _rasterizer_environment_shadow_draw(shader, bitmap_index,
+                                      dynamic_triangle_buffer_index,
+                                      first_triangle_index, triangle_count,
+                                      vertex_buffer);
+}
+
+/* 0x17cd00: bare JMP 0x1726a0 (_rasterizer_environment_shadow_end reads no
+ * caller stack slot before its RET). Sole caller render_object_shadow_end
+ * closes each object shadow with it, as PAL 2342 render_object_shadow_end
+ * calls rasterizer_environment_shadow_end (T2). */
+void rasterizer_environment_shadow_end(void)
+{
+  _rasterizer_environment_shadow_end();
 }
 
 /* Tail-call thunk to rasterizer dynamic vertex geometry decal (FUN_00162920).

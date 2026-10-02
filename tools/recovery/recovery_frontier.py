@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Rank kb.json objects (translation units) for readability/type-recovery campaigns.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Rank kb.json objects (translation units) for readability/type-recovery campaigns.
 
 Where tools/analysis/frontier.py answers "what should I LIFT next", this answers
 "what should I RECOVER next" -- which already-implemented TU gives the most
-readability payback per session while keeping a hard byte-match safety net.
+readability payback per session while keeping a mnemonic/operand heuristic and the separate raw-XBE byte gate.
 
-The hard rule for a recovery campaign is: never risk a VC71 byte-match
-regression, only improve. Everything below is in service of that rule.
+The hard rule for a recovery campaign is: never introduce a raw-XBE byte regression, only improve. Everything below is in service of that rule.
 
 Eligibility (hard gates, evaluated in this order; the first failure is the
 reported reason):

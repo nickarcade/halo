@@ -1,0 +1,85 @@
+{
+  "files": {
+    "2276-debug": {
+      "md5": "c7869590a1c64ad034e49a5ee0c02465",
+      "sha256": "a3402b021833dd2a3c368786f239480d68a6394bdf540569fab18340a83ab827",
+      "text_bytes": 1919436,
+      "text_sha256": "abcbcb4f672bc0c0f01aba27e8e8493aa59456f8344ac73a31737d1ff996f589"
+    },
+    "2276-final": {
+      "md5": "37bf3f00a8915dc8423b35452fdb95a3",
+      "sha256": "bceaddd83ce0e9d5c5e42b4beacf46c133a0f53553cec0a0ec1a1edb2458adce",
+      "text_bytes": 1506880,
+      "text_sha256": "b281b615c1127d9b2bc7ea6fe41ab5195d78b28f6a8b5d8982df4774d0c4d1e7"
+    },
+    "NTSC-disc": {
+      "md5": "e7b18148a665a13c6ed710f710e5c44b",
+      "sha256": "ed3a8e962351ad6c4b3b620768fb6a0bda658963390252439ea036d5ede3a3ac",
+      "text_bytes": 1506880,
+      "text_sha256": "b281b615c1127d9b2bc7ea6fe41ab5195d78b28f6a8b5d8982df4774d0c4d1e7"
+    },
+    "PAL-disc": {
+      "md5": "a3f43ea966047345d0d242eb63d604f2",
+      "sha256": "f8f56e8e182b45fba1428e15d0b59c2ab6c9e55dce7e47ace47c317bfd1bd0fa",
+      "text_bytes": 1515072,
+      "text_sha256": "996282f429a46cdbf141de05bf6bb34fdfcdd3024022417609764c18d2cb9d83"
+    }
+  },
+  "final_vs_ntsc": {
+    "different_bytes": 560,
+    "all_differences_in_first_4096_bytes": true,
+    "identical_section_names": [
+      ".text",
+      "D3D",
+      "D3DX",
+      "DSOUND",
+      "XNET",
+      "BINK",
+      "BINK32",
+      "BINK32A",
+      "BINK16",
+      "BINK4444",
+      "BINK5551",
+      "BINK16MX",
+      "BINK16X2",
+      "BINK16M",
+      "BINK32MX",
+      "BINK32X2",
+      "BINK32M",
+      "XPP",
+      ".rdata",
+      ".data",
+      "DOLBY",
+      "BINKDATA",
+      "$$XTIMAGE",
+      "$$XSIMAGE"
+    ],
+    "differing_section_names": []
+  },
+  "comparisons": {
+    "NTSC-disc": {
+      "window_instructions": 12,
+      "debug_windows_without_padding": 542153,
+      "debug_windows_with_candidate_occurrence": 42038,
+      "debug_windows_with_unique_candidate_occurrence": 30820,
+      "debug_normalized_window_overlap_percent": 7.753899729412177,
+      "debug_unique_window_anchor_percent": 5.684742129989136,
+      "reference_functions_with_at_least_12_instructions": 6298,
+      "functions_with_any_unique_anchor": 1008,
+      "functions_with_majority_single_byte_delta": 989,
+      "candidate_instruction_count": 501639
+    },
+    "PAL-disc": {
+      "window_instructions": 12,
+      "debug_windows_without_padding": 542153,
+      "debug_windows_with_candidate_occurrence": 42039,
+      "debug_windows_with_unique_candidate_occurrence": 30807,
+      "debug_normalized_window_overlap_percent": 7.754084179189269,
+      "debug_unique_window_anchor_percent": 5.682344282886934,
+      "reference_functions_with_at_least_12_instructions": 6298,
+      "functions_with_any_unique_anchor": 1009,
+      "functions_with_majority_single_byte_delta": 990,
+      "candidate_instruction_count": 504233
+    }
+  }
+}

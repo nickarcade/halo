@@ -1,4 +1,7 @@
-"""DuckDB-backed semantic-retrieval index for Halo lift work.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+DuckDB-backed semantic-retrieval index for Halo lift work.
 
 Schema captures the three signals semantic retrieval needs:
 - pseudocode (cached Ghidra output) — the closest analog to what we'll see

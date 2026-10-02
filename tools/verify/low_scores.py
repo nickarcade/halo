@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""List ported functions under a VC71 score threshold, worst first.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
 
-A zero-pre-work picker for score work.  Scores are merged per function the
-same way the dashboard does it (vc71_current.json layered over the committed
-floor vc71_scores.json), keyed by address so stale floor names do not produce
-duplicates, and restricted to kb.json entries with ported == true.
+List ported functions under a fresh raw-XBE byte accuracy threshold, worst first.
+
+A picker for byte work. Default scores require complete measurement provenance
+and current input hashes. Missing or stale byte evidence is never replaced by
+a mnemonic percentage. --mnemonic explicitly selects legacy similarity data.
+Rows are keyed by address and restricted to ported KB entries.
 
 Each row carries the score-context rules (artifacts/score_context/<name>.json)
 so known structural ceilings can be skipped or grouped.
@@ -52,7 +55,7 @@ def _rules(name):
                    if c.get("rule")})
 
 
-def collect(max_score, min_score, min_size):
+def collect(max_score, min_score, min_size, mnemonic=False):
     kb = json.loads(KB.read_text())
     ported = {}
     for obj in kb.get("objects", []):
@@ -62,8 +65,13 @@ def collect(max_score, min_score, min_size):
 
     # addr -> (entry, origin); current wins over floor per address.
     by_addr = {}
-    for origin, scores in (("floor", _load_scores(FLOOR)),
-                           ("current", _load_scores(CURRENT))):
+    if mnemonic:
+        snapshots = (("mnemonic floor", _load_scores(FLOOR)),
+                     ("mnemonic current", _load_scores(CURRENT)))
+    else:
+        from byte_regression import load_byte_scores
+        snapshots = (("current", load_byte_scores(ROOT)),)
+    for origin, scores in snapshots:
         for score_name, entry in scores.items():
             if not isinstance(entry, dict) or "addr" not in entry:
                 continue
@@ -82,6 +90,7 @@ def collect(max_score, min_score, min_size):
         name = kb_entry.get("name") or score_name
         rows.append({
             "score": score,
+            "metric": "mnemonic_similarity_not_raw_bytes" if mnemonic else "raw_xbe_aligned_byte_lower_bound",
             "addr": addr,
             "name": name,
             "n_r": entry.get("n_r") or 0,
@@ -103,7 +112,7 @@ def _fmt(r):
     return "  %5.1f  %-10s %-44s %5d  %-44s %s%s" % (
         r["score"], r["addr"], r["name"][:44], r["n_r"], r["source"][:44],
         ",".join(r["rules"]) or "-",
-        "" if r["origin"] == "current" else "  [floor]")
+        "  [mnemonic floor]" if "floor" in r["origin"] else "")
 
 
 def main():
@@ -112,6 +121,7 @@ def main():
     ap.add_argument("--max-score", type=float, default=90.0,
                     help="exclusive upper bound (default 90)")
     ap.add_argument("--min-score", type=float, default=0.0)
+    ap.add_argument("--mnemonic", action="store_true", help="Explicit legacy mnemonic similarity analysis; NOT raw byte accuracy")
     ap.add_argument("--min-size", type=int, default=0,
                     help="minimum reference instruction count (n_r)")
     ap.add_argument("--no-ceilings", action="store_true",
@@ -123,7 +133,7 @@ def main():
     ap.add_argument("--format", choices=("text", "tsv", "json"), default="text")
     args = ap.parse_args()
 
-    rows = collect(args.max_score, args.min_score, args.min_size)
+    rows = collect(args.max_score, args.min_score, args.min_size, mnemonic=args.mnemonic)
     if args.no_ceilings:
         rows = [r for r in rows if not CEILING_RULES.intersection(r["rules"])]
 
@@ -158,6 +168,7 @@ def main():
     # (ties broken by group size, larger first).
     order = sorted(groups, key=lambda k: (min(r["score"] for r in groups[k]),
                                           -len(groups[k])))
+    print("Metric: " + ("mnemonic similarity (NOT raw byte accuracy)" if args.mnemonic else "raw-XBE aligned byte lower bound"))
     print("%d ported functions with %.1f <= score < %.1f%s" % (
         len(rows), args.min_score, args.max_score,
         " (ceilings excluded)" if args.no_ceilings else ""))

@@ -32,7 +32,7 @@ The audit had several inaccurate "0 refs / dead" claims — verified false durin
 1. **Do NOT archive these — they have live imports/hooks** (audit said "0 refs"):
    - `tools/equivalence/game_state_replay.py` — imported by `test_game_state_diff.py:18` (`from game_state_replay import diff_snapshots`).
    - `tools/build/build_hash.py` — imported by `tools/xbox/deploy_xbox.py:37` (`from build.build_hash import print_build_hash`), called :932.
-   - `tools/analysis/auto_discover.py` — live via `pre-commit-auto-discover` hook + `tools/analysis/progress.py:269`.
+   - `tools/analysis/auto_discover.py` — since retired: `kb.json` and `function_bounds.json` both list every function, and `progress.py` now reads `function_bounds.json`.
    A bare-basename grep misses module-style imports; always also grep `from <module> import`.
 
 2. **Kept (not dead enough to archive), contra audit P1.6b:**

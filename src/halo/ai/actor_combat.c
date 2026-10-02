@@ -1003,19 +1003,14 @@ int actor_aim_grenade(int actor_handle, void *aim_params, float *out_aim_vector)
 
 #define ACTOR_COMBAT_SOURCE_FILE "c:\\halo\\SOURCE\\ai\\actor_combat.c"
 
-/* actor->control.fire_state (int16 at actor+0x5f2). Values are PAL 2342
- * (actors.h); the 2276 jump tables at 0x23fd8/0x23fe8 index them 0..4. */
 #define _actor_fire_state_none     0
 #define _actor_fire_state_holding  1
 #define _actor_fire_state_bursting 2
 #define _actor_fire_state_pausing  3
 #define _actor_fire_state_wild     4
 
-/* 0 is the "no fire target" value (PAL 2342 _actor_fire_target_none); types.h
- * defines only the two values named by 2276 assert strings. */
 #define _actor_fire_target_none 0
 
-/* actor_debug_info.firing_decision values, PAL 2342 ai_debug.h order. */
 #define _firing_disabled             0
 #define _firing_busy                 1
 #define _firing_wrong_target         2
@@ -1037,50 +1032,37 @@ int actor_aim_grenade(int actor_handle, void *aim_params, float *out_aim_vector)
 #define _firing_underwater           18
 #define _firing_min_range            19
 
-/* ranged_combat.special_fire_mode / special_fire_situation (PAL 2342). */
 #define _actor_special_fire_mode_none       0
 #define _actor_special_fire_mode_overcharge 1
 #define _actor_special_fire_mode_secondary  2
 #define _actor_special_fire_situation_strafing 3
 
-/* game_difficulty value indices pushed to FUN_000b55b0 (PAL 2342
- * game_globals.h order; the 2276 pushes are 0xa, 0xf, 0x10, 0x11, 0x12). */
 #define _game_difficulty_value_rate_of_fire        10
 #define _game_difficulty_value_target_tracking     15
 #define _game_difficulty_value_target_leading      16
 #define _game_difficulty_value_overcharge_chance   17
 #define _game_difficulty_value_special_fire_delay  18
 
-/* ai_communication_event arguments (PAL 2342 ai_communication.h order). */
 #define _ai_communication_grenade_throwing 9
 #define _ai_communication_blocked          14
 #define _comm_hostility_friend             2
 
-/* ai_line_of_sight values (PAL 2342 ai.h order). */
 #define _ai_line_of_sight_clear    0
 #define _ai_line_of_sight_occluded 1
 
-/* actor->target.target_type threshold for the blocked-shot callout (PAL 2342
- * _actor_target_acknowledged_enemy; CMP word [EBX+0x268],7 @0x23e49). */
 #define _actor_target_acknowledged_enemy 7
 
-/* unit_estimate_position mode 3 (PAL 2342 _unit_estimate_gun_position). */
 #define _unit_estimate_gun_position 3
 
-/* actor definition ('actr') fields read here. Only the offsets below are
- * observed; names are PAL 2342 by position and usage. */
 typedef struct {
-  uint32_t flags;                  /* +0x00  bit 9 must_crouch_to_fire (TEST AH,2 @0x234de), bit 13 start_firing_before_aligned (TEST AH,0x20 @0x23647) */
-  uint32_t flags2;                 /* +0x04  bit 1 must_stand_to_fire @0x23500, bit 2 must_stop_to_fire @0x23520 */
-  char pad_08[0x2c];
-  real_vector3d gun_offset_stand;  /* +0x34  fallback when the variant's is zero @0x23c55 */
-  real_vector3d gun_offset_crouch; /* +0x40  fallback when the variant's is zero @0x23c31 */
+  uint32_t flags;                  //+0x00  bit 9 must_crouch_to_fire
+  uint32_t flags2;                 // +0x04  bit 1 must_stand_to_fire @0x23500, bit 2 must_stop_to_fire @0x23520 */
+  char pad_08[0x2c];               // padding
+  real_vector3d gun_offset_stand;  // +0x34  fallback when the variant's is zero @0x23c55 */
+  real_vector3d gun_offset_crouch; // +0x40  fallback when the variant's is zero @0x23c31 */
 } actor_combat_actor_definition_t;
 cs(actor_combat_actor_definition_t, 0x4c);
 
-/* actor variant definition ('actv') fields read here, PAL 2342 layout
- * (flags, three tag references, unused[6], movement_switching, then
- * ranged_combat at +0x64 and grenade_combat at +0x180). */
 typedef struct {
   uint32_t flags;                          /* +0x000  bit 0 can_shoot_while_flying (TEST byte [ECX],1 @0x234c4) */
   char pad_004[0x70];
@@ -1102,13 +1084,13 @@ typedef struct {
   char pad_160[0x20];
   int16_t grenade_type;                    /* +0x180  grenade_combat.grenade_type */
 } actor_combat_variant_definition_t;
+
 co(actor_combat_variant_definition_t, maximum_firing_range, 0x74);
 co(actor_combat_variant_definition_t, gun_offset_stand, 0xa4);
 co(actor_combat_variant_definition_t, weapon_super_ballistic_range, 0x148);
 co(actor_combat_variant_definition_t, special_fire_mode, 0x154);
 co(actor_combat_variant_definition_t, grenade_type, 0x180);
 
-/* actor_firing_pattern (PAL 2342): only rate_of_fire_modifier is read. */
 typedef struct {
   real burst_duration_modifier;    /* +0x00 */
   real burst_separation_modifier;  /* +0x04 */
@@ -1118,7 +1100,7 @@ typedef struct {
 /* weapon definition ('weap') fields read here. */
 typedef struct {
   char pad_000[0x40c];
-  real ai_minimum_target_range;    /* +0x40c  PAL 2342 weapon.ai_minimum_target_range */
+  real ai_minimum_target_range;
   char pad_410[0xec];
   tag_block triggers;              /* +0x4fc  element size 0x114 (tag_block_get_element @0x23224) */
 } actor_combat_weapon_definition_t;
@@ -1129,9 +1111,7 @@ co(actor_combat_weapon_definition_t, triggers, 0x4fc);
 #define actor_debug_array (*(actor_debug_info_t **)0x331f58)
 
 /* 0x22dc0 — actor_combat_update: per-tick firing state machine.
- *
- * Structure follows PAL 2342 actor_combat.c actor_combat_update; the 2276
- * binary inlines actor_get_weapon_definition (actor_get_weapon + 'weap'
+ * The 2276 binary inlines actor_get_weapon_definition (actor_get_weapon + 'weap'
  * tag lookup) and calls the helpers below by address:
  *   actor_combat_check_mode (0x20f80, @<eax>) = enable_special_fire_situation
  *   actor_combat_check_fire_target (0x22010, @<edi>) = allow_special_fire_situation
@@ -1658,7 +1638,6 @@ void actor_combat_update(int actor_handle)
         actor->control_burst_origin.z + actor->control_burst_relative_position.k;
 
       if (actor->vehicle_index != -1) {
-        /* PAL 2342: unit_get_camera_position */
         unit_get_camera_position(actor->meta_unit_index, &origin.x);
       } else {
         real_vector3d *gun_offset = NULL;

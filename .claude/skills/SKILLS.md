@@ -13,11 +13,10 @@ nothing — describe the problem and the agent routes itself.
 
 The only skills meant for you to invoke directly.
 
-- **`/byte-campaign`** — Fast raw-XBE byte-accuracy campaign — rank ported functions by recoverable aligned bytes, use the PAL 2342 decomp (../halo-pal-2342, punpck…
 - **`/clear-cache`** — Clear Halo CE cache files from Xbox devkit cache partitions
 - **`/handover`** — Create a concise continuation handover for Halo CE Xbox RE/lift work when the user runs /handover or asks to transfer context to a new agen…
 - **`/input-fixture`** — Interactive wizard to capture (record) or replay a deterministic
-- **`/recover-campaign`** — Fully autonomous readability campaign. Ranks TUs by readability debt, runs parallel one-TU halo-source-recovery workers against a ~1 s byte…
+- **`/recover-campaign`** — Target-only readability campaign for already lifted Halo Xbox source, using 2276 evidence and byte-neutral gates.
 - **`/recover-goal`** — Goal-mode readability recovery — loop the recovery frontier, run the source-recovery ladder per object, park on failure, until N objects ar…
 - **`/recovery-session`** — End-to-end recovery session — recover enums, structs, fields, and readable source per object, improve that object's VC71 byte accuracy, run…
 - **`/reintegrate-to-main`** — Safely re-integrate a lift/session worktree branch into main — bring the branch up to date, rebase, gate (whole-object kb.json partition +…
@@ -51,7 +50,7 @@ words in your message. Listed for transparency, not as a to-do.
 | `lift-silent-bugs` | Checklist for non-crashing silent correctness bugs — wrong colors, yellow/white | `wrong color`, `yellow`, `white tint`, `invisible`, `missing geometry` |
 | `lift-synthetic-equivalence` | Hand-crafted state-snapshot equivalence for lifts whose VC71 score is | `synthetic equivalence`, `state snapshot`, `per-branch`, `equivalence`, `capped lift` |
 | `name-cleanup` | Rename decompiler-style locals and convert proven magic numbers into named | `rename locals`, `local variable cleanup`, `local cleanup`, `uvar`, `ivar` |
-| `naming-confidence` | Rules for renaming fields, locals, functions, constants, and types according to evidence strength — string/PDB evidence earns semantic name… | `rename field`, `rename function`, `rename type`, `rename global`, `naming confidence` |
+| `naming-confidence` | Evidence rules for naming functions, types, fields, parameters, locals, constants, and enums in the Halo Xbox target reconstruction. | `rename`, `naming`, `field name`, `enum name`, `struct name` |
 | `offset-to-struct` | Replace verified raw pointer arithmetic (*(T*)(base+0xNN)) with struct field access, preserving behavior and VC71 match. Requires the struc… | `raw offset`, `pointer arithmetic`, `offset replacement`, `replace offsets`, `struct field access` |
 | `permuter-campaign` | Permuter campaign, batch permute, low-match VC71, push stuck lifts toward 100%: | `permuter`, `permute`, `permutation`, `85%`, `98%` |
 | `re-comment-capture` | Write comments that preserve reverse-engineering knowledge — evidence citations, uncertainty markers, match-sensitive constructs, and hard-… | `comment capture`, `knowledge capture`, `document evidence`, `evidence comment`, `uncertainty comment` |

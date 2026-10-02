@@ -24,13 +24,13 @@ types, structs, or Ghidra work.
 
 ## Bungie Code Style
 
-Lifted code must read like Bungie's own source. The style is taken from the
-`bungie_datum_access.c` example in `surreptitiousresearch/halocea`. Our own
-2276 assert strings confirm it: `actor->meta.unit_index == NONE`,
+Lifted code must use the style independently visible in 2276 assert strings and
+target-resident identifiers: `actor->meta.unit_index == NONE`,
 `TEST_FLAG(bitmap->flags, _bitmap_swizzled_bit)`, `MAXIMUM_SQUADS_PER_MAP`,
-`_actor_danger_zone_none`. Treat that file as a style guide only. Its function
-bodies, its `data_array` layout, and helpers that 2276 does not have (for example
-`datum_try_and_get`) are not evidence.
+`_actor_danger_zone_none`. External PAL/CEA/HCEA/PDB material may identify a
+hypothesis to test, but it is not a style, naming, layout, or implementation
+authority. Record historical influence and independently prove every retained
+claim under `PROVENANCE.md`.
 
 These rules apply to every lift and to every edit of lifted code. **All of them
 change spelling only.** When a rule would add, remove, or reorder a call,

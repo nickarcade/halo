@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""SHAPE ATLAS -- donor/recipient template-transfer scheduler (lift-accel Phase 2).
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+SHAPE ATLAS -- donor/recipient template-transfer scheduler (lift-accel Phase 2).
 
 CONCEPT
 -------
@@ -11,7 +14,7 @@ of the same hand-written pattern (accessor pairs, per-axis variants, table
 dispatchers, ...).
 
 If a shape group contains at least one already-ported function with a known
-high VC71 match, that function is a DONOR: every other (unported) member of
+high VC71 mnemonic match, that function is a DONOR: every other (unported) member of
 the group is a RECIPIENT that can very likely be lifted by instantiating the
 donor's proven source template, rather than from scratch. A group of >=3
 unported members with NO donor is "unsolved bulk" -- solving any one member

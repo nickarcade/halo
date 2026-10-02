@@ -383,7 +383,7 @@ __attribute__((naked)) { decl.replace(name, 'THUNK('+name+')') }
 		# every cl.exe / clang in a parallel verify or build, and the previous
 		# form -- `open(path, 'w')` plus ~50 incremental `f.write()` calls --
 		# left a wide window in which a reader saw a truncated header.  That
-		# produced nondeterministic VC71 scores (whole TUs failing with
+		# produced nondeterministic VC71 mnemonic scores (whole TUs failing with
 		# `error C2065: '<global>' : undeclared identifier`, or worse, silently
 		# compiling a data symbol as implicit-int and scoring anyway).  Skipping
 		# an unchanged write closes the window in the common case, where every

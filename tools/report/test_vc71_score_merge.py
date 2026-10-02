@@ -47,6 +47,18 @@ class TestMergeVc71Scores(unittest.TestCase):
 
     FLOOR = doc({"a": {"score": 10.0}, "b": {"score": 20.0}})
 
+    def test_byte_document_or_entry_cannot_be_loaded_as_mnemonic(self):
+        for byte_doc in (
+            {"metric": "raw_xbe_aligned_byte_lower_bound", "scores": {"a": {"score": 75.0}}},
+            {"records": [], "scores": {}},
+            {"scores": {"a": {"score": 75.0, "metric": "raw_xbe_aligned_byte_lower_bound"}}},
+        ):
+            with self.subTest(document=byte_doc):
+                with self.assertRaisesRegex(ValueError, "Mnemonic score"):
+                    merge(self.FLOOR, byte_doc)
+                with self.assertRaisesRegex(ValueError, "Mnemonic score"):
+                    merge(byte_doc, {})
+
     def test_current_wins_where_it_measured(self):
         merged = merge(self.FLOOR, doc({"b": {"score": 99.0}}))
         self.assertEqual(merged["b"]["score"], 99.0)

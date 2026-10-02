@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Readability ratchet + per-file advisory for lifted C (readable-lift Phase 3).
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Readability ratchet + per-file advisory for lifted C (readable-lift Phase 3).
 
 Tracks the readability debt the readable-lift initiative pays down, so that
 recovery wins are locked in (baseline can only ratchet DOWN) and new lifts get

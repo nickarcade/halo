@@ -2,7 +2,7 @@
 """Parked-lift ledger — preserve sub-bar lift work for a later improve pass.
 
 A lift that builds and is behaviorally plausible but falls below the commit bar
-(e.g. 75% VC71 that the current model can't push higher) must NOT be discarded.
+(e.g. 75% mnemonic similarity that the current model can't push higher) must NOT be discarded.
 Experience shows such work is often recoverable later with a different model or a
 fresh perspective. This tool is the durable, workflow-agnostic home for that work:
 the goal-lift workflow, a manual `/lift` session, and the improve-pass all read

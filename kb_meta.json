@@ -866,6 +866,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x21310": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x21350": {
       "kind": "function",
       "status": "ported"
@@ -1291,7 +1295,7 @@
     },
     "0x2f470": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
     },
     "0x2f5b0": {
       "kind": "function",
@@ -1376,7 +1380,7 @@
     },
     "0x30b80": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
     },
     "0x30d10": {
       "kind": "function",
@@ -1396,11 +1400,11 @@
     },
     "0x314f0": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
     },
     "0x31850": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
     },
     "0x31a90": {
       "kind": "function",
@@ -1416,11 +1420,11 @@
     },
     "0x32170": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
     },
     "0x32380": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
     },
     "0x32940": {
       "kind": "function",
@@ -1456,7 +1460,7 @@
     },
     "0x342a0": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
     },
     "0x34970": {
       "kind": "function",
@@ -2383,6 +2387,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x433b0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x434c0": {
       "kind": "function",
       "status": "ported",
@@ -2486,6 +2494,10 @@
       "uncertain": [
         "The comm_data record (unit+0x348) is only partly understood: +0x06 is ai_information->dialogue_type_index per the assert text, while +0x0c, +0x14, +0x18, +0x1a and +0x1c have no string evidence."
       ]
+    },
+    "0x454a0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x45830": {
       "kind": "function",
@@ -4907,6 +4919,10 @@
       "status": "ported"
     },
     "0x745c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x74fb0": {
       "kind": "function",
       "status": "ported"
     },
@@ -7596,6 +7612,26 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xa5920": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa5ac0": {
+      "kind": "function",
+      "status": "unknown"
+    },
+    "0xa5f00": {
+      "kind": "function",
+      "status": "unknown"
+    },
+    "0xa6130": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xa6470": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xa65e0": {
       "kind": "function",
       "status": "ported"
@@ -8437,6 +8473,10 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xaffa0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb0170": {
       "kind": "function",
       "status": "ported"
@@ -8617,11 +8657,31 @@
       "kind": "function",
       "status": "ported"
     },
+    "0xb3940": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb3990": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb3c50": {
       "kind": "function",
       "status": "ported"
     },
+    "0xb3dd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb3de0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0xb3df0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb40e0": {
       "kind": "function",
       "status": "ported"
     },
@@ -8646,6 +8706,18 @@
       "status": "ported"
     },
     "0xb4a70": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb4ad0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb4b50": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb4bd0": {
       "kind": "function",
       "status": "ported"
     },
@@ -8682,6 +8754,14 @@
       "status": "ported"
     },
     "0xb5210": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb53b0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb5460": {
       "kind": "function",
       "status": "ported"
     },
@@ -18015,7 +18095,7 @@
     },
     "0x120fd0": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
     },
     "0x121640": {
       "kind": "function",
@@ -19428,6 +19508,10 @@
       "inferred": [
         "Name object_deplete_shield is inferred, not string-proven: it is the paired sibling of the confirmed object_deplete_body (0x137540), called from the adjacent structurally identical block in FUN_001a7b50 (units.c) on the obj+0x94 vitality ratio while object_deplete_body handles obj+0x90."
       ]
+    },
+    "0x136bc0": {
+      "kind": "function",
+      "status": "unknown"
     },
     "0x137370": {
       "kind": "function",
@@ -21218,7 +21302,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x160910": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x160920": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x160930": {
       "kind": "function",
       "status": "ported"
     },
@@ -21230,7 +21322,15 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x160970": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x160980": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x160990": {
       "kind": "function",
       "status": "ported"
     },
@@ -21238,9 +21338,29 @@
       "kind": "function",
       "status": "ported"
     },
+    "0x160bb0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x160bc0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x160bd0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x160be0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x1621c0": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x162920": {
       "kind": "function",
-      "status": "unknown"
+      "status": "ported"
     },
     "0x165ea0": {
       "kind": "function",
@@ -21304,6 +21424,10 @@
         "The lift splits three MSVC-coalesced stack regions ([EBP-0x34] FUN_0017ffc0 output, [EBP-0x30] FUN_00169200 out_extent, and screen_bounds[1..3]) into separate C locals, so our frame is larger than the original 0x98; this is a deliberate correctness-over-frame-size choice and is the most likely source of any VC71 frame_mismatch.",
         "cone is declared double because the original never spills the FCOS result to memory (it lives in ST1 across FXCH/FSUB/FSUB at 0x16a05e-0x16a06a); a float declaration would introduce a narrowing the binary does not perform, but a double still narrows 80-bit to 64-bit."
       ]
+    },
+    "0x16b2b0": {
+      "kind": "function",
+      "status": "ported"
     },
     "0x16bed0": {
       "kind": "function",
@@ -26862,10 +26986,6 @@
     },
     "0x5065a4": {
       "kind": "data",
-      "status": "ported"
-    },
-    "0x454a0": {
-      "kind": "function",
       "status": "ported"
     }
   }

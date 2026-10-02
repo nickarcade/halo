@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Persistent retrieval query server.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Persistent retrieval query server.
 
 Loads the embedding model and index once, then serves queries over a
 Unix socket at /tmp/retrieval_server.sock.

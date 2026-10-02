@@ -1,4 +1,7 @@
-"""Extract retrieval signals (pseudocode, C source, decl) for ported functions.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Extract retrieval signals (pseudocode, C source, decl) for ported functions.
 
 Called by `build_index.py` to populate the DuckDB index with one row per
 ported function. The lifting agent's nearest-neighbor query later runs

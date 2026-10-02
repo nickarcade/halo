@@ -1,116 +1,61 @@
 ---
 name: naming-confidence
 tier: agent
-triggers: ["rename field", "rename function", "rename type", "rename global", "naming confidence", "evidence strength", "confidence tier", "name fields"]
-description: Rules for renaming fields, locals, functions, constants, and types according to evidence strength — string/PDB evidence earns semantic names, behavior-only evidence earns mechanical names, and unknowns stay visibly unknown (field_XX, unknown_, FUN_). Governs every rename in lift and cleanup work.
+description: Evidence rules for naming functions, types, fields, parameters, locals, constants, and enums in the Halo Xbox target reconstruction.
+triggers: ["rename", "naming", "field name", "enum name", "struct name", "PDB", "PAL", "CEA"]
 ---
 
-# Naming & Confidence Rules
+# Naming confidence
 
-A wrong name is worse than no name: future sessions trust it as evidence. Every rename
-must be justified by a tier below, and the name's *shape* must not exceed its tier.
+Names are claims. Use the most specific name independently supported by the
+2276 target and state the evidence when it is not obvious.
 
-## Confidence tiers
-
-| Tier | Evidence | Allowed name shape |
+| Tier | Evidence | Allowed result |
 |---|---|---|
-| T1 | Binary strings: assert expression text, `__FILE__` anchors, format strings | Full semantic name, verbatim from evidence (`actor_set_active`, `vertical_field_of_view`) |
-| T2 | Strong structural evidence: writes a T1-named global, mirror of a named PC/CE symbol, callee role proven by disasm across all callers | Semantic name + evidence comment; prefer domain-neutral wording |
-| T3 | Behavior only: role clear from code shape, meaning unproven | **Mechanical** name (`count`, `elem_index`, `scale_q`, `out_buf`) — never domain semantics |
-| T4 | No evidence | Stays `FUN_<addr>`, `field_<hex>` (accessed) / `pad_<hex>[n]` (never observed accessed), `unknown_<addr>`, `local_NN` |
+| T1 | Identifier appears in a 2276 assert, format string, table, export, or other target-resident text and refers unambiguously to the symbol | Exact semantic name with target address citation |
+| T2 | 2276 behavior proves the role across relevant reads, writes, call sites, masks, or state transitions | Independently descriptive semantic name with an evidence comment |
+| T3 | Width/offset/access is proven but semantics are incomplete | Mechanical or deliberately broad name: `field_<offset>`, `unknown_<role>`, `FUN_<address>` |
+| T4 | Guess, single ambiguous use, or external cross-build suggestion without target proof | Keep unknown; record the hypothesis outside authoritative source |
 
-The cardinal sin is a T3 rename with a T1-shaped name (`player_health` because "it
-looks like health"). If you can't cite the evidence in one line, the name is T3 or T4.
+External PAL/CEA/HCEA/PDB-derived projects are `EXT-HYP` under
+`PROVENANCE.md`. They may suggest a search target, but they do not raise a name
+above T4. A name becomes T1/T2 only when 2276 evidence independently proves
+that same fact. Record both the historical suggestion and the independent
+target evidence; never hide earlier provenance.
 
-**No invented placeholders.** Never coin spellings like `code_<addr>` /
-`bss_<addr>` / `sub_<addr>`. The canonical repo placeholders are `FUN_<addr>`
-(functions), `field_<hex>` / `pad_<hex>[n]` (accessed / never-accessed struct
-offsets), `_<enum>_unknown<value>` / `_<thing>_unknown<bit>_bit` (enum members
-and bits whose value is proven but whose meaning is not), and the legacy
-`unk_<addr>` / `unk_N[]` for data.
+## Fields and layouts
 
-**Shape follows Bungie style.** Any tier's name uses the shapes in
-`lift-implementation.md` → *Bungie Code Style*: `lower_snake`, `k_` constants,
-`_enum_member`, `MAXIMUM_`/`NUMBER_OF_`, and `*_index` handles. The tier limits
-the *meaning* a name may claim. It does not relax the shape.
+- Verify every offset and width from 2276. A cross-build layout is not proof.
+- If behavior proves an offset but not its meaning, use `field_<offset>`.
+- Use `pad_<offset>[n]` only for bytes not observed accessed.
+- When one member becomes proven, split only the necessary range and preserve
+  the surrounding unknown bytes.
+- Alias unions are acceptable only when every semantic alias has independent
+  target evidence. A neutral alias does not validate a semantic one.
+- Add `co()`/`cs()` checks for edited layouts.
 
-## Per-symbol-kind rules
+## Functions, parameters, and locals
 
-- **Functions (kb.json).** Renames go through the existing pipeline —
-  `tools/analysis/fun_pipeline.py` (`reclassify`/`propose`/`apply`) — not ad-hoc
-  kb.json edits. `@<reg>` annotations are immutable regardless of rename. After a
-  rename, fix call sites via the build-error triage flow (grep
-  `build/generated/decl.h`, `rtk jq` the addr) rather than re-reading sources.
-  **`apply_punpckhdq_renames.py` is T2, not T1.** Its original size-only
-  Needleman-Wunsch matcher scored 0/74 on a validation set (proposals that
-  collided with an already-known name) — 2026-08-31, since fixed. It now
-  anchors on exact-name matches already confirmed on our side (never a
-  guess), bounds any size-based guessing to the window between two
-  consecutive anchors, and pairs strictly by position (no size involved) when
-  a window has equal counts on both sides — a bad guess can no longer drift
-  past a verified anchor. Two independent reviews validated the rebuild
-  (0 provably-wrong survivors in the applied batch); cross-build inference is
-  still one build away from our own binary, hence T2 not T1 — cite the
-  anchor/window evidence, don't treat its names as self-justifying.
-  `tools/analysis/crossbuild_context.py`, which surfaces the same proposal
-  corpus as read-only INFERRED research context per-function during a lift
-  (never writes source/kb.json), is unaffected and still fine to use.
-- **Struct fields.** Only via a `struct-recovery` (Phase 2)ed definition; a rename never changes
-  width/offset (the `co()` assert pins it). Record the evidence in the `///<` comment.
-  Unknowns keep the canonical split — `field_<hex>` when the offset is accessed but its
-  meaning is unproven, `pad_<hex>[n]` when it was never observed accessed. Legacy
-  `unk_<hex>` means "one of those two, unspecified"; converting it is a T4→T4 rename
-  (free), naming it something semantic is a tier claim that needs evidence.
-- **Locals.** See `name-cleanup` — T3 mechanical vocabulary by default.
-- **Constants/enums.** See `name-cleanup` — the *value* is proven by the binary;
-  the *name* needs its own tier.
-- **Globals.** `rename_global_variable`/kb.json name + a matching Ghidra label so both
-  views agree; cite the evidence address.
+- Keep `FUN_<address>` until a target string, table role, or complete caller/
+  callee behavior proves a semantic function name.
+- Parameter names require independently proven meaning at the ABI boundary.
+  Immutable `@<reg>` annotations are ABI evidence and must not be changed to
+  fit a name.
+- Local names may describe a value that target data flow proves. Do not copy
+  local names merely because another build uses them.
 
-## Procedure
+## Enums and constants
 
-1. Check prior art first: `rtk rg '<candidate name>' src/ && rtk jq '<name query>' kb.json`
-   — reuse existing vocabulary (e.g. `datum_salt`, `tag_index`) instead of coining
-   synonyms. Also check the PDB corpus before inventing: a T1 name may already exist.
-2. Assign the tier, write the one-line evidence citation.
-3. Apply the rename repo-wide in one commit (name changes only — Separation rule).
-4. Renames are codegen-neutral: `vc71_regression.py check --source <file>` must show
-   zero movement. Any movement means the commit wasn't rename-only — split it.
+- Preserve raw values until 2276 dispatch, strings, masks, or consumers prove
+  the member meaning.
+- A target-proven meaning may use a fresh descriptive spelling even when an
+  external project first suggested where to look.
+- Do not infer an enum count from the highest observed value.
 
-## Cross-build corpora (halocea)
+## Review checklist
 
-The `halocea` corpus (`surreptitiousresearch/halocea`) is RE-derived from a 2011 HCEA
-prototype `.xex` carrying verbose symbols — Blam! `01.00.01.0563`, roughly two years
-after our 2276. It supplies developer-chosen names we cannot recover from our own
-binary. It is *evidence from a different build*, so it never self-justifies, exactly as
-with `apply_punpckhdq_renames.py` above. Assessment and measured overlap:
-`docs/halocea/README.md`.
-
-Tier by how the name was obtained — always record which, in the source comment or the
-kb.json entry, as `name_source:`:
-
-| `name_source` | What it means | Tier |
-|---|---|---|
-| `halocea+assert` | The identifier is also stamped into a **2276** assert/format string. Our own binary proves it; halocea only corroborates. | T1 |
-| `halocea` | halocea cites a compiled symbol or DB enum in the 0563 binary, but the name appears nowhere in ours. | **T2** — semantic name allowed, must carry the citation |
-| `halocea-guess` | halocea's own header marks it a reconciliation with no ground-truth symbol behind it (see their `periodic_function.h`). | **T3** — mechanical name, *unless* our binary independently corroborates that specific slot, which promotes that slot alone to T2 |
-
-Rules:
-
-1. **Read their provenance line before borrowing.** halocea headers state their own
-   evidence ("DB-verified via types_enum_values …" vs "GUESS: enum recovered by
-   reconciliation"). A DB-verified header and a guessed one are different tiers, and
-   the distinction is per-header, not per-corpus.
-2. **Never borrow a layout.** Names and enum member *ordering* transfer well; struct
-   offsets, bitfield allocation order and 8-byte alignment do not. Every borrowed
-   struct is a hypothesis to confirm with `cs()`/`co()` against 2276.
-3. **Our binary wins every disagreement**, and the disagreement gets recorded — halocea
-   has already corrected two of its own usage-derived `actor_datum` names against a
-   later ground-truth dump.
-4. **The local checkout is a Windows x86 port** of that corpus, one
-   step removed from the `.xex`. For a load-bearing layout question, prefer upstream.
-
-## Downgrades
-
-When later evidence contradicts a name, **downgrading is mandatory**, not optional:
-rename back to mechanical/unknown and note the contradiction in the commit message.
+1. Cite the target address/string/call sites or runtime observation.
+2. Check every caller or consumer needed to disambiguate the role.
+3. Separate proven layout from proposed terminology.
+4. Record external historical influence in the provenance ledger.
+5. Prefer an explicit unknown whenever the target evidence remains ambiguous.

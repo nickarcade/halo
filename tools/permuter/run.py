@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""run.py — Adapter driver: run decomp-permuter against a VC71/MSVC target function.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+run.py — Adapter driver: run decomp-permuter against a VC71/MSVC target function.
 
 Assembles the permuter input directory for a given function, then invokes
 permuter.py with our compile.sh adapter and COFF reference object.

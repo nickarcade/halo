@@ -85,7 +85,7 @@ static const char kLightsFile[] =
  *          evidence: TEST ESI,ESI / assert("bounds", ..., 0x143) at
  *          0x1696d9..0x1696ee. => @<esi> register parameter.
  *   [EBP+8] = one cdecl stack argument, forwarded verbatim as the first
- *          argument of FUN_00158140 at 0x1699a9 (MOV EDX,[EBP+8]; PUSH EDX
+ *          argument of rasterizer_set_target at 0x1699a9 (MOV EDX,[EBP+8]; PUSH EDX
  *          last of five pushes).
  *
  * Frame: SUB ESP,0x80 = exactly one 32-float vertex-shader constant block
@@ -102,10 +102,10 @@ static const char kLightsFile[] =
  * natural index order, same as the sibling passes in this TU family.
  *
  * ADD ESP,0x24 at 0x1699ae is the cdecl mis-grouping trap: it cleans
- * FUN_00158140 (5) + csmemset (3) + rasterizer_set_pixel_shader (1) = 9
+ * rasterizer_set_target (5) + csmemset (3) + rasterizer_set_pixel_shader (1) = 9
  * dwords, not a 9-argument call.
  *
- * Second FUN_00158140 takes the zero-extended WORD at 0x5a5bc0
+ * Second rasterizer_set_target takes the zero-extended WORD at 0x5a5bc0
  * (XOR EAX,EAX; MOV AX,[0x005a5bc0]) — a 16-bit read, not the dword the
  * decompiler's `(uint)DAT_005a5bc0` suggests.
  *
@@ -202,7 +202,7 @@ void FUN_001696d0(int param_1, float *bounds)
   *(uint32_t *)0x5a5ae4 = 0x1c00;
   rasterizer_set_pixel_shader((void *)0x5a5ac0);
 
-  FUN_00158140(param_1, 0, 0, 0, 0);
+  rasterizer_set_target(param_1, 0, 0, 0, 0);
 
   D3DDevice_Begin(7);
   D3DDevice_SetVertexData2s(4, 0, 0);
@@ -215,7 +215,7 @@ void FUN_001696d0(int param_1, float *bounds)
   D3DDevice_SetVertexData2f(0, -1.015625f, -0.984375f);
   D3DDevice_End();
 
-  FUN_00158140(*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
+  rasterizer_set_target(*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
 }
 
 /*
@@ -254,11 +254,11 @@ void FUN_001696d0(int param_1, float *bounds)
  * cdecl ADD ESP mis-grouping (the check_lift_hazards ARG_COUNT warnings on
  * rasterizer_set_pixel_shader and error are this, not real arg counts):
  *   ADD ESP,0x10 @0x169d16 = csmemset(3) + rasterizer_set_pixel_shader(1)
- *   ADD ESP,0x18 @0x169de3 = FUN_00158140(5) + rasterizer_set_pixel_shader(1)
- *   ADD ESP,0x14 @0x169f9c = FUN_00158140(5)
+ *   ADD ESP,0x18 @0x169de3 = rasterizer_set_target(5) + rasterizer_set_pixel_shader(1)
+ *   ADD ESP,0x14 @0x169f9c = rasterizer_set_target(5)
  * error() is variadic and is called here with exactly two arguments.
  *
- * The final FUN_00158140 target is a zero-extended WORD read
+ * The final rasterizer_set_target target is a zero-extended WORD read
  * (XOR EAX,EAX; MOV AX,[0x005a5bc0] at 0x169f85), not a dword — same trap
  * the sibling FUN_001696d0 documents.
  *
@@ -393,7 +393,7 @@ int FUN_00169a50(int primary_target, int secondary_target, short iterations)
         D3DDevice_SetTextureStageState(j, 0xf, 1);
       }
 
-      FUN_00158140(dest, 0, 0, 0, 0);
+      rasterizer_set_target(dest, 0, 0, 0, 0);
 
       *(uint32_t *)0x5a5ae8 = (uint32_t)(i <= 0 ? 0xff : 0x7f) << 24;
       rasterizer_set_pixel_shader((void *)0x5a5ac0);
@@ -463,7 +463,7 @@ int FUN_00169a50(int primary_target, int secondary_target, short iterations)
       }
     }
 
-    FUN_00158140(*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
+    rasterizer_set_target(*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
 
     if (!success) {
       error(2, "### ERROR rasterizer_sun_glow_convolve failed");

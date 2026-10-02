@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+
 Generate decomp.dev-compatible progress report from existing project data.
 
 This tool bridges our existing analysis infrastructure with decomp.dev format,
@@ -141,8 +144,46 @@ def build_report_provenance(root_dir: str, raw_xbe_path: str,
                                                      current_doc),
             'reference_validity': validity,
             'equivalence': _equivalence_evidence_summary(equiv_verdicts),
+            'raw_byte_snapshot': _raw_snapshot_provenance(root_dir),
         },
     }
+
+
+def _raw_snapshot_provenance(root_dir):
+    path = Path(root_dir) / 'artifacts/byte_measurement/snapshot.json'
+    result = _input_file_identity(str(path), root_dir)
+    try:
+        document = json.loads(path.read_text())
+        result.update({key: document.get(key) for key in ('commit', 'dirty', 'run_id', 'metric')})
+        result['function_count'] = len(document.get('records', []))
+    except (OSError, ValueError, TypeError):
+        result['function_count'] = 0
+    return result
+
+
+def _measurement_manifest_valid(audit, root_dir, cache):
+    """Check complete measurement inputs once per manifest, including headers."""
+    manifest = audit.get('measurement_manifest')
+    if not manifest:
+        # Older exploratory audits retain their existing, limited provenance.
+        # The regression gate never consumes these records.
+        audit['freshness_scope'] = 'source, XBE and function bounds only; shared inputs unvalidated'
+        return True
+    if manifest not in cache:
+        try:
+            snapshot = json.loads(Path(manifest).read_text())
+            inputs = snapshot.get('inputs', {})
+            cache[manifest] = (snapshot.get('metric') == 'raw_xbe_aligned_byte_lower_bound'
+                               and bool(inputs) and all(
+                                   _file_hash(str(Path(root_dir) / name), 'sha256') == expected
+                                   for name, expected in inputs.items()))
+            if cache[manifest]:
+                from tools.verify import byte_regression, raw_xbe_structural
+                cache[manifest] = snapshot.get('environment') == byte_regression.environment_manifest(raw_xbe_structural)
+        except (OSError, ValueError, TypeError, ImportError):
+            cache[manifest] = False
+    audit['freshness_scope'] = 'all recorded compile and measurement inputs'
+    return cache[manifest]
 
 
 def _estimate_missing_sizes(funcs: list) -> dict[int, int]:
@@ -537,6 +578,7 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
 
     xbe_sha256 = _file_hash(str(xbe_path), 'sha256')
     latest = {}
+    manifest_cache = {}
     valid_verdicts = ('structural exact', 'structural differ', 'not comparable')
     for audit_path in audit_dir.glob('*.json'):
         if audit_path.name == 'summary.json':
@@ -546,6 +588,8 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
                 audit = json.load(f)
             if (audit.get('schema_version') != 2
                     or audit.get('lane') != 'raw_xbe_structural'):
+                continue
+            if not _measurement_manifest_valid(audit, root_dir, manifest_cache):
                 continue
             address = audit.get('address')
             reference = audit.get('reference')
@@ -579,6 +623,8 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
             reference_end = f'0x{int(reference.get("end"), 16):x}'
             bound = bounds.get(address_key)
             source_path = source.get('path')
+            if source_path and not Path(source_path).is_absolute():
+                source_path = str(Path(root_dir) / source_path)
             byte_counts = audit.get('byte_counts')
             matching_bytes = audit.get('matching_non_relocation_bytes')
             non_relocation_bytes = (byte_counts.get('non_relocation')
@@ -826,7 +872,7 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
 
     if vc71_scores is None:
         vc71_scores = {}
-    scores_data = vc71_scores.get('scores', {})
+    scores_data = _mnemonic_score_entries(vc71_scores)
 
     # Build a flagged-function lookup keyed by every alias we might join on:
     # the vc71-emitted function string, and FUN_<addr>/0x<addr> when an address
@@ -951,7 +997,7 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
             elif meta_is_ported and not is_ported:
                 drift['meta_ported_missing_kb'] += 1
             
-            # Look up VC71 match score. Prefer the real kb.json name, but fall
+            # Look up VC71 mnemonic score. Prefer the real kb.json name, but fall
             # back to the address-keyed FUN_<addr> name: vc71_verify records many
             # functions under their *delinked reference* symbol (still FUN_<addr>)
             # rather than the renamed kb.json symbol. Joining on name alone drops
@@ -1080,6 +1126,7 @@ def compute_unit_stats(kb: KnowledgeBase, store: MetadataStore,
                 'status': status,
                 'ported': is_ported,
                 'match_percent': match_pct,
+                'match_metric': 'mnemonic_similarity_not_raw_bytes',
                 'opnd_percent': opnd_pct,
                 'vc71_flagged': vc71_flagged,
                 'equiv_class': equiv_class,
@@ -1379,6 +1426,17 @@ def _load_vc71_doc(path: str) -> dict:
         return {}
 
 
+def _mnemonic_score_entries(document: dict) -> dict:
+    """Accept legacy mnemonic documents, but never import byte measurements."""
+    metric = 'mnemonic_similarity_not_raw_bytes'
+    if document.get('metric') not in (None, metric) or 'records' in document:
+        raise ValueError('Mnemonic score input contains a different metric; raw bytes belong in raw_xbe_structural')
+    entries = document.get('scores') or {}
+    if any(entry.get('metric') not in (None, metric) for entry in entries.values()):
+        raise ValueError('Mnemonic score entry contains a different metric; raw bytes cannot populate match_percent')
+    return entries
+
+
 def merge_vc71_scores(floor_doc: dict, current_doc: dict,
                       current_exists: bool = True) -> dict:
     """Layer the honest current snapshot over the committed floor, PER FUNCTION.
@@ -1394,8 +1452,8 @@ def merge_vc71_scores(floor_doc: dict, current_doc: dict,
     measured and the floor everywhere else, which is the only combination that
     is both present-truth and complete.
     """
-    floor = floor_doc.get('scores') or {}
-    current = current_doc.get('scores') or {}
+    floor = _mnemonic_score_entries(floor_doc)
+    current = _mnemonic_score_entries(current_doc)
     merged = dict(floor)
     merged.update(current)
     if current_exists and not current and merged:
@@ -1407,10 +1465,11 @@ def merge_vc71_scores(floor_doc: dict, current_doc: dict,
     elif current and len(current) < len(merged):
         # Normal after a scoped refresh; say so, so nobody reads a mixed
         # dashboard as one coherent measurement.
-        print(f'VC71 scores: {len(current)} current + '
+        print(f'VC71 mnemonic scores: {len(current)} current + '
               f'{len(merged) - len(current)} from the committed floor',
               file=sys.stderr)
     return {'version': current_doc.get('version') or floor_doc.get('version'),
+            'metric': 'mnemonic_similarity_not_raw_bytes',
             'scores': merged}
 
 
@@ -1419,7 +1478,7 @@ def generate_report(output_path: str) -> dict:
     
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
     cache_path = os.path.join(root_dir, 'build', 'function_sizes.json')
-    # VC71 scores come from two files, merged PER FUNCTION: the committed floor
+    # VC71 mnemonic scores come from two files, merged PER FUNCTION: the committed floor
     # (vc71_scores.json, a raise-only high-water tripwire, always present in git)
     # underneath, and the honest current snapshot (vc71_current.json, gated on
     # reference validity, gitignored) layered on top.
@@ -1857,7 +1916,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
         .pct-complete { color: #3fb950; font-weight: 700; }
         .pct-partial { color: var(--accent-blue); font-weight: 600; }
         .pct-none { color: var(--text-secondary); }
-        /* Advisory operand-normalized score shown beside the VC71 match %. */
+        /* Advisory operand-normalized score shown beside the VC71 mnemonic match %. */
         .opnd-pct { color: var(--text-secondary); font-size: 0.85em; opacity: 0.8; }
         .match-indicator {
             display: inline-flex; align-items: center; gap: 6px;
@@ -2178,7 +2237,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             <h2>Translation Units</h2>
             <div class="treemap-grid">
                 <div class="card">
-                    <div class="chart-title">Unit Size Map &mdash; <span style="font-weight:400;text-transform:none;letter-spacing:0">sized by bytes, colored by completion &mdash; click to drill down</span></div>
+                    <div class="chart-title">Unit Size Map &mdash; <span style="font-weight:400;text-transform:none;letter-spacing:0">sized by bytes, colored by selected metric &mdash; click to drill down</span><span class="tu-metric-toggle" id="treemap-metric-toggle"></span></div>
                     <div class="treemap-wrap"><canvas id="treemapCanvas"></canvas></div>
                 </div>
                 <div class="card donut-center">
@@ -2445,50 +2504,6 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             });
         }
 
-        function scoreFunction(btn) {
-            var unit = btn.getAttribute('data-unit');
-            if (!unit) return;
-            btn.disabled = true;
-            btn.classList.remove('error');
-            btn.textContent = '⏳ Scoring…';
-            fetch('/api/score', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({unit: unit})
-            }).then(function(r) { return r.json(); }).then(function(d) {
-                if (d.ok) {
-                    // Update REPORT in memory so re-renders show the score immediately
-                    var scores = d.scores || {};
-                    var opnds = d.opnd_scores || {};
-                    for (var i = 0; i < REPORT.units.length; i++) {
-                        if (REPORT.units[i].name === unit) {
-                            var funcs = REPORT.units[i].functions || [];
-                            for (var j = 0; j < funcs.length; j++) {
-                                if (funcs[j].name in scores) {
-                                    funcs[j].match_percent = scores[funcs[j].name];
-                                }
-                                if (funcs[j].name in opnds) {
-                                    funcs[j].opnd_percent = opnds[funcs[j].name];
-                                }
-                            }
-                            break;
-                        }
-                    }
-                    renderUnitDetail(currentUnitName);
-                } else {
-                    btn.disabled = false;
-                    btn.classList.add('error');
-                    btn.textContent = d.error === 'no_reference' ? '⚠ No ref' : '⚠ Error';
-                    btn.title = d.error || 'Scoring failed';
-                }
-            }).catch(function() {
-                btn.disabled = false;
-                btn.classList.add('error');
-                btn.textContent = '⚠ Server offline';
-                btn.title = 'progress_server.py is not running';
-            });
-        }
-
         /* ===== OVERVIEW RENDER ===== */
         function render() {
             renderSummary();
@@ -2576,7 +2591,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             if (vData.divergent > 0) verifiedTip += '\\nNeeds investigation: ' + vData.divergent;
 
             // Match-coverage buckets: a ported function is "scored" if it has a
-            // VC71 match, "scoreable" if the committed bounds table can derive a
+            // VC71 mnemonic match, "scoreable" if the committed bounds table can derive a
             // reference for its unit (could be scored), or "not scoreable" if VC71
             // is impossible (needs behavioral verification instead). Honest scope
             // for the VC71 mnemonic-match headline.
@@ -2631,7 +2646,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 'Uncertain bytes have unresolved address targets.\\n' +
                 'Behavior is checked separately.';
             var structuralHeadline = alignedCompared > 0 && alignedLower != null ?
-                (alignedLower * 100).toFixed(1) + '% match' : 'No comparison yet';
+                (alignedLower * 100).toFixed(1) + '% byte accuracy' : 'No comparison yet';
             var structuralBar = '';
             if (alignedCompared > 0) {
                 structuralBar = '<div class="progress-bar" style="display:flex" aria-label="Byte comparison breakdown">' +
@@ -2746,10 +2761,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
         // mnemonic match can still accompany a perfect lift. Correctness lives in the Verified
         // column (behavioral evidence), which is the separate colored verdict.
         function matchColor(pct) {
-            if (pct >= 95) return '#3fb950';
-            if (pct >= 85) return '#58a6ff';
-            if (pct >= 70) return '#d29922';
-            return '#da3633';
+            return scaleTextColor(pct);
         }
 
         function matchBadge(pct) {
@@ -2835,9 +2847,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 if (accContainer) accContainer.style.display = '';
                 var accLabels = matchSnaps.map(function(m) { return m.date; });
                 var weightedData = matchSnaps.map(function(m) { return m.weighted; });
-                var avgData = matchSnaps.map(function(m) { return m.average; });
                 var alignedData = matchSnaps.map(function(m) { return m.aligned; });
-                var coverageData = matchSnaps.map(function(m) { return m.coverage; });
 
                 var latest = matchSnaps[matchSnaps.length - 1];
                 var earliest = matchSnaps[0];
@@ -2848,8 +2858,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 if (titleEl) {
                     titleEl.innerHTML = 'Match Over Time &mdash; ' +
                         '<span style="font-weight:400;font-size:0.85em;color:var(--text-secondary)">' +
-                        'Weighted: <strong style="color:' + matchColor(latest.weighted) + '">' + latest.weighted.toFixed(1) + '%</strong> &middot; ' +
-                        'Avg: <strong>' + latest.average.toFixed(1) + '%</strong> ' +
+                        'Mnemonic: <strong style="color:' + matchColor(latest.weighted) + '">' + latest.weighted.toFixed(1) + '%</strong> ' +
                         '<span style="color:' + deltaClass + ';font-weight:600">(' + deltaSign + delta.toFixed(1) + '% since ' + earliest.date + ')</span>' +
                         (latest.aligned !== null ?
                             ' &middot; Aligned bytes: <strong>' + latest.aligned.toFixed(1) + '%</strong> ' +
@@ -2863,37 +2872,19 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     data: {
                         labels: accLabels,
                         datasets: [
-                            {
-                                label: 'Byte-Weighted Accuracy (%)',
+                            Object.assign({
+                                label: 'Mnemonic Match, byte-weighted (%)',
                                 data: weightedData,
-                                borderColor: '#3fb950',
-                                backgroundColor: 'rgba(63, 185, 80, 0.08)',
+                                backgroundColor: 'rgba(17, 99, 41, 0.08)',
                                 borderWidth: 2, tension: 0.35, fill: true,
                                 pointRadius: 2, pointHoverRadius: 5
-                            },
-                            {
-                                label: 'Average VC71 Mnemonic Match (%)',
-                                data: avgData,
-                                borderColor: '#58a6ff',
-                                backgroundColor: 'rgba(88, 166, 255, 0.05)',
-                                borderWidth: 1.5, borderDash: [4, 4], tension: 0.35, fill: false,
-                                pointRadius: 1.5, pointHoverRadius: 4
-                            },
-                            {
+                            }, scaleSeriesStyle()),
+                            Object.assign({
                                 label: 'Aligned Byte Accuracy (%)',
                                 data: alignedData,
-                                borderColor: '#d29922',
-                                backgroundColor: 'rgba(210, 153, 34, 0.05)',
-                                borderWidth: 2, tension: 0.35, fill: false,
-                                pointRadius: 2, pointHoverRadius: 5
-                            },
-                            {
-                                label: 'Audit Coverage (% of ported)',
-                                data: coverageData,
-                                borderColor: 'rgba(139, 148, 158, 0.6)',
-                                borderWidth: 1, borderDash: [2, 3], tension: 0.35, fill: false,
-                                pointRadius: 0, pointHoverRadius: 3
-                            }
+                                borderWidth: 2, borderDash: [6, 3], tension: 0.35, fill: false,
+                                pointStyle: 'rectRot', pointRadius: 3, pointHoverRadius: 6
+                            }, scaleSeriesStyle())
                         ]
                     },
                     options: chartOpts({
@@ -2903,15 +2894,11 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                             var item = matchSnaps[idx];
                             if (tooltipItem.datasetIndex === 0) {
                                 return 'Weighted mnemonic match: ' + item.weighted.toFixed(2) + '% (' + item.scored + ' functions)';
-                            } else if (tooltipItem.datasetIndex === 1) {
-                                return 'Average mnemonic match: ' + item.average.toFixed(2) + '%';
                             } else if (item.aligned === null) {
                                 return null;  // pre-audit snapshot
-                            } else if (tooltipItem.datasetIndex === 2) {
-                                return 'Aligned byte accuracy: ' + item.aligned.toFixed(2) + '% (' + item.audited + ' audited functions)';
-                            } else {
-                                return 'Audit coverage: ' + item.coverage.toFixed(1) + '% (' + item.audited + ' / ' + item.ported + ' ported)';
                             }
+                            return 'Aligned byte accuracy: ' + item.aligned.toFixed(2) + '% (' +
+                                item.audited + ' / ' + item.ported + ' ported functions audited)';
                         }
                     })
                 });
@@ -2978,10 +2965,12 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
 
             var steps = [
                 { label: 'All functions',   count: total,       color: '#3d444d', pct: 100 },
-                { label: 'Ported',          count: ported,      color: '#388bfd', pct: total > 0 ? ported / total * 100 : 0 },
-                { label: 'VC71 scored',     count: vc71,        color: '#d29922', pct: total > 0 ? vc71 / total * 100 : 0 },
-                { label: 'Behavioral match', count: vData.total, color: '#3fb950', pct: total > 0 ? vData.total / total * 100 : 0 }
+                { label: 'Ported',          count: ported,      pct: total > 0 ? ported / total * 100 : 0 },
+                { label: 'VC71 scored',     count: vc71,        pct: total > 0 ? vc71 / total * 100 : 0 },
+                { label: 'Behavioral match', count: vData.total, pct: total > 0 ? vData.total / total * 100 : 0 }
             ];
+            // Bars take the shared scale color of their share of all functions.
+            for (var k = 1; k < steps.length; k++) steps[k].color = scaleColor(steps[k].pct, false);
 
             var html = '';
             for (var i = 0; i < steps.length; i++) {
@@ -3014,16 +3003,39 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
         // correctness.
         // Evidence-map colors: green is reserved for a complete 100%, so the
         // >=95% band uses purple and the two cannot be mistaken for each other.
-        var EVIDENCE_COMPLETE = '#3fb950';
-        function accuracyColor(match) {
-            if (match === null || match === undefined) return '#8b949e';
-            if (match >= 95) return '#a371f7';
-            if (match >= 85) return '#58a6ff';
-            if (match >= 70) return '#d29922';
-            return '#da3633';
+        // One shared scale for completion, raw byte accuracy and mnemonic match:
+        // 100 / >=75 / >=50 / >=25 / >0 / 0, plus gray for "no data".
+        var SCALE_COMPLETE = '#116329';
+        var SCALE_NO_DATA = '#8b949e';
+        // complete === false marks a 100% figure over partial coverage (unaudited
+        // or unscored remainder): it gets the next band down instead of the
+        // solid "complete" green.
+        function scaleColor(pct, complete) {
+            if (pct === null || pct === undefined) return SCALE_NO_DATA;
+            if (pct >= 100) return complete === false ? '#2ea043' : SCALE_COMPLETE;
+            if (pct >= 75) return '#2ea043';
+            if (pct >= 50) return '#d29922';
+            if (pct >= 25) return '#d4760a';
+            if (pct > 0) return '#da3633';
+            return '#21262d';
+        }
+        // Text variant: the 0% band would be invisible on the dark background.
+        function scaleTextColor(pct) {
+            return pct !== null && pct !== undefined && pct <= 0 ? '#da3633' : scaleColor(pct);
+        }
+        // Chart.js styling for an accuracy series: points and line segments take
+        // the scale color of their value; the dataset color (legend swatch) stays
+        // the top band.
+        function scaleSeriesStyle() {
+            return {
+                borderColor: SCALE_COMPLETE,
+                pointBackgroundColor: function(c) { return scaleTextColor(c.parsed ? c.parsed.y : null); },
+                pointBorderColor: function(c) { return scaleTextColor(c.parsed ? c.parsed.y : null); },
+                segment: { borderColor: function(c) { return scaleTextColor(c.p1.parsed.y); } }
+            };
         }
         // Which metric colors the evidence map: 'mnemonic' or 'aligned'.
-        var tuMapMetric = 'mnemonic';
+        var tuMapMetric = 'aligned';
         try {
             if (localStorage.getItem('tuMapMetric') === 'aligned') tuMapMetric = 'aligned';
         } catch (e) {}
@@ -3160,8 +3172,8 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 var s = u.summary || {};
                 var match = st.ported > 0 ? s.match_weighted : null;
                 var color = tuMapMetric === 'aligned' ?
-                    (unitHasCompleteAlignedMatch(u, st) ? EVIDENCE_COMPLETE : accuracyColor(unitAlignedPct(u, st))) :
-                    (unitHasCompleteMnemonicMatch(u, st) ? EVIDENCE_COMPLETE : accuracyColor(match));
+                    scaleColor(unitAlignedPct(u, st), unitHasCompleteAlignedMatch(u, st)) :
+                    scaleColor(match, unitHasCompleteMnemonicMatch(u, st));
                 var portedPct = unitMeterPct(st, st.portedBytes, st.ported);
                 var tip = unitEvidenceTooltip(u, st);
                 var label = u.name + ': ' + st.state;
@@ -3183,13 +3195,14 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             var legEl = document.getElementById('tu-legend');
             if (legEl) {
                 var legHtml =
-                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:' + EVIDENCE_COMPLETE + '"></div>100% ' + metricName + ' (every ported function ' + (tuMapMetric === 'aligned' ? 'audited' : 'scored') + ')</div>' +
-                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#a371f7"></div>&ge;95%</div>' +
-                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#58a6ff"></div>85&ndash;95%</div>' +
-                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#d29922"></div>70&ndash;85%</div>' +
-                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#da3633"></div>&lt;70%</div>' +
-                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#8b949e"></div>' + (tuMapMetric === 'aligned' ? 'not audited' : 'unscored') + '</div>' +
-                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background-color:#58a6ff;background-image:repeating-linear-gradient(-45deg,rgba(0,0,0,0.35),rgba(0,0,0,0.35) 3px,transparent 3px,transparent 6px)"></div>divergence candidate (striped)</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:' + SCALE_COMPLETE + '"></div>100% ' + metricName + ' (every ported function ' + (tuMapMetric === 'aligned' ? 'audited' : 'scored') + ')</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#2ea043"></div>75&ndash;100%</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#d29922"></div>50&ndash;75%</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#d4760a"></div>25&ndash;50%</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#da3633"></div>0&ndash;25%</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:#21262d;outline:1px solid #30363d;outline-offset:-1px"></div>0%</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:' + SCALE_NO_DATA + '"></div>' + (tuMapMetric === 'aligned' ? 'not audited' : 'unscored') + '</div>' +
+                    '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background-color:#2ea043;background-image:repeating-linear-gradient(-45deg,rgba(0,0,0,0.35),rgba(0,0,0,0.35) 3px,transparent 3px,transparent 6px)"></div>divergence candidate (striped)</div>' +
                     '<div class="tu-legend-item"><div class="tu-legend-swatch" style="background:transparent;outline:1px solid #f85149;outline-offset:-1px"></div>divergence candidate outline</div>' +
                     '<div class="tu-map-note">Bar length = implemented (ported bytes / unit bytes). Color = ' +
                     (tuMapMetric === 'aligned' ?
@@ -3265,14 +3278,31 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
 
         /* ===== TREEMAP ===== */
         var treemapRects = [];
+        // Treemap color metric: 'completion' (ported share) or 'aligned' (raw byte accuracy).
+        var treemapMetric = 'completion';
+        try {
+            if (localStorage.getItem('treemapMetric') === 'aligned') treemapMetric = 'aligned';
+        } catch (e) {}
+        function setTreemapMetric(metric) {
+            treemapMetric = metric;
+            try { localStorage.setItem('treemapMetric', metric); } catch (e) {}
+            renderTreemap();
+        }
+
+        // [fill color, label text] for a unit under the active treemap metric.
+        function treemapUnitStyle(u) {
+            if (treemapMetric !== 'aligned') {
+                var pct = u.summary.percent;
+                return [completionColor(pct), pct.toFixed(0) + '%'];
+            }
+            var st = unitEvidenceStats(u);
+            var aligned = unitAlignedPct(u, st);
+            var color = scaleColor(aligned, unitHasCompleteAlignedMatch(u, st));
+            return [color, aligned === null ? 'n/a' : aligned.toFixed(0) + '%'];
+        }
 
         function completionColor(pct) {
-            if (pct >= 100) return '#238636';
-            if (pct >= 75) return '#2ea043';
-            if (pct >= 50) return '#d29922';
-            if (pct >= 25) return '#d4760a';
-            if (pct > 0) return '#da3633';
-            return '#21262d';
+            return scaleColor(pct);
         }
 
         function squarify(items, x, y, w, h, out) {
@@ -3369,6 +3399,13 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             }
             items.sort(function(a, b) { return b.value - a.value; });
 
+            var toggleEl = document.getElementById('treemap-metric-toggle');
+            if (toggleEl) {
+                toggleEl.innerHTML =
+                    '<button class="' + (treemapMetric === 'completion' ? 'active' : '') + '" onclick="setTreemapMetric(\\'completion\\')">Completion</button>' +
+                    '<button class="' + (treemapMetric === 'aligned' ? 'active' : '') + '" onclick="setTreemapMetric(\\'aligned\\')">Byte accuracy</button>';
+            }
+
             treemapRects = [];
             squarify(items, 1, 1, W - 2, H - 2, treemapRects);
 
@@ -3378,8 +3415,8 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             for (var i = 0; i < treemapRects.length; i++) {
                 var r = treemapRects[i];
                 var u = r.item.unit;
-                var pct = u.summary.percent;
-                ctx.fillStyle = completionColor(pct);
+                var style = treemapUnitStyle(u);
+                ctx.fillStyle = style[0];
                 ctx.fillRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
 
                 ctx.strokeStyle = '#0d1117';
@@ -3398,7 +3435,7 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     ctx.fillText(label, r.x + 4, r.y + 4);
                     if (r.h > 42) {
                         ctx.font = '700 ' + Math.max(9, fontSize) + 'px -apple-system, sans-serif';
-                        ctx.fillText(pct.toFixed(0) + '%', r.x + 4, r.y + 4 + fontSize + 3);
+                        ctx.fillText(style[1], r.x + 4, r.y + 4 + fontSize + 3);
                     }
                 }
             }
@@ -3416,10 +3453,15 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                 if (hit) {
                     var u = hit.item.unit;
                     var s = u.summary;
+                    var hitSt = unitEvidenceStats(u);
+                    var hitAligned = unitAlignedPct(u, hitSt);
+                    var hitAudited = (u.raw_xbe_structural || {}).aligned_scored_functions || 0;
                     tooltip.innerHTML = '<strong>' + escHtml(u.name) + '</strong><br>' +
                         s.ported + ' / ' + s.total + ' functions (' + s.percent.toFixed(1) + '%)<br>' +
                         fmtNum(s.bytes_ported) + ' / ' + fmtNum(s.bytes_total) + ' bytes' +
-                        (s.match_weighted != null ? '<br>Mnemonic match: ' + s.match_weighted.toFixed(1) + '%' : '');
+                        (s.match_weighted != null ? '<br>Mnemonic match: ' + s.match_weighted.toFixed(1) + '%' : '') +
+                        '<br>Raw byte accuracy: ' + (hitAligned !== null ? hitAligned.toFixed(1) + '%' : 'not audited') +
+                        ' (' + hitAudited + ' / ' + hitSt.ported + ' ported functions audited)';
                     tooltip.style.display = 'block';
                     tooltip.style.left = (e.clientX + 12) + 'px';
                     tooltip.style.top = (e.clientY - 10) + 'px';
@@ -3657,16 +3699,9 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
                     '<span class="unit-meta-item">Runtime Oracle: <strong style="color:#79c0ff">' + golden.passed + '</strong> / <strong>' + golden.tested + '</strong> passed</span>' : '') +
                 (snap.tested > 0 ?
                     '<span class="unit-meta-item">Snapshot: <strong style="color:#a855f7">' + snap.tested + '</strong> tested &middot; <strong>' + snap.passed + '</strong> passed &middot; <strong>' + (snap.avg_coverage !== null ? snap.avg_coverage.toFixed(1) + '%' : '?') + '</strong> avg cov</span>' : '') +
-                // VC71 scoring is a whole-translation-unit MSVC compile, so this is a
-                // single unit-level action — not per function. Only offered when the
-                // committed bounds table can derive a reference for this unit's
-                // functions; otherwise VC71 mnemonic scoring is impossible.
                 (unit.synthetic ?
-                    '<span class="unit-meta-item pct-none" title="Platform or shared code grouped for reporting. Not counted as game source progress.">Synthetic bucket &middot; excluded from source progress</span>' :
-                (currentUnitHasRef ?
-                    '<span class="unit-meta-item"><button class="score-btn" data-unit="' + jsEsc(unit.name) + '" onclick="scoreFunction(this)" title="Rebuild this unit and update its mnemonic scores.">&#x25B6; Score unit (VC71)</button></span>' :
-                    '<span class="unit-meta-item pct-none" title="The original function boundaries are unknown, so mnemonic scoring is unavailable.">Not VC71-scoreable</span>')) +
-                // The raw-XBE structural audit is also a whole-TU compile; it is
+                    '<span class="unit-meta-item pct-none" title="Platform or shared code grouped for reporting. Not counted as game source progress.">Synthetic bucket &middot; excluded from source progress</span>' : '') +
+                // The raw-XBE structural audit is a whole-TU compile; it is
                 // what fills in aligned bytes. Audits go stale on any source edit.
                 (!unit.synthetic && s.ported > 0 ?
                     '<span class="unit-meta-item"><button class="score-btn" data-unit="' + jsEsc(unit.name) + '" onclick="rawAuditUnit(this)" title="Compile this unit and compare every ported function against the original XBE bytes. Fills in aligned bytes.">' +
@@ -3757,15 +3792,13 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             ];
 
             if (hasMatchData) {
-                datasets.push({
+                datasets.push(Object.assign({
                     label: 'Unit VC71 Mnemonic Match (%)',
                     data: matchWeightedData,
-                    borderColor: '#3fb950',
-                    backgroundColor: 'rgba(63, 185, 80, 0.08)',
                     borderWidth: 2, tension: 0.35, fill: false,
                     spanGaps: true,
                     pointRadius: 3, pointHoverRadius: 6
-                });
+                }, scaleSeriesStyle()));
             }
 
             // Aligned bytes cover only audited functions, so the tooltip carries
@@ -3773,14 +3806,12 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             var alignedIndex = -1;
             if (hasAlignedData) {
                 alignedIndex = datasets.length;
-                datasets.push({
+                datasets.push(Object.assign({
                     label: 'Unit Aligned Byte Accuracy (%)',
                     data: alignedData,
-                    borderColor: '#d29922',
-                    backgroundColor: 'rgba(210, 153, 34, 0.05)',
-                    borderWidth: 2, tension: 0.35, fill: false,
-                    pointRadius: 2, pointHoverRadius: 5
-                });
+                    borderWidth: 2, borderDash: [6, 3], tension: 0.35, fill: false,
+                    pointStyle: 'rectRot', pointRadius: 3, pointHoverRadius: 6
+                }, scaleSeriesStyle()));
             }
 
             var ctx = canvas.getContext('2d');
@@ -3816,17 +3847,18 @@ def generate_html(report: dict, output_path: str, history_path: str = None):
             parent.style.display = '';
 
             // Bin match scores into ranges
-            var bins = { '0-50%': 0, '50-70%': 0, '70-85%': 0, '85-95%': 0, '95-100%': 0 };
-            var colors = ['#da3633', '#d4760a', '#d29922', '#58a6ff', '#3fb950'];
-            var labels = ['0-50%', '50-70%', '70-85%', '85-95%', '95-100%'];
+            // Bins follow the shared color scale bands.
+            var bins = { '0-25%': 0, '25-50%': 0, '50-75%': 0, '75-<100%': 0, '100%': 0 };
+            var colors = [scaleColor(10), scaleColor(40), scaleColor(60), scaleColor(90), scaleColor(100)];
+            var labels = ['0-25%', '25-50%', '50-75%', '75-<100%', '100%'];
 
             for (var i = 0; i < scored.length; i++) {
                 var p = scored[i].match_percent;
-                if (p < 50) bins['0-50%']++;
-                else if (p < 70) bins['50-70%']++;
-                else if (p < 85) bins['70-85%']++;
-                else if (p < 95) bins['85-95%']++;
-                else bins['95-100%']++;
+                if (p < 25) bins['0-25%']++;
+                else if (p < 50) bins['25-50%']++;
+                else if (p < 75) bins['50-75%']++;
+                else if (p < 100) bins['75-<100%']++;
+                else bins['100%']++;
             }
 
             var data = labels.map(function(l) { return bins[l]; });

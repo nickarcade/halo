@@ -67,12 +67,12 @@ wins on spelling, and the byte gate wins on everything.
 
 **Comments and layout**
 7. **No function header comments by default.** The address, object, and
-   signature live in kb.json. Delete comments that restate the code, name the
-   address, transcribe disassembly (`Confirmed: PUSH …`), or cite another
-   decompilation (PAL is grounding, never cited). Evidence belongs in
-   `recovery/evidence/` or the commit message. Keep only a comment that holds
-   knowledge the code cannot: an ABI quirk, a match-sensitive construct, an
-   open uncertainty (`re-comment-capture`). One line if possible.
+   signature live in kb.json. Delete comments that merely restate the code or
+   transcribe disassembly. Keep knowledge the code cannot express: an ABI
+   quirk, a match-sensitive construct, or an open uncertainty
+   (`re-comment-capture`). Never delete a PAL/CEA/PDB provenance note to hide
+   historical influence; move it to the provenance remediation ledger with
+   the independent 2276 evidence and leave a concise pointer when needed.
 8. **Concise.** Combine a declaration with its initializer when it is the first
    use and C89 allows it (rule 9: declarations first; moving a *call* into an
    initializer is allowed only when it was already the first statement). Use

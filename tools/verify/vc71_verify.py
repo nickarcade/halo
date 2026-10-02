@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
 import sys, os
 _tools_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _tools_dir not in sys.path:
@@ -1948,9 +1949,9 @@ def run_compare_cached(
 
         if not only_mode:
             if quiet:
-                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{fcom_tag}{kind_tag}{opnd_tag}{abi_model_tag}")
+                print(f"  {status} {fn}: {pct:.1f}% mnemonic match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{fcom_tag}{kind_tag}{opnd_tag}{abi_model_tag}")
             else:
-                print(f"  {status} {fn}: {pct:.1f}% match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{fcom_tag}{kind_tag}{opnd_tag}{abi_model_tag}{cache_tag}")
+                print(f"  {status} {fn}: {pct:.1f}% mnemonic match ({n_c}/{n_r} insns){reg_tag}{fpu_tag}{loadw_tag}{imm_tag}{fcom_tag}{kind_tag}{opnd_tag}{abi_model_tag}{cache_tag}")
 
         if fpu_warnings:
             any_fpu_warn = True

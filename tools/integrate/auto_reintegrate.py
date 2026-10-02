@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Mechanical, fail-closed branch -> main reintegration gate.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Mechanical, fail-closed branch -> main reintegration gate.
 
 This is the safety core of the `auto-session` pipeline. It encodes the
 `reintegrate-to-main` skill as executable code so the dangerous merge logic is
@@ -362,7 +365,7 @@ def _dup_addrs(counter: "Counter") -> dict:
 _README_STAT_MARKERS = (
     "Ported Functions:",
     "Ported Code Bytes:",
-    "Average VC71 Match Accuracy:",
+    "Average VC71 Mnemonic Similarity:",
     "Equivalence Verified:",
     "img.shields.io/badge/decompilation-",
     "img.shields.io/badge/functions-",

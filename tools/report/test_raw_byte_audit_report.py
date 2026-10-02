@@ -14,6 +14,30 @@ report = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(report)
 
 
+class TestMeasurementManifest(unittest.TestCase):
+    def test_header_and_toolchain_changes_invalidate_displayed_byte_records(self):
+        from unittest.mock import patch
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            header = root / "header.h"
+            header.write_text("before")
+            manifest = root / "snapshot.json"
+            environment = {"compiler": "known"}
+            document = {"metric": "raw_xbe_aligned_byte_lower_bound",
+                        "inputs": {"header.h": hashlib.sha256(header.read_bytes()).hexdigest()},
+                        "environment": environment}
+            manifest.write_text(json.dumps(document))
+            record = {"measurement_manifest": str(manifest)}
+            with patch("tools.verify.byte_regression.environment_manifest", return_value=environment):
+                self.assertTrue(report._measurement_manifest_valid(record, str(root), {}))
+                header.write_text("after")
+                self.assertFalse(report._measurement_manifest_valid(record, str(root), {}))
+                header.write_text("before")
+            with patch("tools.verify.byte_regression.environment_manifest", return_value={"compiler": "new"}):
+                self.assertFalse(report._measurement_manifest_valid(record, str(root), {}))
+
+
 class TestRawByteAuditLoading(unittest.TestCase):
     def _make_root(self):
         temp = tempfile.TemporaryDirectory()
@@ -245,15 +269,31 @@ class TestRawByteAuditLoading(unittest.TestCase):
         function_cache = {"functions": {"0x1000": {"size": 4}}}
         units = report.compute_unit_stats(
             kb, store, function_cache,
+            vc71_scores={"scores": {"target": {"score": 99.0}}},
             raw_xbe_structural_audits=audits,
         )[0]
 
         function = units[0]["functions"][0]
+        self.assertEqual(function["match_percent"], 99.0)
+        self.assertEqual(function["match_metric"], "mnemonic_similarity_not_raw_bytes")
+        self.assertEqual(function["raw_xbe_aligned_lower"], record["aligned_byte_match"]["byte_accuracy"])
+        self.assertNotEqual(function["match_percent"], function["raw_xbe_aligned_lower"] * 100)
         self.assertEqual(function["raw_xbe_verification"]["behavior"]["status"], "untested")
         self.assertEqual(function["raw_xbe_aligned_mismatched_relocations"], 2)
         self.assertEqual(function["raw_xbe_aligned_uncertain_relocations"], 1)
         self.assertEqual(units[0]["raw_xbe_structural"]["aligned_mismatched_relocations"], 2)
         self.assertEqual(units[0]["raw_xbe_structural"]["aligned_mismatched_relocation_bytes"], 4)
+        mnemonic_only = report.compute_unit_stats(
+            kb, store, function_cache,
+            vc71_scores={"scores": {"target": {"score": 99.0}}},
+        )[0][0]["functions"][0]
+        self.assertEqual(mnemonic_only["match_percent"], 99.0)
+        self.assertIsNone(mnemonic_only["raw_xbe_aligned_lower"])
+        bytes_only = report.compute_unit_stats(
+            kb, store, function_cache, raw_xbe_structural_audits=audits,
+        )[0][0]["functions"][0]
+        self.assertIsNone(bytes_only["match_percent"])
+        self.assertEqual(bytes_only["raw_xbe_aligned_lower"], function["raw_xbe_aligned_lower"])
 
     def test_rejects_stale_structural_source_hash(self):
         temp, root, source, xbe = self._make_root()
@@ -308,6 +348,34 @@ class TestRawByteAuditLoading(unittest.TestCase):
             json.dumps({"0x1000": {"end": "0x1008", "kind": "auto"}}), encoding="utf-8")
         (root / "artifacts/raw_byte_audit/target.json").write_text(json.dumps(record), encoding="utf-8")
         self.assertEqual(report._load_raw_byte_audits(str(root)), {})
+
+
+class TestDashboardByteRefresh(unittest.TestCase):
+    def test_refresh_response_does_not_supply_mnemonic_scores(self):
+        from unittest.mock import Mock
+        spec = importlib.util.spec_from_file_location("progress_server", HERE / "progress_server.py")
+        server = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(server)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "report.json"
+            original = {"units": [{"name": "target", "source_path": "source.c",
+                                   "functions": [{"match_percent": 99.0,
+                                                  "raw_xbe_aligned_lower": 0.5}]}]}
+            path.write_text(json.dumps(original))
+            handler = object.__new__(server.SSEHandler)
+            handler.directory = directory
+            handler._run_raw_audit = Mock(return_value={"returncode": 0, "totals": {"byte_accuracy": 0.75}})
+            handler._refresh_dashboard = Mock(return_value=True)
+            result = handler._run_score("target")
+            self.assertEqual(result["metric"], "raw_xbe_aligned_byte_lower_bound")
+            self.assertNotIn("scores", result)
+            handler._run_raw_audit.assert_called_once_with("target", "source.c")
+            handler._refresh_dashboard.assert_called_once()
+            self.assertEqual(json.loads(path.read_text()), original)
+            handler._run_raw_audit.return_value = {"returncode": 2}
+            handler._refresh_dashboard.reset_mock()
+            self.assertIsNone(handler._run_score("target"))
+            handler._refresh_dashboard.assert_not_called()
 
 
 if __name__ == "__main__":

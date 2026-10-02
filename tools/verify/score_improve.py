@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Deterministic VC71 score-improvement gate for one translation unit.
+"""Deterministic raw-XBE byte-improvement gate for one translation unit.
 
-This tool deliberately does not rewrite C.  It records a per-function VC71
+This tool deliberately does not rewrite C.  It records a freshly compiled per-function raw-XBE byte
 baseline, classifies score-context diagnostics, and accepts a candidate only
 when every selected target improves without regressing any other scored
 function or introducing diagnostics.
@@ -13,10 +13,13 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
+import uuid
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(REPO_ROOT))
 _SCORE_RE = re.compile(
     r"(?:PASS|FAIL)\s+(\S+):\s+([\d.]+)%\s+(?:mnemonic\s+)?match\s+"
     r"\((\d+)/(\d+)\s+insns\)"
@@ -100,7 +103,7 @@ def _parse_scores(output, worktree):
     return scores
 
 
-def measure(source, worktree):
+def measure_mnemonic(source, worktree):
     source_path = (worktree / source).resolve()
     verifier = worktree / "tools" / "verify" / "vc71_verify.py"
     if not source_path.is_file():
@@ -133,7 +136,7 @@ def measure(source, worktree):
     }
 
 
-def compare(baseline, current, targets, min_improvement):
+def compare_mnemonic(baseline, current, targets, min_improvement):
     """Return an acceptance report for a candidate measurement."""
     baseline_scores = baseline.get("scores", {})
     current_scores = current.get("scores", {})
@@ -184,6 +187,75 @@ def compare(baseline, current, targets, min_improvement):
     return report
 
 
+def measure(source, worktree):
+    """Fresh byte snapshot; mnemonic scores never enter acceptance decisions."""
+    from tools.verify import byte_regression as byte_gate
+    source_path = (worktree / source).resolve()
+    if not source_path.is_file():
+        raise ScoreImproveError("source does not exist: %s" % source_path)
+    parent = worktree / "artifacts/score_improve"
+    parent.mkdir(parents=True, exist_ok=True)
+    output = Path(tempfile.mkdtemp(prefix="bytes-", dir=parent))
+    plan = output / "plan.json"
+    byte_gate.write_json(plan, {"sources": [_relative(source_path, worktree)]})
+    snapshot = output / "snapshot.json"
+    commit = byte_gate.git(worktree, "rev-parse", "HEAD")
+    proc = subprocess.run([sys.executable, str(worktree / "tools/verify/byte_regression.py"),
+                           "measure", "--commit", commit, "--run-id", uuid.uuid4().hex,
+                           "--plan", str(plan), "--output", str(snapshot), "--allow-dirty"],
+                          cwd=worktree)
+    if proc.returncode:
+        raise ScoreImproveError("raw-XBE byte measurement failed; artifacts: " + str(output))
+    measurement = _read_json(snapshot)
+    measurement["source"] = _relative(source_path, worktree)
+    return measurement
+
+
+def compare(baseline, current, targets, min_improvement):
+    """Gate bytes and reject stale shared inputs or legacy mnemonic baselines."""
+    from tools.verify import byte_regression as byte_gate
+    errors = []
+    metric = "raw_xbe_aligned_byte_lower_bound"
+    if baseline.get("metric") != metric or current.get("metric") != metric:
+        return {"passed": False, "errors": ["Re-record baseline: expected fresh raw-XBE bytes, not mnemonic scores"]}
+    source = baseline.get("source")
+    if not source or source != current.get("source"):
+        errors.append("baseline source differs from candidate source")
+    before_inputs = {k: v for k, v in baseline.get("inputs", {}).items() if k != source}
+    after_inputs = {k: v for k, v in current.get("inputs", {}).items() if k != source}
+    if before_inputs != after_inputs or baseline.get("environment") != current.get("environment"):
+        errors.append("baseline measurement inputs are stale; shared inputs or toolchain changed")
+    def by_address(snapshot):
+        result = {}
+        for record in snapshot.get("records", []):
+            address = int(record["address"], 0)
+            if address in result:
+                raise ScoreImproveError("duplicate measured address")
+            result[address] = record
+        return result
+    before, after = by_address(baseline), by_address(current)
+    report = byte_gate.compare(before, after)
+    errors.extend(report["errors"])
+    improvements = {}
+    for target in targets:
+        addresses = [addr for addr, item in before.items() if item["function"] == target]
+        if len(addresses) != 1 or addresses[0] not in after:
+            errors.append(target + ": missing or ambiguous baseline/candidate")
+            continue
+        addr = addresses[0]
+        old, new = byte_gate.counts(before[addr]), byte_gate.counts(after[addr])
+        if old is None or new is None:
+            errors.append(target + ": no valid byte measurement")
+            continue
+        delta = 100 * (new[0] / new[1] - old[0] / old[1])
+        if delta < min_improvement:
+            errors.append(target + ": byte improvement below required %.4f percentage points" % min_improvement)
+        else:
+            improvements[target] = delta
+    report.update({"passed": not errors, "errors": errors, "improvements": improvements, "metric": metric})
+    return report
+
+
 def _read_json(path):
     try:
         return json.loads(path.read_text())
@@ -199,7 +271,7 @@ def _write_json(path, value):
 def cmd_baseline(args):
     measurement = measure(args.source, args.worktree)
     _write_json(args.output, measurement)
-    print("baseline: %d function(s) -> %s" % (len(measurement["scores"]), args.output))
+    print("baseline: %d function(s) -> %s" % (len(measurement["records"]), args.output))
     return 0
 
 
@@ -238,7 +310,7 @@ def build_parser():
         command.add_argument("--worktree", type=Path, default=REPO_ROOT,
                              help="Candidate worktree (default: repository root)")
 
-    baseline = subparsers.add_parser("baseline", help="Record the current VC71 scores")
+    baseline = subparsers.add_parser("baseline", help="Record fresh raw-XBE aligned byte measurements")
     common(baseline)
     baseline.add_argument("--output", type=Path, required=True)
     baseline.set_defaults(handler=cmd_baseline)
@@ -251,7 +323,7 @@ def build_parser():
     common(check)
     check.add_argument("--baseline", type=Path, required=True)
     check.add_argument("--target", action="append", required=True,
-                       help="Function that must gain at least --min-improvement")
+                       help="Function whose byte accuracy must gain at least --min-improvement pp")
     check.add_argument("--min-improvement", type=float, default=0.01)
     check.add_argument("--output", type=Path)
     check.set_defaults(handler=cmd_check)

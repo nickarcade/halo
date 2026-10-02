@@ -1,3 +1,6 @@
+#include "d3d8_states.h"
+#include "shader_model.h"
+
 /*
  * rasterizer_xbox_shadows.c
  *
@@ -6,19 +9,34 @@
  * Source path (from binary):
  * c:\halo\SOURCE\rasterizer\xbox\rasterizer_xbox_shadows.c
  *
- * Globals (used by address, not in kb.json):
- *   0x476ab0  void *  – global_d3d_device (IDirect3DDevice8 pointer)
- *   0x5a5bc0  short   – render-disable / suppression flag (16-bit, ==0 gate)
- *   0x3256ca  char    – shadow feature enable flag (byte, !=0 gate)
- *   0x3256ba  short   – render mode/pass selector (16-bit, ==2 -> bump counter)
- *   0x47e4b0  void *  – stashed shadow parameters pointer
- *   0x47e4b5  bool    – shadow-parameters-active flag (one-shot set)
- *   0x5a54f4  int     – per-frame counter incremented when mode word == 2
- *   0x5a5e18  float   – animation time fed to the map-animation evaluator
- *   0x5a5500  int     – per-frame shadow draw-call counter (mode word == 2)
- *   0x5a54fc  int     – per-frame shadow triangle counter (mode word == 2)
- *   0x5a54f8  int     – per-frame counter accumulated from FUN_0017ed90
+ * Globals: see the block below. Names follow PAL 2342
+ * rasterizer_xbox_shadows.c and rasterizer_xbox.c (T2); each is laid onto the
+ * 2276 address its use sites read.
  */
+
+/* rasterizer_environment_shadows_globals, shadow_restored,
+ * global_pixel_shader, global_window_parameters, rasterizer_debug_options,
+ * rasterizer_frame_statistics, global_rasterizer_data, global_d3d_device and
+ * D3D__RenderState are kb.json data globals (types in types.h). Real symbols
+ * rather than address casts let VC71 schedule loads and stores across them as
+ * the original does. */
+
+/* rasterizer_set_stencil_mode argument (PUSH 2 at 0x1735e3). */
+#define RASTERIZER_STENCIL_MODE_REJECT 2
+/* rasterizer_set_vertex_shader_permutation index (PUSH 0x1d at 0x1733ea). */
+#define _shadow_vertex_shader_index 0x1d
+
+#define _rasterizer_statistics_mode_enabled 2
+
+/* PAL 2342 dot_product3d. The original sums x, z, y ((x + z) + y) at all
+ * three call sites in _rasterizer_environment_shadow_draw. VC71 here always
+ * emits a higher-addressed term first, so no source order reproduces that;
+ * this order matches the most of it (position operand first, z in the
+ * middle). */
+static __inline real dot_product3d(const vector3_t *a, const vector3_t *b)
+{
+  return a->x * b->x + a->z * b->z + a->y * b->y;
+}
 
 /* 0x172590
  *
@@ -26,26 +44,26 @@
  *
  * Begins/sets the per-frame shadow rendering parameters.
  *
- * Asserts the D3D device exists. When rendering is enabled
- * (*(short *)0x5a5bc0 == 0) and the shadow feature flag is set
- * (*(char *)0x3256ca != 0):
+ * Asserts the D3D device exists. When the window renders to the primary
+ * target and environment shadows are enabled:
  *   1. Asserts the supplied parameters pointer is non-null.
  *   2. Programs model skinning from the parameter block at param+8.
- *   3. Stashes the parameters pointer and marks shadow params active.
- *   4. If the render-mode word (*(short *)0x3256ba) == 2, increments the
- *      per-frame counter at 0x5a54f4.
+ *   3. Stashes the parameters pointer (local_parameters) and sets shadow_used.
+ *   4. With statistics enabled, bumps model_shadow_count.
  *
  * param_1: pointer to the shadow parameter block.
  */
 void FUN_00172590(int param_1)
 {
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert(
       "global_d3d_device",
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0xef, 1);
     system_exit(-1);
   }
-  if (*(short *)0x5a5bc0 == 0 && *(char *)0x3256ca != 0) {
+  if (global_window_parameters.rasterizer_target ==
+        _rasterizer_target_render_primary &&
+      rasterizer_debug_options.draw_environment_shadows != 0) {
     if (param_1 == 0) {
       display_assert(
         "parameters",
@@ -54,10 +72,11 @@ void FUN_00172590(int param_1)
       system_exit(-1);
     }
     rasterizer_set_model_skinning((void *)(param_1 + 8));
-    *(int *)0x47e4b0 = param_1;
-    *(char *)0x47e4b5 = 1;
-    if (*(short *)0x3256ba == 2) {
-      *(int *)0x5a54f4 = *(int *)0x5a54f4 + 1;
+    rasterizer_environment_shadows_globals.local_parameters = (void *)param_1;
+    rasterizer_environment_shadows_globals.shadow_used = 1;
+    if (rasterizer_debug_options.statistics_mode ==
+          _rasterizer_statistics_mode_enabled) {
+      rasterizer_frame_statistics.model_shadow_count++;
     }
   }
 }
@@ -68,20 +87,18 @@ void FUN_00172590(int param_1)
  *
  * Composites the shadow accumulation buffer with a four-tap diagonal blur.
  *
- * Asserts the D3D device exists.  When both shadow feature flags are set
- * (*(char *)0x3256ca != 0 and *(char *)0x3256f6 != 0):
- *   1. Binds render target 2 into texture stages 0..3 and programs each
- *      stage's address/filter states (0x0a/0x0b = 4, 0x0d/0x0e = 2,
- *      0x0f = 1).
- *   2. Cull CCW (0x901); colour write mask 0x10101, alpha blend off and
- *      alpha test off (with the shadowed copies of those states updated at
- *      0x1fb7a4 / 0x1fb784 / 0x1fb788); Z buffer and Z bias off.
+ * Asserts the D3D device exists.  When environment shadows and shadow
+ * convolution are both enabled:
+ *   1. Binds the shadow_primary target into texture stages 0..3 (border
+ *      addressing, linear mag/min, point mip).
+ *   2. Cull CCW; RGB colour writes, alpha blend and alpha test off; Z buffer
+ *      and Z bias off.
  *   3. Uploads eight vertex-shader constant rows at register -0x51.  Each
  *      row is a texture-coordinate generation vector offset by +/- 1/256
  *      (0x3b800000) in x or y — the four diagonal taps of the blur, each
  *      emitted twice.
- *   4. Zero-fills the 0xf0-byte pixel-shader state block at 0x5a5ac0, pokes
- *      the seven combiner/mask dwords, and installs it.
+ *   4. Zero-fills global_pixel_shader, sets the seven combiner/mask dwords,
+ *      and installs it; then renders into shadow_secondary.
  *   5. Draws a full-screen quad (D3DPT_QUADLIST, clockwise) spanning
  *      [-129/128, +127/128] in both axes with texcoords (0,0)..(1,1).
  */
@@ -101,28 +118,32 @@ void FUN_00172730(void)
    * the reference does not do. */
   short stage;
 
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert(
       "global_d3d_device",
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x1f, 1);
     system_exit(-1);
   }
-  if (*(char *)0x3256ca != 0 && *(char *)0x3256f6 != 0) {
+  if (rasterizer_debug_options.draw_environment_shadows != 0 &&
+      rasterizer_debug_options.shadows_convolution != 0) {
     for (stage = 0; (stage - 1) < (4 - 1); stage++) {
       FUN_001584f0(stage, 2, 0);
-      D3DDevice_SetTextureStageState(stage, 10, 4);
-      D3DDevice_SetTextureStageState(stage, 0xb, 4);
-      D3DDevice_SetTextureStageState(stage, 0xd, 2);
-      D3DDevice_SetTextureStageState(stage, 0xe, 2);
-      D3DDevice_SetTextureStageState(stage, 0xf, 1);
+      D3DDevice_SetTextureStageState(stage, D3DTSS_ADDRESSU,
+                                     D3DTADDRESS_BORDER);
+      D3DDevice_SetTextureStageState(stage, D3DTSS_ADDRESSV,
+                                     D3DTADDRESS_BORDER);
+      D3DDevice_SetTextureStageState(stage, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+      D3DDevice_SetTextureStageState(stage, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+      D3DDevice_SetTextureStageState(stage, D3DTSS_MIPFILTER, D3DTEXF_POINT);
     }
-    D3DDevice_SetRenderState_CullMode(0x901);
-    D3DDevice_SetRenderState_Simple(0x40358, 0x10101);
-    *(int *)0x1fb7a4 = 0x10101;
-    D3DDevice_SetRenderState_Simple(0x40304, 0);
-    *(int *)0x1fb784 = 0;
-    D3DDevice_SetRenderState_Simple(0x40300, 0);
-    *(int *)0x1fb788 = 0;
+    D3DDevice_SetRenderState_CullMode(D3DCULL_CCW);
+    D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD,
+                                    NV097_COLOR_MASK_RGB);
+    D3D__RenderState[D3DRS_COLORWRITEENABLE] = NV097_COLOR_MASK_RGB;
+    D3DDevice_SetRenderState_Simple(NV097_SET_BLEND_ENABLE_CMD, 0);
+    D3D__RenderState[D3DRS_ALPHABLENDENABLE] = 0;
+    D3DDevice_SetRenderState_Simple(NV097_SET_ALPHA_TEST_ENABLE_CMD, 0);
+    D3D__RenderState[D3DRS_ALPHATESTENABLE] = 0;
     D3DDevice_SetRenderState_ZEnable(0);
     D3DDevice_SetRenderState_ZBias(0);
     FUN_00178b40(0x26, 8, 0);
@@ -160,16 +181,16 @@ void FUN_00172730(void)
     texture_offsets[30] = 0.0f;
     texture_offsets[31] = -0.00390625f;
     D3DDevice_SetVertexShaderConstant(-0x51, texture_offsets, 8);
-    csmemset((void *)0x5a5ac0, 0, 0xf0);
-    *(int *)0x5a5b98 = 0x8421;
-    *(int *)0x5a5b94 = 1;
-    *(int *)0x5a5ac0 = 0x8a009a0;
-    *(int *)0x5a5b28 = 0x30c00;
-    *(int *)0x5a5b48 = 0xaa00ba0;
-    *(int *)0x5a5b74 = 0x30c00;
-    *(int *)0x5a5ae0 = 0xc20001c;
-    rasterizer_set_pixel_shader((void *)0x5a5ac0);
-    FUN_00158140(3, 0, 0, 0, 0);
+    csmemset(&global_pixel_shader, 0, sizeof(global_pixel_shader));
+    global_pixel_shader.texture_modes = 0x8421;
+    global_pixel_shader.combiner_count = 1;
+    global_pixel_shader.alpha_inputs[0] = 0x8a009a0;
+    global_pixel_shader.alpha_outputs[0] = 0x30c00;
+    global_pixel_shader.rgb_inputs[0] = 0xaa00ba0;
+    global_pixel_shader.rgb_outputs[0] = 0x30c00;
+    global_pixel_shader.final_combiner_inputs_abcd = 0xc20001c;
+    rasterizer_set_pixel_shader(&global_pixel_shader);
+    rasterizer_set_target(_rasterizer_target_shadow_secondary, 0, 0, 0, 0);
     D3DDevice_Begin(7);
     D3DDevice_SetVertexData2s(4, 0, 0);
     D3DDevice_SetVertexData2f(0, -1.0078125f, 1.0078125f);
@@ -189,13 +210,12 @@ void FUN_00172730(void)
  *
  * Draws one shadow-projected decal batch.
  *
- * Asserts the D3D device exists.  When rendering is enabled
- * (*(short *)0x5a5bc0 == 0) and the shadow feature flag is set
- * (*(char *)0x3256ca != 0), and the shader is of type 4
- * (shader->type at +0x24):
- *   1. Resolves the type-4 shader data block via FUN_001906b0(shader, 4).
+ * Asserts the D3D device exists.  When the window renders to the primary
+ * target, environment shadows are enabled, and the shader is of type 4
+ * (shader->base.type at +0x24, _shader_type_model):
+ *   1. Resolves the type-4 shader data block via FUN_001906b0(shader, _shader_type_model).
  *   2. Selects the cull mode from shader-data flag bit 1 (+0x28):
- *      clear -> 0x901 (D3DCULL_CCW), set -> 0 (D3DCULL_NONE).
+ *      clear -> D3DCULL_CCW, set -> D3DCULL_NONE.
  *   3. Programs render state 0x27 from the 16-bit word at the head of the
  *      vertex buffer.
  *   4. Flag bit 2 clear -> enables one pixel-shader texture stage, binds the
@@ -207,10 +227,9 @@ void FUN_00172730(void)
  *      animation evaluator FUN_00190e10 (seeded with the identity rows
  *      (1,0,0,0) and (0,1,0,0)).
  *   6. Emits the indexed draw via rasterizer_draw_static_triangles_static_vertices.
- *   7. If the render-mode word (*(short *)0x3256ba) == 2, bumps the three
- *      per-frame statistics counters.
+ *   7. With statistics enabled, bumps the three model_shadow_* counters.
  *
- * shader:          shader tag block (type word at +0x24 must be 4).
+ * shader:          shader tag block (base.type at +0x24 must be _shader_type_model = 4).
  * frame_index:     animation frame index passed through to the texture bind.
  * triangle_buffer: index/triangle buffer; triangle count at +0x04.
  * vertex_buffer:   vertex buffer; 16-bit render-state operand at +0x00.
@@ -218,20 +237,22 @@ void FUN_00172730(void)
 void FUN_00172de0(void *shader, int frame_index, void *triangle_buffer,
                   void *vertex_buffer)
 {
-  char *shader_data;
-  char *parameters;
+  shader_model *shader_data;
+  shadow_parameters *parameters;
   /* One contiguous 0x30-byte block: SetVertexShaderConstant uploads all
    * three vec4s starting at &shader_constants[0]. */
   float shader_constants[12];
 
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert(
       "global_d3d_device",
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x112,
       1);
     system_exit(-1);
   }
-  if (*(short *)0x5a5bc0 == 0 && *(char *)0x3256ca != 0) {
+  if (global_window_parameters.rasterizer_target ==
+        _rasterizer_target_render_primary &&
+      rasterizer_debug_options.draw_environment_shadows != 0) {
     if (shader == 0) {
       display_assert(
         "shader",
@@ -239,8 +260,8 @@ void FUN_00172de0(void *shader, int frame_index, void *triangle_buffer,
         1);
       system_exit(-1);
     }
-    if (*(short *)((char *)shader + 0x24) == 4) {
-      shader_data = (char *)FUN_001906b0(shader, 4);
+    if (((const shader_model *)shader)->base.type == _shader_type_model) {
+      shader_data = (shader_model *)FUN_001906b0(shader, _shader_type_model);
       if (vertex_buffer == 0) {
         display_assert(
           "vertex_buffer",
@@ -255,7 +276,7 @@ void FUN_00172de0(void *shader, int frame_index, void *triangle_buffer,
           0x11f, 1);
         system_exit(-1);
       }
-      if (*(void **)0x47e4b0 == 0) {
+      if (rasterizer_environment_shadows_globals.local_parameters == 0) {
         display_assert(
           "local_parameters",
           "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c",
@@ -263,25 +284,26 @@ void FUN_00172de0(void *shader, int frame_index, void *triangle_buffer,
         system_exit(-1);
       }
       D3DDevice_SetRenderState_CullMode(
-        (*(unsigned char *)(shader_data + 0x28) & 2) != 0 ? 0 : 0x901);
+        (shader_data->field_28 & 2) != 0 ? D3DCULL_NONE
+                                                        : D3DCULL_CCW);
       /* Zero-extended 16-bit operand read from the head of the vertex buffer
        * (XOR EAX,EAX; MOV AX,[EBX]). */
       FUN_00178b40(0x27, (int)*(unsigned short *)vertex_buffer, 0);
-      if ((*(unsigned char *)(shader_data + 0x28) & 4) != 0) {
+      if ((shader_data->field_28 & 4) != 0) {
         D3DDevice_SetRenderState_PSTextureModes(0);
       } else {
         D3DDevice_SetRenderState_PSTextureModes(1);
-        rasterizer_set_texture(0, 0, 1, *(int *)(shader_data + 0xb0),
+        rasterizer_set_texture(0, 0, 1, shader_data->field_b0,
                                frame_index);
-        D3DDevice_SetTextureStageState(0, 10, 1);
-        D3DDevice_SetTextureStageState(0, 0xb, 1);
-        D3DDevice_SetTextureStageState(0, 0xd, 2);
-        D3DDevice_SetTextureStageState(0, 0xe, 2);
-        D3DDevice_SetTextureStageState(0, 0xf, 2);
+        D3DDevice_SetTextureStageState(0, D3DTSS_ADDRESSU, D3DTADDRESS_WRAP);
+        D3DDevice_SetTextureStageState(0, D3DTSS_ADDRESSV, D3DTADDRESS_WRAP);
+        D3DDevice_SetTextureStageState(0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+        D3DDevice_SetTextureStageState(0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+        D3DDevice_SetTextureStageState(0, D3DTSS_MIPFILTER, D3DTEXF_LINEAR);
       }
-      shader_constants[0] = *(float *)(shader_data + 0xd8);
+      shader_constants[0] = shader_data->field_d8;
       shader_constants[1] =
-        *(float *)(shader_data + 0xec) * *(float *)(shader_data + 0xd8);
+        shader_data->field_ec * shader_data->field_d8;
       shader_constants[2] = 1.0f;
       shader_constants[3] = 1.0f;
       shader_constants[4] = 1.0f;
@@ -292,60 +314,65 @@ void FUN_00172de0(void *shader, int frame_index, void *triangle_buffer,
       shader_constants[9] = 1.0f;
       shader_constants[10] = 0.0f;
       shader_constants[11] = 0.0f;
-      parameters = *(char **)0x47e4b0;
+      parameters = (shadow_parameters *)rasterizer_environment_shadows_globals.local_parameters;
       FUN_00190e10(
-        shader_data + 0xfc, parameters + 0x84,
-        *(float *)(parameters + 0xc4) * *(float *)(shader_data + 0x9c),
-        *(float *)(parameters + 0xc8) * *(float *)(shader_data + 0xa0), 0.0f,
-        0.0f, 0.0f, *(float *)0x5a5e18, &shader_constants[4],
+        &shader_data->field_fc, &parameters->field_84,
+        parameters->field_c4 * shader_data->field_9c,
+        parameters->field_c8 * shader_data->field_a0, 0.0f,
+        0.0f, 0.0f, global_frame_parameters.game_time_sec, &shader_constants[4],
         &shader_constants[8]);
       D3DDevice_SetVertexShaderConstant(-0x54, shader_constants, 3);
       rasterizer_draw_static_triangles_static_vertices(triangle_buffer, 0, *(int *)((char *)triangle_buffer + 4),
                    vertex_buffer);
-      if (*(short *)0x3256ba == 2) {
-        *(int *)0x5a5500 = *(int *)0x5a5500 + 1;
-        *(int *)0x5a54fc =
-          *(int *)0x5a54fc + *(int *)((char *)triangle_buffer + 4);
-        *(int *)0x5a54f8 =
-          *(int *)0x5a54f8 + FUN_0017ed90(triangle_buffer, vertex_buffer);
+      if (rasterizer_debug_options.statistics_mode ==
+          _rasterizer_statistics_mode_enabled) {
+        rasterizer_frame_statistics.model_shadow_draw_count++;
+        rasterizer_frame_statistics.model_shadow_triangle_count +=
+          *(int *)((char *)triangle_buffer + 4);
+        rasterizer_frame_statistics.model_shadow_vertex_count +=
+          FUN_0017ed90(triangle_buffer, vertex_buffer);
       }
     }
   }
 }
 
 /*
- * FUN_00173090 (0x173090) — draw one batch of stencil-shadow geometry,
- * performing the one-time render-state / pixel-shader / vertex-shader-constant
- * setup on the first call of a frame.
+ * _rasterizer_environment_shadow_draw (0x173090) — draw one batch of
+ * stencil-shadow geometry, performing the one-time render-state /
+ * pixel-shader / vertex-shader-constant setup on the first batch of a shadow.
  *
- * Original TU: c:\halo\SOURCE\rasterizer\xbox\rasterizer_xbox_shadows.c
- * (assert line 0x194), the same TU as the three functions above.
+ * Name: PAL 2342 __rasterizer_environment_shadow_draw (T2); the same assert
+ * line 404 (0x194) of c:\halo\SOURCE\rasterizer\xbox\rasterizer_xbox_shadows.c.
  *
- * Ghidra reports `void FUN_00173090(void)` and loses every parameter: the six
+ * Ghidra reports `void _rasterizer_environment_shadow_draw(void)` and loses every parameter: the six
  * cdecl arguments are read straight off the frame — [EBP+8] shader,
- * [EBP+0xc] (never referenced), [EBP+0x10]/[EBP+0x14]/[EBP+0x18] forwarded to
- * rasterizer_draw_dynamic_triangles_static_vertices and the statistics counter, and [EBP+0x1c] the vertex buffer
- * whose leading 16-bit operand feeds FUN_00178b40 (XOR EAX,EAX;
- * MOV AX,[ESI] @0x1733e4).
+ * [EBP+0xc] bitmap_index (never referenced), [EBP+0x10]/[EBP+0x14]/[EBP+0x18]
+ * forwarded to rasterizer_draw_dynamic_triangles_static_vertices and the
+ * statistics counter, and [EBP+0x1c] the vertex buffer whose type feeds
+ * FUN_00178b40 zero-extended (XOR EAX,EAX; MOV AX,[ESI] @0x1733e4).
  *
- * *(char *)0x47e4b4 is the once-per-frame latch: everything between it and
- * the store of 1 at 0x1735dc runs only on the first batch.
+ * shadow_setup is the per-shadow latch: everything between its test and the
+ * store of 1 at 0x1735dc runs only on the first batch.
  *
  * The vertex-shader constant block is one contiguous 20-float array at
  * EBP-0x58 (SUB ESP,0x58 = 80 bytes of constants plus the two scratch floats
  * below), uploaded as five vec4s at register -0x51.  Three reciprocals of the
- * shadow range at 0x47e478 scale it: 1/range, 1/(range*4) and 1/(range*0.5);
- * VC71 keeps the first two on the x87 stack (FMUL ST2 / FMUL ST1) and spills
- * only the third, which is why only one of the three has a frame slot.
+ * object bounding radius scale it: 1/radius, 1/(radius*4) and
+ * 1/(radius*0.5); VC71 keeps the first two on the x87 stack (FMUL ST2 /
+ * FMUL ST1) and spills only the third, which is why only one of the three
+ * has a frame slot.
  *
  * The residual FPU-WARN lines (candidate FLD local / FMUL global where the
  * reference is FLD global / FMUL local) are not source-addressable: VC71
  * canonicalises commutative FMUL operands and always loads the local first.
- * Writing `inv_half_range * *(float *)0x47e498` instead was measured
- * codegen-identical.  They cost operand-normalised score only.
+ * Writing `inv_half_range * up.x` instead was measured codegen-identical.
+ * They cost operand-normalised score only.
  */
-void FUN_00173090(void *shader, int param_2, int vertices_per_primitive,
-                  int a2, int triangle_count, void *vertex_buffer)
+void _rasterizer_environment_shadow_draw(void *shader, short bitmap_index,
+                                         int dynamic_triangle_buffer_index,
+                                         int first_triangle_index,
+                                         int triangle_count,
+                                         const vertex_buffer *vertex_buffer)
 {
   /* One contiguous 0x50-byte block: SetVertexShaderConstant uploads all five
    * vec4s starting at &shader_constants[0]. */
@@ -355,183 +382,232 @@ void FUN_00173090(void *shader, int param_2, int vertices_per_primitive,
   float inv_range;
   float inv_range_scaled;
 
-  (void)param_2; /* [EBP+0xc] is never referenced by the original */
+  (void)bitmap_index; /* [EBP+0xc] is never referenced by the original */
 
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert(
       "global_d3d_device",
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x194,
       1);
     system_exit(-1);
   }
-  if (*(short *)0x5a5bc0 == 0 && *(char *)0x3256ca != 0) {
-    if (*(char *)0x47e4b4 == 0) {
-      if (*(char *)0x3256f6 != 0) {
+  if (global_window_parameters.rasterizer_target ==
+        _rasterizer_target_render_primary &&
+      rasterizer_debug_options.draw_environment_shadows != 0) {
+    if (rasterizer_environment_shadows_globals.shadow_setup == 0) {
+      if (rasterizer_debug_options.shadows_convolution != 0) {
         FUN_00172730();
       }
-      FUN_001584f0(0, (*(char *)0x3256f6 != 0) + 2, 0);
-      D3DDevice_SetTextureStageState(0, 10, 4);
-      D3DDevice_SetTextureStageState(0, 0xb, 4);
-      D3DDevice_SetTextureStageState(0, 0xd, 2);
-      D3DDevice_SetTextureStageState(0, 0xe, 2);
-      D3DDevice_SetTextureStageState(0, 0xf, 2);
+      FUN_001584f0(0, (rasterizer_debug_options.shadows_convolution != 0) + 2, 0);
+      D3DDevice_SetTextureStageState(0, D3DTSS_ADDRESSU, D3DTADDRESS_BORDER);
+      D3DDevice_SetTextureStageState(0, D3DTSS_ADDRESSV, D3DTADDRESS_BORDER);
+      D3DDevice_SetTextureStageState(0, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+      D3DDevice_SetTextureStageState(0, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+      D3DDevice_SetTextureStageState(0, D3DTSS_MIPFILTER, D3DTEXF_LINEAR);
 
-      rasterizer_set_texture_direct(1, *(int *)(*(char **)0x476204 + 0x4c), 0);
-      D3DDevice_SetTextureStageState(1, 10, 3);
-      D3DDevice_SetTextureStageState(1, 0xb, 3);
-      D3DDevice_SetTextureStageState(1, 0xd, 2);
-      D3DDevice_SetTextureStageState(1, 0xe, 2);
-      D3DDevice_SetTextureStageState(1, 0xf, 2);
+      rasterizer_set_texture_direct(
+        1, global_rasterizer_data->linear_corner_fade.tag_index, 0);
+      D3DDevice_SetTextureStageState(1, D3DTSS_ADDRESSU, D3DTADDRESS_CLAMP);
+      D3DDevice_SetTextureStageState(1, D3DTSS_ADDRESSV, D3DTADDRESS_CLAMP);
+      D3DDevice_SetTextureStageState(1, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+      D3DDevice_SetTextureStageState(1, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+      D3DDevice_SetTextureStageState(1, D3DTSS_MIPFILTER, D3DTEXF_LINEAR);
 
-      rasterizer_set_texture_direct(2, *(int *)(*(char **)0x476204 + 0x1c), 0);
-      D3DDevice_SetTextureStageState(2, 10, 3);
-      D3DDevice_SetTextureStageState(2, 0xb, 3);
-      D3DDevice_SetTextureStageState(2, 0xc, 3);
-      D3DDevice_SetTextureStageState(2, 0xd, 2);
-      D3DDevice_SetTextureStageState(2, 0xe, 2);
-      D3DDevice_SetTextureStageState(2, 0xf, 2);
+      rasterizer_set_texture_direct(
+        2, global_rasterizer_data->vector_normalization.tag_index, 0);
+      D3DDevice_SetTextureStageState(2, D3DTSS_ADDRESSU, D3DTADDRESS_CLAMP);
+      D3DDevice_SetTextureStageState(2, D3DTSS_ADDRESSV, D3DTADDRESS_CLAMP);
+      D3DDevice_SetTextureStageState(2, D3DTSS_ADDRESSW, D3DTADDRESS_CLAMP);
+      D3DDevice_SetTextureStageState(2, D3DTSS_MAGFILTER, D3DTEXF_LINEAR);
+      D3DDevice_SetTextureStageState(2, D3DTSS_MINFILTER, D3DTEXF_LINEAR);
+      D3DDevice_SetTextureStageState(2, D3DTSS_MIPFILTER, D3DTEXF_LINEAR);
 
-      D3DDevice_SetRenderState_CullMode(0x901);
-      D3DDevice_SetRenderState_Simple(0x40358, 0x1010101);
-      *(uint32_t *)0x1fb7a4 = 0x1010101;
-      D3DDevice_SetRenderState_Simple(0x40304, 1);
-      *(uint32_t *)0x1fb784 = 1;
-      D3DDevice_SetRenderState_Simple(0x40344, 0);
-      *(uint32_t *)0x1fb790 = 0;
-      D3DDevice_SetRenderState_Simple(0x40348, 0x301);
-      *(uint32_t *)0x1fb794 = 0x301;
-      D3DDevice_SetRenderState_Simple(0x40350, 0x8006);
-      *(uint32_t *)0x1fb7c0 = 0x8006;
-      D3DDevice_SetRenderState_Simple(0x40300, 1);
-      *(uint32_t *)0x1fb788 = 1;
-      D3DDevice_SetRenderState_Simple(0x40340, 0);
-      *(uint32_t *)0x1fb78c = 0;
+      /* Each simple render state is the XDK inline: the NV097 method write,
+       * then the D3D__RenderState cache store. */
+      D3DDevice_SetRenderState_CullMode(D3DCULL_CCW);
+      D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD,
+                                      NV097_COLOR_MASK_RGBA);
+      D3D__RenderState[D3DRS_COLORWRITEENABLE] = NV097_COLOR_MASK_RGBA;
+      D3DDevice_SetRenderState_Simple(NV097_SET_BLEND_ENABLE_CMD, 1);
+      D3D__RenderState[D3DRS_ALPHABLENDENABLE] = 1;
+      D3DDevice_SetRenderState_Simple(NV097_SET_BLEND_FUNC_SFACTOR_CMD,
+                                      D3DBLEND_ZERO);
+      D3D__RenderState[D3DRS_SRCBLEND] = D3DBLEND_ZERO;
+      D3DDevice_SetRenderState_Simple(NV097_SET_BLEND_FUNC_DFACTOR_CMD,
+                                      D3DBLEND_INVSRCCOLOR);
+      D3D__RenderState[D3DRS_DESTBLEND] = D3DBLEND_INVSRCCOLOR;
+      D3DDevice_SetRenderState_Simple(NV097_SET_BLEND_EQUATION_CMD,
+                                      D3DBLENDOP_ADD);
+      D3D__RenderState[D3DRS_BLENDOP] = D3DBLENDOP_ADD;
+      D3DDevice_SetRenderState_Simple(NV097_SET_ALPHA_TEST_ENABLE_CMD, 1);
+      D3D__RenderState[D3DRS_ALPHATESTENABLE] = 1;
+      D3DDevice_SetRenderState_Simple(NV097_SET_ALPHA_REF_CMD, 0);
+      D3D__RenderState[D3DRS_ALPHAREF] = 0;
       D3DDevice_SetRenderState_ZEnable(1);
-      D3DDevice_SetRenderState_Simple(0x40354, 0x202);
-      *(uint32_t *)0x1fb77c = 0x202;
-      D3DDevice_SetRenderState_Simple(0x4035c, 0);
-      *(uint32_t *)0x1fb798 = 0;
+      D3DDevice_SetRenderState_Simple(NV097_SET_DEPTH_FUNC_CMD, D3DCMP_EQUAL);
+      D3D__RenderState[D3DRS_ZFUNC] = D3DCMP_EQUAL;
+      D3DDevice_SetRenderState_Simple(NV097_SET_DEPTH_MASK_CMD, 0);
+      D3D__RenderState[D3DRS_ZWRITEENABLE] = 0;
       D3DDevice_SetRenderState_ZBias(0);
 
-      csmemset((void *)0x5a5ac0, 0, 0xf0);
-      *(uint32_t *)0x5a5b98 = 0x21;
-      *(uint32_t *)0x5a5b94 = 4;
-      *(uint32_t *)0x5a5ae8 = real_rgb_color_to_pixel32((float *)0x47e46c);
-      *(uint32_t *)0x5a5b08 = 0xffffff;
-      *(uint32_t *)0x5a5b48 = 0x14200000;
-      *(uint32_t *)0x5a5b74 = 0xc0;
-      *(uint32_t *)0x5a5b4c = 0x290c0821;
-      *(uint32_t *)0x5a5b78 = 0xcd;
-      *(uint32_t *)0x5a5b50 = 0x2c200c2d;
-      *(uint32_t *)0x5a5b7c = 0xc00;
-      *(uint32_t *)0x5a5b54 = 0x2c020000;
-      *(uint32_t *)0x5a5b80 = 0x20d0;
-      *(uint32_t *)0x5a5ae0 = 0x2c;
-      *(uint32_t *)0x5a5ae4 = 0xd00;
-      if (*(char *)0x3256f7 != 0) {
-        *(uint32_t *)0x5a5ae0 = 0xc;
-        D3DDevice_SetRenderState_Simple(0x40300, 0);
-        *(uint32_t *)0x1fb788 = 0;
+      csmemset(&global_pixel_shader, 0, sizeof(global_pixel_shader));
+      global_pixel_shader.texture_modes = 0x21;
+      global_pixel_shader.combiner_count = 4;
+      global_pixel_shader.constant_0[0] = real_rgb_color_to_pixel32(
+        (float *)&rasterizer_environment_shadows_globals.shadow_color);
+      global_pixel_shader.constant_1[0] = 0xffffff;
+      global_pixel_shader.rgb_inputs[0] = 0x14200000;
+      global_pixel_shader.rgb_outputs[0] = 0xc0;
+      global_pixel_shader.rgb_inputs[1] = 0x290c0821;
+      global_pixel_shader.rgb_outputs[1] = 0xcd;
+      global_pixel_shader.rgb_inputs[2] = 0x2c200c2d;
+      global_pixel_shader.rgb_outputs[2] = 0xc00;
+      global_pixel_shader.rgb_inputs[3] = 0x2c020000;
+      global_pixel_shader.rgb_outputs[3] = 0x20d0;
+      global_pixel_shader.final_combiner_inputs_abcd = 0x2c;
+      global_pixel_shader.final_combiner_inputs_efg = 0xd00;
+      if (rasterizer_debug_options.shadows_debug != 0) {
+        global_pixel_shader.final_combiner_inputs_abcd = 0xc;
+        D3DDevice_SetRenderState_Simple(NV097_SET_ALPHA_TEST_ENABLE_CMD, 0);
+        D3D__RenderState[D3DRS_ALPHATESTENABLE] = 0;
       }
-      rasterizer_set_pixel_shader((void *)0x5a5ac0);
+      rasterizer_set_pixel_shader(&global_pixel_shader);
 
       /* MSVC evaluates the argument list right to left, which is why the
-       * permutation lookup is emitted before the 16-bit vertex-buffer read. */
-      FUN_00178b40(0x1d, (int)*(unsigned short *)vertex_buffer,
+       * permutation lookup is emitted before the 16-bit vertex-type read. */
+      FUN_00178b40(_shadow_vertex_shader_index,
+                   (unsigned short)vertex_buffer->type,
                    shader_get_vertex_shader_permutation(shader));
 
-      inv_range = 1.0f / *(float *)0x47e478;
-      inv_range_scaled = 1.0f / (*(float *)0x47e478 * 4.0f);
-      inv_half_range = 1.0f / (*(float *)0x47e478 * 0.5f);
+      inv_range =
+        1.0f / rasterizer_environment_shadows_globals.object_bounding_radius;
+      inv_range_scaled =
+        1.0f /
+        (rasterizer_environment_shadows_globals.object_bounding_radius * 4.0f);
+      inv_half_range =
+        1.0f /
+        (rasterizer_environment_shadows_globals.object_bounding_radius * 0.5f);
 
-      shader_constants[0] = *(float *)0x47e480 * inv_range * 0.5f;
-      shader_constants[1] = *(float *)0x47e484 * inv_range * 0.5f;
-      shader_constants[2] = *(float *)0x47e488 * inv_range * 0.5f;
-      shader_constants[3] = (1.0f - (*(float *)0x47e4a8 * *(float *)0x47e484 +
-                                     *(float *)0x47e4ac * *(float *)0x47e488 +
-                                     *(float *)0x47e4a4 * *(float *)0x47e480) *
-                                      inv_range) *
-                            0.5f;
-      shader_constants[4] = *(float *)0x47e48c * inv_range * -0.5f;
-      shader_constants[5] = *(float *)0x47e490 * inv_range * -0.5f;
-      shader_constants[6] = *(float *)0x47e494 * inv_range * -0.5f;
-      shader_constants[7] = ((*(float *)0x47e4a8 * *(float *)0x47e490 +
-                              *(float *)0x47e4ac * *(float *)0x47e494 +
-                              *(float *)0x47e4a4 * *(float *)0x47e48c) *
-                               inv_range +
-                             1.0f) *
-                            0.5f;
-      shader_constants[8] = *(float *)0x47e498 * inv_range_scaled;
-      shader_constants[9] = *(float *)0x47e49c * inv_range_scaled;
-      shader_constants[10] = *(float *)0x47e4a0 * inv_range_scaled;
-      shader_constants[16] = *(float *)0x47e498;
-      shader_constants[17] = *(float *)0x47e49c;
-      shader_constants[18] = *(float *)0x47e4a0;
+      shader_constants[0] =
+        rasterizer_environment_shadows_globals.shadow_matrix.forward.x *
+        inv_range * 0.5f;
+      shader_constants[1] =
+        rasterizer_environment_shadows_globals.shadow_matrix.forward.y *
+        inv_range * 0.5f;
+      shader_constants[2] =
+        rasterizer_environment_shadows_globals.shadow_matrix.forward.z *
+        inv_range * 0.5f;
+      shader_constants[3] =
+        (1.0f -
+         dot_product3d(
+           &rasterizer_environment_shadows_globals.shadow_matrix.position,
+           &rasterizer_environment_shadows_globals.shadow_matrix.forward) *
+           inv_range) *
+        0.5f;
+      shader_constants[4] =
+        rasterizer_environment_shadows_globals.shadow_matrix.left.x *
+        inv_range * -0.5f;
+      shader_constants[5] =
+        rasterizer_environment_shadows_globals.shadow_matrix.left.y *
+        inv_range * -0.5f;
+      shader_constants[6] =
+        rasterizer_environment_shadows_globals.shadow_matrix.left.z *
+        inv_range * -0.5f;
+      shader_constants[7] =
+        (dot_product3d(
+           &rasterizer_environment_shadows_globals.shadow_matrix.position,
+           &rasterizer_environment_shadows_globals.shadow_matrix.left) *
+           inv_range +
+         1.0f) *
+        0.5f;
+      shader_constants[8] =
+        rasterizer_environment_shadows_globals.shadow_matrix.up.x *
+        inv_range_scaled;
+      shader_constants[9] =
+        rasterizer_environment_shadows_globals.shadow_matrix.up.y *
+        inv_range_scaled;
+      shader_constants[10] =
+        rasterizer_environment_shadows_globals.shadow_matrix.up.z *
+        inv_range_scaled;
+      shader_constants[16] =
+        rasterizer_environment_shadows_globals.shadow_matrix.up.x;
+      shader_constants[17] =
+        rasterizer_environment_shadows_globals.shadow_matrix.up.y;
+      shader_constants[18] =
+        rasterizer_environment_shadows_globals.shadow_matrix.up.z;
       shader_constants[19] = 0.0f;
-      dot = *(float *)0x47e4a8 * *(float *)0x47e49c +
-            *(float *)0x47e4ac * *(float *)0x47e4a0 +
-            *(float *)0x47e4a4 * *(float *)0x47e498;
+      dot = dot_product3d(
+        &rasterizer_environment_shadows_globals.shadow_matrix.position,
+        &rasterizer_environment_shadows_globals.shadow_matrix.up);
       shader_constants[11] = -(dot * inv_range_scaled);
-      shader_constants[12] = -(*(float *)0x47e498 * inv_half_range);
-      shader_constants[13] = -(*(float *)0x47e49c * inv_half_range);
-      shader_constants[14] = -(*(float *)0x47e4a0 * inv_half_range);
+      shader_constants[12] =
+        -(rasterizer_environment_shadows_globals.shadow_matrix.up.x *
+          inv_half_range);
+      shader_constants[13] =
+        -(rasterizer_environment_shadows_globals.shadow_matrix.up.y *
+          inv_half_range);
+      shader_constants[14] =
+        -(rasterizer_environment_shadows_globals.shadow_matrix.up.z *
+          inv_half_range);
       shader_constants[15] = dot * inv_half_range;
       D3DDevice_SetVertexShaderConstant(-0x51, shader_constants, 5);
 
-      if (*(char *)0x3251fc == 0) {
-        FUN_00158140((int)*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
-        *(char *)0x3251fc = 1;
+      if (shadow_restored == 0) {
+        /* Zero-extended 16-bit read (XOR EAX,EAX; MOV AX,[0x5a5bc0]). */
+        rasterizer_set_target(
+          (unsigned short)global_window_parameters.rasterizer_target, 0, 0, 0,
+          1);
+        shadow_restored = 1;
       }
-      *(char *)0x47e4b4 = 1;
+      rasterizer_environment_shadows_globals.shadow_setup = 1;
     }
-    FUN_00158ae0(2);
-    rasterizer_draw_dynamic_triangles_static_vertices(vertices_per_primitive, a2, triangle_count, vertex_buffer);
-    if (*(short *)0x3256ba == 2) {
-      *(int *)0x5a543c = *(int *)0x5a543c + 1;
-      *(int *)0x5a5438 = *(int *)0x5a5438 + triangle_count;
-      *(int *)0x5a5434 =
-        *(int *)0x5a5434 + rasterizer_frame_statistics_count_static_vertices(
-                             vertices_per_primitive, a2, triangle_count);
+    FUN_00158ae0(RASTERIZER_STENCIL_MODE_REJECT);
+    rasterizer_draw_dynamic_triangles_static_vertices(
+      dynamic_triangle_buffer_index, first_triangle_index, triangle_count,
+      vertex_buffer);
+    if (rasterizer_debug_options.statistics_mode == _rasterizer_statistics_mode_enabled) {
+      rasterizer_frame_statistics.shadow_draw_count++;
+      rasterizer_frame_statistics.shadow_triangle_count += triangle_count;
+      rasterizer_frame_statistics.shadow_vertex_count +=
+        rasterizer_frame_statistics_count_static_vertices(
+          dynamic_triangle_buffer_index, first_triangle_index, triangle_count);
     }
   }
 }
 
 /* 0x1726a0
  *
- * FUN_001726a0
+ * _rasterizer_environment_shadow_end
  *
- * Handles the "empty shadow" case: called when a shadow was cast but no
- * geometry was submitted for it.
+ * Name: PAL 2342 __rasterizer_environment_shadow_end (T2); the same assert
+ * line 563 (0x233) and the same "empty shadow" warning string.
  *
- * Asserts the D3D device exists. When rendering is enabled
- * (*(short *)0x5a5bc0 == 0) and the shadow feature flag is set
- * (*(char *)0x3256ca != 0):
- *   1. If no shadow parameters are active (*(char *)0x47e4b5 == 0), emits the
- *      "empty shadow has been cast" warning.
- *   2. Once per run (latched via *(char *)0x3251fc), performs the fallback
- *      target setup through FUN_00158140 and sets the latch.
- *
- * Note: the guard tests the 16-bit word at 0x5a5bc0 for zero, yet that same
- * zero-extended word is what gets passed as FUN_00158140's first argument.
- * This is what the original code does; preserved verbatim.
+ * Asserts the D3D device exists. When the window renders to the primary
+ * target and environment shadows are enabled, warns if the shadow drew no
+ * geometry (shadow_used clear), then rebinds the window target once
+ * (latched via shadow_restored) with its z-buffer.
  */
-void FUN_001726a0(void)
+void _rasterizer_environment_shadow_end(void)
 {
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert(
       "global_d3d_device",
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x233,
       1);
     system_exit(-1);
   }
-  if (*(short *)0x5a5bc0 == 0 && *(char *)0x3256ca != 0) {
-    if (*(char *)0x47e4b5 == 0) {
+  if (global_window_parameters.rasterizer_target ==
+        _rasterizer_target_render_primary &&
+      rasterizer_debug_options.draw_environment_shadows != 0) {
+    if (rasterizer_environment_shadows_globals.shadow_used == 0) {
       error(2, "### WARNING empty shadow has been cast");
     }
-    if (*(char *)0x3251fc == 0) {
+    if (shadow_restored == 0) {
       /* Zero-extended 16-bit read (XOR EAX,EAX; MOV AX,[0x5a5bc0]). */
-      FUN_00158140((int)*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
-      *(char *)0x3251fc = 1;
+      rasterizer_set_target(
+        (unsigned short)global_window_parameters.rasterizer_target, 0, 0, 0,
+        1);
+      shadow_restored = 1;
     }
   }
 }
@@ -543,25 +619,22 @@ void FUN_001726a0(void)
  * Shadow-pass begin / shadow-generate setup. Programs the D3D render
  * states, pixel shader, and vertex-shader constants for the shadow
  * generation pass, then stashes the shadow projection matrix, RGB color,
- * and object bounding radius into the module-global shadow parameter block
- * (0x47e46c..).
+ * and object bounding radius into rasterizer_environment_shadows_globals.
  *
- * Asserts the D3D device exists. When rendering is enabled
- * (*(short *)0x5a5bc0 == 0) and the shadow feature flag is set
- * (*(char *)0x3256ca != 0):
+ * Asserts the D3D device exists. When the window renders to the primary
+ * target and environment shadows are enabled:
  *   1. Validates the matrix/color pointers, each RGB component (in [0,1]),
  *      and the object bounding radius (> 0).
- *   2. Sets cull mode, four "simple" render states (each mirrored into a
- *      module global at 0x1fb7a4/784/788/78c), disables Z test and Z bias.
- *   3. Clears and programs the 0xf0-byte pixel-shader state block at
- *      0x5a5ac0, then binds it.
+ *   2. Sets cull mode and four simple render states (each mirrored into
+ *      D3D__RenderState), disables Z test and Z bias.
+ *   3. Clears and programs global_pixel_shader, then binds it.
  *   4. Builds five vertex-shader constant registers - a shadow-projection
  *      transform scaled by 1/radius - and uploads them at register -0x44.
  *   5. Stashes the 13-dword matrix, RGB color, and radius into the shadow
- *      parameter block, and clears the associated state bytes.
+ *      globals, and clears local_parameters, shadow_setup, shadow_used and
+ *      shadow_restored.
  *   6. Optionally writes the radius back through out_radius.
- *   7. If the render-mode word (*(short *)0x3256ba) == 2, bumps the
- *      per-frame counter at 0x5a5430.
+ *   7. With statistics enabled, bumps shadow_count.
  *
  * param_1:                unused (present for the cdecl caller ABI).
  * shadow_matrix:          shadow projection matrix (13 dwords / 4x3-ish).
@@ -578,19 +651,27 @@ char FUN_00172a30(int param_1, const float *shadow_matrix,
 {
   float vs_const[20];
   float inv_r;
+  /* Typed view of the float* shadow_color (ABI unchanged: the callers and
+   * kb.json still pass float*); layout proven by the stash below.
+   * shadow_matrix stays indexed: it is a real_matrix4x3 (forward = [1..3],
+   * left = [4..6], position = [10..12]), but naming the members through a
+   * real_matrix4x3 pointer measured 567/692 raw-XBE bytes vs 573/692 indexed. */
+  const real_rgb_color *color = (const real_rgb_color *)shadow_color;
   const unsigned long *src;
   unsigned long *dst;
   int i;
 
   (void)param_1;
 
-  if (*(void **)0x476ab0 == 0) {
+  if (global_d3d_device == 0) {
     display_assert(
       "global_d3d_device",
       "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x93, 1);
     system_exit(-1);
   }
-  if (*(short *)0x5a5bc0 == 0 && *(char *)0x3256ca != 0) {
+  if (global_window_parameters.rasterizer_target ==
+        _rasterizer_target_render_primary &&
+      rasterizer_debug_options.draw_environment_shadows != 0) {
     if (shadow_matrix == 0) {
       display_assert(
         "shadow_matrix",
@@ -605,21 +686,21 @@ char FUN_00172a30(int param_1, const float *shadow_matrix,
         1);
       system_exit(-1);
     }
-    if (!(shadow_color[0] >= 0.0f) || !(shadow_color[0] <= 1.0f)) {
+    if (!(color->red >= 0.0f) || !(color->red <= 1.0f)) {
       display_assert(
         "shadow_color->red >=0.0f && shadow_color->red <=1.0f",
         "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9b,
         1);
       system_exit(-1);
     }
-    if (!(shadow_color[1] >= 0.0f) || !(shadow_color[1] <= 1.0f)) {
+    if (!(color->green >= 0.0f) || !(color->green <= 1.0f)) {
       display_assert(
         "shadow_color->green>=0.0f && shadow_color->green<=1.0f",
         "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9c,
         1);
       system_exit(-1);
     }
-    if (!(shadow_color[2] >= 0.0f) || !(shadow_color[2] <= 1.0f)) {
+    if (!(color->blue >= 0.0f) || !(color->blue <= 1.0f)) {
       display_assert(
         "shadow_color->blue >=0.0f && shadow_color->blue <=1.0f",
         "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_shadows.c", 0x9d,
@@ -634,29 +715,28 @@ char FUN_00172a30(int param_1, const float *shadow_matrix,
       system_exit(-1);
     }
 
-    /* Render state: cull, four "simple" states (mirrored to module globals),
-     * Z test/bias off. Each mirror store is paired with its state by value;
-     * MSVC schedules the store into the following call's setup window. */
-    D3DDevice_SetRenderState_CullMode(0x901);
+    /* Render state: cull, four simple states (mirrored to D3D__RenderState),
+     * Z test/bias off. */
+    D3DDevice_SetRenderState_CullMode(D3DCULL_CCW);
     D3DDevice_SetRenderState_Simple(NV097_SET_COLOR_MASK_CMD,
                                     NV097_COLOR_MASK_RGB);
-    *(unsigned long *)0x1fb7a4 = 0x10101;
-    D3DDevice_SetRenderState_Simple(0x40304, 0);
-    *(unsigned long *)0x1fb784 = 0;
-    D3DDevice_SetRenderState_Simple(0x40300, 1);
-    *(unsigned long *)0x1fb788 = 1;
-    D3DDevice_SetRenderState_Simple(0x40340, 0x7f);
-    *(unsigned long *)0x1fb78c = 0x7f;
+    D3D__RenderState[D3DRS_COLORWRITEENABLE] = NV097_COLOR_MASK_RGB;
+    D3DDevice_SetRenderState_Simple(NV097_SET_BLEND_ENABLE_CMD, 0);
+    D3D__RenderState[D3DRS_ALPHABLENDENABLE] = 0;
+    D3DDevice_SetRenderState_Simple(NV097_SET_ALPHA_TEST_ENABLE_CMD, 1);
+    D3D__RenderState[D3DRS_ALPHATESTENABLE] = 1;
+    D3DDevice_SetRenderState_Simple(NV097_SET_ALPHA_REF_CMD, 0x7f);
+    D3D__RenderState[D3DRS_ALPHAREF] = 0x7f;
     D3DDevice_SetRenderState_ZEnable(0);
     D3DDevice_SetRenderState_ZBias(0);
 
     /* Program and bind the shadow-generation pixel-shader state block. */
-    csmemset((void *)0x5a5ac0, 0, 0xf0);
-    *(int *)0x5a5b98 = 1;
-    *(int *)0x5a5b94 = 1;
-    *(int *)0x5a5ae0 = 0x20;
-    *(int *)0x5a5ae4 = 0x1800;
-    rasterizer_set_pixel_shader((void *)0x5a5ac0);
+    csmemset(&global_pixel_shader, 0, sizeof(global_pixel_shader));
+    global_pixel_shader.texture_modes = 1;
+    global_pixel_shader.combiner_count = 1;
+    global_pixel_shader.final_combiner_inputs_abcd = 0x20;
+    global_pixel_shader.final_combiner_inputs_efg = 0x1800;
+    rasterizer_set_pixel_shader(&global_pixel_shader);
 
     /* Vertex-shader constants: rows 0/1 are the shadow projection scaled by
      * 1/radius; the trailing constants are fixed. All 20 floats form one
@@ -690,31 +770,35 @@ char FUN_00172a30(int param_1, const float *shadow_matrix,
     vs_const[19] = 0.0f;
     D3DDevice_SetVertexShaderConstant(-0x44, vs_const, 5);
 
-    FUN_00158140(2, 0, (*(unsigned char *)0x3256f7 != 0) ? 0x88888888u : 0u, 1,
-                 0);
+    rasterizer_set_target(_rasterizer_target_shadow_primary, 0,
+                          rasterizer_debug_options.shadows_debug != 0
+                            ? 0x88888888u
+                            : 0u,
+                          1, 0);
     FUN_00158ae0(0);
 
     /* Stash the 13-dword matrix, then the RGB color, then the radius. */
     src = (const unsigned long *)shadow_matrix;
-    dst = (unsigned long *)0x47e47c;
+    dst = (unsigned long *)&rasterizer_environment_shadows_globals.shadow_matrix;
     for (i = 0xd; i != 0; i--) {
       *dst = *src;
       src++;
       dst++;
     }
-    *(float *)0x47e46c = shadow_color[0];
-    *(float *)0x47e470 = shadow_color[1];
-    *(float *)0x47e474 = shadow_color[2];
-    *(float *)0x47e478 = object_bounding_radius;
+    rasterizer_environment_shadows_globals.shadow_color.red = color->red;
+    rasterizer_environment_shadows_globals.shadow_color.green = color->green;
+    rasterizer_environment_shadows_globals.shadow_color.blue = color->blue;
+    rasterizer_environment_shadows_globals.object_bounding_radius = object_bounding_radius;
     if (out_radius != 0) {
       *out_radius = object_bounding_radius;
     }
-    *(int *)0x47e4b0 = 0;
-    *(char *)0x47e4b4 = 0;
-    *(char *)0x47e4b5 = 0;
-    *(char *)0x3251fc = 0;
-    if (*(short *)0x3256ba == 2) {
-      *(int *)0x5a5430 = *(int *)0x5a5430 + 1;
+    rasterizer_environment_shadows_globals.local_parameters = 0;
+    rasterizer_environment_shadows_globals.shadow_setup = 0;
+    rasterizer_environment_shadows_globals.shadow_used = 0;
+    shadow_restored = 0;
+    if (rasterizer_debug_options.statistics_mode ==
+          _rasterizer_statistics_mode_enabled) {
+      rasterizer_frame_statistics.shadow_count++;
     }
   }
   return 1;

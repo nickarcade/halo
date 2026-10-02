@@ -73,17 +73,12 @@ jobs:
           delinked: "true"
           required: halo-patched/cachebeta.xbe
 
-      # build/ (44M) and ignored report-data directories stay symlinks --
-      # copying them per run is not worth it. batch_verify is handled through
-      # HALO_REPORT_BATCH_VERIFY_DIR because its checkout contains tracked
-      # summary files and cannot safely be replaced by a symlink.
+      # Byte compilation and publication use workspace-owned directories.
+      # Historical behavioral evidence stays read-only on the host.
       - name: Link Bulk Report Data
         run: |
-          if [ ! -e build ] && [ -d "$BUILD_DIR" ]; then
-            ln -s "$BUILD_DIR" build
-          fi
           mkdir -p artifacts
-          for dir in equivalence runtime_oracle runtime_oracle_batch raw_byte_audit raw_xbe_structural; do
+          for dir in equivalence runtime_oracle runtime_oracle_batch; do
             if [ ! -e "artifacts/$dir" ] && [ -d "$ARTIFACTS_DIR/$dir" ]; then
               ln -s "$ARTIFACTS_DIR/$dir" "artifacts/$dir"
             fi
@@ -92,42 +87,21 @@ jobs:
       - name: Link Safety
         run: bash tools/ci/check_workspace_links.sh
 
-      - name: Refresh VC71 Scores
+      - name: Refresh fresh raw-XBE byte accuracy
         run: |
-          # Recompute honest VC71 match scores + the compile-fail / no-reference
-          # attention queue here on the self-hosted runner — the only one with the
-          # VC71 CL.Exe toolchain.  Full pass (the clean checkout wipes the
-          # incremental state each run, and a parallel full populate is fast).
-          # populate regenerates build/generated/decl.h from kb.json first, so no
-          # TU is scored against a stale header, then writes vc71_current.json +
-          # reference_validity.json, which the report step bakes into the published
-          # dashboard (honest % and the compile-fail / no-ref badges).
-           "$VENV_PYTHON" tools/verify/vc71_regression.py populate \
-             --no-baseline-write
+          mkdir -p artifacts/byte_measurement
+          printf '{"sources":null}\n' > artifacts/byte_measurement/plan.json
+          "$VENV_PYTHON" tools/verify/byte_regression.py measure \
+            --commit "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --plan artifacts/byte_measurement/plan.json \
+            --output artifacts/byte_measurement/snapshot.json --publish --workers 4
 
-      - name: Validate Fresh VC71 Snapshot
+      - name: Validate fresh byte snapshot
         run: |
-          SNAPSHOT=tools/verify/vc71_current.json
-          if [ ! -s "$SNAPSHOT" ]; then
-            echo "::error::populate did not leave a non-empty $SNAPSHOT"
-            exit 1
-          fi
-          jq --arg sha "$GITHUB_SHA" '
-            {
-              commit: .provenance.commit,
-              dirty: .provenance.dirty,
-              score_count: (.scores | length),
-              expected_commit: $sha,
-              valid: ((.provenance.commit == $sha) and
-                      (.provenance.dirty == false) and
-                      ((.scores | length) > 0))
-            }
-          ' "$SNAPSHOT"
-          jq -e --arg sha "$GITHUB_SHA" '
-            (.provenance.commit == $sha) and
-            (.provenance.dirty == false) and
-            ((.scores | length) > 0)
-          ' "$SNAPSHOT" >/dev/null
+          jq -e --arg sha "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" '
+            (.commit == $sha) and (.run_id == $run) and (.dirty == false) and
+            (.metric == "raw_xbe_aligned_byte_lower_bound") and ((.records | length) > 0)
+          ' artifacts/byte_measurement/snapshot.json
 
       - name: Generate CI Status
         run: |
@@ -151,17 +125,17 @@ jobs:
               report_commit: .meta.commit_sha,
               raw_xbe_md5: $inputs.raw_xbe.md5,
               function_bounds_md5: $inputs.function_bounds.recorded_xbe_md5,
-              snapshot_exists: $inputs.vc71_current.exists,
-              snapshot_score_count: $inputs.vc71_current.score_count,
-              snapshot_commit: $inputs.vc71_current.provenance.commit,
-              snapshot_dirty: $inputs.vc71_current.provenance.dirty,
+              snapshot_exists: $inputs.raw_byte_snapshot.exists,
+              snapshot_score_count: $inputs.raw_byte_snapshot.function_count,
+              snapshot_commit: $inputs.raw_byte_snapshot.commit,
+              snapshot_dirty: $inputs.raw_byte_snapshot.dirty,
               expected_commit: $sha,
               valid: ((.meta.commit_sha == $sha) and
                       ($inputs.raw_xbe.md5 != null) and
                       ($inputs.function_bounds.recorded_xbe_md5 != null) and
                       ($inputs.raw_xbe.md5 == $inputs.function_bounds.recorded_xbe_md5) and
-                      ($inputs.vc71_current.provenance.commit == $sha) and
-                      ($inputs.vc71_current.provenance.dirty == false))
+                      ($inputs.raw_byte_snapshot.commit == $sha) and
+                      ($inputs.raw_byte_snapshot.dirty == false))
             }
           ' artifacts/progress/report.json
           jq -e --arg sha "$GITHUB_SHA" '
@@ -170,8 +144,8 @@ jobs:
             ($inputs.raw_xbe.md5 != null) and
             ($inputs.function_bounds.recorded_xbe_md5 != null) and
             ($inputs.raw_xbe.md5 == $inputs.function_bounds.recorded_xbe_md5) and
-            ($inputs.vc71_current.provenance.commit == $sha) and
-            ($inputs.vc71_current.provenance.dirty == false)
+            ($inputs.raw_byte_snapshot.commit == $sha) and
+            ($inputs.raw_byte_snapshot.dirty == false)
           ' artifacts/progress/report.json
       
       - name: Update README Badge Data

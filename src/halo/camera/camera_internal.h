@@ -18,6 +18,8 @@
 #ifndef HALO_CAMERA_INTERNAL_H
 #define HALO_CAMERA_INTERNAL_H
 
+#include "../math/real_math.h"
+
 /* 0x86de0  mode-0/1 camera set — now ported. */
 static __inline void camera_internal_set_mode_0_1(int16_t player, int reset,
                                                   int mode_flags)
@@ -89,6 +91,49 @@ static __inline uint8_t camera_internal_poll_input(void *out_buf, int player)
 {
   return (uint8_t)director_compute_camera_input((short *)out_buf, player);
 }
+
+/* Camera-command validity test behind the "Invalid camera command." asserts
+ * (observer_set_camera 0x8acb0, first_person_camera_for_unit_and_vector
+ * 0x88d50).  Both expand it inline in this order: forward/up axes, position
+ * and offset components within +-5000, velocity, depth within [0, 5000],
+ * field of view within [0.001, pi/2], timer within [0, 3600].  Only commands
+ * carrying _observer_command_valid_bit are checked. */
+#define valid_world_real(value) \
+  (valid_real(value) && (value) >= -5000.0f && (value) <= 5000.0f)
+#define camera_command_valid(command)                                      \
+  (!((command)->flags & FLAG(_observer_command_valid_bit)) ||              \
+   (valid_real_normal3d_perpendicular((float *)&(command)->forward,        \
+                                      (float *)&(command)->up) &&          \
+    valid_world_real((command)->position.x) &&                             \
+    valid_world_real((command)->position.y) &&                             \
+    valid_world_real((command)->position.z) &&                             \
+    valid_world_real((command)->offset.i) &&                               \
+    valid_world_real((command)->offset.j) &&                               \
+    valid_world_real((command)->offset.k) &&                               \
+    real_vector3d_valid((float *)&(command)->velocity) &&                  \
+    valid_real((command)->depth) && (command)->depth >= 0.0f &&            \
+    (command)->depth <= 5000.0f &&                                         \
+    valid_real((command)->field_of_view) &&                                \
+    (command)->field_of_view >= 0.001f &&                                  \
+    (command)->field_of_view <= 1.57079637f /* pi/2 */ &&                  \
+    valid_real((command)->timer) && (command)->timer >= 0.0f &&            \
+    (command)->timer <= 3600.0f))
+
+/* csprintf arguments of the "Invalid camera command." message, in its
+ * F/U/P/O/D/V/FOV/T/FL order. */
+#define CAMERA_COMMAND_INVALID_FORMAT                                      \
+  "Invalid camera command.\n"                                              \
+  "F: (%f, %f, %f) U: (%f, %f, %f)\n"                                      \
+  "P: (%f, %f, %f) O: (%f, %f, %f)\n"                                      \
+  "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld"
+#define CAMERA_COMMAND_INVALID_ARGUMENTS(command)                          \
+  (command)->forward.i, (command)->forward.j, (command)->forward.k,        \
+    (command)->up.i, (command)->up.j, (command)->up.k,                     \
+    (command)->position.x, (command)->position.y, (command)->position.z,   \
+    (command)->offset.i, (command)->offset.j, (command)->offset.k,         \
+    (command)->depth, (command)->velocity.i, (command)->velocity.j,        \
+    (command)->velocity.k, (command)->field_of_view, (command)->timer,     \
+    (command)->flags
 
 
 #endif

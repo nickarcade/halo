@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Build / refresh the semantic-retrieval index.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Build / refresh the semantic-retrieval index.
 
 Commit 1: extract pseudocode + C source for every ported function in
 kb.json and persist to DuckDB. Embeddings are populated separately by

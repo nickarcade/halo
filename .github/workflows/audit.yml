@@ -134,16 +134,19 @@ jobs:
             exit 1
           fi
 
-      # VC71 score persistence.  Neither suite ran anywhere in CI before, which
+      # Optional mnemonic score persistence. These are not raw byte accuracy.
+      # Neither suite ran anywhere in CI before, which
       # is how the dashboard button ended up writing only the committed floor
       # while the report generator read only the honest snapshot -- a score you
       # could watch appear and then vanish at the next regeneration, with every
       # gate green throughout.
-      - name: Score-persistence self-tests
+      - name: Byte gate and mnemonic-persistence self-tests
         if: always()
         run: |
           PY="${{ env.VENV_PYTHON }}"
           [ -x "$PY" ] || PY=python3
+          "$PY" -m unittest discover -s tools/verify -p 'test_byte_regression.py' -v
+          "$PY" -m unittest discover -s tools/verify -p 'test_score_improve.py' -v
           "$PY" -m unittest discover -s tools/verify -p 'test_vc71_regression.py' -v
           "$PY" -m unittest discover -s tools/report -p 'test_vc71_score_merge.py' -v
 

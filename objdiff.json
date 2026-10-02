@@ -9102,6 +9102,14 @@
    "metadata": {
     "source_path": "src/halo/rasterizer/xbox/rasterizer_xbox.c"
    }
+  },
+  {
+   "name": "halo/rasterizer_xbox_models_FUN_0016b2b0",
+   "target_path": "build/CMakeFiles/halo.dir/src/halo/rasterizer/xbox/rasterizer_xbox_models.c.obj",
+   "base_path": "delinked/rasterizer_xbox_models_FUN_0016b2b0.obj",
+   "metadata": {
+    "source_path": "halo/rasterizer/xbox/rasterizer_xbox_models.c"
+   }
   }
  ]
 }

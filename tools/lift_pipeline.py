@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Orchestrate decompile -> reimplementation -> build -> verify workflow.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Orchestrate decompile -> reimplementation -> build -> verify workflow.
 
 This script is intentionally conservative and supports an assist-first mode.
 It can pick a target from frontier output, optionally insert/update a function,
@@ -489,55 +492,6 @@ def run_pipeline(args: argparse.Namespace) -> int:
   stage = StageResult("target_pick", ran=True, ok=True,
                       details=f"{target.addr} {target.name} ({target.object_name})")
   stages.append(stage)
-
-  # Cross-build PDB/map evidence is a mandatory research aid, but never an
-  # oracle or a gate: 2276 disassembly remains authoritative.  The helper
-  # deliberately exits successfully when the optional corpus is unavailable.
-  crossbuild_json = artifact_dir / "crossbuild_context.json"
-  proc = run_command(
-    ["python3", "tools/analysis/crossbuild_context.py", "--target", target.addr,
-     "--output", str(crossbuild_json)],
-    cwd=ROOT,
-    log_path=artifact_dir / "crossbuild_context.log",
-  )
-  crossbuild_detail = "unavailable (context helper failed)"
-  if crossbuild_json.exists():
-    try:
-      crossbuild = json.loads(crossbuild_json.read_text(encoding="utf-8"))
-      summary["crossbuild_context"] = crossbuild
-      crossbuild_detail = str(crossbuild.get("status", "unavailable"))
-      candidates = crossbuild.get("candidates", [])
-      if candidates:
-        crossbuild_detail += f": {candidates[0].get('name', '?')} [INFERRED]"
-    except json.JSONDecodeError:
-      crossbuild_detail = "unavailable (invalid context artifact)"
-  stages.append(StageResult("crossbuild_context", ran=True, ok=True,
-                            details=crossbuild_detail))
-
-  # CEA-360 source correspondence is advisory and never a gate. Parse the
-  # machine-readable result so missing inputs and a genuine no-match remain
-  # distinct, without scraping human-readable stdout.
-  cea_proc = run_command(
-    ["python3", "tools/analysis/cea_body.py", "--json", target.addr],
-    cwd=ROOT,
-    log_path=artifact_dir / "cea_body.log",
-  )
-  try:
-    cea_result = json.loads(cea_proc.stdout)
-  except json.JSONDecodeError:
-    cea_result = {}
-  (artifact_dir / "cea_body.json").write_text(
-    json.dumps(cea_result, indent=2) + "\n", encoding="utf-8")
-  summary["cea_body"] = cea_result
-  if cea_proc.returncode == 0 and cea_result.get("ok"):
-    cea_detail = f"{cea_result.get('cea_function', '?')} [T2 max] (see cea_body.log)"
-  elif cea_proc.returncode == 1 and not cea_result.get("missing_input", False):
-    cea_detail = "no CEA-360 match"
-  elif cea_proc.returncode == 2 or cea_result.get("missing_input", False):
-    cea_detail = "unavailable (missing CEA corpus/index input)"
-  else:
-    cea_detail = "unavailable (CEA helper failed)"
-  stages.append(StageResult("cea_body", ran=True, ok=True, details=cea_detail))
 
   if args.extract_cmd:
     cmd = args.extract_cmd.format(
@@ -1190,6 +1144,7 @@ def run_pipeline(args: argparse.Namespace) -> int:
       details = [
         f"policy={args.low_match_policy}",
         f"match={best_match_pct:.1f}%",
+        "metric=mnemonic_similarity_not_raw_bytes",
         f"source={match_source}",
         f"threshold={args.low_match_threshold:.1f}%",
         f"behavior_both_below={args.low_match_behavior_both_below:.1f}%",
@@ -1283,7 +1238,7 @@ def _quiet_details(name: str, details: str) -> str:
     parts = details.split()
     keep = {}
     for p in parts:
-      if p.startswith("match=") or p.startswith("verdict="):
+      if p.startswith("match=") or p.startswith("verdict=") or p.startswith("metric="):
         k, v = p.split("=", 1)
         keep[k] = v
     if keep:
@@ -1329,11 +1284,10 @@ def _update_dashboard(quiet: bool = False) -> None:
   """Kick off a background dashboard regeneration after a successful lift.
 
   This only re-renders the report from the existing scores; it does NOT run VC71
-  populate.  Honest VC71 scores + the attention-queue badges are refreshed by the
-  nightly self-hosted `progress-report.yml` job (the only runner with the VC71
-  CL.Exe toolchain), which is the sole consumer of those numbers.  A lift's own
-  VC71 match is still reported by the pipeline's vc71_verify stage, and the
-  decision-driving floor (vc71_scores.json) is maintained by the commit hooks."""
+  populate. The self-hosted progress-report job refreshes raw-XBE byte evidence.
+  Optional mnemonic analysis retains its separate score files and attention queue.
+  A lift's mnemonic match is reported by vc71_verify; commit hooks gate fresh
+  raw-XBE bytes without modifying mnemonic score files."""
   repo_root = Path(__file__).resolve().parent.parent
   ci_script = repo_root / "tools" / "report" / "generate_ci_status.py"
   report_script = repo_root / "tools" / "report" / "generate_decomp_report.py"
@@ -1517,7 +1471,7 @@ def build_parser() -> argparse.ArgumentParser:
                   help="Fingerprint-validated Ghidra context artifact from research_bundle; "
                        "automatically enables the frame-map check.")
   ap.add_argument("--permute", action="store_true",
-                  help="When VC71 match falls in [85, 98], spawn a permuter "
+                  help="When VC71 mnemonic match falls in [85, 98], spawn a permuter "
                        "pass via tools/permuter/run.py. Reports best score; "
                        "does NOT auto-apply permutations.")
   ap.add_argument("--permute-time", type=int, default=60,

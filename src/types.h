@@ -452,7 +452,7 @@ typedef struct {
   float unk_140;            ///< offset=0x8C  .text:000C9C40                 fmul    dword ptr [ecx+8Ch]  shield vitality?
   float unk_144;            ///< offset=0x90  .text:00136675                 fstp    dword ptr [esi+90h]  shield/vitality related
   float unk_148;            ///< offset=0x94  .text:000C9C46                 fstp    dword ptr [ecx+94h]  shield related, double charge?
-  uint32_t unk_152;         ///< offset=0x98  .text:00136BA8                 mov     dword ptr [esi+98h], 0   float? shield
+  float unk_152;            ///< offset=0x98  .text:00136EB1                 fld     dword ptr [esi+98h]  float (FLD/FCOMP vs 1.0f, stores 0x3f800000) shield
   float unk_156;            ///< offset=0x9C  .text:0001FA9E                 fld     dword ptr [edi+9Ch]
   uint32_t unk_160;         ///< offset=0xA0  .text:00137F25                 cmp     dword ptr [ebx+0A0h], 0FFFFFFFFh   datum_handle?
   float unk_164;            ///< offset=0xA4  .text:00138865                 fld     dword ptr [esi+0A4h]
@@ -567,11 +567,130 @@ typedef struct {
   ai_information_data_t information_data; ///< offset=0x18
 } ai_information_packet_t;
 cs(ai_information_packet_t, 0x20);
+
 co(ai_information_packet_t, dialogue_type_index,     0x06);
 co(ai_information_packet_t, updated_dialogue_timers, 0x0a);
 co(ai_information_packet_t, look_unit_index,         0x10);
 co(ai_information_packet_t, information_type,        0x14);
 co(ai_information_packet_t, information_data,        0x18);
+
+/* AI profiling meters at 0x5abaa0 (ai_profile).  Header byte names come from
+ * the hs-global table entries that point at them (ai_profile_disable 0x5abaa0
+ * ... ai_show_sound_distance 0x5abaab); render_spray (+0x02) is the word
+ * ai_profile_change_render_spray steps.  ai_profile_initialize clears the
+ * whole 0xeec block; the 28 meters (0x88 stride) start at +0x0c. */
+enum { AI_METER_HISTORY_TICKS = 60, NUMBER_OF_AI_METERS = 28 };
+enum { _ai_meter_collisions = 21 };
+typedef struct {
+  int16_t accumulator;
+  int16_t current_value;
+  real average;
+  int32_t history_sum;
+  int16_t history_next_index;
+  int16_t history_count;
+  int16_t history[AI_METER_HISTORY_TICKS];
+} ai_meter_t;
+cs(ai_meter_t, 0x88);
+co(ai_meter_t, history_next_index, 0x0c);
+co(ai_meter_t, history, 0x10);
+typedef struct {
+  boolean disabled;
+  boolean move_actors_randomly;
+  int16_t render_spray;
+  boolean show;
+  boolean show_stats;
+  boolean show_actors;
+  boolean show_swarms;
+  boolean show_paths;
+  boolean show_line_of_sight;
+  boolean show_prop_types;
+  boolean show_sound_distance;
+  ai_meter_t meters[NUMBER_OF_AI_METERS];
+} ai_profile_globals_t;
+cs(ai_profile_globals_t, 0xeec);
+co(ai_profile_globals_t, render_spray, 0x02);
+co(ai_profile_globals_t, show, 0x04);
+co(ai_profile_globals_t, show_sound_distance, 0x0b);
+co(ai_profile_globals_t, meters, 0x0c);
+
+/* AI globals: game_state_malloc("ai globals", NULL, 0x8dc) in ai_initialize
+ * (0x3f677), pointer kept at 0x632574.  +0x10 is the dialogue-trigger switch
+ * written by ai_globals_dialogue_triggers_enabled (0x3f7b0) and tested first
+ * by ai_communication_finished/_event; ai_communication_event (0x46f10) also
+ * walks three two-entry (per communication team) time arrays from +0x14.
+ * The other bytes are read and written by ai.c/actions.c/actors.c but not
+ * yet typed. */
+typedef struct {
+  uint8_t field_00[0x10];                  ///< offset=0x00
+  uint8_t dialogue_triggers_enabled;       ///< offset=0x10
+  uint8_t pad_11[0x3];                     ///< offset=0x11
+  int32_t last_chatter_time[2];            ///< offset=0x14
+  int32_t last_talk_time[2];               ///< offset=0x1c
+  int32_t last_shout_time[2];              ///< offset=0x24
+  uint8_t field_2c[0x8b0];                 ///< offset=0x2c
+} ai_globals_t;
+cs(ai_globals_t, 0x8dc);
+co(ai_globals_t, dialogue_triggers_enabled, 0x10);
+co(ai_globals_t, last_chatter_time, 0x14);
+co(ai_globals_t, last_talk_time, 0x1c);
+co(ai_globals_t, last_shout_time, 0x24);
+
+/* ai_communication dialogue/reply tables. */
+/* Dialogue table entry (0x257e48, stride 0x28 per the LEA [EAX+EAX*4] /
+ * [EDI*8+0x257e48] indexing).  +0x00 and +0x02 are read by
+ * ai_communication_started (0x44fd0) and ai_communication_notify (0x45290). */
+typedef struct {
+  int16_t communication_type;         /* +0x00 */
+  int16_t communication_priority;     /* +0x02 */
+  int16_t vocalization_type;          /* +0x04 */
+  int16_t animation_type;             /* +0x06 */
+  int16_t protagonist_type;           /* +0x08 */
+  int16_t protagonist_look_priority;  /* +0x0a */
+  int16_t recipient_look_direction;   /* +0x0c */
+  int16_t recipient_look_priority;    /* +0x0e */
+  real weight;                        /* +0x10 */
+  real repeat_delay;                  /* +0x14 */
+  int16_t flags;                      /* +0x18 */
+  int16_t required_group;             /* +0x1a */
+  int16_t required_hostility;         /* +0x1c */
+  int16_t required_enemy_status;      /* +0x1e */
+  int16_t required_subject_race;      /* +0x20 */
+  int16_t required_cause_race;        /* +0x22 */
+  int16_t required_damage;            /* +0x24 */
+  char pad_26[2];                     /* +0x26 */
+} dialogue_usage_t;
+cs(dialogue_usage_t, 0x28);
+/* Reply table entry (0x258eb0, stride 0x24).  Every field below is read by
+ * ai_communication_find_actor_to_reply_to_player (0x460e0) or
+ * ai_communication_finished (0x46530) at the listed offset. */
+typedef struct {
+  int16_t original_vocalization_type; /* +0x00 */
+  int16_t original_damage_category;   /* +0x02  -1 = any */
+  int16_t protagonist_type;           /* +0x04 */
+  int16_t vocalization_type;          /* +0x06 */
+  int16_t animation_type;             /* +0x08 */
+  int16_t communication_priority;     /* +0x0a */
+  uint16_t flags;                     /* +0x0c  bit 0: allowed during scripted dialog */
+  char pad_0e[2];                     /* +0x0e */
+  real chance;                        /* +0x10 */
+  real player_chance;                 /* +0x14 */
+  real delay_time;                    /* +0x18  seconds */
+  real repeat_delay;                  /* +0x1c */
+  bool (*reply_filter)(int original_unit_index, void *information,
+                       int reply_actor_index); /* +0x20  TEST AL on return */
+} reply_usage_t;
+cs(reply_usage_t, 0x24);
+
+/* Per-(entry, team) timer record in the dialogue (0x331f0c) and reply
+ * (0x331f14) status tables; initialize_for_new_map sets both dwords to -1. */
+typedef struct {
+  int32_t last_time_spoken;           /* +0x00 */
+  int32_t disable_until_time;         /* +0x04 */
+} dialogue_event_status_t;
+cs(dialogue_event_status_t, 0x8);
+/* communication_timer_tolerances element:
+ * [near_player][chatter, talk, -, shout, minimum], seconds. */
+typedef real communication_timer_tolerance_t[2][5];
 
 /* unit_speech_item — one queued/current unit speech (unit+0x338 holds the
  * current item).  Names T2 (PAL 2342 units.h); offsets confirmed by the
@@ -753,19 +872,6 @@ typedef struct {
   uint32_t unk_1056;                  ///< offset=0x420
 } unit_data_t;
 
-/* 'unit' tag definition (struct unit_definition = _object_definition +
- * _unit_definition in PAL 2342 units/unit_definitions.h).  Only the field
- * read by 2276 code so far is modelled; the leading bytes and the total
- * size are not verified.
- *   +0x284 ai_danger_radius — prop_add @0x64307 copies it (MOV EDX,[ECX+0x284])
- *          into prop->suicide_radius, matching PAL
- *          `prop->suicide_radius = unit_definition->unit.ai_danger_radius`. */
-typedef struct unit_definition_t {
-  char pad_000[0x284];
-  real ai_danger_radius;                  /* +0x284 */
-} unit_definition_t;
-co(unit_definition_t, ai_danger_radius, 0x284);
-
 // OBJE -> ITEM
 /// size=0x1DC
 typedef struct {
@@ -855,7 +961,10 @@ typedef struct {
   datum_index unit_handle;            ///< offset=0x34
   datum_index previous_unit_handle;   ///< offset=0x38
   int16_t cluster_index;              ///< offset=0x3c
-  char pad_3e[0x2a];                  ///< offset=0x3e
+  char pad_3e[2];                     ///< offset=0x3e
+  datum_index field_40;               ///< offset=0x40  object index returned by player_aim_projectile (0xa6450); -1 at player_new
+  int32_t field_44;                   ///< offset=0x44  game_time_get() at that aim (0xa6458)
+  char pad_48[0x20];                  ///< offset=0x48
   int16_t field_68[2];                ///< offset=0x68  hud.c comments +0x68 as ac_timer
   real speed_multiplier;              ///< offset=0x6c
   char pad_70[0x18];                  ///< offset=0x70
@@ -878,6 +987,8 @@ co(player_data_t, action_state,             0x28);
 co(player_data_t, unit_handle,              0x34);
 co(player_data_t, previous_unit_handle,     0x38);
 co(player_data_t, cluster_index,            0x3c);
+co(player_data_t, field_40,                 0x40);
+co(player_data_t, field_44,                 0x44);
 co(player_data_t, field_68,                 0x68);
 co(player_data_t, speed_multiplier,         0x6c);
 co(player_data_t, target_player_index,      0x88);
@@ -885,6 +996,30 @@ co(player_data_t, race_score,               0xc2);
 co(player_data_t, field_c4,                 0xc4);
 co(player_data_t, quit_at,                  0xcc);
 co(player_data_t, quitting,                 0xd1);
+
+/// size=0x38.  One candidate-target record of aim_assist.c (__FILE__ string at
+/// 0x26b08c).  Built by FUN_000a5ac0 (0xa5ac0), collected by FUN_000a5d70,
+/// sorted by compare_targets, copied out whole by FUN_000a6030.  Field meanings
+/// beyond object_index are behavior-only (T3), so they stay field_<hex>.
+typedef struct {
+  datum_index object_index;  ///< offset=0x00  a5ac0 stores its object handle arg; a6470/a6130 return it
+  real_point3d field_04;     ///< offset=0x04  point written via EDI = record+4 around the FUN_000a5920 call (0xa5ad2); a5830 line-of-sight target
+  real_vector3d field_10;    ///< offset=0x10  field_04 minus the query point (0xa5add-0xa5afc)
+  real_vector3d field_1c;    ///< offset=0x1c  copy of field_10, normalized in place (normalize3d 0xa5b10)
+  real field_28;             ///< offset=0x28  normalize3d return (length of field_10); compare_targets key
+  real field_2c;             ///< offset=0x2c  acos of clamped dot(field_1c, direction); compare_targets key
+  real field_30;             ///< offset=0x30  product of two FUN_000a5590 terms; compare_targets key
+  real field_34;             ///< offset=0x34  product of two FUN_000a5590 terms; compare_targets key
+} aim_assist_record_t;
+cs(aim_assist_record_t, 0x38);
+co(aim_assist_record_t, object_index, 0x00);
+co(aim_assist_record_t, field_04,     0x04);
+co(aim_assist_record_t, field_10,     0x10);
+co(aim_assist_record_t, field_1c,     0x1c);
+co(aim_assist_record_t, field_28,     0x28);
+co(aim_assist_record_t, field_2c,     0x2c);
+co(aim_assist_record_t, field_30,     0x30);
+co(aim_assist_record_t, field_34,     0x34);
 
 /// size=0xd0
 typedef struct {
@@ -1106,6 +1241,23 @@ typedef struct {
   uint32_t cookie;       ///< offset=0x0c
 } data_iter_t;
 
+/* Actor iterator (actor_iterator_new/_next, 0x1c bytes): an encounter data
+ * iterator, then the "encounterless list done" (+0x10) and active-only
+ * (+0x11) flags, the current actor index (+0x14) and the next one (+0x18). */
+typedef struct {
+  data_iter_t encounter_iterator;
+  boolean iterated_encounterless_list;
+  boolean active_only;
+  uint8_t pad_12[2];
+  int32_t index;
+  int32_t next_index;
+} actor_iterator_t;
+cs(actor_iterator_t, 0x1c);
+co(actor_iterator_t, iterated_encounterless_list, 0x10);
+co(actor_iterator_t, active_only, 0x11);
+co(actor_iterator_t, index, 0x14);
+co(actor_iterator_t, next_index, 0x18);
+
 /// Object iterator state block, 0x10 bytes.
 /// Initialised by object_iterator_new (0x13d6f0),
 /// advanced by object_iterator_next (0x13d730).
@@ -1176,6 +1328,26 @@ typedef struct {
 } real_matrix3x3;
 cs(real_matrix3x3, 0x24);
 
+/// Per-object record of the object render and shadow passes. Names: PAL 2342
+/// render_objects.c struct object_render_data (T2). Offsets: FUN_0018c100
+/// branches on shadow (+0x08) and writes no_planar_fog (+0x09);
+/// render_object_shadow_end (0x18b990) reads shadow_matrix (+0x0c, its
+/// forward/left/up/position at +0x10/+0x1c/+0x28/+0x34) and
+/// shadow_bounding_radius (+0x40). Size beyond +0x44 is unproven in 2276.
+typedef struct object_render_data {
+  datum_index object_index;          ///< offset=0x00
+  void *lighting;                    ///< offset=0x04
+  boolean shadow;                    ///< offset=0x08
+  boolean no_planar_fog;             ///< offset=0x09
+  byte pad_0a[2];                    ///< offset=0x0a
+  real_matrix4x3 shadow_matrix;      ///< offset=0x0c
+  real shadow_bounding_radius;       ///< offset=0x40
+} object_render_data;
+co(object_render_data, shadow, 0x08);
+co(object_render_data, no_planar_fog, 0x09);
+co(object_render_data, shadow_matrix, 0x0c);
+co(object_render_data, shadow_bounding_radius, 0x40);
+
 /// size=0x10. Vector part then scalar; identity is (0,0,0,1) (0x28cae8).
 typedef struct {
   real_vector3d v; ///< offset=0x00
@@ -1221,6 +1393,152 @@ typedef struct {
 cs(real_rgb_color, 0xc);
 co(real_rgb_color, green, 0x04);
 co(real_rgb_color, blue, 0x08);
+
+/// rasterizer_debug_options (0x3256b8). Prefix only. Names and offsets follow
+/// PAL 2342 rasterizer_debug_options.h (T2), whose offsets match every field
+/// read here in 2276: CMP word [0x3256ba] (statistics_mode), [0x3256c4]
+/// (draw_models), [0x3256ca] (draw_environment_shadows), [0x3256d4] (fog),
+/// [0x3256f6]/[0x3256f7] (shadows_convolution/shadows_debug).
+typedef struct {
+  byte pad_00[2];                   ///< offset=0x00
+  int16_t statistics_mode;          ///< offset=0x02
+  byte pad_04[8];                   ///< offset=0x04
+  boolean draw_models;              ///< offset=0x0c
+  boolean draw_transparent_models;  ///< offset=0x0d
+  byte pad_0e[4];                   ///< offset=0x0e
+  boolean draw_environment_shadows; ///< offset=0x12
+  byte pad_13[9];                   ///< offset=0x13
+  boolean fog;                      ///< offset=0x1c
+  byte pad_1d[0x21];                ///< offset=0x1d
+  boolean shadows_convolution;      ///< offset=0x3e
+  boolean shadows_debug;            ///< offset=0x3f
+} rasterizer_debug_options_t;
+co(rasterizer_debug_options_t, statistics_mode, 0x02);
+co(rasterizer_debug_options_t, draw_models, 0x0c);
+co(rasterizer_debug_options_t, draw_environment_shadows, 0x12);
+co(rasterizer_debug_options_t, fog, 0x1c);
+co(rasterizer_debug_options_t, shadows_convolution, 0x3e);
+co(rasterizer_debug_options_t, shadows_debug, 0x3f);
+
+/// global_window_parameters (0x5a5bc0), PAL 2342 struct
+/// rasterizer_window_begin_parameters. Prefix only: the render target the
+/// window draws to (CMP word [0x5a5bc0],0 against
+/// _rasterizer_target_render_primary), window_index (named by the
+/// rasterizer_lights.c assert string at +0x02) and the render camera at +0x08,
+/// whose position/forward rasterizer_lights.c reads at +0x08/+0x14 and whose
+/// viewport_bounds rasterizer_set_target reads at 0x5a5bf4..0x5a5bfa.
+typedef struct {
+  int16_t rasterizer_target; ///< offset=0x00
+  int16_t window_index;      ///< offset=0x02
+  byte pad_04[4];            ///< offset=0x04
+  camera_t camera;           ///< offset=0x08
+} rasterizer_window_begin_parameters;
+co(rasterizer_window_begin_parameters, window_index, 0x02);
+co(rasterizer_window_begin_parameters, camera, 0x08);
+
+/// rasterizer_set_target / rasterizer_set_target_as_texture targets. Names
+/// follow PAL 2342 (T2); 2276 confirms the order: each case of
+/// rasterizer_set_target (0x158140) binds the surface whose IDirect3D* error
+/// string in FUN_00157010 names it, and case 6 asserts
+/// "mipmap_index>=0 && mipmap_index<RASTERIZER_TARGET_WATER_MAX_MIPMAP_LEVELS".
+enum rasterizer_target {
+  _rasterizer_target_render_primary = 0,
+  _rasterizer_target_render_secondary,
+  _rasterizer_target_shadow_primary,
+  _rasterizer_target_shadow_secondary,
+  _rasterizer_target_sun_glow_primary,
+  _rasterizer_target_sun_glow_secondary,
+  _rasterizer_target_water_bumpmap,
+  _rasterizer_target_render_primary_copy,
+  NUMBER_OF_RASTERIZER_TARGETS
+};
+
+/// global_d3d_surface_water element count (FUN_00157010's
+/// GetSurfaceLevel loop runs mip 0..3).
+enum {
+  RASTERIZER_TARGET_WATER_MAX_MIPMAP_LEVELS = 4
+};
+
+/// global_frame_parameters (0x5a5e18), PAL 2342 struct
+/// rasterizer_frame_begin_parameters. Prefix only: FUN_00157940
+/// (_rasterizer_frame_begin) stores parameters->game_time_sec here, and the
+/// texture-animation callers pass it as the animation time.
+typedef struct {
+  real game_time_sec; ///< offset=0x00
+} rasterizer_frame_begin_parameters;
+
+/// rasterizer_frame_statistics (0x5a5400), PAL 2342 struct
+/// rasterizer_frame_statistics_globals. 0x170 bytes: FUN_0017eb90 clears it
+/// with csmemset(&rasterizer_frame_statistics, 0, 0x170). The named counters
+/// are the ones rasterizer_frame_statistics_update (0x17ef00) prints as
+/// "shadows (%d)|t%d|t%d|t%d" (+0x30..+0x3c) and "model shadows (%d)"
+/// (+0xf4..+0x100); the first column is bumped once per shadow by
+/// FUN_00172a30 / FUN_00172590, the other three by the draw paths.
+typedef struct {
+  real frames_per_second;                 ///< offset=0x00
+  byte pad_04[0x2c];                      ///< offset=0x04
+  uint32_t shadow_count;                  ///< offset=0x30
+  uint32_t shadow_vertex_count;           ///< offset=0x34
+  uint32_t shadow_triangle_count;         ///< offset=0x38
+  uint32_t shadow_draw_count;             ///< offset=0x3c
+  byte pad_40[0xb4];                      ///< offset=0x40
+  uint32_t model_shadow_count;            ///< offset=0xf4
+  uint32_t model_shadow_vertex_count;     ///< offset=0xf8
+  uint32_t model_shadow_triangle_count;   ///< offset=0xfc
+  uint32_t model_shadow_draw_count;       ///< offset=0x100
+  byte pad_104[0x6c];                     ///< offset=0x104
+} rasterizer_frame_statistics_globals;
+cs(rasterizer_frame_statistics_globals, 0x170);
+co(rasterizer_frame_statistics_globals, shadow_count, 0x30);
+co(rasterizer_frame_statistics_globals, shadow_draw_count, 0x3c);
+co(rasterizer_frame_statistics_globals, model_shadow_count, 0xf4);
+co(rasterizer_frame_statistics_globals, model_shadow_draw_count, 0x100);
+
+/// global_pixel_shader (0x5a5ac0), PAL 2342 struct pixel_shader_definition:
+/// the 0xf0-byte pixel-shader state block handed to rasterizer_set_pixel_shader
+/// (csmemset(&global_pixel_shader, 0, 0xf0) in
+/// _rasterizer_environment_shadow_draw).
+typedef struct {
+  uint32_t alpha_inputs[8];           ///< offset=0x00
+  uint32_t final_combiner_inputs_abcd; ///< offset=0x20
+  uint32_t final_combiner_inputs_efg; ///< offset=0x24
+  uint32_t constant_0[8];             ///< offset=0x28
+  uint32_t constant_1[8];             ///< offset=0x48
+  uint32_t alpha_outputs[8];          ///< offset=0x68
+  uint32_t rgb_inputs[8];             ///< offset=0x88
+  uint32_t compare_mode;              ///< offset=0xa8
+  uint32_t final_combiner_constant_0; ///< offset=0xac
+  uint32_t final_combiner_constant_1; ///< offset=0xb0
+  uint32_t rgb_outputs[8];            ///< offset=0xb4
+  uint32_t combiner_count;            ///< offset=0xd4
+  uint32_t texture_modes;             ///< offset=0xd8
+  byte pad_dc[0x14];                  ///< offset=0xdc
+} pixel_shader_definition;
+cs(pixel_shader_definition, 0xf0);
+co(pixel_shader_definition, constant_1, 0x48);
+co(pixel_shader_definition, rgb_outputs, 0xb4);
+co(pixel_shader_definition, texture_modes, 0xd8);
+
+/// rasterizer_environment_shadows_globals (0x47e46c), PAL 2342
+/// rasterizer_xbox_shadows.c. shadow_color is passed to
+/// real_rgb_color_to_pixel32 (PUSH 0x47e46c at 0x173317); object_bounding_radius
+/// and shadow_matrix are stored by FUN_00172a30; local_parameters by
+/// FUN_00172590; shadow_setup is the once-per-shadow latch of
+/// _rasterizer_environment_shadow_draw; shadow_used is tested by
+/// _rasterizer_environment_shadow_end.
+typedef struct environment_shadows_globals {
+  real_rgb_color shadow_color;    ///< offset=0x00
+  real object_bounding_radius;    ///< offset=0x0c
+  real_matrix4x3 shadow_matrix;   ///< offset=0x10
+  void *local_parameters;         ///< offset=0x44
+  boolean shadow_setup;           ///< offset=0x48
+  boolean shadow_used;            ///< offset=0x49
+} environment_shadows_globals;
+co(environment_shadows_globals, object_bounding_radius, 0x0c);
+co(environment_shadows_globals, shadow_matrix, 0x10);
+co(environment_shadows_globals, local_parameters, 0x44);
+co(environment_shadows_globals, shadow_setup, 0x48);
+co(environment_shadows_globals, shadow_used, 0x49);
 co(camera_t, field_00, 0x00);
 co(camera_t, field_0c, 0x0c);
 co(camera_t, field_18, 0x18);
@@ -1363,6 +1681,71 @@ typedef struct tag_block {
 } tag_block;
 cs(tag_block, 0xc);
 
+/* 'unit' tag definition (struct unit_definition = _object_definition +
+ * _unit_definition).  Only the fields read by 2276 code so far are
+ * modelled; the leading bytes and the total size are not verified.  Placed
+ * after tag_block because it embeds one.
+ *   +0x284 ai_danger_radius — prop_add @0x64307 copies it (MOV EDX,[ECX+0x284])
+ *          into prop->suicide_radius.
+ *   +0x2e4 seats — tag block of 0x11c-byte seat elements; indexed by the
+ *          unit's seat index (unit +0x2a0): director_desired_perspective
+ *          (0x864b0) hands &seats to tag_block_get_element with size 0x11c. */
+typedef struct unit_definition_t {
+  char pad_000[0x17c];
+  uint32_t flags;                         /* +0x17c (bit 20 special) */
+  char pad_180[0x284 - 0x180];
+  real ai_danger_radius;                  /* +0x284 */
+  char pad_288[0x2e4 - 0x288];
+  tag_block seats;                        /* +0x2e4 */
+} unit_definition_t;
+co(unit_definition_t, flags, 0x17c);
+co(unit_definition_t, ai_danger_radius, 0x284);
+co(unit_definition_t, seats, 0x2e4);
+
+/* Biped tag definition: the unit definition followed by the biped block.
+ *   +0x2f4 biped_flags — bit 2 flying, bit 6 climbs anything
+ *          (biped_accelerate, 0x1a4a70). */
+typedef struct biped_definition_t {
+  unit_definition_t unit;                 /* +0x000 */
+  char pad_2f0[0x2f4 - 0x2f0];
+  uint32_t biped_flags;                   /* +0x2f4 */
+} biped_definition_t;
+co(biped_definition_t, biped_flags, 0x2f4);
+
+/* Unit seat tag-block element, 0x11c bytes (director_desired_perspective's
+ * tag_block_get_element size).  Only the leading flags dword is read here:
+ * bit 4 makes the director use the following camera, bit 6 picks a
+ * perspective from the unit's enter/exit animation state. */
+typedef struct {
+  uint32_t flags;
+  uint8_t pad_04[0x118];
+} unit_seat_t;
+cs(unit_seat_t, 0x11c);
+
+enum {
+  _unit_seat_third_person_camera_bit = 4,
+  _unit_seat_third_person_on_enter_bit = 6,
+  /* first_person_camera_for_unit_and_vector (0x88d50) tests the sign of
+   * the seat's first flags byte to pick the "primary trigger" marker. */
+  _unit_seat_first_person_camera_bit = 7
+};
+
+/* object_get_and_verify_type type masks: bit n = object type n. */
+enum {
+  _object_type_biped = 0,
+  _object_type_vehicle = 1,
+  _object_mask_unit = (1 << _object_type_biped) | (1 << _object_type_vehicle),
+  _object_mask_vehicle = 1 << _object_type_vehicle,
+  _object_mask_all = -1
+};
+
+/* unit_data_t.unk_595 (+0x253) animation state values tested by
+ * director_desired_perspective. */
+enum {
+  _unit_state_entering_seat = 0x1a,
+  _unit_state_exiting_seat = 0x1b
+};
+
 /* 'antr' animation-graph tag: only the node and animation blocks at
  * +0x68/+0x74 are proven (scripted_camera_set_animation 0x85000 tests
  * nodes.count == 1, then walks animations with element size 0xb4). */
@@ -1407,12 +1790,34 @@ typedef struct
   _WORD type;        ///< offset=0x3C
   _BYTE unk_62[174]; ///< offset=0x3E
   int   unk_236;     ///< offset=0xEC
-  _BYTE unk_240[0x400];                ///< offset=0xF0
+  _BYTE unk_240[0x114];                ///< offset=0xF0
+  struct tag_block object_names;       ///< offset=0x204  element 0x24 (scenario_object_name_t)
+  uint8_t pad_210[0x21c];              ///< offset=0x210
+  struct tag_block ai_encounters;      ///< offset=0x42c  element 0xb0 (encounter_definition)
+  uint8_t pad_438[0xb8];               ///< offset=0x438
   struct tag_block cutscene_camera_points; ///< offset=0x4F0  element 0x68, scripted_camera_set
   uint8_t pad_4fc[0xa8];                   ///< offset=0x4fc
   struct tag_block structure_bsp_references; ///< offset=0x5a4  element 0x20 (scenario_structure_bsp_reference_t), 0x18e480
 } scenario_t;
 co(scenario_t, cutscene_camera_points, 0x4f0);
+co(scenario_t, object_names, 0x204);
+co(scenario_t, ai_encounters, 0x42c);
+
+/* scenario_t::object_names element (stride 0x24); the name is at +0, read
+ * as a string by the debug printers (e.g. ai_communication_started). */
+typedef struct {
+  char name[0x20];
+  uint8_t pad_20[4];
+} scenario_object_name_t;
+cs(scenario_object_name_t, 0x24);
+
+/* encounter_definition::squads element (stride 0xe8); the name is at +0,
+ * printed by ai_communication_started. */
+typedef struct {
+  char name[0x20];
+  uint8_t pad_20[0xc8];
+} squad_definition_t;
+cs(squad_definition_t, 0xe8);
 co(scenario_t, structure_bsp_references, 0x5a4);
 
 // FIXME: Merge adjacent globals into this structure
@@ -1720,8 +2125,9 @@ co(path_destination_t, orders_ignore_target_object_index, 0x14);
 /* prop_t — struct prop_datum, an element of the "prop" data_t pool
  * (0x138 = 312 bytes; props_initialize @0x64100 allocates 0x300 x 0x138).
  *
- * Field names and order: PAL 2342 source/ai/props.h `struct prop_datum`
- * (tier T2).  Offsets are 2276-binary evidence, cross-checked against the
+ * Historical field names and grouping came from PAL 2342 source/ai/props.h
+ * `struct prop_datum`. This is historical provenance, not naming authority.
+ * The following offsets have reported 2276 evidence, cross-checked against the
  * stores in prop_add (0x64170) and prop_setup_orphan (0x647c0):
  *   +0x04/+0x08/+0x0c/+0x18/+0x1c/+0x66/+0x6a/+0x6c/+0x70/+0x74/+0x7c/+0x8c/
  *   +0xa0/+0xb0/+0xb4/+0xb8 initialised by prop_add; +0x24 = 4
@@ -1730,7 +2136,9 @@ co(path_destination_t, orders_ignore_target_object_index, 0x14);
  *   velocity and +0x123 quantized_speed written by prop_setup_orphan.
  *   Asserts in props.c name owner_actor_index, orphan_prop_index and
  *   parent_prop_index (both at +0x0c).  actor_move_to_prop reads +0x18 and
- *   +0x110.  Fields not listed here are PAL-placed, not yet observed in 2276.
+ *   +0x110. Fields not listed here were historically PAL-placed; their widths
+ *   and semantics require independent verification. Neutralizing an unused
+ *   name preserves storage and does not validate the historical layout.
  */
 /* prop_t.state values — PAL 2342 source/ai/props.h (T2).  2276 evidence:
  * prop_setup_orphan stores 4; prop_new_unacknowledged skips 4..5 (orphans);
@@ -1772,44 +2180,44 @@ typedef struct prop_t {
   int16_t orphan_inspection_ticks;        /* +0x03c */
   char pad_03e[0x2];
   real_vector3d orphan_hint_vector;       /* +0x040 */
-  int16_t ticks_until_orphan;             /* +0x04c */
+  int16_t field_4c;                       /* +0x04c; historical name in provenance ledger */
   boolean orphan_corpse_cheated;          /* +0x04e */
   char pad_04f[0x1];
   real target_weight;                     /* +0x050 */
   real look_interest;                     /* +0x054 */
-  real last_idle_look_interest;           /* +0x058 */
-  int32_t last_idle_look_time;            /* +0x05c */
+  real field_58;                         /* +0x058 */
+  int32_t field_5c;                      /* +0x05c */
   boolean enemy;                          /* +0x060 */
   boolean ally;                           /* +0x061 */
-  boolean ally_status_changed;            /* +0x062 */
+  boolean field_62;                      /* +0x062 */
   boolean in_use;                         /* +0x063 */
   boolean refresh_stimuli;                /* +0x064 */
   char pad_065[0x1];
   int16_t unit_effect;                    /* +0x066 */
-  int16_t unit_effect_decay_ticks;        /* +0x068 */
+  int16_t field_68;                      /* +0x068 */
   int16_t required_ticks;                 /* +0x06a */
-  int16_t ticks_since_damage;             /* +0x06c */
+  int16_t field_6c;                      /* +0x06c */
   char pad_06e[0x2];
-  real damage_inflicted_on_me;            /* +0x070 */
-  boolean currently_damaging_me;          /* +0x074 */
+  real field_70;                         /* +0x070 */
+  boolean field_74;                      /* +0x074 */
   char pad_075[0x1];
   int16_t dead_ticks;                     /* +0x076 */
-  int16_t visible_ticks;                  /* +0x078 */
+  int16_t field_78;                      /* +0x078 */
   char pad_07a[0x2];
   int32_t last_perceived_time;            /* +0x07c */
   real_point3d last_perceived_body_position; /* +0x080 */
   int32_t last_visible_time;              /* +0x08c */
   real_point3d last_visible_head_position; /* +0x090 */
-  int16_t unreachable_ticks;              /* +0x09c */
+  int16_t field_9c;                      /* +0x09c; word comparison @0x2fc6c */
   char pad_09e[0x2];
   int32_t last_unreachable_time;          /* +0x0a0 */
   boolean unopposable_enemy;              /* +0x0a4 */
   char pad_0a5[0x1];
   int16_t unopposable_casualties_inflicted; /* +0x0a6 */
-  int16_t unopposable_casualty_decay_timer; /* +0x0a8 */
-  int16_t unopposable_trigger_hysteresis; /* +0x0aa */
-  int16_t unopposable_trigger_timer;      /* +0x0ac */
-  int16_t unopposable_trigger_threshold;  /* +0x0ae */
+  int16_t field_a8;                      /* +0x0a8 */
+  int16_t field_aa;                      /* +0x0aa; word clear @0x2fcba */
+  int16_t field_ac;                      /* +0x0ac; word clear @0x2fcc8 */
+  int16_t field_ae;                      /* +0x0ae; word clear @0x2fcc1 */
   int16_t ticks_since_definitely_located; /* +0x0b0 */
   char pad_0b2[0x2];
   int32_t definite_knowledge_source_actor; /* +0x0b4 */
@@ -1825,7 +2233,7 @@ typedef struct prop_t {
   real_point3d pathfinding_point;         /* +0x0f0 */
   int32_t body_location_leaf_index;       /* +0x0fc struct location */
   int16_t body_location_cluster_index;    /* +0x100 */
-  int16_t body_location_bonus;            /* +0x102 */
+  int16_t field_102;                     /* +0x102 */
   real_point3d head_position;             /* +0x104 */
   int32_t vehicle_index;                  /* +0x110 */
   int32_t attached_to_unit_index;         /* +0x114 */
@@ -1870,8 +2278,8 @@ co(prop_t, orphan_hint_vector, 0x040);
 co(prop_t, orphan_corpse_cheated, 0x04e);
 co(prop_t, enemy, 0x060);
 co(prop_t, unit_effect, 0x066);
-co(prop_t, ticks_since_damage, 0x06c);
-co(prop_t, damage_inflicted_on_me, 0x070);
+co(prop_t, field_6c, 0x06c);
+co(prop_t, field_70, 0x070);
 co(prop_t, dead_ticks, 0x076);
 co(prop_t, last_perceived_time, 0x07c);
 co(prop_t, last_perceived_body_position, 0x080);
@@ -2758,8 +3166,10 @@ co(vector_avoidance_ray_t, offset, 0x04);
 co(vector_avoidance_ray_t, divergence, 0x10);
 
 typedef struct actor_debug_info_t {
-  int32_t last_render_id;                    ///< offset=0x0000  PAL 2342 actor_debug_info
-  int32_t last_path_refresh;                 ///< offset=0x0004
+  /* Historical PAL names are recorded in the provenance ledger. Widths
+   * retained for compatibility; neutral names do not establish target proof. */
+  int32_t field_00;                          ///< offset=0x0000
+  int32_t field_04;                          ///< offset=0x0004
   int16_t firing_decision;                   ///< offset=0x0008  word store @0x23fcd (actor_combat_update)
   char pad_000a[0x2];                        ///< offset=0x000a
   real shooting_rof;                         ///< offset=0x000c  FST @0x23f3f
@@ -2860,9 +3270,25 @@ typedef struct object_datum_t {
   real_vector3d forward;                                ///< offset=0x24
   real_vector3d up;                                     ///< offset=0x30
   real_vector3d angular_velocity;                       ///< offset=0x3c
-  char pad_48[0x1a4 - 0x48];                            ///< offset=0x48
+  char pad_48[0xb6 - 0x48];                             ///< offset=0x48
+  uint8_t damage_flags;                                 ///< offset=0xb6 (bit 2 dead)
+  char pad_b7[0xcc - 0xb7];                             ///< offset=0xb7
+  int32_t parent_object_index;                          ///< offset=0xcc
+  char pad_d0[0x1a4 - 0xd0];                            ///< offset=0xd0
 } object_datum_t;
 cs(object_datum_t, 0x1a4);
+co(object_datum_t, damage_flags, 0xb6);
+co(object_datum_t, parent_object_index, 0xcc);
+
+/* Biped object datum.  Only the biped flags dword is modelled; the span
+ * between the object header and it is unobserved.
+ *   +0x424 flags — biped_accelerate (0x1a4a70) ORs 3 (airborne | slipping). */
+typedef struct biped_datum_t {
+  object_datum_t object;                                ///< offset=0x00
+  char pad_1a4[0x424 - 0x1a4];                          ///< offset=0x1a4
+  uint32_t flags;                                       ///< offset=0x424
+} biped_datum_t;
+co(biped_datum_t, flags, 0x424);
 co(object_datum_t, definition_index, 0x00);
 co(object_datum_t, position, 0x0c);
 co(object_datum_t, translational_velocity, 0x18);
@@ -3353,6 +3779,33 @@ co(vehicle_definition_t, field_314, 0x314);
 co(vehicle_definition_t, field_364, 0x364);
 co(vehicle_definition_t, effect, 0x3e0);
 co(tag_reference, tag_index, 0x0c);
+
+/// size=0x1ac. global_rasterizer_data (0x476204): element 0 of the game
+/// globals rasterizer_data block, set by rasterizer_initialize_for_new_map
+/// (tag_block_get_element(game_globals + 0x134, 0, 0x1ac)); the binary's
+/// "global_rasterizer_data" assert string names the pointer. Names follow
+/// PAL 2342 struct game_globals_rasterizer_data (T2); every named field is a
+/// tag_index read in 2276: +0x1c / +0x4c (_rasterizer_environment_shadow_draw
+/// stages 2 / 1), +0x2c / +0x3c (environment fog), +0xb8 + type * 0x10
+/// (rasterizer_xbox.c default textures), +0x128 / +0x138 (rasterizer_sprites.c).
+typedef struct {
+  byte pad_00[0x10];                             ///< offset=0x00
+  tag_reference vector_normalization;            ///< offset=0x10
+  tag_reference atmospheric_fog_density;         ///< offset=0x20
+  tag_reference planar_fog_density;              ///< offset=0x30
+  tag_reference linear_corner_fade;              ///< offset=0x40
+  byte pad_50[0x5c];                             ///< offset=0x50
+  tag_reference default_textures[3];             ///< offset=0xac
+  byte pad_dc[0x40];                             ///< offset=0xdc
+  tag_reference screen_effect_video_scanline_map; ///< offset=0x11c
+  tag_reference screen_effect_video_noise_map;   ///< offset=0x12c
+  byte pad_13c[0x70];                            ///< offset=0x13c
+} game_globals_rasterizer_data;
+cs(game_globals_rasterizer_data, 0x1ac);
+co(game_globals_rasterizer_data, vector_normalization, 0x10);
+co(game_globals_rasterizer_data, linear_corner_fade, 0x40);
+co(game_globals_rasterizer_data, default_textures, 0xac);
+co(game_globals_rasterizer_data, screen_effect_video_scanline_map, 0x11c);
 
 /* scenario_t::structure_bsp_references element; stride 0x20 from
  * global_structure_bsp_tag_index_get (0x18e480), which reads +0x1c. */
@@ -4851,6 +5304,51 @@ co(camera_command_t, forward, 0x24);
 co(camera_command_t, up, 0x30);
 co(camera_command_t, velocity, 0x3c);
 co(camera_command_t, timer, 0x48);
+
+/* camera_command_t.flags bits.  Bit 0 gates the "Invalid camera command."
+ * validation (observer_set_camera 0x8acb0, first_person_camera_for_unit_and_
+ * vector 0x88d50); observer_set_camera raises bit 3 on an observer's first
+ * command. */
+enum {
+  _observer_command_valid_bit = 0,
+  _observer_command_force_time_bit = 3
+};
+
+/* Per-local-player observer, 0x29c bytes (observer_update strides 0x29c from
+ * 0x33571c).  observer_result_initialize writes OBSERVER_SIGNATURE at +0x0
+ * and +0x298 and seeds the +0x70/+0x71 bytes; observer_update checks both
+ * signatures and the +0x70 byte under the "observer->header_signature",
+ * "!observer->updated_for_frame" asserts; observer_set_camera stores the
+ * command pointer at +0x4 and tests/sets +0x71; observer_update_command
+ * copies the 0x68-byte command to +0x8; observer_get_camera returns +0x74. */
+typedef struct {
+  int32_t header_signature;                ///< offset=0x00
+  camera_command_t *pending_command;       ///< offset=0x04
+  camera_command_t last_command;           ///< offset=0x08
+  uint8_t updated_for_frame;               ///< offset=0x70
+  uint8_t first_command;                   ///< offset=0x71
+  uint8_t pad_72[2];                       ///< offset=0x72
+  uint8_t field_74[0x224];                 ///< offset=0x74 camera result + integrator state
+  int32_t trailer_signature;               ///< offset=0x298
+} observer_t;
+cs(observer_t, 0x29c);
+co(observer_t, pending_command, 0x04);
+co(observer_t, last_command, 0x08);
+co(observer_t, updated_for_frame, 0x70);
+co(observer_t, first_command, 0x71);
+co(observer_t, field_74, 0x74);
+co(observer_t, trailer_signature, 0x298);
+
+#define OBSERVER_SIGNATURE 0x72616421 /* 'rad!' */
+
+/* Observer globals at 0x335718: observer_update stores its delta time at
+ * +0x0, the four observers follow at 0x33571c. */
+typedef struct {
+  real dtime;
+  observer_t local_players[4];
+} observer_globals_t;
+cs(observer_globals_t, 0xa74);
+co(observer_globals_t, local_players, 0x04);
 /* Camera state and input layouts re-proven from the 2276 update routines.
  * Field names are T2 from PAL 2342; recovery/evidence/camera_*.json records
  * the target-build accesses. */
@@ -4928,6 +5426,165 @@ typedef struct {
 } orbiting_camera_t;
 cs(orbiting_camera_t, 0x0c);
 co(orbiting_camera_t, distance, 0x08);
+
+/* Director debug variable: four {value, velocity, delta} triples at director
+ * +0xc8 (director_process_variables walks them with a 0xc stride). */
+typedef struct {
+  real value;
+  real velocity;
+  real delta;
+} director_variable_instance_t;
+cs(director_variable_instance_t, 0x0c);
+co(director_variable_instance_t, velocity, 0x04);
+co(director_variable_instance_t, delta, 0x08);
+
+/* Director debug variable definition (0x1c-byte .data table entries read by
+ * director_process_variables). */
+typedef struct {
+  int16_t negative_bit;
+  int16_t positive_bit;
+  int16_t reset_bit;
+  uint8_t pad_06[2];
+  real scale;
+  real initial_value;
+  real minimum;
+  real maximum;
+  uint8_t has_hyper_scale;
+  uint8_t pad_19[3];
+} director_variable_definition_t;
+cs(director_variable_definition_t, 0x1c);
+co(director_variable_definition_t, scale, 0x08);
+co(director_variable_definition_t, initial_value, 0x0c);
+co(director_variable_definition_t, minimum, 0x10);
+co(director_variable_definition_t, maximum, 0x14);
+co(director_variable_definition_t, has_hyper_scale, 0x18);
+
+/* Per-local-player camera director, 0xf8 bytes (stride of every
+ * index * 0xf8 access in director.obj).
+ *   +0x04 camera_change_pause  1.0f written by FUN_000865a0 when asked
+ *   +0x08 camera_proc          the active camera update function; holds the
+ *                              ORIGINAL entry address (see director.c)
+ *   +0x0c camera_data          per-mode camera block (following/first-person
+ *                              camera_new take &camera_data)
+ *   +0x4c bored_time / +0x50 bored  dword + byte pair read together
+ *   +0x51 inhibited_facing     director_inhibit_facing / _inhibited_facing
+ *   +0x52 inhibited_input      director_set_local_player_context /
+ *                              director_inhibited_input
+ *   +0x54 seat_state           perspective word stored by
+ *                              director_choose_game_perspective
+ *   +0x56 perspective          cache written by director_get_perspective */
+typedef struct {
+  int16_t camera_mode_index;
+  uint8_t pad_02[2];
+  real camera_change_pause;
+  int32_t camera_proc;
+  uint8_t camera_data[0x40];
+  int32_t bored_time;
+  uint8_t bored;
+  uint8_t inhibited_facing;
+  uint8_t inhibited_input;
+  uint8_t pad_53[1];
+  int16_t seat_state;
+  int16_t perspective;
+  camera_command_t command;
+  uint8_t debug_controls;
+  uint8_t pad_c1[3];
+  real debug_input_scale;
+  director_variable_instance_t debug_variables[4];
+} camera_director_t;
+cs(camera_director_t, 0xf8);
+co(camera_director_t, camera_change_pause, 0x04);
+co(camera_director_t, camera_proc, 0x08);
+co(camera_director_t, camera_data, 0x0c);
+co(camera_director_t, bored_time, 0x4c);
+co(camera_director_t, bored, 0x50);
+co(camera_director_t, inhibited_facing, 0x51);
+co(camera_director_t, inhibited_input, 0x52);
+co(camera_director_t, seat_state, 0x54);
+co(camera_director_t, perspective, 0x56);
+co(camera_director_t, command, 0x58);
+co(camera_director_t, debug_controls, 0xc0);
+co(camera_director_t, debug_input_scale, 0xc4);
+co(camera_director_t, debug_variables, 0xc8);
+
+/* Director globals at 0x3352a8: the frame delta director_update writes
+ * (0x3352a8), the director game mode word (0x3352ac, compared/stored by
+ * director_set_game_mode), the re-dispatch flag byte it raises (0x3352ae),
+ * then the four local-player directors (0x3352b0). */
+typedef struct {
+  real dtime;
+  int16_t game_mode;
+  uint8_t initialize_camera;
+  uint8_t pad_07[1];
+  camera_director_t local_players[4];
+} director_globals_t;
+cs(director_globals_t, 0x3e8);
+co(director_globals_t, game_mode, 0x04);
+co(director_globals_t, initialize_camera, 0x06);
+co(director_globals_t, local_players, 0x08);
+
+/* "director scripting" game-state block (game_state_malloc size 4); only the
+ * first byte is ever read or written. */
+typedef struct {
+  uint8_t camera_scripted;
+  uint8_t pad_01[3];
+} director_scripting_t;
+cs(director_scripting_t, 0x4);
+
+/* Editor (flying) camera globals at 0x335698, 0x7c bytes.  Offsets from the
+ * director.obj editor_camera_* functions: +0x01 use_roll byte (FUN_00087ac0),
+ * +0x02 initialized byte and +0x04 focus (editor_camera_set_focus /
+ * _set_position), +0x18 live camera pointer, +0x2c mode word
+ * (editor_camera_set_mode), +0x38 two persisted 0x20-byte camera slots. */
+typedef struct {
+  flying_camera_t camera;
+  uint8_t saved;
+  uint8_t pad_1d[3];
+} editor_camera_persisted_camera_t;
+cs(editor_camera_persisted_camera_t, 0x20);
+co(editor_camera_persisted_camera_t, saved, 0x1c);
+
+typedef struct {
+  uint8_t scripted;
+  uint8_t use_roll;
+  uint8_t initialized;
+  uint8_t pad_03[1];
+  real_point3d focus_position;
+  real_euler_angles2d focus_angles;
+  flying_camera_t *camera;
+  uint8_t reset_all;
+  uint8_t pad_1d[3];
+  real_vector3d unit_offset;
+  int16_t mode;
+  uint8_t pad_2e[4];
+  uint8_t last_scripted;
+  uint8_t pad_33[5];
+  editor_camera_persisted_camera_t persisted_cameras[2];
+  uint32_t speed_step;
+} editor_camera_globals_t;
+cs(editor_camera_globals_t, 0x7c);
+co(editor_camera_globals_t, use_roll, 0x01);
+co(editor_camera_globals_t, initialized, 0x02);
+co(editor_camera_globals_t, focus_position, 0x04);
+co(editor_camera_globals_t, focus_angles, 0x10);
+co(editor_camera_globals_t, camera, 0x18);
+co(editor_camera_globals_t, reset_all, 0x1c);
+co(editor_camera_globals_t, unit_offset, 0x20);
+co(editor_camera_globals_t, mode, 0x2c);
+co(editor_camera_globals_t, last_scripted, 0x32);
+co(editor_camera_globals_t, persisted_cameras, 0x38);
+co(editor_camera_globals_t, speed_step, 0x78);
+
+/* translate_funcs[mode][direction] (0x2ee67c): per editor-camera-mode
+ * {_translate_from, _translate_to} callbacks, named by the asserts in
+ * editor_camera_set_mode. */
+typedef void (*editor_camera_translate_function)(flying_camera_t *camera);
+enum {
+  _translate_from = 0,
+  _translate_to = 1,
+  NUMBER_OF_EDITOR_CAMERA_TRANSLATIONS = 2,
+  NUMBER_OF_EDITOR_CAMERA_MODES = 2
+};
 
 co(camera_command_t, field_4c, 0x4c);
 co(camera_command_t, field_54, 0x54);

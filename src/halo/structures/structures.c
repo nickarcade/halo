@@ -5172,7 +5172,7 @@ void FUN_00196060(int object_handle, float *position, float radius,
  * FUN_00196060 (diffuse lights) / FUN_00195f30 (specular): identical shape, but
  * with shadow-specific profiler scopes, NO per-gel branch (always builds the
  * surface set from the passed center/radius/bounds/count/planes), a single
- * surface-draw callback (FUN_0017ccf0), and rasterizer_dynamic_triangles_delete
+ * surface-draw callback (rasterizer_environment_shadow_draw), and rasterizer_dynamic_triangles_delete
  * as the post-draw thunk (no HUD-end call).  Allocates a 0x4000-byte
  * surface-material scratch table on the stack, builds the shadow surface set
  * via FUN_00197e90, resolves the lightmap/pass index via FUN_001956d0, and when
@@ -5191,7 +5191,7 @@ void FUN_00196060(int object_handle, float *position, float radius,
  *     returns short (MOVSX AX -> ESI = surface_count); FUN_001956d0(buffer, 0)
  *     returns int (EAX -> EDI = pass_index).  Skip draw when pass_index == -1.
  *   - draw section: FUN_00195790 @eax = buffer + 6 stack args (surface_count,
- *     pass_index, 0, FUN_0017ccf0 surface-draw cb, 0, 0) [the 5-byte PUSH at
+ *     pass_index, 0, rasterizer_environment_shadow_draw cb, 0, 0) [the 5-byte PUSH at
  *     +0x95 is a reloc-stripped PUSH 0x17ccf0]; then
  *     rasterizer_dynamic_triangles_delete(pass_index).  ADD ESP,0x1C == 6+1 args.
  *   - center/bounds/planes are pointers passed through as dwords; radius is a
@@ -5217,7 +5217,7 @@ void render_structure_shadows(float *center, float radius_x4, float *bounds6, in
       profile_enter_private((void *)0x32b768);
     }
     FUN_00195790((int *)buffer, surface_count, pass_index, 0,
-                 (void *)FUN_0017ccf0, 0, 0);
+                 (void *)rasterizer_environment_shadow_draw, 0, 0);
     rasterizer_dynamic_triangles_delete(pass_index);
     if (*(char *)0x449ef1 != 0 && *(char *)0x32b770 != 0) {
       profile_exit_private((void *)0x32b768);

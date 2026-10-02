@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Prove the reference migration only ever moved a reference CLOSER to the binary.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Prove the reference migration only ever moved a reference CLOSER to the binary.
 
 WHAT CHANGED
 ------------

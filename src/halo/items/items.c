@@ -2182,10 +2182,11 @@ void item_accelerate(int item_handle, float *position, int flag)
  *
  * Register args: out_point in EAX (MOV EDI,EAX), normal in ESI, item_handle
  * in EBX; `point` is the only stack arg (RET, caller cleans 4).
- * Looks up the item's "ground point" marker (one 0x60-byte marker record at
+ * Looks up the item's "ground point" marker (one 0x6c-byte marker record at
  * [EBP-0x94]; +0x3c = marker vector read in the fallback, +0x54 = marker
- * forward); returns without writing anything when there is none.  NULL
- * point/out_point are replaced by one local scratch vector.
+ * forward, +0x60 = marker position); returns without writing anything when
+ * there is none.  NULL point/out_point are replaced by the marker's position
+ * vector at [EBP-0x34] (marker+0x60).
  * v = sqrt((forward . normal + 1) * 2): when v > 0.01 (double compare) the
  * marker vector is rotated by the half-angle quaternion
  * {(forward x normal) / v, v * 0.5}; otherwise it is (normal x vec) x normal.
@@ -2197,8 +2198,7 @@ void item_align_to_normal_and_point(float *out_point, float *normal,
                                     int item_handle, float *point)
 {
   float matrix[13];
-  char marker[0x60];
-  float scratch[3];
+  char marker[0x6c];
   float quaternion[4];
   char *item;
   float forward[3];
@@ -2218,9 +2218,9 @@ void item_align_to_normal_and_point(float *out_point, float *normal,
       0)
     return;
   if (point == NULL)
-    point = scratch;
+    point = (float *)(marker + 0x60);
   if (out_point == NULL)
-    out_point = scratch;
+    out_point = (float *)(marker + 0x60);
   dot = ((float *)(marker + 0x54))[0] * normal[0] +
         ((float *)(marker + 0x54))[1] * normal[1] +
         ((float *)(marker + 0x54))[2] * normal[2] + 1.0f;

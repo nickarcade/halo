@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+
 SSE-powered live progress dashboard server.
 
 Serves static files from artifacts/progress/ and pushes live updates
@@ -17,6 +20,8 @@ import argparse
 import logging
 import subprocess
 import threading
+import tempfile
+import uuid
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from socketserver import ThreadingMixIn
 
@@ -25,10 +30,6 @@ if _tools_dir not in sys.path:
     sys.path.insert(0, _tools_dir)
 
 from report.atomic_write import write_json_atomic
-
-# Scoring lock: one objdiff run at a time per unit
-_score_locks = {}
-_score_locks_mu = threading.Lock()
 
 # Equivalence lock: one raw-XBE differential run per function at a time.
 _equivalence_locks = {}
@@ -119,9 +120,7 @@ class SSEHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        if self.path == '/api/score':
-            self.handle_score()
-        elif self.path == '/api/equivalence':
+        if self.path == '/api/equivalence':
             self.handle_equivalence()
         elif self.path == '/api/raw-audit':
             self.handle_raw_audit()
@@ -136,40 +135,6 @@ class SSEHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(data)
-
-    def handle_score(self):
-        try:
-            length = int(self.headers.get('Content-Length', 0))
-            body = json.loads(self.rfile.read(length) if length else b'{}')
-        except (ValueError, json.JSONDecodeError) as e:
-            self._json_response(400, {'error': f'Bad request: {e}'})
-            return
-
-        unit_name = body.get('unit')
-        if not unit_name:
-            self._json_response(400, {'error': 'Missing "unit" field'})
-            return
-
-        logging.info('Score request for unit %s from %s', unit_name, self.client_address[0])
-
-        # Per-unit lock so we don't run two objdiff instances for the same unit
-        with _score_locks_mu:
-            if unit_name not in _score_locks:
-                _score_locks[unit_name] = threading.Lock()
-            lock = _score_locks[unit_name]
-
-        if lock.locked():
-            logging.info('Unit %s is already scoring; waiting for it to finish', unit_name)
-
-        with lock:
-            result = self._run_score(unit_name)
-
-        if result is None:
-            logging.warning('Score request for unit %s failed (no_reference)', unit_name)
-            self._json_response(404, {'error': 'no_reference', 'unit': unit_name})
-            return
-
-        self._json_response(200, result)
 
     def handle_equivalence(self):
         """Re-run a displayed divergence against the raw pristine-XBE oracle."""
@@ -291,15 +256,24 @@ class SSEHandler(SimpleHTTPRequestHandler):
         self._json_response(200, {'ok': True, 'unit': unit_name, 'result': result})
 
     def _run_raw_audit(self, unit_name, source_path_rel):
-        """Run `raw_xbe_structural.py populate --source` scoped to one TU.
+        """Freshly compile byte_regression.measure for one TU with complete input provenance.
 
         A subprocess, not an import: populate owns a process pool and the
         module-level ROOT, and a crash there must not take the server down.
         """
         script_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(script_dir, '../..'))
-        script = os.path.join(project_root, 'tools', 'verify', 'raw_xbe_structural.py')
-        cmd = [sys.executable, script, 'populate', '--source', source_path_rel]
+        script = os.path.join(project_root, 'tools', 'verify', 'byte_regression.py')
+        parent = os.path.join(project_root, 'artifacts', 'byte_measurements')
+        os.makedirs(parent, exist_ok=True)
+        output = tempfile.mkdtemp(prefix='dashboard-', dir=parent)
+        plan_path = os.path.join(output, 'plan.json')
+        with open(plan_path, 'w') as stream:
+            json.dump({'sources': [source_path_rel]}, stream)
+        commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=project_root, text=True).strip()
+        cmd = [sys.executable, script, 'measure', '--commit', commit, '--run-id', uuid.uuid4().hex,
+               '--plan', plan_path, '--output', os.path.join(output, 'snapshot.json'),
+               '--allow-dirty', '--publish']
         logging.info('Running raw-XBE audit for %s ...', source_path_rel)
         t_start = time.time()
         try:
@@ -309,9 +283,8 @@ class SSEHandler(SimpleHTTPRequestHandler):
             logging.error('Raw-XBE audit timed out for unit %s', unit_name)
             return None
         elapsed = time.time() - t_start
-        # rc 2 = the TU failed to compile; error records are still written and
-        # the dashboard shows those functions as "cannot compare".
-        if r.returncode not in (0, 2):
+        # Failed measurements are errors; no stale record is treated as a new result.
+        if r.returncode != 0:
             logging.error('Raw-XBE audit failed for unit %s (rc=%d, %.1fs): %s',
                           unit_name, r.returncode, elapsed, r.stderr[-2000:])
             return None
@@ -379,201 +352,6 @@ class SSEHandler(SimpleHTTPRequestHandler):
         except Exception as e:
             logging.error('Dashboard refresh failed: %s', e)
             return False
-
-    def _run_score(self, unit_name):
-        """Run vc71_verify for unit_name, update report.json in-place, return scores dict.
-
-        Uses MSVC 7.1 compilation (via vc71_regression.run_vc71_verify) so the score
-        matches the dashboard label: 'compiled with MSVC 7.1 vs original Xbox binary'.
-        """
-        report_path = os.path.join(self.directory, 'report.json')
-        try:
-            with open(report_path) as f:
-                report = json.load(f)
-        except Exception as e:
-            logging.error('Cannot read report.json: %s', e)
-            return None
-
-        report_unit = None
-        for unit in report.get('units', []):
-            if unit.get('name') == unit_name:
-                report_unit = unit
-                break
-        if report_unit is None:
-            logging.warning('Unit %s not found in report.json', unit_name)
-            return None
-
-        # Look up unit in objdiff.json for its source path.  objdiff.json is a
-        # preferred source, not a hard requirement — report_unit's own
-        # source_path (from kb.json) is the fallback.
-        try:
-            with open('objdiff.json') as f:
-                objdiff_config = json.load(f)
-        except Exception as e:
-            logging.warning('Cannot read objdiff.json: %s', e)
-            objdiff_config = {'units': []}
-
-        source_path_rel = None
-        for entry in objdiff_config.get('units', []):
-            if entry['name'] == unit_name or entry['name'].endswith(f'/{unit_name}'):
-                source_path_rel = entry.get('metadata', {}).get('source_path')
-                break
-        if not source_path_rel:
-            source_path_rel = report_unit.get('source_path')
-
-        if not source_path_rel:
-            logging.warning('No source_path in objdiff.json metadata for unit %s', unit_name)
-            return None
-
-        # Reference selection is vc71_verify's job: every reference is derived
-        # from the pristine XBE (tools/verify/function_bounds.json), resolved
-        # per function.  Delinked objects on disk are irrelevant to scoring.
-
-        # Score through vc71_regression's `populate`, scoped to this one TU.
-        #
-        # This handler used to call run_vc71_verify itself and then hand-roll the
-        # raise-only floor merge.  Two problems that fix together:
-        #   1. It was a SECOND writer of the score files, carrying its own copy
-        #      of the floor policy.  The copies had already drifted once (see the
-        #      make_score_entry docstring: provenance fields were being stripped
-        #      on every dashboard refresh).
-        #   2. It wrote ONLY the floor, while generate_decomp_report reads the
-        #      honest current snapshot.  A button score was therefore erased by
-        #      the next five-minute background regeneration.
-        # `populate --source` writes floor + current + attention queue through
-        # the one set of writers, so there is no policy left here to keep in sync.
-        import sys as _sys
-        from pathlib import Path
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.abspath(os.path.join(script_dir, '../..'))
-        verify_dir = os.path.join(project_root, 'tools', 'verify')
-        if verify_dir not in _sys.path:
-            _sys.path.insert(0, verify_dir)
-        try:
-            import vc71_regression as _vc71
-        except ImportError as e:
-            logging.error('Cannot import vc71_regression: %s', e)
-            return None
-
-        source_path = Path(project_root) / source_path_rel
-        if not source_path.exists():
-            logging.warning('Source file not found for unit %s: %s', unit_name, source_path)
-            return None
-
-        logging.info('Running vc71 populate --source %s ...', source_path_rel)
-        t_start = time.time()
-        try:
-            rc = _vc71.cmd_populate(argparse.Namespace(
-                source=[str(source_path)],
-                # Raise-only floor plus a merged honest snapshot — the same
-                # policy the pre-commit gate applies.  NEVER --rebaseline from a
-                # web endpoint: that REPLACES floors and can lower them.
-                force=False, rebaseline=False, incremental=False,
-                include_kb_only=True,
-                # Costs one extra compile per function the whole-TU run missed.
-                # Affordable for a single interactive unit, and it preserves the
-                # per-function fallback this handler used to implement inline.
-                per_function_fallback=True,
-                workers=None, reset_journal=False, skip_decl_regen=False,
-            ))
-        except Exception as e:
-            logging.error('populate failed for unit %s (%.1fs): %s',
-                          unit_name, time.time() - t_start, e)
-            return None
-        verify_elapsed = time.time() - t_start
-        if rc != 0:
-            logging.warning('populate returned %d for unit %s (%.1fs) — '
-                            'not a scoreable TU?', rc, unit_name, verify_elapsed)
-            return None
-
-        # Read back what populate persisted for THIS TU.  Mirroring from the
-        # honest snapshot (rather than from a private in-memory result) is what
-        # guarantees the numbers the button reports are the numbers the next
-        # regeneration will render.
-        def _same_source(value):
-            return str(value or '').replace('\\', '/') == source_path_rel.replace('\\', '/')
-
-        vc71_results = {fn: entry for fn, entry in _vc71.load_current().items()
-                        if _same_source(entry.get('source'))}
-
-        if not vc71_results:
-            logging.warning('populate scored nothing for unit %s (%.1fs)',
-                            unit_name, verify_elapsed)
-            return None
-
-        logging.info('populate finished for %s in %.1fs: %d function(s) scored',
-                     source_path_rel, verify_elapsed, len(vc71_results))
-
-        # Mirror the now-persisted scores into the live report.json so the open
-        # dashboard updates immediately instead of waiting for the next
-        # regeneration.  Join by name first, then by the address-keyed FUN_<addr>
-        # alias (vc71_verify records some functions under their delinked
-        # reference name) — identical to the generator's join, so the value shown
-        # now and the value rendered after a regeneration are the same number.
-        def _result_for(func):
-            """Return the vc71_results entry for a function, or None.
-
-            Same join order as the report generator (name, FUN_<addr> aliases,
-            then namespace-suffix match) so a later regeneration reproduces it.
-            """
-            addr = func.get('address')
-            addr_int = None
-            if isinstance(addr, str):
-                try:
-                    addr_int = int(addr, 16)
-                except ValueError:
-                    addr_int = None
-            candidates = [func.get('name')]
-            if addr_int is not None:
-                candidates += [f'FUN_{addr_int:08x}', f'FUN_{addr_int:08X}',
-                               f'thunk_FUN_{addr_int:08x}']
-            for key in candidates:
-                if key and key in vc71_results:
-                    return vc71_results[key]
-            name = func.get('name')
-            for key, info in vc71_results.items():
-                if key.rsplit('::', 1)[-1] == name:
-                    return info
-            return None
-
-        updated_funcs = {}
-        updated_opnd = {}
-        for unit in report.get('units', []):
-            if unit['name'] == unit_name:
-                for func in unit.get('functions', []):
-                    info = _result_for(func)
-                    if info is not None:
-                        func['match_percent'] = round(info['score'], 2)
-                        updated_funcs[func.get('name')] = func['match_percent']
-                        # Advisory; tolerated absent on older cached lines.
-                        opnd = info.get('opnd_percent')
-                        if opnd is not None:
-                            func['opnd_percent'] = round(opnd, 2)
-                            updated_opnd[func.get('name')] = func['opnd_percent']
-                break
-
-        # Recompute unit summary and global summary.
-        for unit in report.get('units', []):
-            if unit['name'] == unit_name:
-                _recompute_unit_match(unit)
-                break
-        _recompute_summary_match(report)
-
-        try:
-            write_json_atomic(report_path, report)
-            os.utime(report_path, None)  # ensure mtime bumped for SSE polling
-        except Exception as e:
-            logging.error('Cannot write report.json: %s', e)
-            return None
-
-        total_elapsed = time.time() - t_start
-        score_summary = ', '.join(
-            f'{name}={score:.1f}%' for name, score in sorted(updated_funcs.items())
-        )
-        logging.info('VC71-scored unit %s: %d function(s) updated in %.1fs — %s',
-                     unit_name, len(updated_funcs), total_elapsed, score_summary or 'none')
-        return {'ok': True, 'unit': unit_name, 'scores': updated_funcs,
-                'opnd_scores': updated_opnd}
 
     def log_message(self, format, *args):
         logging.info("%s - %s", self.client_address[0], format % args)
@@ -732,12 +510,12 @@ def main():
         help='Directory to serve (default: artifacts/progress)'
     )
     parser.add_argument(
-        # Loopback by default.  /api/score is an unauthenticated endpoint that
+        # Loopback by default.  /api/raw-audit is an unauthenticated endpoint that
         # compiles source and rewrites tracked score files, so binding it to
         # every interface hands that to anyone on the network.  Pass an explicit
         # --host to expose it (and put access control in front of it first).
         '--host', default='127.0.0.1',
-        help='Host to bind to (default: 127.0.0.1; /api/score is unauthenticated)'
+        help='Host to bind to (default: 127.0.0.1; /api/raw-audit is unauthenticated)'
     )
     parser.add_argument(
         '--raw-audit-interval', type=int, default=3600,

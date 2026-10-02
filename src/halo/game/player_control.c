@@ -2023,11 +2023,10 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
 {
   int player_index;
   player_control_t *control;
-  char *player;
+  player_data_t *player;
   int16_t controller_index;
   bool is_current_controller;
   player_input_t *input;
-  uint8_t debounced_buttons[12];
   int i;
 
   input = (player_input_t *)action;
@@ -2038,15 +2037,14 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
   }
 
   control = (player_control_t *)player_control_get(local_player_index);
-  player = (char *)datum_get(*(data_t **)0x5aa6d4, player_index);
-  controller_index = *(int16_t *)(player + 2);
+  player = (player_data_t *)datum_get(*(data_t **)0x5aa6d4, player_index);
+  controller_index = player->local_player_index;
   is_current_controller = (controller_index == *(int16_t *)0x457094);
 
   if (controller_index != -1 && input_has_gamepad(controller_index)) {
     char *constants;
     void *gamepad_state;
     uint8_t *input_state;
-    int unit_index;
     real yaw_rate;
     real pitch_rate;
     real abs_look_pitch;
@@ -2056,34 +2054,33 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
     real norm_look_pitch;
     real yaw_delta;
     real pitch_delta;
-    real temp;
     real mag;
     real inv_mag;
     real flinch;
     real accel;
     real game_speed;
-    real scale_yaw;
-    real lead_scale_yaw;
-    real scale_pitch;
-    int yaw_sens;
-    int pitch_sens;
+    real pitch_velocity;
+    real input_scale;
+    real magnetism_scale;
+    int doubled_spin;
+    real yaw_sens;
+    real pitch_sens;
     char *unit;
     char *diff;
     char *unit_obj;
-    vector3_t local_34;
-    vector3_t local_44;
+    real_euler_angles2d aim_velocity;
+    real_euler_angles2d aim_angles;
 
     constants = (char *)tag_block_get_element((char *)game_globals_get() + 0x110, 0, 0x80);
     gamepad_state = input_get_gamepad_state(controller_index);
     input_state = (uint8_t *)input_abstraction_get_input_state(controller_index);
-    unit_index = *(int *)(player + 0x34);
     yaw_rate = 0.0f;
     pitch_rate = 0.0f;
 
-    if (unit_index != -1) {
-      unit = (char *)object_get_and_verify_type(unit_index, 3);
-      yaw_rate = *(real *)(0x457098 + (int)local_player_index * 4) * 0.017453292f * 0.033333335f;
-      pitch_rate = *(real *)(0x4570a8 + (int)local_player_index * 4) * 0.017453292f * 0.033333335f;
+    if (player->unit_handle != -1) {
+      unit = (char *)object_get_and_verify_type(player->unit_handle, 3);
+      yaw_rate = (real)(*(real *)(0x457098 + (int)local_player_index * 4) * 0.017453292f) * 0.033333335f;
+      pitch_rate = (real)(*(real *)(0x4570a8 + (int)local_player_index * 4) * 0.017453292f) * 0.033333335f;
 
       if (*(int *)(unit + 0xcc) != -1 && *(int16_t *)(unit + 0x2a0) != -1) {
         char *vehicle;
@@ -2093,10 +2090,10 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
         unit_tag = (char *)tag_get(0x756e6974, *(int *)vehicle);
         seat = (char *)tag_block_get_element(unit_tag + 0x2e4, *(int16_t *)(unit + 0x2a0), 0x11c);
         if (*(real *)(seat + 0x7c) > 0.0f) {
-          yaw_rate = *(real *)(seat + 0x7c) * 0.017453292f * 0.033333335f;
+          yaw_rate = (real)(*(real *)(seat + 0x7c) * 0.017453292f) * 0.033333335f;
         }
         if (*(real *)(seat + 0x80) > 0.0f) {
-          pitch_rate = *(real *)(seat + 0x80) * 0.017453292f * 0.033333335f;
+          pitch_rate = (real)(*(real *)(seat + 0x80) * 0.017453292f) * 0.033333335f;
         }
       }
     }
@@ -2110,64 +2107,56 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
 
     if (abs_look_pitch > 0.10000000149011612f && abs_look_yaw > 0.10000000149011612f) {
       if (abs_look_pitch > abs_look_yaw) {
-        temp = abs_look_yaw / abs_look_pitch;
-        scale = sqrtf(temp * temp + 1.0f);
+        abs_look_yaw /= abs_look_pitch;
+        abs_look_pitch = 1.0f;
       } else {
-        temp = abs_look_pitch / abs_look_yaw;
-        scale = sqrtf(temp * temp + 1.0f);
+        abs_look_pitch /= abs_look_yaw;
+        abs_look_yaw = 1.0f;
       }
+      scale = sqrtf(abs_look_pitch * abs_look_pitch + abs_look_yaw * abs_look_yaw);
     }
 
-    norm_look_yaw = *(real *)(input_state + 0x14) * scale;
-    if (norm_look_yaw < -1.0f) {
-      norm_look_yaw = -1.0f;
-    } else if (norm_look_yaw > 1.0f) {
-      norm_look_yaw = 1.0f;
-    }
-
-    norm_look_pitch = *(real *)(input_state + 0x18) * scale;
-    if (norm_look_pitch < -1.0f) {
-      norm_look_pitch = -1.0f;
-    } else if (norm_look_pitch > 1.0f) {
-      norm_look_pitch = 1.0f;
-    }
+    norm_look_yaw = CLAMP(*(real *)(input_state + 0x14) * scale, -1.0f, 1.0f);
+    norm_look_pitch = CLAMP(*(real *)(input_state + 0x18) * scale, -1.0f, 1.0f);
 
     if ((*(uint8_t *)((char *)player_control_globals + 0xc) & 1) || game_time_get_paused()) {
       input->look_yaw_delta = 0.0f;
       input->look_pitch_delta = 0.0f;
     } else {
       if (input_state[0xb] && *(uint8_t *)0x4570b9) {
-        pitch_sens = (*(uint8_t *)0x4570ba == 0) + 1;
+        doubled_spin = (*(uint8_t *)0x4570ba == 0);
       } else {
-        pitch_sens = (int)*(uint8_t *)0x4570ba + 1; /* hazard-ok: value-add */
+        doubled_spin = (int)*(uint8_t *)0x4570ba;
       }
+      pitch_sens = (real)(doubled_spin + 1);
       if (input_state[0xb] && *(uint8_t *)0x4570b9) {
-        yaw_sens = (*(uint8_t *)0x4570ba == 0) + 1;
+        doubled_spin = (*(uint8_t *)0x4570ba == 0);
       } else {
-        yaw_sens = (int)*(uint8_t *)0x4570ba + 1; /* hazard-ok: value-add */
+        doubled_spin = (int)*(uint8_t *)0x4570ba;
       }
+      yaw_sens = (real)(doubled_spin + 1);
 
       assert_halt_at("c:\\halo\\SOURCE\\game\\player_control.c", 0x1c8, *(int32_t *)(constants + 0x74) > 1);
-      yaw_delta = evaluate_piecewise_linear_function(*(int16_t *)(constants + 0x74), (float *)*(uint32_t *)(constants + 0x78), norm_look_yaw) * (real)yaw_sens * yaw_rate;
-      pitch_delta = evaluate_piecewise_linear_function(*(int16_t *)(constants + 0x74), (float *)*(uint32_t *)(constants + 0x78), norm_look_pitch) * (real)pitch_sens * pitch_rate;
+      yaw_delta = evaluate_piecewise_linear_function(*(int16_t *)(constants + 0x74), (float *)*(uint32_t *)(constants + 0x78), norm_look_yaw) * yaw_sens * yaw_rate;
+      pitch_delta = evaluate_piecewise_linear_function(*(int16_t *)(constants + 0x74), (float *)*(uint32_t *)(constants + 0x78), norm_look_pitch) * pitch_sens * pitch_rate;
 
-      if (unit_index != -1 && control->desired_zoom_level != -1) {
-        mag = unit_get_zoom_magnification(unit_index, control->desired_zoom_level);
+      if (player->unit_handle != -1 && control->desired_zoom_level != -1) {
+        mag = unit_get_zoom_magnification(player->unit_handle, control->desired_zoom_level);
         inv_mag = 1.0f / mag;
         yaw_delta *= inv_mag;
         pitch_delta *= inv_mag;
       }
 
-      if (unit_index != -1) {
+      if (player->unit_handle != -1) {
         diff = (char *)tag_block_get_element((char *)game_globals_get() + 0x170, 0, 0xf4);
-        unit_obj = (char *)object_get_and_verify_type(unit_index, 3);
+        unit_obj = (char *)object_get_and_verify_type(player->unit_handle, 3);
         flinch = 1.0f - *(real *)(unit_obj + 0x3d4) * *(real *)(diff + 0x84);
         yaw_delta *= flinch;
         pitch_delta *= flinch;
       }
 
       assert_halt_at("c:\\halo\\SOURCE\\game\\player_control.c", 0x1e3, *(real *)(constants + 0x40) > 0.0f);
-      if ((real)fabs(norm_look_yaw) >= *(real *)(constants + 0x48)) {
+      if (fabs(norm_look_yaw) >= *(real *)(constants + 0x48)) {
         accel = control->field_0x34 / *(real *)(constants + 0x40);
         if (accel < 0.0f) {
           accel = 0.0f;
@@ -2180,49 +2169,23 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
         control->field_0x34 = 0.0f;
       }
 
-      control->target_object_index = local_player_aim_assist(local_player_index, &control->autoaim_level, &control->field_0x30, &local_44, &local_34);
+      control->target_object_index = local_player_aim_assist(local_player_index, &control->autoaim_level, &control->field_0x30, &aim_angles, &aim_velocity);
       if (*(uint8_t *)0x2f0291 && control->field_0x30 > 0.0f) {
         if (fabs(norm_look_yaw) > 0.0001f || fabs(norm_look_pitch) > 0.0001f ||
             fabs(input->field_0x00) > 0.0001f || fabs(input->field_0x04) > 0.0001f) {
           game_speed = game_time_get_speed();
-          scale_yaw = *(real *)constants;
-          scale_pitch = *(real *)(constants + 4);
-
-          if (scale_yaw < 0.0f) {
-            scale_yaw = 0.0f;
-          } else if (scale_yaw > 1.0f) {
-            scale_yaw = 1.0f;
-          }
-          scale_yaw *= control->field_0x30;
-          lead_scale_yaw = 1.0f - scale_yaw;
-
-          if (scale_pitch < 0.0f) {
-            scale_pitch = 0.0f;
-          } else if (scale_pitch > 1.0f) {
-            scale_pitch = 1.0f;
-          }
-          scale_pitch *= control->field_0x30;
+          input_scale = 1.0f - control->field_0x30 * CLAMP(*(real *)constants, 0.0f, 1.0f);
+          magnetism_scale = control->field_0x30 * CLAMP(*(real *)(constants + 4), 0.0f, 1.0f);
 
           if (game_players_are_double_speed()) {
             game_speed *= 0.5f; /* [0x253398] = 0.5 */
           }
-          local_34.x *= game_speed;
-          local_34.y *= game_speed;
-
-          if (local_34.x < -0.10471976f) {
-            local_34.x = -0.10471976f;
-          } else if (local_34.x > 0.10471976f) {
-            local_34.x = 0.10471976f;
-          }
-
-          if (local_34.y < -0.05235988f) {
-            local_34.y = -0.05235988f;
-          } else if (local_34.y > 0.05235988f) {
-            local_34.y = 0.05235988f;
-          }
-
-          yaw_delta = yaw_delta * lead_scale_yaw + local_34.x * scale_pitch;
-          pitch_delta = pitch_delta * lead_scale_yaw + local_34.y * scale_pitch;
+          aim_velocity.yaw *= game_speed;
+          pitch_velocity = aim_velocity.pitch * game_speed;
+          aim_velocity.yaw = CLAMP(aim_velocity.yaw, -0.10471976f, 0.10471976f);
+          pitch_velocity = CLAMP(pitch_velocity, -0.05235988f, 0.05235988f);
+          yaw_delta = aim_velocity.yaw * magnetism_scale + yaw_delta * input_scale;
+          pitch_delta = pitch_velocity * magnetism_scale + pitch_delta * input_scale;
         }
       }
 
@@ -2230,94 +2193,106 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
       input->look_pitch_delta = pitch_delta * (delta_time * 30.0f);
     }
 
-    csmemset(debounced_buttons, 0, sizeof(debounced_buttons));
-    for (i = 0; i < 12; i++) {
-      if ((control->persistent_action_flags & (1 << i)) && (control->action_flags & (1 << i))) {
-        if (!input_state[i]) {
-          control->action_flags &= ~(1 << i);
-          control->persistent_action_flags &= ~(1 << i);
-        }
-      }
-    }
-    for (i = 0; i < 12; i++) {
-      if (!(control->action_flags & (1 << i))) {
-        debounced_buttons[i] = input_state[i];
-      }
-    }
+    {
+      uint8_t debounced_buttons[12] = {0};
+      uint16_t buttons_to_reset;
 
-    if (unit_index != -1) {
-      unit = (char *)object_try_and_get_and_verify_type(unit_index, 1);
-      if (unit) {
-        if (*(uint8_t *)0x4570b8 || (*(uint8_t *)(unit + 0x424) & 1) ||
-            (input->field_0x04 * input->field_0x04 + input->field_0x00 * input->field_0x00 < 0.9604f)) { /* [0x26e2e8] */
-          if (debounced_buttons[10]) {
-            input->field_0x18 |= 1;
-          } else {
-            input->field_0x18 &= ~1;
+      buttons_to_reset = control->action_flags & control->persistent_action_flags;
+      if (buttons_to_reset) {
+        for (i = 0; i < 12; i++) {
+          if ((buttons_to_reset & (1 << i)) && !input_state[i]) {
+            control->action_flags &= ~(1 << i);
+            control->persistent_action_flags &= ~(1 << i);
           }
         }
       }
-    }
+      for (i = 0; i < 12; i++) {
+        if (!(control->action_flags & (1 << i))) {
+          debounced_buttons[i] = input_state[i];
+        }
+      }
 
-    input->primary_trigger = (real)input_state[7] * 0.003921569f;
-    if (debounced_buttons[7]) {
-      input->field_0x18 |= 0x800;
-    } else {
-      input->field_0x18 &= ~0x800;
-    }
+      if (player->unit_handle != -1) {
+        unit = (char *)object_try_and_get_and_verify_type(player->unit_handle, 1);
+        if (unit) {
+          if (*(uint8_t *)0x4570b8 || (*(uint8_t *)(unit + 0x424) & 1) ||
+              (input->field_0x04 * input->field_0x04 + input->field_0x00 * input->field_0x00 < 0.9604f)) { /* [0x26e2e8] */
+            if (debounced_buttons[10]) {
+              input->field_0x18 |= 1;
+            } else {
+              input->field_0x18 &= ~1;
+            }
+          }
+        }
+      }
 
-    if (debounced_buttons[6]) {
-      input->field_0x18 |= 0x3000;
-    } else {
-      input->field_0x18 &= ~0x3000;
-    }
+      input->primary_trigger = (real)input_state[7] * 0.003921569f;
+      if (debounced_buttons[7]) {
+        input->field_0x18 |= 0x800;
+      } else {
+        input->field_0x18 &= ~0x800;
+      }
 
-    if (debounced_buttons[11] == 1) {
-      input->action_flags |= 4;
-    } else {
-      input->action_flags &= ~4;
-    }
+      if (debounced_buttons[6]) {
+        input->field_0x18 |= 0x2000;
+      } else {
+        input->field_0x18 &= ~0x2000;
+      }
 
-    if (debounced_buttons[2]) {
-      input->field_0x18 |= 0x40;
-    } else {
-      input->field_0x18 &= ~0x40;
-    }
+      if (debounced_buttons[6]) {
+        input->field_0x18 |= 0x1000;
+      } else {
+        input->field_0x18 &= ~0x1000;
+      }
 
-    if (debounced_buttons[2] >= *(int16_t *)(constants + 0x6c)) {
-      input->field_0x18 |= 0x4000;
-    } else {
-      input->field_0x18 &= ~0x4000;
-    }
+      if (debounced_buttons[11] == 1) {
+        input->action_flags |= 4;
+      } else {
+        input->action_flags &= ~4;
+      }
 
-    if (debounced_buttons[5]) {
-      input->field_0x18 |= 0x10;
-    } else {
-      input->field_0x18 &= ~0x10;
-    }
+      if (debounced_buttons[2]) {
+        input->field_0x18 |= 0x40;
+      } else {
+        input->field_0x18 &= ~0x40;
+      }
 
-    if (debounced_buttons[0]) {
-      input->field_0x18 |= 2;
-    } else {
-      input->field_0x18 &= ~2;
-    }
+      if (debounced_buttons[2] >= *(int16_t *)(constants + 0x6c)) {
+        input->field_0x18 |= 0x4000;
+      } else {
+        input->field_0x18 &= ~0x4000;
+      }
 
-    if (debounced_buttons[4]) {
-      input->field_0x18 |= 0x80;
-    } else {
-      input->field_0x18 &= ~0x80;
-    }
+      if (debounced_buttons[5]) {
+        input->field_0x18 |= 0x10;
+      } else {
+        input->field_0x18 &= ~0x10;
+      }
 
-    if (debounced_buttons[3] == 1) {
-      input->action_flags |= 1;
-    } else {
-      input->action_flags &= ~1;
-    }
+      if (debounced_buttons[0]) {
+        input->field_0x18 |= 2;
+      } else {
+        input->field_0x18 &= ~2;
+      }
 
-    if (debounced_buttons[1] == 1) {
-      input->action_flags |= 2;
-    } else {
-      input->action_flags &= ~2;
+      if (debounced_buttons[4]) {
+        input->field_0x18 |= 0x80;
+      } else {
+        input->field_0x18 &= ~0x80;
+      }
+
+      if (debounced_buttons[3] == 1) {
+        input->action_flags |= 1;
+      } else {
+        input->action_flags &= ~1;
+      }
+
+      if (debounced_buttons[1] == 1) {
+        input->action_flags |= 2;
+      } else {
+        input->action_flags &= ~2;
+      }
+
     }
 
     if (!(*(uint8_t *)((char *)control + 9) & 2)) {
@@ -2330,12 +2305,15 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
     char *mouse;
     mouse = (char *)input_get_mouse_state();
 
-    input->field_0x00 = (real)((int)input_key_is_down(0x20) - (int)input_key_is_down(0x2e));
-    input->field_0x04 = (real)((int)input_key_is_down(0x2d) - (int)input_key_is_down(0x2f));
+    input->field_0x00 = (real)(!!input_key_is_down(0x20) - !!input_key_is_down(0x2e));
+    input->field_0x04 = (real)(!!input_key_is_down(0x2d) - !!input_key_is_down(0x2f));
 
     if (!(*(uint8_t *)((char *)player_control_globals + 0xc) & 1) && !game_time_get_paused()) {
-      input->look_yaw_delta = -(real)*(int *)mouse * 0.0031415927f;
-      input->look_pitch_delta = -(real)*(int *)(mouse + 4) * 0.0031415927f;
+      input->look_yaw_delta = -((real)*(int *)mouse * 0.0031415927f);
+      input->look_pitch_delta = -((real)*(int *)(mouse + 4) * 0.0031415927f);
+    } else {
+      input->look_yaw_delta = 0.0f;
+      input->look_pitch_delta = 0.0f;
     }
 
     if (input_key_is_down(0x69)) input->field_0x18 |= 0x100; else input->field_0x18 &= ~0x100;
@@ -2361,11 +2339,7 @@ void get_local_player_input_blob(void *action, short local_player_index, real de
     if (input_key_is_down(0x3a) == 1) input->action_flags |= 4; else input->action_flags &= ~4;
     if (input_key_is_down(0x21) == 1) input->action_flags |= 1; else input->action_flags &= ~1;
 
-    if (input->field_0x18 & 0x800) {
-      input->primary_trigger = 1.0f;
-    } else {
-      input->primary_trigger = 0.0f;
-    }
+    input->primary_trigger = (input->field_0x18 & 0x800) ? 1.0f : 0.0f;
   }
 
   if (input_key_is_down(0x2b) == 1) input->action_flags |= 8; else input->action_flags &= ~8;

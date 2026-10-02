@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Lookup prior fixes, regressions, and relevant skills for a symptom.
+"""
+Legacy VC71 score fields describe mnemonic similarity, NOT raw byte accuracy.
+
+Lookup prior fixes, regressions, and relevant skills for a symptom.
 
 This is a cheap preflight for agents before debugging a regression.  It searches
 durable local evidence sources that are easy to forget manually:

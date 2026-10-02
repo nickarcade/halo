@@ -1,4 +1,6 @@
 #include "x87_math.h"
+#include "d3d8_states.h"
+#include "shader_model.h"
 
 /*
  * rasterizer_xbox_decals.c
@@ -44,7 +46,7 @@ typedef struct {
 } d3d_locked_rect_t;
 
 /* D3DVIEWPORT8 mirror (0x18 bytes; viewport buffer at EBP-0x18 in
- * FUN_00158140). */
+ * rasterizer_set_target). */
 typedef struct {
   unsigned int X; /* +0x00 */
   unsigned int Y; /* +0x04 */
@@ -208,31 +210,42 @@ present:
  * __FILE__ preserves that path); the linker grouped it into
  * rasterizer_decals.obj.
  *
- *   framebuffer_blend_function - shader framebuffer blend function id, [0, 7];
- *                                read at 16-bit width (mov si, word [ebp+8])
- *                                and bounds-checked as a signed short BEFORE
- *                                the movsx widen — keep the short local.
- *
- * Render state (reg@<ecx>) / source table / shadow global (value@<edx>):
- *   0x40344 <- table @0x29da7c, cached at 0x1fb790
- *   0x40348 <- table @0x29daa0, cached at 0x1fb794
- *   0x40350 <- table @0x29dac4, cached at 0x1fb7c0   (0x4034C is skipped)
- *
- * The assert path calls display_assert then system_exit(-1) and FALLS
- * THROUGH into the body (combined ADD ESP,0x14 cleanup) — it is the standard
- * assert macro, not an early return. Tables are indexed via an explicit
- * index*4 byte offset (movsx; shl esi,2; unscaled [esi+disp32] reused for
- * all three tables).
+ * Each state is the XDK inline SetRenderState: the NV097 method write, then
+ * the D3D__RenderState cache store.
  */
-void FUN_001580b0(int framebuffer_blend_function)
-{
-  short index;
-  int offset;
-  uint32_t value;
-  uint32_t value2;
+enum {
+  _shader_framebuffer_blend_function_alpha_blend = 0,
+  _shader_framebuffer_blend_function_multiply,
+  _shader_framebuffer_blend_function_double_multiply,
+  _shader_framebuffer_blend_function_add,
+  _shader_framebuffer_blend_function_subtract,
+  _shader_framebuffer_blend_function_component_min,
+  _shader_framebuffer_blend_function_component_max,
+  _shader_framebuffer_blend_function_alpha_multiply_add,
+  NUMBER_OF_SHADER_FRAMEBUFFER_BLEND_FUNCTIONS
+};
 
-  index = (short)framebuffer_blend_function;
-  if (index < 0 || index >= 8) {
+enum {
+  _framebuffer_blend_state_source_blend = 0,
+  _framebuffer_blend_state_destination_blend,
+  _framebuffer_blend_state_blend_operation,
+  NUMBER_OF_FRAMEBUFFER_BLEND_STATES
+};
+
+/* framebuffer_blend_function_states is a kb.json data global declared
+ * [3][9]: [NUMBER_OF_FRAMEBUFFER_BLEND_STATES]
+ * [NUMBER_OF_SHADER_FRAMEBUFFER_BLEND_FUNCTIONS + 1], PAL's NONE-terminated
+ * rows. */
+cs(framebuffer_blend_function_states,
+   NUMBER_OF_FRAMEBUFFER_BLEND_STATES *
+     (NUMBER_OF_SHADER_FRAMEBUFFER_BLEND_FUNCTIONS + 1) * sizeof(int32_t));
+
+void FUN_001580b0(short framebuffer_blend_function)
+{
+  uint32_t value;
+
+  if (framebuffer_blend_function < 0 ||
+      framebuffer_blend_function >= NUMBER_OF_SHADER_FRAMEBUFFER_BLEND_FUNCTIONS) {
     display_assert(
       "framebuffer_blend_function>=0 && "
       "framebuffer_blend_function<NUMBER_OF_SHADER_FRAMEBUFFER_BLEND_FUNCTIONS",
@@ -240,46 +253,45 @@ void FUN_001580b0(int framebuffer_blend_function)
     system_exit(-1);
   }
 
-  offset = index * 4;
-  value = *(uint32_t *)(0x29da7c + offset);
-  D3DDevice_SetRenderState_Simple(0x40344, value);
-  *(uint32_t *)0x1fb790 = value;
-  value = *(uint32_t *)(0x29daa0 + offset);
-  D3DDevice_SetRenderState_Simple(0x40348, value);
-  *(uint32_t *)0x1fb794 = value;
-  value2 = *(uint32_t *)(0x29dac4 + offset);
-  D3DDevice_SetRenderState_Simple(0x40350, value2);
-  *(uint32_t *)0x1fb7c0 = value2;
+  value = framebuffer_blend_function_states
+    [_framebuffer_blend_state_source_blend][framebuffer_blend_function];
+  D3DDevice_SetRenderState_Simple(NV097_SET_BLEND_FUNC_SFACTOR_CMD, value);
+  D3D__RenderState[D3DRS_SRCBLEND] = value;
+  value = framebuffer_blend_function_states
+    [_framebuffer_blend_state_destination_blend][framebuffer_blend_function];
+  D3DDevice_SetRenderState_Simple(NV097_SET_BLEND_FUNC_DFACTOR_CMD, value);
+  D3D__RenderState[D3DRS_DESTBLEND] = value;
+  value = framebuffer_blend_function_states
+    [_framebuffer_blend_state_blend_operation][framebuffer_blend_function];
+  D3DDevice_SetRenderState_Simple(NV097_SET_BLEND_EQUATION_CMD, value);
+  D3D__RenderState[D3DRS_BLENDOP] = value;
 }
 
 /* 0x158140
  *
- * FUN_00158140 — select a render-target surface, bind it (with optional
+ * rasterizer_set_target — select a render-target surface, bind it (with optional
  * z-buffer), set the viewport to cover it, and optionally clear.
  *
  * Switch cases mirror FUN_001584f0's render-target table one dword later:
- * per-target D3D *surface* headers at 0x476a5c..0x476aac (vs the texture
- * headers at 0x476a54..0x476aa8).  Assert reasons: "mipmap_index==0" per
+ * each target's global_d3d_surface_* (vs the texture headers
+ * FUN_001584f0 binds).  Assert reasons: "mipmap_index==0" per
  * case, "d3d_surface" when the selected surface header is NULL,
  * "!zbuffer||d3d_surface_z" on the shared apply path, and "### ERROR
  * unsupported rasterizer target" for the default case.  __FILE__ is
  * rasterizer_xbox.c (original TU; linker grouped into rasterizer_decals.obj).
  *
- * Globals (used by address, not in kb.json):
- *   0x476a5c  void*    target 0 d3d_surface (backbuffer)
- *   0x476a60  void*    target 0 d3d_surface_z (shared z fallback)
- *   0x476a6c  void*    target 1 d3d_surface
- *   0x476a70  void*    target 1 d3d_surface_z (falls back to 0x476a60)
- *   0x476a78  void*    target 2 d3d_surface
- *   0x476a80  void*    target 3 d3d_surface
- *   0x476a88  void*    target 4 d3d_surface
- *   0x476a90  void*    target 5 d3d_surface
- *   0x476a98  void*[4] target 6 (water) per-mip d3d_surface array
- *   0x476aac  void*    target 7 d3d_surface
- *   0x5a5bf4  short    target-0 viewport top    (Y)
- *   0x5a5bf6  short    target-0 viewport left   (X)
- *   0x5a5bf8  short    target-0 viewport bottom (Y + Height)
- *   0x5a5bfa  short    target-0 viewport right  (X + Width)
+ * Globals (kb.json data; names from the binary's IDirect3D* error strings in
+ * FUN_00157010, which creates each surface):
+ *   target 0  global_d3d_surface_render_primary (back buffer) / _z
+ *   target 1  global_d3d_surface_render_secondary / _z (z falls back to
+ *             global_d3d_surface_render_primary_z)
+ *   target 2  global_d3d_surface_shadow_primary
+ *   target 3  global_d3d_surface_shadow_secondary
+ *   target 4  global_d3d_surface_sun_glow_primary
+ *   target 5  global_d3d_surface_sun_glow_secondary
+ *   target 6  global_d3d_surface_water[mipmap_index]
+ *   target 7  global_d3d_surface_render_primary_copy
+ *   target 0's viewport is global_window_parameters.camera.viewport_bounds.
  *
  * Call-site facts from the delinked reference (00158140.obj):
  *   - D3DDevice_SetRenderTarget(surface@ESI, depth@EBX) where EBX is the
@@ -292,16 +304,17 @@ void FUN_001580b0(int framebuffer_blend_function)
  *   - D3DDevice_SetViewport takes ONE arg (LEA ECX,[EBP-0x18]; PUSH ECX) —
  *     the kb.json placeholder decl `void(void)` was corrected to match.
  *   - clear flags: 0xF3 for targets 0/1 (color+z+stencil), else 0xF0;
- *     D3DDevice_Clear(0, NULL, flags, color, 1.0f literal, 0).
+ *     D3DDevice_Clear(0, NULL, flags, clear_color, 1.0f literal, 0).
  *
  *   target       - render-target index (switch on short)
  *   mipmap_index - water target mip level (short; must be 0 elsewhere)
- *   color        - D3D clear color (raw uint)
- *   do_clear     - char bool: issue D3DDevice_Clear
+ *   clear_color  - D3D clear color (raw uint)
+ *   clear        - char bool: issue D3DDevice_Clear
  *   zbuffer      - char bool: bind the target's z surface
  */
-void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
-                  int zbuffer)
+void rasterizer_set_target(short target, short mipmap_index,
+                           uint32_t clear_color, boolean clear,
+                           boolean zbuffer)
 {
   void *d3d_surface;
   void *d3d_surface_z;
@@ -316,15 +329,15 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
   d3d_surface_z = 0;
 
   switch ((short)target) {
-  case 0:
+  case _rasterizer_target_render_primary:
     if ((short)mipmap_index != 0) {
       display_assert("mipmap_index==0",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
                      0x8e8, 1);
       system_exit(-1);
     }
-    d3d_surface = *(void **)0x476a5c;
-    d3d_surface_z = *(void **)0x476a60;
+    d3d_surface = global_d3d_surface_render_primary;
+    d3d_surface_z = global_d3d_surface_render_primary_z;
     if (d3d_surface == 0) {
       display_assert("d3d_surface",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
@@ -332,18 +345,17 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
       system_exit(-1);
     }
     break;
-  case 1:
+  case _rasterizer_target_render_secondary:
     if ((short)mipmap_index != 0) {
       display_assert("mipmap_index==0",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
                      0x8ef, 1);
       system_exit(-1);
     }
-    d3d_surface_z = *(void **)0x476a70;
-    d3d_surface = *(void **)0x476a6c;
-    if (d3d_surface_z == 0) {
-      d3d_surface_z = *(void **)0x476a60;
-    }
+    d3d_surface = global_d3d_surface_render_secondary;
+    d3d_surface_z = global_d3d_surface_render_secondary_z
+                      ? global_d3d_surface_render_secondary_z
+                      : global_d3d_surface_render_primary_z;
     if (d3d_surface == 0) {
       display_assert("d3d_surface",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
@@ -351,14 +363,14 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
       system_exit(-1);
     }
     break;
-  case 2:
+  case _rasterizer_target_shadow_primary:
     if ((short)mipmap_index != 0) {
       display_assert("mipmap_index==0",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
                      0x8f5, 1);
       system_exit(-1);
     }
-    d3d_surface = *(void **)0x476a78;
+    d3d_surface = global_d3d_surface_shadow_primary;
     if (d3d_surface == 0) {
       display_assert("d3d_surface",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
@@ -366,14 +378,14 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
       system_exit(-1);
     }
     break;
-  case 3:
+  case _rasterizer_target_shadow_secondary:
     if ((short)mipmap_index != 0) {
       display_assert("mipmap_index==0",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
                      0x8fa, 1);
       system_exit(-1);
     }
-    d3d_surface = *(void **)0x476a80;
+    d3d_surface = global_d3d_surface_shadow_secondary;
     if (d3d_surface == 0) {
       display_assert("d3d_surface",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
@@ -381,14 +393,14 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
       system_exit(-1);
     }
     break;
-  case 4:
+  case _rasterizer_target_sun_glow_primary:
     if ((short)mipmap_index != 0) {
       display_assert("mipmap_index==0",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
                      0x8ff, 1);
       system_exit(-1);
     }
-    d3d_surface = *(void **)0x476a88;
+    d3d_surface = global_d3d_surface_sun_glow_primary;
     if (d3d_surface == 0) {
       display_assert("d3d_surface",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
@@ -396,14 +408,14 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
       system_exit(-1);
     }
     break;
-  case 5:
+  case _rasterizer_target_sun_glow_secondary:
     if ((short)mipmap_index != 0) {
       display_assert("mipmap_index==0",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
                      0x904, 1);
       system_exit(-1);
     }
-    d3d_surface = *(void **)0x476a90;
+    d3d_surface = global_d3d_surface_sun_glow_secondary;
     if (d3d_surface == 0) {
       display_assert("d3d_surface",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
@@ -411,16 +423,16 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
       system_exit(-1);
     }
     break;
-  case 6:
+  case _rasterizer_target_water_bumpmap:
     water_mip = (short)mipmap_index;
-    if (water_mip < 0 || water_mip >= 4) {
+    if (water_mip < 0 || water_mip >= RASTERIZER_TARGET_WATER_MAX_MIPMAP_LEVELS) {
       display_assert("mipmap_index>=0 && "
                      "mipmap_index<RASTERIZER_TARGET_WATER_MAX_MIPMAP_LEVELS",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
                      0x909, 1);
       system_exit(-1);
     }
-    d3d_surface = ((void **)0x476a98)[water_mip];
+    d3d_surface = global_d3d_surface_water[water_mip];
     if (d3d_surface == 0) {
       display_assert("d3d_surface",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
@@ -428,14 +440,14 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
       system_exit(-1);
     }
     break;
-  case 7:
+  case _rasterizer_target_render_primary_copy:
     if ((short)mipmap_index != 0) {
       display_assert("mipmap_index==0",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
                      0x91b, 1);
       system_exit(-1);
     }
-    d3d_surface = *(void **)0x476aac;
+    d3d_surface = global_d3d_surface_render_primary_copy;
     if (d3d_surface == 0) {
       display_assert("d3d_surface",
                      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox.c",
@@ -462,11 +474,13 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
   D3DDevice_SetRenderTarget(d3d_surface, zb != 0 ? d3d_surface_z : 0);
 
   target16 = *(short *)&target;
-  if (target16 == 0) {
-    viewport.X = *(short *)0x5a5bf6;
-    viewport.Y = *(short *)0x5a5bf4;
-    viewport.Width = *(short *)0x5a5bfa - *(short *)0x5a5bf6;
-    viewport.Height = *(short *)0x5a5bf8 - *(short *)0x5a5bf4;
+  if (target16 == _rasterizer_target_render_primary) {
+    viewport.X = global_window_parameters.camera.viewport_bounds.x0;
+    viewport.Y = global_window_parameters.camera.viewport_bounds.y0;
+    viewport.Width = global_window_parameters.camera.viewport_bounds.x1 -
+                     global_window_parameters.camera.viewport_bounds.x0;
+    viewport.Height = global_window_parameters.camera.viewport_bounds.y1 -
+                      global_window_parameters.camera.viewport_bounds.y0;
   } else {
     D3DSurface_GetDesc(d3d_surface, &desc);
     viewport.X = 0;
@@ -478,12 +492,13 @@ void FUN_00158140(int target, int mipmap_index, uint32_t color, int do_clear,
   viewport.MaxZ = 1.0f;
   D3DDevice_SetViewport(&viewport);
 
-  if ((char)do_clear != 0) {
-    flags = 0xf0;
-    if (target16 == 0 || target16 == 1) {
-      flags = 0xf3;
+  if ((char)clear != 0) {
+    flags = D3DCLEAR_TARGET;
+    if (target16 == _rasterizer_target_render_primary ||
+        target16 == _rasterizer_target_render_secondary) {
+      flags = D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER | D3DCLEAR_STENCIL;
     }
-    D3DDevice_Clear(0, 0, flags, color, 1.0f, 0);
+    D3DDevice_Clear(0, 0, flags, clear_color, 1.0f, 0);
   }
 }
 
@@ -977,7 +992,7 @@ void FUN_00158ae0(int param_1)
  * Field offsets (parameters is a ushort pointer):
  *   parameters[0]  byte +0x00  render target index (only 0 or 1 supported)
  *   parameters[1]  byte +0x02  target id (0xffff = special/main target)
- *   byte +0x05                 bool selector for FUN_00158140 arg4
+ *   byte +0x05                 bool selector for rasterizer_set_target arg4
  *   float +0x44                camera.z_near
  *
  * All four assert terminals are PUSH -1 (or PUSH EDI with EDI still -1 from
@@ -1047,7 +1062,7 @@ void FUN_00158df0(unsigned short *parameters)
     FUN_0016f910(0);
     /* arg4 is a byte-wide bool; Ghidra's CONCAT31(extraout_EAX>>8,...) is an
      * artifact of the bool being built in EAX — the upper bytes are garbage. */
-    FUN_00158140((unsigned int)*parameters, 0, color_pixel,
+    rasterizer_set_target((unsigned int)*parameters, 0, color_pixel,
                  (*((char *)parameters + 5) == 0), 1);
     FUN_0016fa40(0);
     if (*parameters == 0 && *(float *)((char *)parameters + 0x44) == 0.0f) {
@@ -1506,7 +1521,7 @@ static const char kActiveCamoFile[] =
  *     0x3f800000 (literals verified to round-trip to these encodings).
  *   - Quad texcoords are 16-bit globals: u from 0x5a5bf6/0x5a5bfa, v from
  *     0x5a5bf8/0x5a5bf4, all zero-extended (XOR reg,reg; MOV reg16).
- *   - Second FUN_00158140 first arg is the zero-extended WORD at 0x5a5bc0.
+ *   - Second rasterizer_set_target first arg is the zero-extended WORD at 0x5a5bc0.
  *   - Bounds buffer at ebp-0x8, 4x uint16 passed to FUN_00158800:
  *     [0]=((f*3+3)<<5) low16, [1]=0x200, [2]=((f*3+6)<<5) low16, [3]=0x280,
  *     f = full 32-bit dword read of 0x476ac4 (LEA [EAX+EAX*2+n]; SHL 5).
@@ -1592,7 +1607,7 @@ void FUN_001595c0(void)
     *(uint32_t *)0x5a5ae0 = 8;
     rasterizer_set_pixel_shader((void *)0x5a5ac0);
 
-    FUN_00158140(1, 0, 0, 0, 0);
+    rasterizer_set_target(1, 0, 0, 0, 0);
     FUN_00158ae0(0);
 
     /* full-screen 320x240 quad; texcoords are the 16-bit viewport-rect
@@ -1614,7 +1629,7 @@ void FUN_001595c0(void)
 
     /* first arg is the zero-extended WORD at 0x5a5bc0 (XOR EAX,EAX;
      * MOV AX,[0x5a5bc0]) — asserted 0 above, but re-read here. */
-    FUN_00158140(*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
+    rasterizer_set_target(*(unsigned short *)0x5a5bc0, 0, 0, 0, 1);
     FUN_00158ae0(2);
 
     {
@@ -1690,7 +1705,7 @@ typedef struct {
 void FUN_00159900(void *group)
 {
   char *grp = (char *)group;
-  char *pv; /* FUN_001906b0(shader, 4): resolved shader params base (edi) */
+  shader_model *pv; /* FUN_001906b0(shader, _shader_type_model): resolved shader params base (edi) */
   char *cam; /* *(char **)0x476204: active camera / view-parameters block */
   int cull; /* computed CullMode select */
   float fv; /* 1.0f - group->effect fade (+0x1c) */
@@ -1741,7 +1756,7 @@ void FUN_00159900(void *group)
     return;
   }
 
-  pv = (char *)FUN_001906b0(*(void **)(grp + 0xc), 4);
+  pv = (shader_model *)FUN_001906b0(*(void **)(grp + 0xc), _shader_type_model);
 
   /* --- debug asserts (source lines 0xa4..0xa5) --- */
   if (*(char *)0x476ac1 == 0) {
@@ -1763,7 +1778,7 @@ void FUN_00159900(void *group)
    * NOT a float comparison, to match the original codegen. */
   if (*(int *)(grp + 0x18) == 0x3f800000) {
     /* ---- FAST PATH: fully cloaked, distortion pass only ---- */
-    rasterizer_set_texture(0, 0, 1, *(int *)(pv + 0xb0),
+    rasterizer_set_texture(0, 0, 1, pv->field_b0,
                            *(unsigned short *)(grp + 0x10));
     D3DDevice_SetTextureStageState(0, 0xa, 1);
     D3DDevice_SetTextureStageState(0, 0xb, 1);
@@ -1771,10 +1786,10 @@ void FUN_00159900(void *group)
     D3DDevice_SetTextureStageState(0, 0xe, 2);
     D3DDevice_SetTextureStageState(0, 0xf, 2);
 
-    /* CullMode select: 0x901 (CW) normally, 0x900&..=0x200-series when the
-     * shader two-sided flag (pv+0x28 & 2) is set. */
+    /* CullMode select: 0x901 is D3DCULL_CCW; with bit 1 of pv->field_28 set
+     * the expression yields 0 (D3DCULL_NONE). */
     cull =
-      (-(int)((*(unsigned char *)(pv + 0x28) & 2) != 0) & (int)0xfffff6ff) +
+      (-(int)((pv->field_28 & 2) != 0) & (int)0xfffff6ff) +
       0x901;
     D3DDevice_SetRenderState_CullMode(cull);
 
@@ -1798,11 +1813,11 @@ void FUN_00159900(void *group)
 
     FUN_00178b40(0xd, FUN_00184610(group), 0);
 
-    /* vs row 0: distortion scale (raw copy + product); rows 1-2 hold the
+    /* vs row 0: field_d8 and field_ec * field_d8 (raw copy + product); rows 1-2 hold the
      * animated scroll matrix filled by FUN_00190e10 (out ptrs &vs[4]/&vs[8]),
      * seeded with identity. */
-    vs[0] = *(float *)(pv + 0xd8);
-    vs[1] = *(float *)(pv + 0xec) * *(float *)(pv + 0xd8);
+    vs[0] = pv->field_d8;
+    vs[1] = pv->field_ec * pv->field_d8;
     vs[2] = 1.0f;
     vs[3] = 1.0f;
     vs[4] = 1.0f;
@@ -1813,9 +1828,9 @@ void FUN_00159900(void *group)
     vs[9] = 1.0f;
     vs[10] = 0.0f;
     vs[11] = 0.0f;
-    FUN_00190e10((void *)(pv + 0xfc), *(void **)(grp + 0x6c),
-                 *(float *)(pv + 0x9c) * *(float *)(grp + 0x3c),
-                 *(float *)(pv + 0xa0) * *(float *)(grp + 0x40), 0.0f, 0.0f,
+    FUN_00190e10(&pv->field_fc, *(void **)(grp + 0x6c),
+                 pv->field_9c * *(float *)(grp + 0x3c),
+                 pv->field_a0 * *(float *)(grp + 0x40), 0.0f, 0.0f,
                  0.0f, *(float *)0x5a5e18, &vs[4], &vs[8]);
     D3DDevice_SetVertexShaderConstant(-0x54, vs, 3);
 
@@ -1877,7 +1892,7 @@ void FUN_00159900(void *group)
   D3DDevice_SetTextureStageState(2, 0xe, 2);
   D3DDevice_SetTextureStageState(2, 0xf, 1);
 
-  cull = (-(int)((*(unsigned char *)(pv + 0x28) & 2) != 0) & (int)0xfffff6ff) +
+  cull = (-(int)((pv->field_28 & 2) != 0) & (int)0xfffff6ff) +
          0x901;
   D3DDevice_SetRenderState_CullMode(cull);
 
@@ -4763,9 +4778,9 @@ void rasterizer_draw_dynamic_vertices(int first_primitive_index,
       if (local_5 != 0) {
         bl = 1;
       } else {
-        rasterizer_error(0,
-                     "IDirect3DDevice8_SetStreamSource(global_d3d_device, 0, "
-                     "d3d_vertex_buffer, vertex_size)");
+        rasterizer_error(
+          0, "IDirect3DDevice8_SetStreamSource(global_d3d_device, 0, "
+             "d3d_vertex_buffer, vertex_size)");
         bl = 0;
       }
 
@@ -4778,11 +4793,11 @@ void rasterizer_draw_dynamic_vertices(int first_primitive_index,
       if (bl != 0) {
         local_5 = 1;
       } else {
-        rasterizer_error(0,
-                     "IDirect3DDevice8_DrawPrimitive(global_d3d_device, "
-                     "d3d_primitive_type, first_primitive_index*vertices_per_"
-                     "primitive + dynamic_vertex_buffer->vertex_start_index, "
-                     "local_primitive_count)");
+        rasterizer_error(
+          0, "IDirect3DDevice8_DrawPrimitive(global_d3d_device, "
+             "d3d_primitive_type, first_primitive_index*vertices_per_"
+             "primitive + dynamic_vertex_buffer->vertex_start_index, "
+             "local_primitive_count)");
         local_5 = 0;
       }
 

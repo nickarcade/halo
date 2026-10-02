@@ -90,7 +90,8 @@ def main():
         if a == "--output" and i + 1 < len(sys.argv):
             out_path = Path(sys.argv[i + 1])
     if emit_json and out_path is None:
-        out_path = _SCRIPT_DIR / "known_globals.json"
+        out_path = _SCRIPT_DIR.parent.parent / "artifacts" / "local" / "known_globals.json"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not DELINKED_DIR.exists():
         print(f"Error: {DELINKED_DIR} not found.", file=sys.stderr)

@@ -3,8 +3,7 @@
 Xbox debug build 2276 binary (halo-patched/cachebeta.xbe, MD5
 c7869590a1c64ad034e49a5ee0c02465).
 
-Step 3a of the CEA-to-NTSC name-propagation plan. kb.json function records
-carry no callers/callees fields, so this derives them mechanically from a
+kb.json function records carry no callers/callees fields, so this derives them mechanically from a
 single linear disassembly pass over every XBE section that contains at least
 one kb.json function address.
 
@@ -243,17 +242,14 @@ def load_kb(path: Path) -> Dict[int, KbFunc]:
     the complete, non-redundant 9,133-function source of truth.)
 
     `name` is always the decl-derived identifier -- the same rule
-    cea_body.py's function_name() and knowledge.py's _extract_name_regex()
-    use -- not kb.json's optional explicit "name" field. Previously this
-    preferred the explicit "name" field when present, which put this tool
-    out of step with cea_body.py and knowledge.py: at least five addresses
-    (e.g. 0x10a930, kb name "transition_table_fill" but decl
-    "FUN_0010a930(...)") got a different primary name here than in the two
-    other tools, so a lookup keyed on this tool's callgraph output could
-    silently miss the same function elsewhere. The explicit name, when
-    present and different, is kept on kb_name for display/debugging, and
-    cea_body.py separately indexes kb.json by both spellings so it resolves
-    either one."""
+    knowledge.py's _extract_name_regex() uses -- not kb.json's optional
+    explicit "name" field. Previously this preferred the explicit "name"
+    field when present, which put this tool out of step with knowledge.py:
+    at least five addresses (e.g. 0x10a930, kb name "transition_table_fill"
+    but decl "FUN_0010a930(...)") got a different primary name here, so a
+    lookup keyed on this tool's callgraph output could silently miss the
+    same function elsewhere. The explicit name, when present and different,
+    is kept on kb_name for display/debugging."""
     with open(path, "r", encoding="utf-8") as f:
         kb = json.load(f)
 

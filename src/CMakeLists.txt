@@ -39,6 +39,7 @@ halo/ai/actor_firing_position.c
 	halo/camera/bored_camera.c
 	halo/camera/static_camera.c
 	halo/camera/director.c
+	halo/camera/first_person_camera.c
 	halo/camera/observer.c
 	halo/common.c
 	halo/cseries/cseries.c
@@ -65,6 +66,7 @@ halo/ai/actor_firing_position.c
 	halo/hs/hs.c
 	halo/hs/hs_compile.c
 	halo/hs/hs_runtime.c
+	halo/game/aim_assist.c
 	halo/game/cheats.c
 	halo/game/editor_stubs.c
 	halo/game/game.c
