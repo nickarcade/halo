@@ -30583,7 +30583,7 @@
         {
           "addr": "0x1a0b30",
           "decl": "char FUN_001a0b30(int unit_handle@<edi>);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x1a0be0",
@@ -30648,7 +30648,7 @@
         {
           "addr": "0x1a1b90",
           "decl": "int biped_approximate_surface_index(int unit_handle, float *out_point);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x1a1bc0",
@@ -30663,7 +30663,7 @@
         {
           "addr": "0x1a1e70",
           "decl": "void FUN_001a1e70(int unit_handle);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x1a1fb0",
@@ -30674,7 +30674,7 @@
         {
           "addr": "0x1a2160",
           "decl": "void FUN_001a2160(int unit_handle@<eax>);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x1a2290",
@@ -30691,7 +30691,7 @@
         {
           "addr": "0x1a25e0",
           "decl": "void FUN_001a25e0(int unit_handle@<ecx>);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x1a2800",
@@ -30714,7 +30714,7 @@
         {
           "addr": "0x1a2b10",
           "decl": "void FUN_001a2b10(int unit_handle@<edi>);",
-          "ported": false
+          "ported": true
         },
         {
           "addr": "0x1a2b90",
