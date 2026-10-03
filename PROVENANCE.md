@@ -25,7 +25,7 @@ it. More than one class may apply.
 | `TGT-RUN` | Reproducible target-runtime observations, with acquisition status recorded separately | Side effects, state transitions, rendering, networking, timing bounds, and failure behavior |
 | `TGT-TEST` | Independently constructed tests, synthetic fixtures, and target-versus-reimplementation measurements | Equivalence within the stated inputs and coverage; never broader correctness by itself |
 | `OPEN-SRC` | Public specifications and independently licensed source | API contracts and algorithms within the source's license and documented applicability |
-| `EXT-HYP` | PAL 2342, CEA/HCEA, PDB-derived projects, other leaked/prototype builds, or other cross-build work | A search hypothesis only; it cannot authorize a name, layout, body, ABI, or control-flow claim |
+| `EXT-HYP` | Material from other game versions, PDB-derived projects, leaked or prototype builds, or other cross-build work | A search hypothesis only; it cannot authorize a name, layout, body, ABI, or control-flow claim |
 | `HIST` | Accurate record that earlier work used external or uncertain material | Historical disclosure and remediation tracking only |
 
 `TGT-BIN` and `TGT-RUN` are authoritative for build 2276. `TGT-TEST` is
@@ -84,8 +84,8 @@ new files, modified bytes, executable/object signatures, or compressed copies.
 
 ## Review record
 
-Material influenced by `EXT-HYP` must be listed in the provenance remediation
-ledger until target-only reconstruction is complete. A completed row records:
+Material influenced by `EXT-HYP` must be tracked in a provenance ledger, kept
+outside Git, until target-only reconstruction is complete. A completed row records:
 
 1. the historical source and scope of influence;
 2. the target addresses, call sites, strings, runtime trace, or tests used for
