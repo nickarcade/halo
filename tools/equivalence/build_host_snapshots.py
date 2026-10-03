@@ -21,6 +21,10 @@ HERE = Path(__file__).resolve().parent
 SNAP_DIR = HERE / "host_snapshots"
 MANIFEST = SNAP_DIR / "manifest.json"
 sys.path.insert(0, str(HERE))  # for halorec_to_snapshot
+sys.path.insert(0, str(HERE.parent))  # for internal.local_env
+from internal.local_env import load_repo_env  # noqa: E402
+
+load_repo_env("local.env")  # HALO_HALOREC_DIR
 
 
 def _find_recordings_dir(manifest):

@@ -1,6 +1,7 @@
 import importlib.util
 import gzip
 import io
+import os
 import struct
 import subprocess
 import tempfile
@@ -9,6 +10,12 @@ import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
+
+# A git hook inherits GIT_INDEX_FILE (and friends) from the commit in progress;
+# the fixture repos below must not share that index.
+for _var in ("GIT_INDEX_FILE", "GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX",
+             "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"):
+    os.environ.pop(_var, None)
 
 SCRIPT = Path(__file__).resolve().parents[1] / "check_proprietary_artifacts.py"
 SPEC = importlib.util.spec_from_file_location("artifact_guard", SCRIPT)

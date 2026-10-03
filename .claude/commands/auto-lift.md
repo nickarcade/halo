@@ -23,7 +23,7 @@ Parse the following from $ARGUMENTS (all optional, flags and subcommands):
 For each target up to `--batch` count (or until `--stop-on-fail` consecutive
 failures), repeat:
 
-1. Run `rtk python3 tools/llm_auto_lift.py select --limit 10` to pick best targets.
+1. Run `rtk python3 tools/lift/llm_auto_lift.py select --limit 10` to pick best targets.
    Skip any targets that already have a failure record in `artifacts/auto_lift/failures/`.
 2. Pick the top `auto-lift` or `cache-context` lane target.
 3. If Ghidra MCP is available and no cached context exists, run `cache-context --target <target>`.
@@ -40,7 +40,7 @@ failures), repeat:
    After the agent returns, ensure a delinked reference exists (export via
    `mcp__ghidra-live__export_delinked_object` if missing), then run:
    ```bash
-   rtk python3 tools/lift_pipeline.py --target <name> --no-metadata-update --verify-policy auto
+   rtk python3 tools/lift/lift_pipeline.py --target <name> --no-metadata-update --verify-policy auto
    ```
 6. Evaluate pipeline result (see pass/fail criteria below).
 7. **On pass**: auto-commit (unless `--dry-run`), reset consecutive failure counter.
@@ -52,7 +52,7 @@ After the loop ends, print a summary: N attempted, N committed, N failed, N skip
 
 ## Pipeline pass/fail criteria
 
-The lift pipeline (`tools/lift_pipeline.py`) runs these stages in order.
+The lift pipeline (`tools/lift/lift_pipeline.py`) runs these stages in order.
 Any hard failure stops the pipeline and reports the failing stage.
 
 | Stage | Pass condition | Hard fail? |
@@ -68,9 +68,7 @@ Use `--verify-policy auto` (default) for this skill.  The `/lift` skill uses
 
 ## Escalation
 
-This skill runs the lift subagent on **Opus-high** by default. Opus is pinned
-(rather than Sonnet) because Sonnet lift agents stall-loop under the workflow
-watchdog.  Escalation is the **opus effort ladder** — medium → xhigh → max — not
+This skill runs the lift subagent on **Opus-high** by default.  Escalation is the **opus effort ladder** — medium → xhigh → max — not
 a model swap, matching `goal-lift.js` (the canonical implementation).  Each rung
 runs only if the previous gained <1pp, the target is still sub-bar and not
 capped, budget remains (≥120k), and ≤3 targets have escalated this run.  A
@@ -80,8 +78,7 @@ warm-start patch.
 
 **Fable** is opt-in only (`--improveModel fable`) — never a ladder rung and
 never the default; the improve-pass drain runs on opus (with
-`park.py next --exclude-model`). Use fable only when the user explicitly
-asks for it.
+`park.py next --exclude-model`).
 
 See `docs/lift-policy.md` §Escalation-flow for the canonical escalation rules and
 pass/fail thresholds.  Summary: ladder on VC71 65–84% and not capped; fresh-model
@@ -140,7 +137,7 @@ Write failure record to `artifacts/auto_lift/failures/<target_name>.json`:
 
 ## Safety rules
 
-1. Code generation is done by `/lift` with full agent context and CLAUDE.md rules.
+1. Code generation is done by `/lift` with full agent context and AGENTS.md rules.
 2. Auto-commit only after the full pipeline passes (unless `--dry-run`).
 3. Always revert on failure — never leave broken state in the working tree.
 4. Skip targets that already have failure records (don't retry known failures).

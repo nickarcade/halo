@@ -8,7 +8,7 @@
 # scorer path.
 #
 # Key constraint: VC71 CL.Exe runs as a Windows process and can only write
-# to Windows-accessible paths (i.e. drive-mapped paths like G:\..., not /tmp).
+# to Windows-accessible paths (i.e. drive-mapped paths like <drive>:\..., not /tmp).
 # We use REPO_ROOT/build/vc71 as the intermediate COFF staging area.
 # The caller (run.py) must set TMPDIR to a Windows-accessible path so that
 # Python's tempfile module also creates .c files on a mounted drive.
@@ -30,11 +30,14 @@ REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 # (VC71 CL.Exe is a Windows process and cannot write to /tmp-style worktree paths.)
 # When REPO_ROOT is already on /mnt, the else-branch leaves overrides empty so the
 # `${X_OVERRIDE:-default}` expansions below reproduce the original behavior exactly.
-if [[ "$REPO_ROOT" != /mnt/* ]] && [[ -d "/mnt/g/dev/halo/build/vc71" ]]; then
-    VC71_STAGE="/mnt/g/dev/halo/build/vc71"
-    SRC_INC_OVERRIDE="/mnt/g/dev/halo/src"
-    FI_OVERRIDE="/mnt/g/dev/halo/src/xdk_common.h"
-    GEN_INC_OVERRIDE="/mnt/g/dev/halo/build/generated"
+# The primary checkout is the one that owns the shared .git directory.
+MAIN_REPO="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+MAIN_REPO="${MAIN_REPO%/*}"
+if [[ "$REPO_ROOT" != /mnt/* ]] && [[ -n "$MAIN_REPO" ]] && [[ -d "$MAIN_REPO/build/vc71" ]]; then
+    VC71_STAGE="$MAIN_REPO/build/vc71"
+    SRC_INC_OVERRIDE="$MAIN_REPO/src"
+    FI_OVERRIDE="$MAIN_REPO/src/xdk_common.h"
+    GEN_INC_OVERRIDE="$MAIN_REPO/build/generated"
 else
     VC71_STAGE="${REPO_ROOT}/build/vc71"
     SRC_INC_OVERRIDE=""
@@ -46,8 +49,20 @@ mkdir -p "$VC71_STAGE"
 # --------------------------------------------------------------------------
 # VC71 toolchain paths
 # --------------------------------------------------------------------------
-VC71_CL_WSL="${VC71_CL_WSL:-/mnt/c/Program Files (x86)/RXDK/xbox/bin/vc71/CL.Exe}"
-RXDK_INC='C:\Program Files (x86)\RXDK\xbox\include'
+# Machine-local settings (RXDK_ROOT) live in the gitignored tools/local.env.
+if [[ -f "$REPO_ROOT/tools/local.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$REPO_ROOT/tools/local.env"
+    set +a
+fi
+RXDK_ROOT_WSL="${RXDK_ROOT:-/mnt/c/Program Files (x86)/RXDK}"
+VC71_CL_WSL="${VC71_CL_WSL:-$RXDK_ROOT_WSL/xbox/bin/vc71/CL.Exe}"
+if command -v wslpath >/dev/null 2>&1; then
+    RXDK_INC="$(wslpath -w "$RXDK_ROOT_WSL/xbox/include")"
+else
+    RXDK_INC='C:\Program Files (x86)\RXDK\xbox\include'
+fi
 
 # --------------------------------------------------------------------------
 # Parse arguments: <input.c> -o <output.o>

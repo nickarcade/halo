@@ -35,8 +35,8 @@
 #include "../math/real_math.h"
 #include "encounters.h"
 /* ---------- TU-local types and globals ----------
- * Names are T2 (PAL 2342 source of this same TU, source/ai/ai_communication.c);
- * the layouts are re-confirmed against 2276 code where noted. */
+ * Names are inferred;
+ * the layouts are confirmed against 2276 code where noted. */
 
 /* dialogue_usage_t, reply_usage_t and dialogue_event_status_t live in
  * types.h; global_dialogue_table, global_reply_table,
@@ -126,7 +126,7 @@
     (1u << ((type) & 0x1f))) != 0)
 
 /* Partial conversation layouts. Widths/offsets are from 2276
- * ai_conversation_find_participant (0x447d0); names are T2 CEA/PAL context.
+ * ai_conversation_find_participant (0x447d0); names are inferred.
  * Unobserved fields remain padding. See
  * recovery/evidence/ai_conversation_*.json. */
 typedef struct {
@@ -1017,7 +1017,6 @@ int16_t ai_conversation_status(int16_t param_1)
   char *record;
   int16_t status;
   int16_t current;
-  int16_t count;
   int16_t index;
   int16_t best_index;
   int best_value;
@@ -1043,17 +1042,21 @@ int16_t ai_conversation_status(int16_t param_1)
   if (status == 0) {
     best_value = -1;
     best_index = -1;
-    count = *(int16_t *)(*(char **)0x632574 + 0x2c);
-    record = *(char **)0x632574 + 0x30;
-    for (index = 0; index < count; index++, record += 0x10) {
-      if (*(int16_t *)record == param_1 && *(int *)(record + 4) > best_value) {
+    record = *(char **)0x632574;
+    for (index = 0; index < *(int16_t *)(record + 0x2c); index++) {
+      if (*(int16_t *)(record + 0x30 + index * 0x10) == param_1 &&
+          *(int *)(record + 0x34 + index * 0x10) > best_value) {
         best_index = index;
-        best_value = *(int *)(record + 4);
+        best_value = *(int *)(record + 0x34 + index * 0x10);
       }
     }
     if (best_index != -1) {
       record = *(char **)0x632574 + (best_index + 3) * 0x10;
-      return record[2] != '\0' ? 5 : (record[3] != '\0' ? 6 : 7);
+      if (record[2] != '\0') {
+        status = 5;
+      } else {
+        status = record[3] != '\0' ? 6 : 7;
+      }
     }
   }
   return status;
@@ -1424,7 +1427,7 @@ bool ai_conversation_line_begin(int conversation_handle)
     participant_count = (int *)(conv_tag + 0x50);
     if ((int)participant_index < *participant_count &&
         (*(uint32_t *)(conversation + 0x14) &
-         (1 << (participant_index & 0x1f))) != 0) {
+         (1 << participant_index)) != 0) {
       participant = (char *)tag_block_get_element(participant_count,
                                                   (int)participant_index, 0x54);
       actor_handle =
@@ -1440,9 +1443,11 @@ bool ai_conversation_line_begin(int conversation_handle)
         *(int32_t *)(conversation + 0x50) = actor_handle;
         *(int32_t *)(conversation + 0x54) = *(int32_t *)(actor + 0x18);
         *(int32_t *)(conversation + 0x58) = -1;
-        if (*(int16_t *)(line + 4) == 1) {
+        switch (*(int16_t *)(line + 4)) {
+        case 1:
           *(int32_t *)(conversation + 0x58) = *(int32_t *)(conversation + 0x10);
-        } else if (*(int16_t *)(line + 4) == 2) {
+          break;
+        case 2:
           other_index = *(int16_t *)(line + 6);
           if (other_index >= 0 && (int)other_index < *participant_count) {
             actor_handle = *(int32_t *)(conversation + other_index * 4 + 0x28);
@@ -1451,6 +1456,7 @@ bool ai_conversation_line_begin(int conversation_handle)
               *(int32_t *)(conversation + 0x58) = *(int32_t *)(actor + 0x18);
             }
           }
+          break;
         }
         *(char *)(conversation + 0x60) = (*(int16_t *)(participant + 4) == 6 ||
                                           *(int16_t *)(participant + 4) == 7);
@@ -1517,7 +1523,8 @@ bool ai_conversation_line_perform(int conversation_handle)
   int sound_definition_index;
   int vocalization_type;
   int actor_handle;
-  int speaking_unit_index; /* name: PAL 2342 source/ai/ai_communication.c:5479 */
+  int speaking_unit_index;
+  int line_sound_index;
   short index;
   short communication_count;
   char blocked;
@@ -1565,15 +1572,15 @@ bool ai_conversation_line_perform(int conversation_handle)
         }
         if (communication_count > 0) {
           csmemset(communication, 0, 0x30);
-          *(short *)(communication + 0x00) = 6;
+          line_sound_index = *(int32_t *)(conversation + 0x5c);
           *(short *)(communication + 0x02) = -1;
-          *(int32_t *)(communication + 0x04) =
-            *(int32_t *)(conversation + 0x5c);
+          *(short *)(communication + 0x14) = -1;
+          *(short *)(communication + 0x18) = -1;
+          *(short *)(communication + 0x16) = -1;
           *(int32_t *)(communication + 0x10) =
             *(int32_t *)(conversation + 0x58);
-          *(short *)(communication + 0x14) = -1;
-          *(short *)(communication + 0x16) = -1;
-          *(short *)(communication + 0x18) = -1;
+          *(short *)(communication + 0x00) = 6;
+          *(int32_t *)(communication + 0x04) = line_sound_index;
           *(short *)(communication + 0x1c) = 1;
           *(short *)(communication + 0x1e) = 1;
           *(int32_t *)(communication + 0x20) =
@@ -1581,7 +1588,7 @@ bool ai_conversation_line_perform(int conversation_handle)
           *(short *)(communication + 0x24) = 0;
           if (*(char *)0x5aca5f != '\0') {
             console_printf(0, "%s: speak %s", conv_tag,
-                           tag_get_name(*(int32_t *)(conversation + 0x5c)));
+                           tag_get_name(line_sound_index));
           }
           unit_speak(*(int32_t *)(conversation + 0x54), communication_count,
                      communication);
@@ -1597,12 +1604,9 @@ bool ai_conversation_line_perform(int conversation_handle)
   }
   if (*(char *)(conversation + 0x62) == 0) {
     if (*(int32_t *)(conversation + 0x54) == -1) {
-      if (*(int32_t *)(conversation + 0x5c) == -1 ||
-          scripted_sound_time(*(int32_t *)(conversation + 0x5c)) == 0) {
-        *(char *)(conversation + 0x62) = 1;
-      } else {
-        *(char *)(conversation + 0x62) = 0;
-      }
+      line_sound_index = *(int32_t *)(conversation + 0x5c);
+      *(char *)(conversation + 0x62) =
+        line_sound_index == -1 || scripted_sound_time(line_sound_index) == 0;
     } else {
       *(char *)(conversation + 0x62) =
         *(int16_t *)((char *)object_get_and_verify_type(
@@ -2074,7 +2078,7 @@ void ai_communication_update_speech_timers(int unit_handle, int16_t param_2,
  *     (0x14df70, flags 0x27) with asserts at lines 0xe91/0xe97.
  *   - No player with a unit -> returns 1.0, else the best rating (starts
  *     at 0.0, so an in-range player always wins over none).
- * Inferred: names follow the PAL 2342 source of the same TU (T2). */
+ * Inferred names. */
 float ai_communication_get_player_rating(int unit_handle, char test_line_of_sight,
                                          int *out_unit_handle,
                                          float *out_distance)
@@ -2507,7 +2511,10 @@ char ai_conversation_find_participant(int16_t participant_index,
   best_distance = 3.402823466e38f;
   better_rating_seen = 0;
   assigned = 0;
-  assert_halt(definition);
+  /* original text names both pointers; the binary tests only definition */
+  assert_halt_msg_at("conversation_definition && conversation",
+                     "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x127a,
+                     definition);
 
   if (participant->selection_type == 1) {
     assigned = 1;
@@ -2530,7 +2537,9 @@ char ai_conversation_find_participant(int16_t participant_index,
     if (conversation->actor_indices[slot] != -1) {
       placed_actor =
         (actor_t *)datum_get(actor_data, conversation->actor_indices[slot]);
-      assert_halt(nearby_count < 8);
+      assert_halt_msg_at(
+        "nearby_unit_count < MAXIMUM_PARTICIPANTS_PER_CONVERSATION",
+        "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x12ad, nearby_count < 8);
       nearby_positions[nearby_count] = placed_actor->body_position;
       nearby_count++;
     }
@@ -2681,14 +2690,20 @@ char ai_conversation_find_participant(int16_t participant_index,
           found_variant = 1;
         } else if (unit_variant < 100 &&
                    participant->dialogue_variants[variant_index] < 100) {
-          assert_halt(change_variant_count < 6);
+          assert_halt_msg_at("change_variant_indices_count < "
+                             "MAXIMUM_DIALOGUE_VARIANTS_PER_CONVERSATION_"
+                             "PARTICIPANT",
+                             "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x13af,
+                             change_variant_count < 6);
           change_variant_indices[change_variant_count++] = variant_index;
         }
       }
     }
     if (found_variant) {
     matching_variant:
-      assert_halt(found_variant_index != -1);
+      assert_halt_msg_at("found_variant_index != NONE",
+                         "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x13b8,
+                         found_variant_index != -1);
       variant_index = found_variant_index;
       candidate_score += 0.7f;
       HALO_FLT_ROUNDTRIP(candidate_score);
@@ -2704,7 +2719,10 @@ char ai_conversation_find_participant(int16_t participant_index,
           (unsigned int *)get_global_random_seed_address(), 0,
           change_variant_count)];
       }
-      assert_halt(variant_index >= 0 && variant_index < 6);
+      assert_halt_msg_at("(actor_variant_index >= 0) && (actor_variant_index < "
+                         "MAXIMUM_DIALOGUE_VARIANTS_PER_CONVERSATION_PARTICIPANT)",
+                         "c:\\halo\\SOURCE\\ai\\ai_communication.c", 0x13c7,
+                         variant_index >= 0 && variant_index < 6);
     }
     if (candidate_score > best_score) {
       selected_actor_index = actor_index;
@@ -4334,7 +4352,7 @@ void ai_conversation_update(void)
 }
 
 /* ---------- ai_communication_event support (TU-local) ----------
- * Names are T2 (PAL 2342 source/ai/ai_communication.c); every offset and
+ * Names are inferred; every offset and
  * table base below is confirmed by the 0x46f10 disassembly. */
 
 /* Selected fields of an encounter datum (encounter_data pool, 0x5ab270).
@@ -4420,9 +4438,9 @@ cs(ai_communication_secondary_look_t, 0x10);
  *   - 2276 derives the communication team inline from
  *     actor_type_get_race (race & 2 -> 0, race & 4 -> 1, else NONE), and
  *     the post-speech look goes through prop_get_active_by_unit_index +
- *     actor_look_secondary(actor, 9, ...), both unlike PAL 2342;
+ *     actor_look_secondary(actor, 9, ...);
  *   - enemy_status[5] without an encounter is target_type >= 10 AND the
- *     target is really alive (PAL 2342 has the negation).
+ *     target is really alive (the alive test is not negated).
  * Uncertain: play_type and look_unit_index are not reset per usage in the
  * binary (they keep stale stack values for reply / no-look usages); they
  * are initialized once here and only reach consumers that ignore them. */
@@ -4648,7 +4666,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
       }
     }
 
-    /* PAL 2342 calls this game_team_is_enemy. */
+    /* Team allegiance test. */
     if (game_allegiance_get_team_is_friendly(subject_team, cause_team)) {
       hostility = 4; /* _comm_hostility_traitor */
     }
@@ -4677,7 +4695,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
     }
   } else if (!subject_encounter) {
     /* +0x274 any_target_ever, +0x278 since_any_target_visible_timer,
-     * +0x27c target_really_alive, +0x6e combat_status (PAL names) */
+     * +0x27c target_really_alive, +0x6e combat_status (inferred names) */
     enemy_status[0] = !subject_actor->field_274;
     enemy_status[1] = !subject_actor->field_27c &&
                       subject_actor->field_278 != -1;
@@ -4785,7 +4803,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
           }
         }
         /* Reads this slot's stored delay, which is still zero from the
-         * csmemset above (PAL 2342 flags the same bug). */
+         * csmemset above. */
         if (disabled && tolerance[4] > 0.0f &&
             (real)speech_delay[slot] < tolerance[4] * 30.0f) {
           disabled = false;
@@ -5051,7 +5069,7 @@ void ai_communication_event(short communication_type, int subject_unit_index,
         }
 
         /* +0x6a state.mode (0 = braindead), +0x6c state.action (0xb = obey),
-         * +0xa0 obey allow_communication (PAL names) */
+         * +0xa0 obey allow_communication (inferred names) */
         if ((protagonist_actor &&
              (protagonist_actor->field_06a == 0 ||
               (protagonist_actor->state_action == 0xb &&

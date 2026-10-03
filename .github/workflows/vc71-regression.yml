@@ -34,7 +34,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 120
     env:
-      VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
+      VENV_PYTHON: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/.venv/bin/python3
     steps:
       # Measure the PR merge revision so base-branch integration is covered.
       - uses: actions/checkout@v4

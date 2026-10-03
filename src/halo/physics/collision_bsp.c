@@ -91,9 +91,8 @@ short collision_surface_polygon(int bsp, int surface_index, void *out_points)
   int first_edge;
   int edge_index;
   int *edge;
-  unsigned int *vertex;
-  unsigned int *out;
-  int side;
+  real_point3d *vertex;
+  unsigned char side;
 
   point_count = 0;
   first_edge = *(int *)((char *)tag_block_get_element((void *)(bsp + 0x3c),
@@ -103,17 +102,14 @@ short collision_surface_polygon(int bsp, int surface_index, void *out_points)
   do {
     edge = (int *)tag_block_get_element((void *)(bsp + 0x48), edge_index, 0x18);
     side = (edge[5] == surface_index);
-    vertex = (unsigned int *)tag_block_get_element((void *)(bsp + 0x54),
+    vertex = (real_point3d *)tag_block_get_element((void *)(bsp + 0x54),
                                                    edge[side], 0x10);
-    if (point_count > 7) {
+    if (!(point_count < 8)) {
       display_assert("point_count<MAXIMUM_VERTICES_PER_COLLISION_SURFACE",
                      "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0xe1, 1);
       system_exit(-1);
     }
-    out = (unsigned int *)((char *)out_points + point_count * 0xc);
-    out[0] = vertex[0];
-    out[1] = vertex[1];
-    out[2] = vertex[2];
+    ((real_point3d *)out_points)[point_count] = *vertex;
     edge_index = edge[2 + side];
     point_count = (short)(point_count + 1);
   } while (edge_index != first_edge);
@@ -185,8 +181,7 @@ void render_debug_collision_vertex(int bsp, int vertex_index, float *matrix,
   point =
     (float *)tag_block_get_element((void *)(bsp + 0x54), vertex_index, 0x10);
   if (matrix != 0) {
-    matrix_transform_point(matrix, point, transformed);
-    point = transformed;
+    point = matrix_transform_point(matrix, point, transformed);
   }
   FUN_00189150(1, point, scale, color);
 }
@@ -205,8 +200,8 @@ void render_debug_collision_vertex(int bsp, int vertex_index, float *matrix,
  *
  * Endpoint order is not swapped: point_a = vertex[edge v0], point_b =
  * vertex[edge v1]; the draw call is (flag=1, point_a, point_b, color).
- * matrix_transform_point/FUN_00189270 return void in kb.json, so the
- * transformed points are read from the scratch buffers, not a returned ptr.
+ * matrix_transform_point returns its out pointer; the original draws through
+ * that returned pointer (MOV EBX,EAX / MOV ESI,EAX after each call).
  */
 void render_debug_collision_edge(int bsp, int edge_index, int matrix_or_flag,
                                  void *color)
@@ -221,10 +216,10 @@ void render_debug_collision_edge(int bsp, int edge_index, int matrix_or_flag,
   point_a = (float *)tag_block_get_element((void *)(bsp + 0x54), edge[0], 0x10);
   point_b = (float *)tag_block_get_element((void *)(bsp + 0x54), edge[1], 0x10);
   if (matrix_or_flag != 0) {
-    matrix_transform_point((float *)matrix_or_flag, point_a, xformed_a);
-    matrix_transform_point((float *)matrix_or_flag, point_b, xformed_b);
-    point_a = xformed_a;
-    point_b = xformed_b;
+    point_a = matrix_transform_point((float *)matrix_or_flag, point_a,
+                                     xformed_a);
+    point_b = matrix_transform_point((float *)matrix_or_flag, point_b,
+                                     xformed_b);
   }
   FUN_00189270(1, point_a, point_b, color);
 }
@@ -406,15 +401,15 @@ float collision_surface_perimeter(int bsp, int surface_index)
  * slot each iteration. The anchor vertex and plane normal are fetched once
  * before the loop; each iteration walks the two vertices of the current edge.
  *
- * The plane normal is written contiguously into plane[3] by
- * bsp3d_get_plane_from_designator (out_plane), so it reads back as
- * plane[0..2]. Cross-product and accumulation operand order preserved exactly
+ * bsp3d_get_plane_from_designator (out_plane) writes a full 16-byte plane
+ * (normal then d); only the normal is read back. Cross-product and
+ * accumulation operand order preserved exactly
  * from the disassembly (x87 FLD/FMUL/FSUBP order); getting any subtraction
  * backwards negates the area.
  */
 float collision_surface_area(int bsp, int surface_index)
 {
-  float plane[3];
+  real_plane3d plane;
   volatile float cross_x; /* volatile = store-once/reload-each-use; the
                              original spills exactly these four to stack
                              slots and keeps pa_xyz, qa_z, cross_z
@@ -445,7 +440,8 @@ float collision_surface_area(int bsp, int surface_index)
   verts_block = bsp + 0x54;
   anchor = (float *)tag_block_get_element((void *)verts_block,
                                           *(int *)(edge + side * 4), 0x10);
-  bsp3d_get_plane_from_designator(bsp, (unsigned int)surface[0], plane);
+  bsp3d_get_plane_from_designator(bsp, (unsigned int)surface[0],
+                                  (float *)&plane);
   edge = (int)tag_block_get_element((void *)edges_block,
                                     *(int *)(edge + 8 + side * 4), 0x18);
   is_owner = (*(int *)(edge + 0x14) == surface_index);
@@ -466,8 +462,8 @@ float collision_surface_area(int bsp, int surface_index)
       cross_x = qa_z * pa_y - qa_y * pa_z;
       cross_y = pa_z * qa_x - qa_z * pa_x;
       cross_z = pa_x * qa_y - qa_x * pa_y;
-      area =
-        plane[2] * cross_z + plane[1] * cross_y + cross_x * plane[0] + area;
+      area = plane.normal[2] * cross_z + plane.normal[1] * cross_y +
+             cross_x * plane.normal[0] + area;
       edge = (int)tag_block_get_element((void *)edges_block,
                                         *(int *)(edge + 8 + side * 4), 0x18);
       is_owner = (*(int *)(edge + 0x14) == surface_index);
@@ -1643,9 +1639,8 @@ void bsp3d_test_sphere_recursive(void *data, int node_index)
   /* AL at 0x148c03: which single child to descend when it does not straddle. */
   unsigned char child;
   int positive;
-  int sign;
 
-  while (node_index >= 0) {
+  while (!(node_index & 0x80000000)) {
     node = (int *)tag_block_get_element((void *)*(int *)data, node_index, 0xc);
     plane = (float *)tag_block_get_element((void *)(*(int *)data + 0xc),
                                            node[0], 0x10);
@@ -1656,42 +1651,38 @@ void bsp3d_test_sphere_recursive(void *data, int node_index)
         plane[3];
 
     within = (unsigned char)(d < *(float *)((char *)data + 0x10));
+    child = (unsigned char)(d > -*(float *)((char *)data + 0x10));
 
-    if (d <= -*(float *)((char *)data + 0x10)) {
-      child = 0;
-    } else {
-      child = 1;
-      if (within) {
-        if (*(int *)((char *)data + 0x18) < 0 ||
-            *(int *)((char *)data + 0x18) >= 0x80) {
-          display_assert(
-            "data->stack_depth>=0 && data->stack_depth<MAXIMUM_BSP3D_DEPTH",
-            "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x206, 1);
-          system_exit(-1);
-        }
-        *(int *)((char *)data + 0x1c + *(int *)((char *)data + 0x18) * 4) =
-          node[0] | 0x80000000;
-        *(int *)((char *)data + 0x18) += 1;
-
-        bsp3d_test_sphere_recursive(data, node[1]);
-
-        *(int *)((char *)data + 0x18) -= 1;
-        if (*(int *)((char *)data + 0x18) < 0 ||
-            *(int *)((char *)data + 0x18) >= 0x80) {
-          display_assert(
-            "data->stack_depth>=0 && data->stack_depth<MAXIMUM_BSP3D_DEPTH",
-            "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x210, 1);
-          system_exit(-1);
-        }
-        *(int *)((char *)data + 0x1c + *(int *)((char *)data + 0x18) * 4) =
-          node[0] & 0x7fffffff;
-        *(int *)((char *)data + 0x18) += 1;
-
-        bsp3d_test_sphere_recursive(data, node[2]);
-
-        *(int *)((char *)data + 0x18) -= 1;
-        return;
+    if (child && within) {
+      if (*(int *)((char *)data + 0x18) < 0 ||
+          *(int *)((char *)data + 0x18) >= 0x80) {
+        display_assert(
+          "data->stack_depth>=0 && data->stack_depth<MAXIMUM_BSP3D_DEPTH",
+          "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x206, 1);
+        system_exit(-1);
       }
+      *(int *)((char *)data + 0x1c + *(int *)((char *)data + 0x18) * 4) =
+        node[0] | 0x80000000;
+      *(int *)((char *)data + 0x18) += 1;
+
+      bsp3d_test_sphere_recursive(data, node[1]);
+
+      *(int *)((char *)data + 0x18) -= 1;
+      if (*(int *)((char *)data + 0x18) < 0 ||
+          *(int *)((char *)data + 0x18) >= 0x80) {
+        display_assert(
+          "data->stack_depth>=0 && data->stack_depth<MAXIMUM_BSP3D_DEPTH",
+          "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x210, 1);
+        system_exit(-1);
+      }
+      *(int *)((char *)data + 0x1c + *(int *)((char *)data + 0x18) * 4) =
+        node[0] & 0x7fffffff;
+      *(int *)((char *)data + 0x18) += 1;
+
+      bsp3d_test_sphere_recursive(data, node[2]);
+
+      *(int *)((char *)data + 0x18) -= 1;
+      return;
     }
     node_index = node[child + 1];
   }
@@ -1736,14 +1727,10 @@ void bsp3d_test_sphere_recursive(void *data, int node_index)
           float ay = (float)fabs((double)plane[1]);
           float az = (float)fabs((double)plane[2]);
 
-          if (az < ay || az < ax) {
-            if (ay < ax)
-              projection = 0;
-            else
-              projection = 1;
-          } else {
+          if (az >= ay && az >= ax)
             projection = 2;
-          }
+          else
+            projection = ay >= ax ? 1 : 0;
         }
         *(unsigned short *)((char *)data + 0x21c) = (unsigned short)projection;
         if (projection < 0 || projection > 2) {
@@ -1752,12 +1739,12 @@ void bsp3d_test_sphere_recursive(void *data, int node_index)
           system_exit(-1);
         }
 
-        positive = (unsigned char)(plane[projection] > 0.0f);
-        sign = (unsigned char)(positive !=
-                               (unsigned char)((ref[0] & 0x80000000) != 0));
-        *(unsigned char *)((char *)data + 0x21e) = sign;
+        positive = plane[projection] > 0.0f;
+        *(unsigned char *)((char *)data + 0x21e) =
+          (unsigned char)positive != ((ref[0] & (int)0x80000000) ? 1 : 0);
 
-        FUN_00061df0(point, *(unsigned short *)((char *)data + 0x21c), sign,
+        FUN_00061df0(point, *(unsigned short *)((char *)data + 0x21c),
+                     *(unsigned char *)((char *)data + 0x21e),
                      (char *)data + 0x220);
         FUN_001486e0(data, ref[1]);
         break;

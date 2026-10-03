@@ -854,7 +854,6 @@ void actor_stimulus_prop_just_killed(int actor_handle, int prop_handle)
   char *prop;
   char *tag;
   int killer_handle;
-  float chance;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   prop = (char *)datum_get(prop_data, prop_handle);
@@ -876,7 +875,7 @@ void actor_stimulus_prop_just_killed(int actor_handle, int prop_handle)
     }
   }
 
-  if (*(float *)(prop + 0x11c) >= *(float *)0x253f78)
+  if (!(*(float *)(prop + 0x11c) < *(float *)0x253f78))
     return;
   if (killer_handle == -1)
     return;
@@ -886,14 +885,15 @@ void actor_stimulus_prop_just_killed(int actor_handle, int prop_handle)
     return;
 
   if (*(int16_t *)(prop + 0x32) > 0 && *(char *)(prop + 0x122) <= 2) {
+    float chance;
     chance = *(float *)(tag + 0x2a0);
     if ((*(unsigned char *)(tag + 4) & 0x20) &&
         game_time_get() > ((actor_t *)actor)->field_39c) {
       if (actor_emotion_flee_with_friends(actor_handle, &chance))
         goto set_alert;
     }
-    if (chance <=
-        random_math_real((unsigned int *)get_global_random_seed_address()))
+    if (!(random_math_real((unsigned int *)get_global_random_seed_address()) <
+          chance))
       goto lab_a2;
   set_alert:
     if (((actor_t *)actor)->stimuli_panic_type < 3) {
@@ -946,11 +946,8 @@ void actor_stimulus_prop_fleeing(int actor_handle, int prop_handle)
   char *actor_tag;
   char *prop;
   char *other_actor;
-  char *other_prop;
-  int new_payload;
-  int other_actor_handle;
+  int flee_prop_index;
   float chance;
-  char preempt;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   actor_tag = (char *)tag_get(0x61637472, ((actor_t *)actor)->field_058);
@@ -963,31 +960,26 @@ void actor_stimulus_prop_fleeing(int actor_handle, int prop_handle)
     return;
 
   chance = *(float *)(actor_tag + 0x2a0);
-  preempt = (char)actor_emotion_flee_with_friends(actor_handle, &chance);
-  if (preempt == 0) {
-    if (chance <=
-        random_math_real((unsigned int *)get_global_random_seed_address())) {
-      return;
+  if (actor_emotion_flee_with_friends(actor_handle, &chance) ||
+      random_math_real((unsigned int *)get_global_random_seed_address()) <
+        chance) {
+    if (((actor_t *)actor)->stimuli_panic_type < 3) {
+      flee_prop_index = ((actor_t *)actor)->target_target_prop_index;
+      if (*(int *)(prop + 0x1c) != -1) {
+        other_actor = (char *)datum_get(actor_data, *(int *)(prop + 0x1c));
+        if (((actor_t *)other_actor)->state_action == 4 &&
+            ((actor_t *)other_actor)->field_0b8 != -1) {
+          flee_prop_index = prop_get_active_by_unit_index(
+            actor_handle,
+            *(int *)((char *)datum_get(prop_data,
+                                       ((actor_t *)other_actor)->field_0b8) +
+                     0x18));
+        }
+        ((actor_t *)actor)->stimuli_panic_type = 2;
+        ((actor_t *)actor)->stimuli_panic_prop_index = flee_prop_index;
+      }
     }
   }
-
-  if (((actor_t *)actor)->stimuli_panic_type >= 3)
-    return;
-
-  other_actor_handle = *(int *)(prop + 0x1c);
-  new_payload = ((actor_t *)actor)->target_target_prop_index;
-  if (other_actor_handle == -1)
-    return;
-
-  other_actor = (char *)datum_get(actor_data, other_actor_handle);
-  if (((actor_t *)other_actor)->state_action == 4 &&
-      ((actor_t *)other_actor)->field_0b8 != -1) {
-    other_prop = (char *)datum_get(prop_data, ((actor_t *)other_actor)->field_0b8);
-    new_payload =
-      prop_get_active_by_unit_index(actor_handle, *(int *)(other_prop + 0x18));
-  }
-  ((actor_t *)actor)->stimuli_panic_type = 2;
-  ((actor_t *)actor)->stimuli_panic_prop_index = new_payload;
 }
 
 /* actor_stimulus_noticed_danger_zone (0x378e0) — actor prop-reaction: impact/projectile look.
@@ -1012,7 +1004,7 @@ void actor_stimulus_noticed_danger_zone(int actor_handle, short param_2, short p
   float mag;
   int unit_handle;
   int type;
-  short danger_type; /* name: PAL 2342 actor_stimulus.c:397 */
+  short danger_type;
 
   (void)param_4;
 
@@ -1144,7 +1136,6 @@ void crew_decide_action(int actor_handle)
 {
   char *actor;
   char cVar1;
-  int tmp;
   unsigned char flag1;
   unsigned char flag2;
 
@@ -1210,14 +1201,10 @@ void crew_decide_action(int actor_handle)
     actor_action_handle_combat_status(actor_handle, flag2, flag1);
     return;
   case 0xc:
-    if (((actor_t *)actor)->field_0a0 == '\0' &&
-        ((actor_t *)actor)->field_1dc != -1) {
-      tmp = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, tmp, 0);
-      return;
-    }
-    tmp = actor_action_can_stop_conversing(actor_handle, 1);
-    actor_action_handle_combat_status(actor_handle, tmp, 1);
+    actor_action_handle_combat_status(
+      actor_handle, actor_action_can_stop_conversing(actor_handle),
+      ((actor_t *)actor)->field_0a0 != '\0' ||
+        ((actor_t *)actor)->field_1dc == -1);
     return;
   case 0xd:
     if (((actor_t *)actor)->danger_zone_danger_type != 0) {
@@ -1249,10 +1236,9 @@ void elite_decide_action(int actor_handle)
   char *actor;
   char *tag;
   char cVar1;
-  int tmp;
   unsigned char flag1;
   unsigned char flag2;
-  float shield_fraction; /* name: PAL 2342 actor_type_elite.c */
+  float shield_fraction;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   tag = (char *)tag_get(0x61637472, ((actor_t *)actor)->field_058);
@@ -1341,14 +1327,10 @@ void elite_decide_action(int actor_handle)
     actor_action_handle_combat_status(actor_handle, flag2, flag1);
     return;
   case 0xc:
-    if (((actor_t *)actor)->field_0a0 == '\0' &&
-        ((actor_t *)actor)->field_1dc != -1) {
-      tmp = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, tmp, 0);
-      return;
-    }
-    tmp = actor_action_can_stop_conversing(actor_handle, 1);
-    actor_action_handle_combat_status(actor_handle, tmp, 1);
+    actor_action_handle_combat_status(
+      actor_handle, actor_action_can_stop_conversing(actor_handle),
+      ((actor_t *)actor)->field_0a0 != '\0' ||
+        ((actor_t *)actor)->field_1dc == -1);
     return;
   case 0xd:
     if (((actor_t *)actor)->danger_zone_danger_type != 0) {
@@ -1381,16 +1363,15 @@ void elite_decide_action(int actor_handle)
  *
  * Case 6: actor_action_can_stop_guarding(actor_handle,3,6,0) — 4 args
  *   (ADD ESP,0xc at 0x380c6 cleans 3; 4th arg 0 is PUSH residue
- * pre-positioned). Case 0xc: actor_action_can_stop_conversing(actor_handle,
- * flag) — batch-cleanup residue pattern (ADD ESP,0x4 cleans only flag; ESI
- * cleaned by later ADD ESP,0xc). Case 0xb: XOR+MOV pattern for unsigned byte
+ * pre-positioned). Case 0xc: actor_action_can_stop_conversing(actor_handle)
+ * takes one argument (ADD ESP,0x4 cleans it; ESI cleaned by later
+ * ADD ESP,0xc). Case 0xb: XOR+MOV pattern for unsigned byte
  * loads at actor+0xa1, actor+0x9e. Confirmed: disassembly 0x38000–0x381c4
  * cross-checked. */
 void engineer_decide_action(int actor_handle)
 {
   char *actor;
   char cVar1;
-  int tmp;
   unsigned char flag1;
   unsigned char flag2;
 
@@ -1458,14 +1439,10 @@ void engineer_decide_action(int actor_handle)
     actor_action_handle_combat_status(actor_handle, flag2, flag1);
     return;
   case 0xc:
-    if (((actor_t *)actor)->field_0a0 == '\0' &&
-        ((actor_t *)actor)->field_1dc != -1) {
-      tmp = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, tmp, 0);
-      return;
-    }
-    tmp = actor_action_can_stop_conversing(actor_handle, 1);
-    actor_action_handle_combat_status(actor_handle, tmp, 1);
+    actor_action_handle_combat_status(
+      actor_handle, actor_action_can_stop_conversing(actor_handle),
+      ((actor_t *)actor)->field_0a0 != '\0' ||
+        ((actor_t *)actor)->field_1dc == -1);
     return;
   case 0xd:
     if (((actor_t *)actor)->danger_zone_danger_type != 0) {
@@ -1881,12 +1858,11 @@ void grunt_decide_action(int actor_handle)
 {
   char *actor;
   char cVar1;
-  int tmp;
   char cVar_203;
   char bVar_247;
   unsigned char flag1;
   unsigned char flag2;
-  short panic_type; /* name: PAL 2342 actor_type_grunt.c */
+  short panic_type;
   actor = (char *)datum_get(actor_data, actor_handle);
   cVar_203 = (signed char)actor[0x203] > 0 ? 1 : 0;
   bVar_247 = (signed char)actor[0x247] > 0 ? 1 : 0;
@@ -1975,14 +1951,10 @@ void grunt_decide_action(int actor_handle)
     actor_action_handle_combat_status(actor_handle, flag1, flag2);
     return;
   case 12:
-    if (((actor_t *)actor)->field_0a0 == '\0' &&
-        ((actor_t *)actor)->field_1dc != -1) {
-      tmp = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, tmp, 0);
-      return;
-    }
-    tmp = actor_action_can_stop_conversing(actor_handle, 1);
-    actor_action_handle_combat_status(actor_handle, tmp, 1);
+    actor_action_handle_combat_status(
+      actor_handle, actor_action_can_stop_conversing(actor_handle),
+      ((actor_t *)actor)->field_0a0 != '\0' ||
+        ((actor_t *)actor)->field_1dc == -1);
     return;
   case 13:
     if (((actor_t *)actor)->danger_zone_danger_type != 0) {
@@ -1998,8 +1970,8 @@ void grunt_decide_action(int actor_handle)
 /* hunter_decide_action (0x38b10) — actor action state-machine tick for fighter/retreat
  * type. Handles initial action, combat targeting, berserk transitions, and
  * behavior dispatch. Confirmed from disassembly: switch on
- * ((actor_t *)actor)->state_action; actor_action_can_stop_conversing takes 2
- * params (flag 0/1); case 0xb loads bytes via local unsigned char vars (XOR+MOV
+ * ((actor_t *)actor)->state_action; actor_action_can_stop_conversing takes 1
+ * param (the actor handle); case 0xb loads bytes via local unsigned char vars (XOR+MOV
  * pattern); case 0xc uses batched-cleanup residue: 3rd arg to
  * handle_combat_status is the flag (0/1) pushed before can_stop_conversing and
  * partially cleaned. */
@@ -2007,7 +1979,6 @@ void hunter_decide_action(int actor_handle)
 {
   char *actor;
   char cVar1;
-  int tmp;
   unsigned char flag1;
   unsigned char flag2;
 
@@ -2048,14 +2019,10 @@ void hunter_decide_action(int actor_handle)
     actor_action_handle_combat_status(actor_handle, flag1, flag2);
     return;
   case 0xc:
-    if (((actor_t *)actor)->field_0a0 == '\0' &&
-        ((actor_t *)actor)->field_1dc != -1) {
-      tmp = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, tmp, 0);
-      return;
-    }
-    tmp = actor_action_can_stop_conversing(actor_handle, 1);
-    actor_action_handle_combat_status(actor_handle, tmp, 1);
+    actor_action_handle_combat_status(
+      actor_handle, actor_action_can_stop_conversing(actor_handle),
+      ((actor_t *)actor)->field_0a0 != '\0' ||
+        ((actor_t *)actor)->field_1dc == -1);
     return;
   case 0xd:
     if (((actor_t *)actor)->danger_zone_danger_type == 0) {
@@ -2903,9 +2870,9 @@ void jackal_decide_action(int actor_handle)
   char *actor;
   char *actor_tag;
   char cVar1;
-  int tmp;
   unsigned char flag1;
   unsigned char flag2;
+  float shield_fraction;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   actor_tag = (char *)tag_get(0x61637472, ((actor_t *)actor)->field_058);
@@ -2943,9 +2910,12 @@ void jackal_decide_action(int actor_handle)
     if (((actor_t *)actor)->field_0a4 != '\0' &&
         ((actor_t *)actor)->field_0a5 == '\0' &&
         ((actor_t *)actor)->field_0a6 == '\0') {
-      if (*(float *)((char *)actor_tag +
-                     (((actor_t *)actor)->field_06e >= 4 ? 0x2e0 : 0x2e4)) >
-          *(float *)(actor + 0x1bc)) {
+      if (((actor_t *)actor)->field_06e >= 4) {
+        shield_fraction = *(float *)(actor_tag + 0x2e0);
+      } else {
+        shield_fraction = *(float *)(actor_tag + 0x2e4);
+      }
+      if (*(float *)(actor + 0x1bc) < shield_fraction) {
         ((actor_t *)actor)->field_0a4 = 1;
         ((actor_t *)actor)->field_0a8 = 0x1e;
       } else {
@@ -2978,14 +2948,10 @@ void jackal_decide_action(int actor_handle)
     actor_action_handle_combat_status(actor_handle, flag1, flag2);
     return;
   case 12:
-    if (((actor_t *)actor)->field_0a0 == '\0' &&
-        ((actor_t *)actor)->field_1dc != -1) {
-      tmp = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, tmp, 0);
-    } else {
-      tmp = actor_action_can_stop_conversing(actor_handle, 1);
-      actor_action_handle_combat_status(actor_handle, tmp, 1);
-    }
+    actor_action_handle_combat_status(
+      actor_handle, actor_action_can_stop_conversing(actor_handle),
+      ((actor_t *)actor)->field_0a0 != '\0' ||
+        ((actor_t *)actor)->field_1dc == -1);
     return;
   case 13:
     if (((actor_t *)actor)->danger_zone_danger_type != 0) {
@@ -3012,7 +2978,6 @@ void marine_decide_action(int actor_handle)
 {
   char *actor;
   char cVar1;
-  int tmp;
   unsigned char flag1;
   unsigned char flag2;
 
@@ -3085,14 +3050,10 @@ void marine_decide_action(int actor_handle)
     actor_action_handle_combat_status(actor_handle, flag1, flag2);
     return;
   case 12:
-    if (((actor_t *)actor)->field_0a0 == '\0' &&
-        ((actor_t *)actor)->field_1dc != -1) {
-      tmp = actor_action_can_stop_conversing(actor_handle, 0);
-      actor_action_handle_combat_status(actor_handle, tmp, 0);
-    } else {
-      tmp = actor_action_can_stop_conversing(actor_handle, 1);
-      actor_action_handle_combat_status(actor_handle, tmp, 1);
-    }
+    actor_action_handle_combat_status(
+      actor_handle, actor_action_can_stop_conversing(actor_handle),
+      ((actor_t *)actor)->field_0a0 != '\0' ||
+        ((actor_t *)actor)->field_1dc == -1);
     return;
   case 13:
     if (((actor_t *)actor)->danger_zone_danger_type != 0) {
@@ -3167,8 +3128,6 @@ void sentinel_decide_action(int actor_handle)
 {
   char *actor;
   char cVar1;
-  int ok;
-  int tmp;
   unsigned char flag1;
   unsigned char flag2;
 
@@ -3226,12 +3185,10 @@ void sentinel_decide_action(int actor_handle)
     actor_action_handle_combat_status(actor_handle, 1, 1);
     return;
   case 12:
-    tmp = (((actor_t *)actor)->field_0a0 != '\0' ||
-             ((actor_t *)actor)->field_1dc == -1) ?
-              1 :
-              0;
-    ok = actor_action_can_stop_conversing(actor_handle, tmp);
-    actor_action_handle_combat_status(actor_handle, ok, tmp);
+    actor_action_handle_combat_status(
+      actor_handle, actor_action_can_stop_conversing(actor_handle),
+      ((actor_t *)actor)->field_0a0 != '\0' ||
+        ((actor_t *)actor)->field_1dc == -1);
     return;
   default:
     return;
@@ -3898,14 +3855,14 @@ void actor_swarm_detach_from_unit(int actor_handle, int unit_handle)
 
 update_linked_list:
   /* Update linked list of units */
-  if (*(int *)(unit + 0x1b0) == -1) {
-    /* No next unit - update actor's first unit pointer */
-    ((actor_t *)actor)->field_024 = *(int *)(unit + 0x1ac);
-  } else {
+  if (*(int *)(unit + 0x1b0) != -1) {
     /* Update next unit's prev pointer */
     char *next_unit =
       (char *)object_get_and_verify_type(*(int *)(unit + 0x1b0), 3);
     *(int *)(next_unit + 0x1ac) = *(int *)(unit + 0x1ac);
+  } else {
+    /* No next unit - update actor's first unit pointer */
+    ((actor_t *)actor)->field_024 = *(int *)(unit + 0x1ac);
   }
 
   if (*(int *)(unit + 0x1ac) != -1) {
@@ -5395,183 +5352,172 @@ int actor_new(int actv_tag_index)
   int new_handle;
   char *actor;
   int actr_tag_index;
-  float *default_facing;
   char *state;
-  unsigned int actr_flags;
   float rand_val;
   int *seed;
 
-  if (actv_tag_index == -1) {
-    return -1;
+  new_handle = -1;
+  if (actv_tag_index != -1) {
+    actv_data = (char *)tag_get(0x61637476, actv_tag_index);
+    actr_tag_index = *(int *)(actv_data + 0x10);
+    if (actr_tag_index != -1) {
+      actr_data = (char *)tag_get(0x61637472, actr_tag_index);
+
+      new_handle = data_new_at_index(actor_data);
+      if (new_handle != -1) {
+        actor = (char *)datum_get(actor_data, new_handle);
+
+        /* Copy actv/actr tag indices and actor-type fields into the actor
+         * record. */
+        ((actor_t *)actor)->field_006 =
+          (char)((*(unsigned int *)actr_data >> 0x1a) & 1);
+        ((actor_t *)actor)->field_05c = actv_tag_index;
+        ((actor_t *)actor)->field_058 = actr_tag_index;
+        ((actor_t *)actor)->field_004 = ((actor_t *)actr_data)->field_014;
+
+        /* Initialize handle/index sentinels and zero-fields. */
+        ((actor_t *)actor)->field_018 = -1;
+        ((actor_t *)actor)->field_01c = 0;
+        ((actor_t *)actor)->field_034 = -1;
+        ((actor_t *)actor)->field_03a = (short)-1;
+        ((actor_t *)actor)->field_03c = (short)-1;
+        ((actor_t *)actor)->field_009 = 0;
+        ((actor_t *)actor)->field_030 = -1;
+        ((actor_t *)actor)->field_038 = (short)-1;
+        ((actor_t *)actor)->field_01e = 0;
+        ((actor_t *)actor)->field_020 = 0;
+        ((actor_t *)actor)->field_024 = -1;
+        ((actor_t *)actor)->meta_swarm_cache_index = -1;
+        ((actor_t *)actor)->field_007 = 1;
+        ((actor_t *)actor)->field_008 = 0;
+        ((actor_t *)actor)->field_00c = -1;
+        ((actor_t *)actor)->field_013 = 1;
+        ((actor_t *)actor)->field_012 = 1;
+        ((actor_t *)actor)->field_04a = 0;
+        ((actor_t *)actor)->field_050 = -1;
+        ((actor_t *)actor)->field_054 = -1;
+        ((actor_t *)actor)->firing_positions_current_position_index = (short)-1;
+        ((actor_t *)actor)->field_060 = (short)-1;
+        ((actor_t *)actor)->field_062 = (short)-1;
+        ((actor_t *)actor)->field_064 = -1;
+        ((actor_t *)actor)->field_08e = 0;
+        ((actor_t *)actor)->field_090 = (short)-1;
+        ((actor_t *)actor)->field_094 = -1;
+        ((actor_t *)actor)->state_action = 0;
+        ((actor_t *)actor)->field_06a = 2;
+        ((actor_t *)actor)->field_06e = 0;
+        ((actor_t *)actor)->field_072 = 0;
+        ((actor_t *)actor)->field_074 = 0;
+        ((actor_t *)actor)->field_088 = -1;
+        ((actor_t *)actor)->field_098 = 0;
+
+        /* Swarm-component flag: bit 0x15 of actr_flags (re-read after possible
+         * aliasing). */
+        ((actor_t *)actor)->field_099 =
+          (char)((*(unsigned int *)actr_data >> 0x15) & 1);
+
+        ((actor_t *)actor)->field_164 = -1;
+        ((actor_t *)actor)->field_158 = -1;
+        ((actor_t *)actor)->field_1c9 = 0;
+        ((actor_t *)actor)->field_1cc = 0;
+        ((actor_t *)actor)->field_1d0 = -1;
+        ((actor_t *)actor)->field_1d4 = 0;
+        ((actor_t *)actor)->field_1dc = -1;
+
+        /* Zero sub-range 0x350..0x3b7 (0x68 bytes). */
+        csmemset(actor + 0x350, 0, 0x68);
+
+        /* Initialize fields in 0x350..0x3ff range (after csmemset). */
+        ((actor_t *)actor)->field_370 = -1;
+        ((actor_t *)actor)->field_37c = -1;
+        ((actor_t *)actor)->field_380 = -1;
+        ((actor_t *)actor)->field_36c = -1;
+        ((actor_t *)actor)->field_384 = -1;
+        ((actor_t *)actor)->field_388 = -1;
+        ((actor_t *)actor)->field_398 = -1;
+        ((actor_t *)actor)->field_3a0 = -1;
+        ((actor_t *)actor)->field_3a4 = -1;
+        ((actor_t *)actor)->field_3ac = -1;
+        ((actor_t *)actor)->field_3b0 = -1;
+        ((actor_t *)actor)->field_3b4 = 1.0f;
+        ((actor_t *)actor)->field_390 = -1;
+        ((actor_t *)actor)->field_394 = -1;
+        ((actor_t *)actor)->field_39c = -1;
+
+        /* Roll a random dormancy check if actr never_dormant_chance > threshold. */
+        if (*(float *)(actr_data + 0x90) > *(float *)0x2533c0) {
+          seed = get_global_random_seed_address();
+          rand_val = random_math_real((unsigned int *)seed);
+          ((actor_t *)actor)->field_376 =
+            rand_val < *(float *)(actr_data + 0x90);
+        }
+
+        /* Zero actor sub-ranges 0x3e8..0x503 (0x5c bytes) and misc field inits. */
+        ((actor_t *)actor)->field_3e8 = 0;
+        ((actor_t *)actor)->field_400 = 0;
+        ((actor_t *)actor)->field_46c = 0;
+        ((actor_t *)actor)
+          ->control_path_destination_orders_ignore_target_object_index = -1;
+        ((actor_t *)actor)->field_494 = -1;
+        csmemset(actor + 0x4a8, 0, 0x5c);
+
+        /* Zero then sentinel-fill 0x5c8..0x5d7 (0x10 bytes with 0xff). */
+        ((actor_t *)actor)->field_504 = 0;
+        ((actor_t *)actor)->field_505 = 0;
+        ((actor_t *)actor)->control_fire_state = 1;
+        ((actor_t *)actor)->field_5f4 = 0;
+        ((actor_t *)actor)->field_5f6 = 0;
+        ((actor_t *)actor)->field_5f8 = 0;
+        ((actor_t *)actor)->field_5fa = 0;
+        ((actor_t *)actor)->field_61c = 0;
+        ((actor_t *)actor)->control_current_fire_target_prop_index = -1;
+        ((actor_t *)actor)->field_6a4 = -1;
+        ((actor_t *)actor)->field_6b4 = -1;
+        csmemset(actor + 0x5c8, -1, 0x10);
+
+        ((actor_t *)actor)->field_5d8 = (short)-1;
+        ((actor_t *)actor)->field_5f0 = (short)-1;
+        ((actor_t *)actor)->control_secondary_look_type = 0;
+        ((actor_t *)actor)->secondary_look_timer = 0;
+
+        *(real_vector3d *)((actor_t *)actor)->control_desired_aiming_vector =
+          **(real_vector3d **)0x31fc3c;
+        *(real_vector3d *)((actor_t *)actor)->control_desired_facing_vector =
+          **(real_vector3d **)0x31fc3c;
+        *(real_vector3d *)((actor_t *)actor)->control_desired_looking_vector =
+          **(real_vector3d **)0x31fc3c;
+
+
+        ((actor_t *)actor)->field_6cc = 0;
+        ((actor_t *)actor)->field_6ce = 0x1e;
+        ((actor_t *)actor)->target_target_type = 0;
+        ((actor_t *)actor)->target_target_prop_index = -1;
+        ((actor_t *)actor)->field_26c = -1;
+        ((actor_t *)actor)->field_278 = -1;
+
+        actor_clear_discarded_firing_positions(new_handle, 0);
+
+        ((actor_t *)actor)->field_3c0 = -1;
+
+        /* Initialize the per-slot AI state array entry for this actor. */
+        state = *(char **)0x331f58 + (new_handle & 0xffff) * 0x657c;
+        csmemset(state, 0, 0x657c);
+        *(int *)(state + 0x4) = -1;
+        *(int *)(state + 0x5c) = -1;
+        *(int *)(state + 0xc4) = -1;
+        *(int *)(state + 0x104) = -1;
+        *(int *)(state + 0x150) = -1;
+        *(int *)(state + 0x168) = -1;
+        *(int *)(state + 0x18c) = -1;
+        *(int *)(state + 0x19c) = -1;
+        *(int *)(state + 0x656c) = -1;
+        *(short *)(state + 0x6578) = (short)-1;
+
+        /* Dispatch actor-type init callback. */
+        actor_type_initialize(new_handle);
+      }
+    }
   }
-
-  actv_data = (char *)tag_get(0x61637476, actv_tag_index);
-  actr_tag_index = *(int *)(actv_data + 0x10);
-  if (actr_tag_index == -1) {
-    return -1;
-  }
-
-  actr_data = (char *)tag_get(0x61637472, actr_tag_index);
-
-  new_handle = data_new_at_index(actor_data);
-  if (new_handle == -1) {
-    return -1;
-  }
-
-  actor = (char *)datum_get(actor_data, new_handle);
-
-  /* Copy actv/actr tag indices and actor-type fields into the actor record. */
-  actr_flags = *(unsigned int *)actr_data;
-  ((actor_t *)actor)->field_05c = actv_tag_index;
-  ((actor_t *)actor)->field_006 = (char)((actr_flags >> 0x1a) & 1);
-  ((actor_t *)actor)->field_058 = actr_tag_index;
-  ((actor_t *)actor)->field_004 = ((actor_t *)actr_data)->field_014;
-
-  /* Initialize handle/index sentinels and zero-fields. */
-  ((actor_t *)actor)->field_018 = -1;
-  ((actor_t *)actor)->field_01c = 0;
-  *(int *)(actor + 0x34) = -1;
-  ((actor_t *)actor)->field_03a = (short)-1;
-  ((actor_t *)actor)->field_03c = (short)-1;
-  ((actor_t *)actor)->field_009 = 0;
-  ((actor_t *)actor)->field_030 = -1;
-  ((actor_t *)actor)->field_038 = (short)-1;
-  ((actor_t *)actor)->field_01e = 0;
-  ((actor_t *)actor)->field_020 = 0;
-  ((actor_t *)actor)->field_024 = -1;
-  ((actor_t *)actor)->meta_swarm_cache_index = -1;
-  ((actor_t *)actor)->field_007 = 1;
-  ((actor_t *)actor)->field_008 = 0;
-  ((actor_t *)actor)->field_00c = -1;
-  ((actor_t *)actor)->field_013 = 1;
-  ((actor_t *)actor)->field_012 = 1;
-  ((actor_t *)actor)->field_04a = 0;
-  ((actor_t *)actor)->field_050 = -1;
-  ((actor_t *)actor)->field_054 = -1;
-  ((actor_t *)actor)->firing_positions_current_position_index = (short)-1;
-  ((actor_t *)actor)->field_060 = (short)-1;
-  ((actor_t *)actor)->field_062 = (short)-1;
-  ((actor_t *)actor)->field_064 = -1;
-  ((actor_t *)actor)->field_08e = 0;
-  ((actor_t *)actor)->field_090 = (short)-1;
-  ((actor_t *)actor)->field_094 = -1;
-  ((actor_t *)actor)->state_action = 0;
-  ((actor_t *)actor)->field_06a = 2;
-  ((actor_t *)actor)->field_06e = 0;
-  ((actor_t *)actor)->field_072 = 0;
-  ((actor_t *)actor)->field_074 = 0;
-  ((actor_t *)actor)->field_088 = -1;
-  ((actor_t *)actor)->field_098 = 0;
-
-  /* Swarm-component flag: bit 0x15 of actr_flags (re-read after possible
-   * aliasing). */
-  ((actor_t *)actor)->field_099 =
-    (char)((*(unsigned int *)actr_data >> 0x15) & 1);
-
-  ((actor_t *)actor)->field_164 = -1;
-  ((actor_t *)actor)->field_158 = -1;
-  ((actor_t *)actor)->field_1c9 = 0;
-  ((actor_t *)actor)->field_1cc = 0;
-  ((actor_t *)actor)->field_1d0 = -1;
-  ((actor_t *)actor)->field_1d4 = 0;
-  ((actor_t *)actor)->field_1dc = -1;
-
-  /* Zero sub-range 0x350..0x3b7 (0x68 bytes). */
-  csmemset(actor + 0x350, 0, 0x68);
-
-  /* Initialize fields in 0x350..0x3ff range (after csmemset). */
-  ((actor_t *)actor)->field_370 = -1;
-  ((actor_t *)actor)->field_37c = -1;
-  ((actor_t *)actor)->field_380 = -1;
-  ((actor_t *)actor)->field_36c = -1;
-  ((actor_t *)actor)->field_384 = -1;
-  ((actor_t *)actor)->field_388 = -1;
-  ((actor_t *)actor)->field_398 = -1;
-  ((actor_t *)actor)->field_3a0 = -1;
-  ((actor_t *)actor)->field_3a4 = -1;
-  ((actor_t *)actor)->field_3ac = -1;
-  ((actor_t *)actor)->field_3b0 = -1;
-  ((actor_t *)actor)->field_3b4 = 1.0f;
-  ((actor_t *)actor)->field_390 = -1;
-  ((actor_t *)actor)->field_394 = -1;
-  ((actor_t *)actor)->field_39c = -1;
-
-  /* Roll a random dormancy check if actr never_dormant_chance > threshold. */
-  if (*(float *)0x2533c0 < *(float *)(actr_data + 0x90)) {
-    seed = get_global_random_seed_address();
-    rand_val = random_math_real((unsigned int *)seed);
-    ((actor_t *)actor)->field_376 =
-      (char)(rand_val < *(float *)(actr_data + 0x90));
-  }
-
-  /* Zero actor sub-ranges 0x3e8..0x503 (0x5c bytes) and misc field inits. */
-  ((actor_t *)actor)->field_3e8 = 0;
-  ((actor_t *)actor)->field_400 = 0;
-  ((actor_t *)actor)->field_46c = 0;
-  ((actor_t *)actor)
-    ->control_path_destination_orders_ignore_target_object_index = -1;
-  ((actor_t *)actor)->field_494 = -1;
-  csmemset(actor + 0x4a8, 0, 0x5c);
-
-  /* Zero then sentinel-fill 0x5c8..0x5d7 (0x10 bytes with 0xff). */
-  ((actor_t *)actor)->field_504 = 0;
-  ((actor_t *)actor)->field_505 = 0;
-  ((actor_t *)actor)->control_fire_state = 1;
-  ((actor_t *)actor)->field_5f4 = 0;
-  ((actor_t *)actor)->field_5f6 = 0;
-  ((actor_t *)actor)->field_5f8 = 0;
-  ((actor_t *)actor)->field_5fa = 0;
-  ((actor_t *)actor)->field_61c = 0;
-  ((actor_t *)actor)->control_current_fire_target_prop_index = -1;
-  ((actor_t *)actor)->field_6a4 = -1;
-  ((actor_t *)actor)->field_6b4 = -1;
-  csmemset(actor + 0x5c8, -1, 0x10);
-
-  /* Copy default facing vector {1,0,0} to three actor orientation fields. */
-  default_facing = *(float **)0x31fc3c;
-  ((actor_t *)actor)->control_desired_aiming_vector[0] = default_facing[0];
-  ((actor_t *)actor)->control_desired_aiming_vector[1] = default_facing[1];
-  ((actor_t *)actor)->control_desired_aiming_vector[2] = default_facing[2];
-  ((actor_t *)actor)->control_desired_facing_vector[0] = default_facing[0];
-  ((actor_t *)actor)->control_desired_facing_vector[1] = default_facing[1];
-  ((actor_t *)actor)->control_desired_facing_vector[2] = default_facing[2];
-  ((actor_t *)actor)->control_desired_looking_vector[0] = default_facing[0];
-  ((actor_t *)actor)->control_desired_looking_vector[1] = default_facing[1];
-  ((actor_t *)actor)->control_desired_looking_vector[2] = default_facing[2];
-
-  ((actor_t *)actor)->field_5d8 = (short)-1;
-  ((actor_t *)actor)->field_5f0 = (short)-1;
-  ((actor_t *)actor)->control_secondary_look_type = 0;
-  ((actor_t *)actor)->secondary_look_timer = 0;
-
-  ((actor_t *)actor)->field_6cc = 0;
-  ((actor_t *)actor)->field_6ce = 0x1e;
-  ((actor_t *)actor)->target_target_type = 0;
-  ((actor_t *)actor)->target_target_prop_index = -1;
-  ((actor_t *)actor)->field_26c = -1;
-  ((actor_t *)actor)->field_278 = -1;
-
-  actor_clear_discarded_firing_positions(new_handle, 0);
-
-  ((actor_t *)actor)->field_3c0 = -1;
-
-  /* Initialize the per-slot AI state array entry for this actor. */
-  state = *(char **)0x331f58 + (new_handle & 0xffff) * 0x657c;
-  csmemset(state, 0, 0x657c);
-  *(int *)(state + 0x4) = -1;
-  *(int *)(state + 0x5c) = -1;
-  *(int *)(state + 0xc4) = -1;
-  *(int *)(state + 0x104) = -1;
-  *(int *)(state + 0x150) = -1;
-  *(int *)(state + 0x168) = -1;
-  *(int *)(state + 0x18c) = -1;
-  *(int *)(state + 0x19c) = -1;
-  *(int *)(state + 0x656c) = -1;
-  *(short *)(state + 0x6578) = (short)-1;
-
-  /* Dispatch actor-type init callback. */
-  actor_type_initialize(new_handle);
-
   return new_handle;
 }
 
@@ -5714,10 +5660,10 @@ void actor_set_dormant(int actor_handle, char flag)
                                   ((actor_t *)actor)->meta_swarm_cache_index);
         i = 0;
         while (i < *(int16_t *)(swarm + 0x2)) {
-          if (flag == 0) {
-            object_activate(*(int *)(swarm + 0x18 + (int)i * 4));
-          } else {
+          if (flag != 0) {
             object_deactivate(*(int *)(swarm + 0x18 + (int)i * 4));
+          } else {
+            object_activate(*(int *)(swarm + 0x18 + (int)i * 4));
           }
           i++;
         }
@@ -5725,20 +5671,20 @@ void actor_set_dormant(int actor_handle, char flag)
         obj_handle = ((actor_t *)actor)->field_024;
         while (obj_handle != -1) {
           obj = (char *)object_get_and_verify_type(obj_handle, 3);
-          if (flag == 0) {
-            object_activate(obj_handle);
-          } else {
+          if (flag != 0) {
             object_deactivate(obj_handle);
+          } else {
+            object_activate(obj_handle);
           }
           obj_handle = *(int *)(obj + 0x1ac);
         }
       }
     } else {
       if (((actor_t *)actor)->field_018 != -1) {
-        if (flag == 0) {
-          object_activate(((actor_t *)actor)->field_018);
-        } else {
+        if (flag != 0) {
           object_deactivate(((actor_t *)actor)->field_018);
+        } else {
+          object_activate(((actor_t *)actor)->field_018);
         }
       }
     }
@@ -6166,15 +6112,15 @@ void actor_died(int actor_handle)
   float burst_duration;
   float random_val;
   float ammo_fraction;
-  int ticks;
+  short ticks;
   int *seed;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   tag = (char *)tag_get(0x61637476, ((actor_t *)actor)->field_05c);
-  encounter_handle = *(int *)(actor + 0x34);
+  encounter_handle = ((actor_t *)actor)->field_034;
 
   /* Combat state 3 with burst count > 1: perform firing logic */
-  if (((actor_t *)actor)->field_06a == 3 && ((actor_t *)actor)->field_06e > 1) {
+  if (((actor_t *)actor)->field_06a == 3 && ((actor_t *)actor)->field_06e >= 2) {
     unit = (char *)object_get_and_verify_type(((actor_t *)actor)->field_018, 3);
 
     if (unit_is_alive(((actor_t *)actor)->field_018)) {
@@ -6198,11 +6144,11 @@ void actor_died(int actor_handle)
         if (((actor_t *)actor)->field_378 != 0 ||
             (((actor_t *)actor)->control_current_fire_target_type > 0 &&
              ((actor_t *)actor)->field_648 < *(float *)0x254644)) {
-          boosted = accuracy * 1.5f;
+          boosted = accuracy * 4.0f;
           if (boosted > 0.6f) {
             boosted = 0.6f;
           }
-          if (boosted > accuracy) {
+          if (!(accuracy > boosted)) {
             accuracy = boosted;
           }
         }
@@ -6210,22 +6156,17 @@ void actor_died(int actor_handle)
         /* Random check against accuracy */
         seed = get_global_random_seed_address();
         if (random_math_real((unsigned int *)seed) < accuracy) {
-          /* Calculate burst duration in ticks */
           if (*(float *)(tag + 0x98) == 0.0f) {
-            FUN_000121e0(0.8f, 1.3f);
-          }
-
-          /* Clamp burst_seconds to [0.05f, 2.0f] */
-          if (*(float *)(tag + 0x98) < 0.05f) {
-            burst_duration = 0.05f;
-          } else if (*(float *)(tag + 0x98) > 2.0f) {
-            burst_duration = 2.0f;
+            burst_duration = FUN_000121e0(0.8f, 1.3f);
+          } else if (*(float *)(tag + 0x98) < 0.8f) {
+            burst_duration = 0.8f;
+          } else if (*(float *)(tag + 0x98) > 1.3f) {
+            burst_duration = 1.3f;
           } else {
             burst_duration = *(float *)(tag + 0x98);
           }
-
           /* Convert to ticks (30 ticks per second) */
-          ticks = (int)(burst_duration * 30.0f);
+          ticks = (short)(burst_duration * 30.0f);
           unit_persistent_control(((actor_t *)actor)->field_018, ticks, 0x800);
           *(char *)(unit + 0x23c) = (char)ticks;
         }
@@ -6235,7 +6176,6 @@ void actor_died(int actor_handle)
 
   /* Update weapon ammo state */
   unit = (char *)object_get_and_verify_type(((actor_t *)actor)->field_018, 3);
-
   seed = get_global_random_seed_address();
   random_val = random_math_real((unsigned int *)seed);
 
@@ -6253,19 +6193,23 @@ void actor_died(int actor_handle)
   if (weapon_handle != -1) {
     /* Set weapon ammo fraction if tag defines it */
     if (*(float *)(tag + 0x1d8) > 0.0f || *(float *)(tag + 0x1dc) > 0.0f) {
-      seed = get_global_random_seed_address();
-      ammo_fraction = random_real_range(seed, *(float *)(tag + 0x1d8),
-                                        *(float *)(tag + 0x1dc));
+      float upper = *(float *)(tag + 0x1dc);
+      float lower = *(float *)(tag + 0x1d8);
+      ammo_fraction =
+        random_real_range(get_global_random_seed_address(), lower, upper);
       weapon_set_current_amount(weapon_handle, ammo_fraction);
     }
-
     /* Set magazine rounds if tag defines it */
     if (*(short *)(tag + 0x1e0) > 0 || *(short *)(tag + 0x1e2) > 0) {
-      int16_t rounds = 0;
-      seed = get_global_random_seed_address();
-      rounds = seed_random_range((unsigned int *)seed, *(short *)(tag + 0x1e0),
-                            *(short *)(tag + 0x1e2) + 1);
-      weapon_set_total_rounds(weapon_handle, &rounds);
+      int16_t rounds[2];
+      csmemset(rounds, 0, sizeof(rounds));
+      {
+        int16_t upper = *(short *)(tag + 0x1e2) + 1;
+        int16_t lower = *(short *)(tag + 0x1e0);
+        rounds[0] = seed_random_range(
+          (unsigned int *)get_global_random_seed_address(), lower, upper);
+      }
+      weapon_set_total_rounds(weapon_handle, rounds);
     }
   }
 

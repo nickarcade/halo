@@ -273,28 +273,36 @@ int FUN_00196b10(float *bounds, int plane_count, int plane_address)
     plane = (float *)(plane_address + plane_index * 0x10);
     plane_corner_mask = 0;
     if (copied_bounds[0] * plane[0] + copied_bounds[2] * plane[1] +
-          copied_bounds[4] * plane[2] - plane[3] < 0.0f)
+          copied_bounds[4] * plane[2] - plane[3] <
+        0.0f)
       plane_corner_mask |= 0x01;
     if (copied_bounds[1] * plane[0] + copied_bounds[2] * plane[1] +
-          copied_bounds[4] * plane[2] - plane[3] < 0.0f)
+          copied_bounds[4] * plane[2] - plane[3] <
+        0.0f)
       plane_corner_mask |= 0x02;
     if (copied_bounds[0] * plane[0] + copied_bounds[3] * plane[1] +
-          copied_bounds[4] * plane[2] - plane[3] < 0.0f)
+          copied_bounds[4] * plane[2] - plane[3] <
+        0.0f)
       plane_corner_mask |= 0x04;
     if (copied_bounds[1] * plane[0] + copied_bounds[3] * plane[1] +
-          copied_bounds[4] * plane[2] - plane[3] < 0.0f)
+          copied_bounds[4] * plane[2] - plane[3] <
+        0.0f)
       plane_corner_mask |= 0x08;
     if (copied_bounds[0] * plane[0] + copied_bounds[2] * plane[1] +
-          copied_bounds[5] * plane[2] - plane[3] < 0.0f)
+          copied_bounds[5] * plane[2] - plane[3] <
+        0.0f)
       plane_corner_mask |= 0x10;
     if (copied_bounds[1] * plane[0] + copied_bounds[2] * plane[1] +
-          copied_bounds[5] * plane[2] - plane[3] < 0.0f)
+          copied_bounds[5] * plane[2] - plane[3] <
+        0.0f)
       plane_corner_mask |= 0x20;
     if (copied_bounds[0] * plane[0] + copied_bounds[3] * plane[1] +
-          copied_bounds[5] * plane[2] - plane[3] < 0.0f)
+          copied_bounds[5] * plane[2] - plane[3] <
+        0.0f)
       plane_corner_mask |= 0x40;
     if (copied_bounds[1] * plane[0] + copied_bounds[3] * plane[1] +
-          copied_bounds[5] * plane[2] - plane[3] < 0.0f)
+          copied_bounds[5] * plane[2] - plane[3] <
+        0.0f)
       plane_corner_mask |= 0x80;
 
     if (plane_corner_mask == 0xff) {
@@ -361,7 +369,6 @@ short FUN_00196c90(int out_handles, short max_count, void *iter_first,
   return count;
 }
 
-
 /* 0x196d60 - FUN_00196d60
  *
  * Grows the 2D rectangle `rect` {x0, x1, y0, y1} to cover every point of a
@@ -410,170 +417,41 @@ void FUN_00196d60(float *rect, int16_t *hull)
   }
 }
 
-/* Recursively flood rendered clusters across BSP portal connections (0x197b00).
- * DFS over the cluster portal graph. Sets a per-cluster "visited" bit (dynamic
- * bit-vector at *0x4d8ed8) on entry and clears it on exit (backtrack). The
- * first time a cluster is reached (permanent-mark set at 0x50678c) it allocates
- * a rendered_cluster record: record[0]=cluster_index plus a 16-byte block
- * copied from *(void**)0x31fc68; a bounded counter at 0x5137cc (<0x80) indexes
- * them. For each portal it looks up the connection (scenario+0x154, 0x40-byte
- * record), picks the neighbor cluster (the other side), and, if the neighbor is
- * visible and sound-carrying, recurses -- either with the same sound list, or a
- * freshly built portal-clipped list (FUN_00108060). The assert file string
- * proves this function lives in structure_visibility.c.
+/* 0x196e10 - FUN_00196e10
  *
- * FUN_00197570 (@edx records / @esi count / float threshold) and
- * FUN_00196e10 (@edi sound_list / @ebx env / float dist) take register args --
- * verified against callee disassembly (0x197570 reads SI+EDX; 0x196e10 reads
- * [EDI] and pushes EBX without saving them). */
-void FUN_00197b00(int16_t cluster_index, uint16_t *sound_list)
+ * Draws a closed polyline through a point list laid out like a portal hull:
+ * int16 point count at +0, float (x, y) pairs from +4. Each point is lifted to
+ * (x, y, -1.0) and transformed in place by the matrix at 0x5065e8, then a
+ * segment is drawn from it to the previous point via FUN_00189270(1, ...).
+ * The first "previous" point is the last point of the list (only built when
+ * the count is non-zero).
+ *
+ * ABI: EDI = sound_list (kb name), EBX = env, passed through untouched as the
+ * last FUN_00189270 argument. The stack `distance` argument is never read
+ * (no [EBP+8] access in 0x196e10..0x196eaf). The counter is 16-bit
+ * (INC ESI / CMP SI,[EDI]) and the count is re-read every iteration. */
+void FUN_00196e10(uint16_t *sound_list, void *env, float distance)
 {
-  uint16_t built_list[1026]; /* local_102c([0]=count) + local_1028(elements @
-                                &[2]) -- MUST stay contiguous */
-  uint16_t portal_hull[1026]; /* original: ONE hull buffer at EBP-0x824
-                                 ([0]=count word, float pairs @ &[2]).
-                                 FUN_001974f0 -> FUN_00197310 writes up to
-                                 0x100 points (0x804 bytes) through it; the
-                                 prior split into `int local_828` + work_b
-                                 smashed the clang frame (map-load crash,
-                                 read of 0xc0170662 at FUN_00197b00+0x2a9). */
-  void *bsp;
-  int cluster_index_i;
-  char *clusters_block;
-  char *connections_block;
-  uint16_t *cluster_elem;
-  uint32_t *sound_bits;
-  uint32_t bit_mask;
-  int bit_offset;
-  int16_t *rec;
-  int i;
-  void *sound_env_out;
+  float prev[3];
+  float cur[3];
+  short i;
 
-  bsp = scenario_get();
-  cluster_index_i = (int)cluster_index;
-  cluster_elem = (uint16_t *)tag_block_get_element((char *)bsp + 0x134,
-                                                   cluster_index_i, 0x68);
-  sound_bits = structure_bsp_get_cluster_sound_data(bsp, *(int16_t *)0x506784);
-
-  if (sound_list == 0 || (int16_t)*sound_list < 0 ||
-      (int16_t)*sound_list > 0x100) {
-    display_assert("valid_portal_hull(visible_region)",
-                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                   0x3ee, 1);
-    system_exit(-1);
+  if (sound_list[0] != 0) {
+    prev[0] = *(float *)(sound_list + (short)sound_list[0] * 4 - 2);
+    prev[1] = *(float *)(sound_list + (short)sound_list[0] * 4);
+    prev[2] = -1.0f;
+    matrix_transform_point((float *)0x5065e8, prev, prev);
   }
-
-  bit_mask = 1u << (cluster_index_i & 0x1f);
-  bit_offset = (cluster_index_i >> 5) * 4;
-  *(uint32_t *)(bit_offset + *(int *)0x4d8ed8) |= bit_mask;
-
-  if ((*(uint32_t *)(bit_offset + 0x50678c) & bit_mask) == 0) {
-    char *src;
-    uint16_t rc_index;
-
-    if (*(int16_t *)0x5137cc >= 0x80) {
-      display_assert("raise MAXIMUM_RENDERED_CLUSTERS",
-                     "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                     0x3f5, 1);
-      system_exit(-1);
-    }
-    if ((int16_t)cluster_index < 0 || (int16_t)cluster_index >= 0x200) {
-      display_assert("cluster_index>=0 && cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
-                     "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                     0x3f8, 1);
-      system_exit(-1);
-    }
-
-    rc_index = *(uint16_t *)0x5137cc;
-    *(uint16_t *)(0x4d8edc + cluster_index_i * 2) = rc_index;
-    *(uint16_t *)0x5137cc = rc_index + 1;
-    rec = (int16_t *)rendered_cluster_get(
-      *(uint16_t *)(0x4d8edc + cluster_index_i * 2));
-    rec[0] = cluster_index;
-    src = *(char **)0x31fc68;
-    *(uint32_t *)((char *)rec + 4) = *(uint32_t *)(src + 0);
-    *(uint32_t *)((char *)rec + 8) = *(uint32_t *)(src + 4);
-    *(uint32_t *)((char *)rec + 12) = *(uint32_t *)(src + 8);
-    *(uint32_t *)((char *)rec + 16) = *(uint32_t *)(src + 12);
-  } else {
-    rec = (int16_t *)rendered_cluster_get(
-      *(uint16_t *)(0x4d8edc + cluster_index_i * 2));
-    if (rec[0] != cluster_index) {
-      display_assert("rendered_cluster->cluster_index==cluster_index",
-                     "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
-                     0x403, 1);
-      system_exit(-1);
-    }
+  for (i = 0; i < (short)sound_list[0]; i++) {
+    cur[0] = *(float *)(sound_list + i * 4 + 2);
+    cur[1] = *(float *)(sound_list + i * 4 + 4);
+    cur[2] = -1.0f;
+    matrix_transform_point((float *)0x5065e8, cur, cur);
+    FUN_00189270(1, cur, prev, env);
+    prev[0] = cur[0];
+    prev[1] = cur[1];
+    prev[2] = cur[2];
   }
-
-  *(uint32_t *)(bit_offset + 0x50678c) |= bit_mask;
-  /* 0x197ca9: original sets EDI=[ebp+0xc] (visible_region hull param) and
-   * ESI=rec+4 (rendered-cluster bounds rect) before CALL. Accumulates the
-   * hull's 2D points into the rect (min/max union). */
-  FUN_00196d60((float *)((char *)rec + 4), (int16_t *)sound_list);
-
-  if (*(char *)0x505702 != 0) {
-    FUN_00196e10(sound_list, *(void **)0x2ee6d0, 0.05f);
-  } else if (ai_debug_highlight_cluster(cluster_index, &sound_env_out) != 0) {
-    FUN_00196e10(sound_list, sound_env_out, 0.05f);
-  }
-
-  clusters_block = (char *)bsp + 0x134;
-  connections_block = (char *)bsp + 0x154;
-  for (i = 0; i < *(int *)((char *)cluster_elem + 0x5c); i++) {
-    int16_t conn_index;
-    int16_t *conn;
-    int pick;
-    int16_t neighbor;
-    uint32_t nmask;
-    int noff;
-
-    conn_index =
-      *(int16_t *)tag_block_get_element((char *)cluster_elem + 0x5c, i, 2);
-    conn = (int16_t *)tag_block_get_element(connections_block, (int)conn_index,
-                                            0x40);
-    pick = (conn[0] == cluster_index) ? 1 : 0;
-    neighbor = conn[pick];
-    if (neighbor < 0 || (int)neighbor >= *(int *)clusters_block)
-      continue;
-
-    nmask = 1u << ((int)neighbor & 0x1f);
-    noff = ((int)neighbor >> 5) * 4;
-    if ((*(uint32_t *)((char *)(*(int *)0x4d8ed8) + noff) & nmask) != 0)
-      continue;
-    if ((*(uint32_t *)((char *)sound_bits + noff) & nmask) == 0)
-      continue;
-
-    {
-      int16_t r = FUN_001974f0(conn_index, (char)pick, (int *)portal_hull);
-
-      if (r == 2) {
-        FUN_00197b00(neighbor, sound_list);
-      } else if (r == 0) {
-        if (*(char *)0x506789 == 0) {
-          char c =
-            FUN_00197570(*(float **)((char *)conn + 0x38),
-                         *(int16_t *)((char *)conn + 0x34), *(float *)0x506590);
-          if (c == 0)
-            continue;
-        }
-        /* 0x197dd6: arg3 is the dword loaded from the hull base (count word),
-         * arg4 the hull points at base+4 — both from the ONE buffer 1974f0
-         * filled. */
-        built_list[0] = (uint16_t)FUN_00108060(
-          *sound_list, sound_list + 2, *(int *)portal_hull, portal_hull + 2,
-          0x100, &built_list[2], 0.0001f);
-        if ((int16_t)built_list[0] > 0) {
-          FUN_00197b00(neighbor, built_list);
-        } else if (built_list[0] == 0xffff) {
-          error(2, "portal intersection failed.");
-          FUN_00197b00(neighbor, sound_list);
-        }
-      }
-    }
-  }
-
-  *(uint32_t *)(bit_offset + *(int *)0x4d8ed8) &= ~bit_mask;
 }
 
 /* 0x197130 - gather visible clusters referenced by a BSP leaf's surfaces.
@@ -910,4 +788,170 @@ unsigned short FUN_001978a0(int node_index, float *parent_bounds, void *param_3,
   }
 
   return (unsigned short)accum;
+}
+
+/* Recursively flood rendered clusters across BSP portal connections (0x197b00).
+ * DFS over the cluster portal graph. Sets a per-cluster "visited" bit (dynamic
+ * bit-vector at *0x4d8ed8) on entry and clears it on exit (backtrack). The
+ * first time a cluster is reached (permanent-mark set at 0x50678c) it allocates
+ * a rendered_cluster record: record[0]=cluster_index plus a 16-byte block
+ * copied from *(void**)0x31fc68; a bounded counter at 0x5137cc (<0x80) indexes
+ * them. For each portal it looks up the connection (scenario+0x154, 0x40-byte
+ * record), picks the neighbor cluster (the other side), and, if the neighbor is
+ * visible and sound-carrying, recurses -- either with the same sound list, or a
+ * freshly built portal-clipped list (FUN_00108060). The assert file string
+ * proves this function lives in structure_visibility.c.
+ *
+ * FUN_00197570 (@edx records / @esi count / float threshold) and
+ * FUN_00196e10 (@edi sound_list / @ebx env / float dist) take register args --
+ * verified against callee disassembly (0x197570 reads SI+EDX; 0x196e10 reads
+ * [EDI] and pushes EBX without saving them). */
+void FUN_00197b00(int16_t cluster_index, uint16_t *sound_list)
+{
+  uint16_t built_list[1026]; /* local_102c([0]=count) + local_1028(elements @
+                                &[2]) -- MUST stay contiguous */
+  uint16_t portal_hull[1026]; /* original: ONE hull buffer at EBP-0x824
+                                 ([0]=count word, float pairs @ &[2]).
+                                 FUN_001974f0 -> FUN_00197310 writes up to
+                                 0x100 points (0x804 bytes) through it; the
+                                 prior split into `int local_828` + work_b
+                                 smashed the clang frame (map-load crash,
+                                 read of 0xc0170662 at FUN_00197b00+0x2a9). */
+  void *bsp;
+  int cluster_index_i;
+  char *clusters_block;
+  char *connections_block;
+  uint16_t *cluster_elem;
+  uint32_t *sound_bits;
+  uint32_t bit_mask;
+  int bit_offset;
+  int16_t *rec;
+  int i;
+  void *sound_env_out;
+
+  bsp = scenario_get();
+  cluster_index_i = (int)cluster_index;
+  cluster_elem = (uint16_t *)tag_block_get_element((char *)bsp + 0x134,
+                                                   cluster_index_i, 0x68);
+  sound_bits = structure_bsp_get_cluster_sound_data(bsp, *(int16_t *)0x506784);
+
+  if (sound_list == 0 || (int16_t)*sound_list < 0 ||
+      (int16_t)*sound_list > 0x100) {
+    display_assert("valid_portal_hull(visible_region)",
+                   "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                   0x3ee, 1);
+    system_exit(-1);
+  }
+
+  bit_mask = 1u << (cluster_index_i & 0x1f);
+  bit_offset = (cluster_index_i >> 5) * 4;
+  *(uint32_t *)(bit_offset + *(int *)0x4d8ed8) |= bit_mask;
+
+  if ((*(uint32_t *)(bit_offset + 0x50678c) & bit_mask) == 0) {
+    char *src;
+    uint16_t rc_index;
+
+    if (*(int16_t *)0x5137cc >= 0x80) {
+      display_assert("raise MAXIMUM_RENDERED_CLUSTERS",
+                     "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                     0x3f5, 1);
+      system_exit(-1);
+    }
+    if ((int16_t)cluster_index < 0 || (int16_t)cluster_index >= 0x200) {
+      display_assert(
+        "cluster_index>=0 && cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
+        "c:\\halo\\SOURCE\\structures\\structure_visibility.c", 0x3f8, 1);
+      system_exit(-1);
+    }
+
+    rc_index = *(uint16_t *)0x5137cc;
+    *(uint16_t *)(0x4d8edc + cluster_index_i * 2) = rc_index;
+    *(uint16_t *)0x5137cc = rc_index + 1;
+    rec = (int16_t *)rendered_cluster_get(
+      *(uint16_t *)(0x4d8edc + cluster_index_i * 2));
+    rec[0] = cluster_index;
+    src = *(char **)0x31fc68;
+    *(uint32_t *)((char *)rec + 4) = *(uint32_t *)(src + 0);
+    *(uint32_t *)((char *)rec + 8) = *(uint32_t *)(src + 4);
+    *(uint32_t *)((char *)rec + 12) = *(uint32_t *)(src + 8);
+    *(uint32_t *)((char *)rec + 16) = *(uint32_t *)(src + 12);
+  } else {
+    rec = (int16_t *)rendered_cluster_get(
+      *(uint16_t *)(0x4d8edc + cluster_index_i * 2));
+    if (rec[0] != cluster_index) {
+      display_assert("rendered_cluster->cluster_index==cluster_index",
+                     "c:\\halo\\SOURCE\\structures\\structure_visibility.c",
+                     0x403, 1);
+      system_exit(-1);
+    }
+  }
+
+  *(uint32_t *)(bit_offset + 0x50678c) |= bit_mask;
+  /* 0x197ca9: original sets EDI=[ebp+0xc] (visible_region hull param) and
+   * ESI=rec+4 (rendered-cluster bounds rect) before CALL. Accumulates the
+   * hull's 2D points into the rect (min/max union). */
+  FUN_00196d60((float *)((char *)rec + 4), (int16_t *)sound_list);
+
+  if (*(char *)0x505702 != 0) {
+    FUN_00196e10(sound_list, *(void **)0x2ee6d0, 0.05f);
+  } else if (ai_debug_highlight_cluster(cluster_index, &sound_env_out) != 0) {
+    FUN_00196e10(sound_list, sound_env_out, 0.05f);
+  }
+
+  clusters_block = (char *)bsp + 0x134;
+  connections_block = (char *)bsp + 0x154;
+  for (i = 0; i < *(int *)((char *)cluster_elem + 0x5c); i++) {
+    int16_t conn_index;
+    int16_t *conn;
+    int pick;
+    int16_t neighbor;
+    uint32_t nmask;
+    int noff;
+
+    conn_index =
+      *(int16_t *)tag_block_get_element((char *)cluster_elem + 0x5c, i, 2);
+    conn = (int16_t *)tag_block_get_element(connections_block, (int)conn_index,
+                                            0x40);
+    pick = (conn[0] == cluster_index) ? 1 : 0;
+    neighbor = conn[pick];
+    if (neighbor < 0 || (int)neighbor >= *(int *)clusters_block)
+      continue;
+
+    nmask = 1u << ((int)neighbor & 0x1f);
+    noff = ((int)neighbor >> 5) * 4;
+    if ((*(uint32_t *)((char *)(*(int *)0x4d8ed8) + noff) & nmask) != 0)
+      continue;
+    if ((*(uint32_t *)((char *)sound_bits + noff) & nmask) == 0)
+      continue;
+
+    {
+      int16_t r = FUN_001974f0(conn_index, (char)pick, (int *)portal_hull);
+
+      if (r == 2) {
+        FUN_00197b00(neighbor, sound_list);
+      } else if (r == 0) {
+        if (*(char *)0x506789 == 0) {
+          char c =
+            FUN_00197570(*(float **)((char *)conn + 0x38),
+                         *(int16_t *)((char *)conn + 0x34), *(float *)0x506590);
+          if (c == 0)
+            continue;
+        }
+        /* 0x197dd6: arg3 is the dword loaded from the hull base (count word),
+         * arg4 the hull points at base+4 — both from the ONE buffer 1974f0
+         * filled. */
+        built_list[0] = (uint16_t)FUN_00108060(
+          *sound_list, sound_list + 2, *(int *)portal_hull, portal_hull + 2,
+          0x100, &built_list[2], 0.0001f);
+        if ((int16_t)built_list[0] > 0) {
+          FUN_00197b00(neighbor, built_list);
+        } else if (built_list[0] == 0xffff) {
+          error(2, "portal intersection failed.");
+          FUN_00197b00(neighbor, sound_list);
+        }
+      }
+    }
+  }
+
+  *(uint32_t *)(bit_offset + *(int *)0x4d8ed8) &= ~bit_mask;
 }

@@ -2,8 +2,8 @@
 """Compare object datums on the two lockstep xemu guests.
 
 Monitors (HMP, virtual `x` — do not `stop` either VM):
-  host   (pristine 10.0.0.24)  tcp:127.0.0.1:4446
-  client (ours     10.0.0.21)  tcp:127.0.0.1:4444
+  host   (pristine, xemu-host box)    tcp:127.0.0.1:4446
+  client (ours, xemu-client box)      tcp:127.0.0.1:4444
 
     python3 tools/xbox/lockstep_datum_diff.py
     python3 tools/xbox/lockstep_datum_diff.py --watch

@@ -1489,7 +1489,7 @@ the stack as its parameters. C89 will not warn: the prototype says zero args
 and the call passes zero args.
 
 This is silent until the code path actually runs. It shipped the F9 freeze
-(2026-08-09, `docs/bugs/f9-error-reset-crash.md`): `find_profile_section`
+(2026-08-09, `docs/history/f9-error-reset-crash.md`): `find_profile_section`
 (0x8f8e0) was declared `(void)` but takes a `section` pointer, and profiling is
 only enabled by the F9 debug key, so the bad call sat dormant for months. The
 live fault was `0xc0000005 read=0x00000014` — the callee's `section->active`
@@ -1946,7 +1946,7 @@ of the 9 sessions.
    checkout) therefore always read an **empty** ledger and reported
    `inconclusive`, even on attempt 9. Fixed by routing through
    `park.store_base()` instead of a raw path join.
-2. The exact same bug existed in `tools/llm_auto_lift.py`'s target-selection
+2. The exact same bug existed in `tools/lift/llm_auto_lift.py`'s target-selection
    pre-screen: `PARKED_DIR = ROOT / "artifacts" / "parked"`, also
    worktree-local. This feeds `goal-lift.js`'s `skip_parked_repeat` guard
    (`parked_attempts >= 2` and `parked_best_score < 85` → stop re-serving the

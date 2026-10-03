@@ -51,7 +51,7 @@ Example OpenCode config:
       "type": "local",
       "command": [
         "python3",
-        "/mnt/g/dev/halo/tools/ghidra_live_mcp/server.py"
+        "/path/to/halo/tools/ghidra_live_mcp/server.py"
       ]
     }
   }

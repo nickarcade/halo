@@ -49,14 +49,29 @@ PERMUTER_DIR = REPO_ROOT / "third_party" / "decomp-permuter"
 COMPILE_SH = REPO_ROOT / "tools" / "permuter" / "compile.sh"
 COMPARE_OBJ = REPO_ROOT / "tools" / "verify" / "compare_obj.py"
 XBE_REFERENCE = REPO_ROOT / "tools" / "verify" / "xbe_reference.py"
-LIFT_PIPELINE = REPO_ROOT / "tools" / "lift_pipeline.py"
+LIFT_PIPELINE = REPO_ROOT / "tools" / "lift" / "lift_pipeline.py"
 OBJDIFF_JSON = REPO_ROOT / "objdiff.json"
 DELINKED_DIR = REPO_ROOT / "delinked"
 BUILD_VC71 = REPO_ROOT / "build" / "vc71"
 # When running from a worktree outside /mnt/ (e.g. /tmp/...), VC71 cl.exe cannot
 # access those paths. Fall back to the main repo's build dir for staging. When
 # REPO_ROOT is already on /mnt this is a no-op, preserving existing behavior.
-_MAIN_REPO = Path("/mnt/g/dev/halo")
+
+
+def _main_checkout(repo_root: Path) -> Path:
+    """The primary checkout that owns this repository's .git (repo_root itself
+    when it is not a linked worktree)."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--path-format=absolute",
+             "--git-common-dir"],
+            capture_output=True, text=True, check=True).stdout.strip()
+        return Path(out).parent
+    except (OSError, subprocess.CalledProcessError):
+        return repo_root
+
+
+_MAIN_REPO = _main_checkout(REPO_ROOT)
 _FALLBACK_BUILD_VC71 = _MAIN_REPO / "build" / "vc71"
 if not str(BUILD_VC71).startswith("/mnt/") and _FALLBACK_BUILD_VC71.parent.exists():
     BUILD_VC71 = _FALLBACK_BUILD_VC71
@@ -164,7 +179,7 @@ _lp_module = None
 
 
 def _load_lift_pipeline():
-    """Load tools/lift_pipeline.py once and cache the module (mirrors _load_compare_obj)."""
+    """Load tools/lift/lift_pipeline.py once and cache the module (mirrors _load_compare_obj)."""
     global _lp_module
     if _lp_module is None:
         spec = importlib.util.spec_from_file_location("lift_pipeline", str(LIFT_PIPELINE))

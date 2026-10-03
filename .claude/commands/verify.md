@@ -29,8 +29,8 @@ If no mode is supplied, treat the first token as `<target>` and run `normal`.
 
 Commands:
 ```bash
-rtk python3 tools/lift_pipeline.py --target <target> --no-metadata-update --verify-policy auto <extra_flags>
-rtk python3 tools/lift_pipeline.py --target <target> --verify-auto --verify-new-address <new_address> --no-metadata-update <extra_flags>
+rtk python3 tools/lift/lift_pipeline.py --target <target> --no-metadata-update --verify-policy auto <extra_flags>
+rtk python3 tools/lift/lift_pipeline.py --target <target> --verify-auto --verify-new-address <new_address> --no-metadata-update <extra_flags>
 rtk python3 tools/audit/check_lift_hazards.py
 rtk python3 tools/audit/batch_delink.py --object <object>
 rtk python3 tools/equivalence/unicorn_diff.py <target> --allow-stubs --mem-trace <extra_flags>

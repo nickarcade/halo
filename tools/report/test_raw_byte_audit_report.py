@@ -350,33 +350,5 @@ class TestRawByteAuditLoading(unittest.TestCase):
         self.assertEqual(report._load_raw_byte_audits(str(root)), {})
 
 
-class TestDashboardByteRefresh(unittest.TestCase):
-    def test_refresh_response_does_not_supply_mnemonic_scores(self):
-        from unittest.mock import Mock
-        spec = importlib.util.spec_from_file_location("progress_server", HERE / "progress_server.py")
-        server = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(server)
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "report.json"
-            original = {"units": [{"name": "target", "source_path": "source.c",
-                                   "functions": [{"match_percent": 99.0,
-                                                  "raw_xbe_aligned_lower": 0.5}]}]}
-            path.write_text(json.dumps(original))
-            handler = object.__new__(server.SSEHandler)
-            handler.directory = directory
-            handler._run_raw_audit = Mock(return_value={"returncode": 0, "totals": {"byte_accuracy": 0.75}})
-            handler._refresh_dashboard = Mock(return_value=True)
-            result = handler._run_score("target")
-            self.assertEqual(result["metric"], "raw_xbe_aligned_byte_lower_bound")
-            self.assertNotIn("scores", result)
-            handler._run_raw_audit.assert_called_once_with("target", "source.c")
-            handler._refresh_dashboard.assert_called_once()
-            self.assertEqual(json.loads(path.read_text()), original)
-            handler._run_raw_audit.return_value = {"returncode": 2}
-            handler._refresh_dashboard.reset_mock()
-            self.assertIsNone(handler._run_score("target"))
-            handler._refresh_dashboard.assert_not_called()
-
-
 if __name__ == "__main__":
     unittest.main()

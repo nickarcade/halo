@@ -482,7 +482,7 @@ void game_engine_playlist_begin(void)
 /* Copy the current game variant and map name into the provided buffers. */
 bool game_engine_get_current_stage(void *game_variant_dst, void *map_name_dst)
 {
-  assert_halt(game_variant_dst && map_name_dst);
+  assert_halt_msg_at("variant && map_name", "c:\\halo\\SOURCE\\game\\game_engine.c", 0x89a, game_variant_dst && map_name_dst);
   csmemcpy(game_variant_dst, (void *)0x5aa7a0, 0x68);
   csstrncpy((char *)map_name_dst, (char *)0x5aa760, 0x3f);
   *((char *)map_name_dst + 0x3f) = 0;
@@ -653,18 +653,18 @@ check_tick:
  */
 unsigned int game_engine_player_get_team_index(int player_handle)
 {
-  void **players_table;
   char *player;
   unsigned int team;
 
-  players_table = (void **)0x5aa6d4;
-  assert_halt_msg(current_game_engine, "game_engine");
+  team = 1;
+  assert_halt_msg_at("game_engine", "c:\\halo\\SOURCE\\game\\game_engine.c",
+                     0xb8f, current_game_engine);
+  /* A non-zero engine +0x74 slot answers team 1 for every player. */
   if (*(int *)((char *)current_game_engine + 0x74) == 0) {
-    player = (char *)datum_get(*players_table, player_handle);
+    player = (char *)datum_get(player_data, player_handle);
     team = (int)*(short *)(player + 2) % 2;
-    return team;
   }
-  return 1;
+  return team;
 }
 
 /* game_engine_prespawn_player_update (0xa8df0)
@@ -741,7 +741,7 @@ float FUN_000a8e80(void)
 
 /* Check if a nearby enemy exists at a location. ECX=location_ptr,
  * EAX=player_handle. */
-int FUN_000a8ec0(int location_ptr, int player_handle)
+char FUN_000a8ec0(int location_ptr, int player_handle)
 {
   int16_t count;
   int16_t i;
@@ -1227,87 +1227,87 @@ int list_index_to_weapon_definition_index(int param_1)
 
 /* Remap a vehicle tag index based on the current game type variant. */
 
-int game_engine_remap_vehicle(int param_1)
+int game_engine_remap_vehicle(int vehicle_definition_index)
 
 {
+  int result;
+
   int game_globals;
 
   int block;
 
-  int elem0;
+  int vehicle0;
 
-  int elem1;
+  int vehicle1;
 
-  int elem2;
+  int vehicle2;
 
   int variant_type;
 
+  result = vehicle_definition_index;
 
-  if (current_game_engine == 0)
+  if (current_game_engine != 0) {
 
-    return param_1;
+    game_globals = (int)game_globals_get();
 
-  game_globals = (int)game_globals_get();
+    block = (int)tag_block_get_element((int *)(game_globals + 0x164), 0, 0xa0);
 
-  block = (int)tag_block_get_element((int *)(game_globals + 0x164), 0, 0xa0);
+    vehicle0 = (int)tag_block_get_element((int *)(block + 0x20), 0, 0x10);
 
-  block = block + 0x20;
+    block = block + 0x20;
 
-  elem0 = (int)tag_block_get_element((int *)block, 0, 0x10);
+    vehicle1 = (int)tag_block_get_element((int *)block, 1, 0x10);
 
-  elem1 = (int)tag_block_get_element((int *)block, 1, 0x10);
+    vehicle2 = (int)tag_block_get_element((int *)block, 2, 0x10);
 
-  elem2 = (int)tag_block_get_element((int *)block, 2, 0x10);
+    if (result != ((tag_reference *)vehicle0)->tag_index &&
 
-  if (param_1 != ((tag_reference *)elem0)->tag_index &&
+        result != ((tag_reference *)vehicle1)->tag_index &&
 
-      param_1 != ((tag_reference *)elem1)->tag_index &&
+        result != ((tag_reference *)vehicle2)->tag_index)
 
-      param_1 != ((tag_reference *)elem2)->tag_index)
+      result = -1;
 
-    param_1 = -1;
+    variant_type = *(int *)0x456b40;
 
-  variant_type = *(int *)0x456b40;
+    switch (variant_type) {
+    case 1:
 
-  switch (variant_type) {
-  case 1:
+      result = -1;
 
-    param_1 = -1;
+      break;
 
-    break;
+    case 2:
 
-  case 2:
+      vehicle0 = (int)tag_block_get_element((int *)block, 0, 0x10);
 
-    elem0 = (int)tag_block_get_element((int *)block, 0, 0x10);
+      if (((tag_reference *)vehicle0)->tag_index != result)
 
-    if (((tag_reference *)elem0)->tag_index != param_1)
+        result = -1;
 
-      param_1 = -1;
+      break;
 
-    break;
+    case 3:
 
-  case 3:
+      vehicle0 = (int)tag_block_get_element((int *)block, 1, 0x10);
 
-    elem0 = (int)tag_block_get_element((int *)block, 1, 0x10);
+      if (((tag_reference *)vehicle0)->tag_index != result)
 
-    if (((tag_reference *)elem0)->tag_index != param_1)
+        result = -1;
 
-      param_1 = -1;
+      break;
 
-    break;
+    case 4:
 
-  case 4:
+      vehicle0 = (int)tag_block_get_element((int *)block, 2, 0x10);
 
-    elem0 = (int)tag_block_get_element((int *)block, 2, 0x10);
-
-    if (((tag_reference *)elem0)->tag_index != param_1)
-
-      param_1 = -1;
-
-    break;
+      if (((tag_reference *)vehicle0)->tag_index != result)
+        result = -1;
+      break;
+    }
   }
 
-  return param_1;
+  return result;
 }
 
 /* game_engine_remap_weapon (0xa9770) — remap weapon tag index based on game
@@ -1843,7 +1843,7 @@ void game_engine_playlist_next(int game_variant_type, int param_2, int param_3)
   (void)param_2;
   (void)param_3;
 
-  csstrncpy((char *)0x5aa760, "levels\\test\\carousel\\carousel", 0x3f);
+  csstrcpy((char *)0x5aa760, "levels\\test\\carousel\\carousel");
   map_name = main_get_multiplayer_map_name();
   if (map_name != NULL && *map_name != 0) {
     csstrncpy((char *)0x5aa760, map_name, 0x3f);
@@ -1861,9 +1861,10 @@ void game_engine_playlist_next(int game_variant_type, int param_2, int param_3)
 game_variant_t *game_engine_slayer_default(game_variant_t *variant)
 {
   game_variant_t v = { 0 };
-  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x18) = 2;
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x24) = 0;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
@@ -1874,7 +1875,6 @@ game_variant_t *game_engine_slayer_default(game_variant_t *variant)
   *(int32_t *)((char *)&v + 0x34) = 0x12c;
   *(uint8_t *)((char *)&v + 0x1c) = 0;
   *(int32_t *)((char *)&v + 0x44) = 0;
-  *(int32_t *)((char *)&v + 0x18) = 2;
   *(uint8_t *)((char *)&v + 0x4c) = 0;
   *(uint8_t *)((char *)&v + 0x4d) = 0;
   *(uint8_t *)((char *)&v + 0x4e) = 0;
@@ -1889,12 +1889,12 @@ game_variant_t *build_game_variant_slayer_pro(game_variant_t *out)
   /* CTF ("slayer pro") variant: zeroed local, +0x20 RMW, REP MOVSD out. */
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x20) =
+    (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
   *(int32_t *)((char *)&v + 0x48) = 2;
   *(uint8_t *)((char *)&v + 0x4c) = 1;
   *(uint8_t *)((char *)&v + 0x4d) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
-  *(int32_t *)((char *)&v + 0x20) =
-    (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
   *(int32_t *)((char *)&v + 0x24) = 0;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
@@ -1946,15 +1946,15 @@ game_variant_t *build_game_variant_phantoms(game_variant_t *out)
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffd2) | 0x12;
+  *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x30) = 0x96;
   *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
   *(uint8_t *)((char *)&v + 0x4c) = 1;
   *(uint8_t *)((char *)&v + 0x4d) = 1;
   *(uint8_t *)((char *)&v + 0x4e) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
-  *(int32_t *)((char *)&v + 0x18) = 2;
-  *(int32_t *)((char *)&v + 0x48) = 2;
-  *(int32_t *)((char *)&v + 0x30) = 0x96;
-  *(int32_t *)((char *)&v + 0x34) = 0x96;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
   *(uint8_t *)((char *)&v + 0x28) = 0;
@@ -1973,12 +1973,12 @@ game_variant_t *build_game_variant_endurance(game_variant_t *out)
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
-  *(int32_t *)((char *)&v + 0x2c) = 0x12c;
-  *(int32_t *)((char *)&v + 0x34) = 0x12c;
   *(int32_t *)((char *)&v + 0x18) = 2;
-  *(int32_t *)((char *)&v + 0x48) = 2;
   *(uint8_t *)((char *)&v + 0x28) = 1;
+  *(int32_t *)((char *)&v + 0x2c) = 0x12c;
+  *(int32_t *)((char *)&v + 0x48) = 2;
   *(int16_t *)((char *)&v + 0x64) = 1;
+  *(int32_t *)((char *)&v + 0x34) = 0x12c;
   *(int32_t *)((char *)&v + 0x24) = 0;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 5;
@@ -2000,10 +2000,10 @@ game_variant_t *build_game_variant_rockets(game_variant_t *out)
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffe2) | 0x22;
-  *(int32_t *)((char *)&v + 0x24) = 1;
-  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x24) = 1;
   *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
   *(uint8_t *)((char *)&v + 0x28) = 0;
@@ -2027,10 +2027,10 @@ game_variant_t *build_game_variant_snipers(game_variant_t *out)
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffe2) | 0x22;
-  *(int32_t *)((char *)&v + 0x24) = 1;
-  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x18) = 2;
+  *(int32_t *)((char *)&v + 0x24) = 1;
   *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
   *(uint8_t *)((char *)&v + 0x28) = 0;
@@ -2089,13 +2089,13 @@ game_variant_t *game_engine_oddball_default(game_variant_t *variant)
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x30) = 0x96;
   *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int32_t *)((char *)&v + 0x34) = 0x96;
   *(int32_t *)((char *)&v + 0x48) = 1;
   *(int32_t *)((char *)&v + 0x60) = 1;
-  *(int32_t *)((char *)&v + 0x34) = 0x96;
   *(uint8_t *)((char *)&v + 0x4d) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
-  *(int32_t *)((char *)&v + 0x30) = 0x96;
   *(int32_t *)((char *)&v + 0x18) = 3;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
@@ -2123,27 +2123,26 @@ game_variant_t *game_engine_team_oddball_default(game_variant_t *variant)
   /* NOTE: the original has NO zero-init prologue (no word-store + REP
    * STOSD); it writes 21 explicit fields and leaves 0x00-0x17, 0x4e-0x4f
    * and 0x66 uninitialized before the REP MOVSD copy-out, so its +0x20
-   * RMW reads uninitialized stack. We zero-init the local (matching the
-   * intended/safe image and the prior lift); this adds a zeroing prologue
-   * not present in the reference, capping VC71 match. */
+   * RMW reads uninitialized stack. The local below is left uninitialized
+   * the same way, so the copied-out bytes match the original's. */
   game_variant_t v;
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffe3) | 0x23;
+  *(int32_t *)((char *)&v + 0x24) = 1;
   *(int32_t *)((char *)&v + 0x38) = 0;
+  *(uint8_t *)((char *)&v + 0x1c) = 1;
   *(uint8_t *)((char *)&v + 0x28) = 0;
+  *(int32_t *)((char *)&v + 0x48) = 1;
   *(int32_t *)((char *)&v + 0x2c) = 0;
+  *(int32_t *)((char *)&v + 0x60) = 1;
   *(int32_t *)((char *)&v + 0x44) = 0;
+  *(int16_t *)((char *)&v + 0x64) = 1;
   *(uint8_t *)((char *)&v + 0x4d) = 0;
   *(uint8_t *)((char *)&v + 0x4c) = 0;
   *(int32_t *)((char *)&v + 0x5c) = 0;
   *(int32_t *)((char *)&v + 0x54) = 0;
   *(int32_t *)((char *)&v + 0x58) = 0;
   *(int32_t *)((char *)&v + 0x50) = 0;
-  *(int32_t *)((char *)&v + 0x24) = 1;
-  *(uint8_t *)((char *)&v + 0x1c) = 1;
-  *(int32_t *)((char *)&v + 0x48) = 1;
-  *(int32_t *)((char *)&v + 0x60) = 1;
-  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x18) = 3;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x30) = 0x12c;
@@ -2296,12 +2295,12 @@ game_variant_t *game_engine_king_default(game_variant_t *variant)
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
-  *(int32_t *)((char *)&v + 0x40) = 2;
-  *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x24) = 1;
-  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x30) = 0x96;
+  *(int32_t *)((char *)&v + 0x40) = 2;
+  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x34) = 0x96;
+  *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x18) = 4;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
@@ -2562,9 +2561,9 @@ game_variant_t *game_engine_rally_default(game_variant_t *variant)
   game_variant_t v = { 0 };
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
+  *(int32_t *)((char *)&v + 0x24) = 1;
   *(int32_t *)((char *)&v + 0x48) = 2;
   *(int32_t *)((char *)&v + 0x4c) = 2;
-  *(int32_t *)((char *)&v + 0x24) = 1;
   *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x18) = 5;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
@@ -2617,14 +2616,14 @@ game_variant_t *build_game_variant_team_rally(game_variant_t *out)
 {
   /* Race variant (team): zeroed local, +0x20 RMW, REP MOVSD out. */
   game_variant_t v = { 0 };
+  *(int32_t *)((char *)&v + 0x18) = 5;
   *(int32_t *)((char *)&v + 0x20) =
     (*(int32_t *)((char *)&v + 0x20) & 0xffffffc3) | 3;
-  *(int32_t *)((char *)&v + 0x18) = 5;
-  *(int32_t *)((char *)&v + 0x40) = 5;
   *(int32_t *)((char *)&v + 0x24) = 1;
+  *(int32_t *)((char *)&v + 0x40) = 5;
   *(uint8_t *)((char *)&v + 0x1c) = 1;
-  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x48) = 2;
+  *(int16_t *)((char *)&v + 0x64) = 1;
   *(int32_t *)((char *)&v + 0x4c) = 2;
   *(int32_t *)((char *)&v + 0x3c) = 0x3f800000;
   *(int32_t *)((char *)&v + 0x38) = 0;
@@ -2732,7 +2731,7 @@ char game_engine_hud_draw_messages(int param_1)
 
 /* Return whether the player's held weapon is a "power weapon" (bit 13 of
  * weapon flags at tag offset +0x308). */
-int game_engine_player_has_stealth_weapon(int param_1)
+char game_engine_player_has_stealth_weapon(int param_1)
 {
   int player;
   int biped;
@@ -2758,8 +2757,12 @@ int game_engine_player_has_stealth_weapon(int param_1)
   return (*(uint32_t *)(weapon_tag + 0x308) >> 13) & 1;
 }
 
-/* Apply weapon overheat decay when the weapon is fired (ab310). */
-void game_engine_weapon_fired(int param_1)
+/* game_engine_weapon_fired (0xab310)
+ *
+ * When a player fires and the unit's +0x32c meter is at least 0.05, drain
+ * it by 0.1 (0.0 with a stealth weapon, else the weapon tag's non-zero
+ * +0x4cc value), set +0x3d2, and clamp the meter to no less than 0.05. */
+void game_engine_weapon_fired(int player_index)
 {
   int player;
   int biped;
@@ -2767,35 +2770,34 @@ void game_engine_weapon_fired(int param_1)
   int weapon_handle;
   int weapon;
   int weapon_tag;
-  float decay;
+  float camo_decrease;
 
-  if (current_game_engine == 0)
-    return;
-  if (param_1 == -1)
-    return;
-  player = (int)datum_get(player_data, param_1);
-  player = *(int *)(player + 0x34);
-  if (player == -1)
-    return;
-  biped = (int)object_get_and_verify_type(player, 3);
-  biped2 = (int)object_get_and_verify_type(player, 3);
-  weapon_handle = (int)unit_inventory_get_weapon(player, *(int16_t *)(biped2 + 0x2a2));
-  decay = 0.1f;
-  if (game_engine_player_has_stealth_weapon(param_1)) {
-    decay = 0.0f;
-  } else if (weapon_handle != -1) {
-    weapon = (int)object_get_and_verify_type(weapon_handle, 4);
-    weapon_tag = (int)tag_get(TAG_GROUP_WEAP, *(int *)weapon);
-    if (*(float *)(weapon_tag + 0x4cc) != 0.0f) {
-      decay = *(float *)(weapon_tag + 0x4cc);
+  if (current_game_engine && player_index != -1) {
+    player = (int)datum_get(player_data, player_index);
+    player = *(int *)(player + 0x34);
+    if (player != -1) {
+      biped = (int)object_get_and_verify_type(player, 3);
+      biped2 = (int)object_get_and_verify_type(player, 3);
+      weapon_handle = (int)unit_inventory_get_weapon(player, *(int16_t *)(biped2 + 0x2a2));
+      camo_decrease = 0.1f;
+      if (game_engine_player_has_stealth_weapon(player_index)) {
+        camo_decrease = 0.0f;
+      } else if (weapon_handle != -1) {
+        weapon = (int)object_get_and_verify_type(weapon_handle, 4);
+        weapon_tag = (int)tag_get(TAG_GROUP_WEAP, *(int *)weapon);
+        if (*(float *)0x2533c0 != *(float *)(weapon_tag + 0x4cc))
+          camo_decrease = *(float *)(weapon_tag + 0x4cc);
+      }
+      /* 0x2533e8 is 0.05f; NaN skips the drain. */
+      if (*(float *)(biped + 0x32c) >= *(float *)0x2533e8) {
+        *(float *)(biped + 0x32c) = *(float *)(biped + 0x32c) - camo_decrease;
+        *(int16_t *)(biped + 0x3d2) = 1;
+        /* MAX(0.05f, meter) */
+        *(float *)(biped + 0x32c) = 0.05f > *(float *)(biped + 0x32c) ?
+          0.05f : *(float *)(biped + 0x32c);
+      }
     }
   }
-  if (*(float *)(biped + 0x32c) < *(float *)0x2533e8)
-    return;
-  *(float *)(biped + 0x32c) = *(float *)(biped + 0x32c) - decay;
-  *(int16_t *)(biped + 0x3d2) = 1;
-  if (*(float *)(biped + 0x32c) < *(float *)0x2533e8)
-    *(float *)(biped + 0x32c) = *(float *)0x2533e8;
 }
 
 /* Check if any of the 4 gamepads has the specified button pressed.
@@ -2814,7 +2816,7 @@ bool game_engine_check_input_button(int button_index /* @<edi> */)
 
 /* Format ticks as "MM:SS" time string into a wide-char buffer. */
 
-void ticks_to_unicode_time_string(int param_1, int param_2, wchar_t *param_3)
+void ticks_to_unicode_time_string(int ticks, int character_count, wchar_t *string)
 
 {
   int total_seconds;
@@ -2823,16 +2825,16 @@ void ticks_to_unicode_time_string(int param_1, int param_2, wchar_t *param_3)
 
   int seconds;
 
-  wchar_t min_buf[64];
+  wchar_t minute_string[64];
 
-  wchar_t sec_buf[64];
+  wchar_t second_string[64];
 
 
   /* Original does two sequential magic-divides (/30 then /60) and derives
      seconds by subtraction, not a second modulo. Folding this to /1800 or
      using %60 both change codegen. */
 
-  total_seconds = param_1 / 30;
+  total_seconds = ticks / 30;
 
   minutes = total_seconds / 60;
 
@@ -2840,18 +2842,19 @@ void ticks_to_unicode_time_string(int param_1, int param_2, wchar_t *param_3)
 
   if (minutes == 0)
 
-    unicode_sprintf(min_buf, 0x40, (wchar_t *)0x26c120);
+    unicode_sprintf(minute_string, 0x40, (wchar_t *)0x26c120);
 
   else
 
-    unicode_sprintf(min_buf, 0x40, (wchar_t *)0x26c118, minutes);
+    unicode_sprintf(minute_string, 0x40, (wchar_t *)0x26c118, minutes);
 
-  if (seconds >= 10)
-    unicode_sprintf(sec_buf, 0x40, (wchar_t *)0x26c118, seconds);
+  if (seconds <= 9)
+    unicode_sprintf(second_string, 0x40, (wchar_t *)0x26c110, seconds);
   else
-    unicode_sprintf(sec_buf, 0x40, (wchar_t *)0x26c110, seconds);
+    unicode_sprintf(second_string, 0x40, (wchar_t *)0x26c118, seconds);
 
-  unicode_sprintf(param_3, param_2, L"%s:%s", min_buf, sec_buf);
+  unicode_sprintf(string, character_count, L"%s:%s", minute_string,
+                  second_string);
 }
 
 /* Set the weapon spawn configuration for a player. */
@@ -4381,58 +4384,57 @@ int find_netgame_flags(float *position, float radius, float height,
                        int16_t type, int16_t index, int max_count,
                        int *out_indices)
 {
-  int result;
-  int i;
-  int16_t si;
-  float *entry;
-  int *flag_block;
   float radius_sq;
+  int found_count;
+  int16_t flag_index;
+  char *scenario;
+  float *flag;
 
   radius_sq = radius * radius;
-  result = 0;
+  found_count = 0;
 
-  flag_block = (int *)((char *)global_scenario_get() + 0x378);
+  scenario = (char *)global_scenario_get();
+  flag_index = 0;
 
-  si = 0;
-  if (*flag_block < 1)
-    return 0;
+  for (; flag_index < *(int *)(scenario + 0x378); flag_index++) {
+    flag = (float *)tag_block_get_element(scenario + 0x378, flag_index, 0x94);
+    if (type != -1 && type != *(int16_t *)((char *)flag + 0x10))
+      continue;
 
-  i = 0;
-  do {
-    entry = (float *)tag_block_get_element(flag_block, i, 0x94);
+    if (index != -1 && index != *(int16_t *)((char *)flag + 0x12))
+      continue;
 
-    if ((type == -1 || type == *(int16_t *)((char *)entry + 0x10)) &&
-        (index == -1 || index == *(int16_t *)((char *)entry + 0x12))) {
-      /* Spatial filtering (only when position is non-NULL) */
-      if (position != NULL) {
-        /* Radius check: skip if radius < 0.0f */
-        if (!(radius < 0.0f)) {
-          float dx = position[0] - entry[0];
-          float dy = position[1] - entry[1];
-          float dz = position[2] - entry[2];
-          if (dx * dx + dy * dy + dz * dz > radius_sq)
-            goto next;
-        }
-        /* Height check: skip if height <= 0.0f */
-        if (!(height <= 0.0f)) {
-          float abs_dz = x87_fabs(entry[2] - position[2]);
-          if (abs_dz > height)
-            goto next;
-        }
+    /* Spatial filtering (only when position is non-NULL) */
+    if (position != NULL) {
+      /* Radius check: skipped when radius < 0.0f. */
+      if (radius >= 0.0f) {
+        float dx = position[0] - flag[0];
+        float dy = position[1] - flag[1];
+        float dz = position[2] - flag[2];
+        float distance_sq;
+
+        distance_sq = dx * dx;
+        distance_sq += dz * dz;
+        distance_sq += dy * dy;
+        if (distance_sq > radius_sq)
+          continue;
       }
 
-      /* Store match if there's room */
-      if (result < max_count) {
-        out_indices[result] = i;
-        result++;
+      /* Height check: skipped when height <= 0.0f */
+      if (height > 0.0f &&
+          (double)x87_fabs(flag[2] - position[2]) > height) {
+        continue;
       }
     }
-  next:
-    si++;
-    i = (int)si;
-  } while (i < *flag_block);
 
-  return result;
+    /* Store match if there's room */
+    if (found_count < max_count) {
+      out_indices[found_count] = flag_index;
+      found_count++;
+    }
+  }
+
+  return found_count;
 }
 
 /* find_netgame_flag (0xad270)
@@ -4812,11 +4814,8 @@ float game_engine_get_distance_rating_for_spawn(int param_1, float *param_2)
 
 {
   int player;
-
   int biped;
-
   float dx;
-
   float dy;
 
   float dz;
@@ -4867,7 +4866,10 @@ float game_engine_get_distance_rating_for_spawn(int param_1, float *param_2)
        * alive (system-link desync at tick 2, unit 0xe2740005).  The
        * round trip mirrors the dword store so the compares see a
        * float32 value, as MSVC did. */
-      dist = xbox_sqrtf(dx * dx + dy * dy + dz * dz);
+      dist = dz * dz;
+      dist += dx * dx;
+      dist += dy * dy;
+      dist = xbox_sqrtf(dist);
       HALO_FLT_ROUNDTRIP(dist);
 
       if (team_check == 0 ||
@@ -5329,9 +5331,8 @@ void game_engine_validate_map_netgame_flags(void)
 void game_engine_playlist_initialize(void)
 
 {
-  /* 0xae750: PUSH 2; PUSH 0; PUSH 0 → game_variant_type=2, param_2=0, param_3=0
-   */
-  game_engine_playlist_next(2, 0, 0);
+  /* 0xae750 pushes 2 first, so 2 is the third argument. */
+  game_engine_playlist_next(0, 0, 2);
 }
 
 /* game_engine_initialize_for_new_map (0xae760)
@@ -5345,17 +5346,18 @@ void game_engine_playlist_initialize(void)
  */
 void game_engine_initialize_for_new_map(void)
 {
+  void *engine;
   if (!current_game_engine)
     return;
 
   game_engine_validate_map_netgame_flags();
   game_engine_score_reset();
   csmemset((void *)0x4566f8, 0, 0x400);
+  engine = current_game_engine;
   *(int32_t *)0x5aa724 = 0;
   *(int32_t *)0x5aa744 = 0;
-
   {
-    void (*init_fn)(void) = ((void (**)(void))current_game_engine)[0x0c / 4];
+    void (*init_fn)(void) = ((void (**)(void))engine)[0x0c / 4];
     if (init_fn) {
       bool ok = (bool)((bool (*)(void))init_fn)();
       if (!ok) {
@@ -5371,7 +5373,6 @@ void game_engine_initialize_for_new_map(void)
       }
     }
   }
-
   game_engine_load_sounds();
 }
 
@@ -9732,18 +9733,8 @@ char race_engine_display_score(int player_index, int event_type,
   case 0x24:
     player = (int)datum_get(player_data, player_handle);
     break;
-  case 0x17:
-  case 0x18:
-  case 0x19:
-  case 0x1a:
-  case 0x1b:
-  case 0x1c:
-  case 0x1d:
-  case 0x21:
-    break;
   default:
-    result = 0;
-    return result;
+    break;
   }
 
   /* Case bodies are emitted in source order; the reference lays them out

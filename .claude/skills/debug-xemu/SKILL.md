@@ -107,9 +107,11 @@ sock.sendall(json.dumps({"execute": "stop"}).encode() + b'\n')
 sock.recv(4096)
 
 # Read memory — DOUBLE BACKSLASHES in Windows paths (escape gotcha)
+win_repo = r"C:\path\to\halo"  # Windows form of the repo checkout (xemu runs as a .exe)
+dump = win_repo.replace("\\", "\\\\") + "\\\\dump.bin"
 cmd = {
     "execute": "human-monitor-command",
-    "arguments": {"command-line": "memsave 0x5a8d50 128 \"G:\\\\dev\\\\halo\\\\dump.bin\""}
+    "arguments": {"command-line": f'memsave 0x5a8d50 128 "{dump}"'}
 }
 sock.sendall(json.dumps(cmd).encode() + b'\n')
 sock.recv(4096)
@@ -120,8 +122,8 @@ sock.sendall(json.dumps({"execute": "cont"}).encode() + b'\n')
 
 **CRITICAL path escaping:** The HMP parser inside xemu requires escaped
 backslashes. In Python, that means FOUR backslashes per real backslash:
-`"G:\\\\dev\\\\halo\\\\"` → value sent over wire → `G:\\dev\\halo\\` → HMP
-interprets as `G:\dev\halo\`.
+`"X:\\\\some\\\\dir\\\\"` → value sent over wire → `X:\\some\\dir\\` → HMP
+interprets as `X:\some\dir\`.
 
 ### Verification gate (BEFORE trusting any dump)
 
@@ -347,7 +349,7 @@ loaded-XBE code pages, invalidating original-vs-candidate comparisons.
 | Live capture (virtual, proven) | `rtk python3 tools/equivalence/memsave_snapshot.py plan --target <func> -o plan.json` then `... capture --plan plan.json -o snap.json` |
 | Real-HW dump (XBDM getmem) | `rtk python3 tools/equivalence/dump_xemu_memory.py dump --method xbdm -o artifacts/memory_dumps/dump_<target>.bin` |
 
-## G — Live Memory Capture + State Replay (moved from CLAUDE.md, 2026-09-02)
+## G — Live Memory Capture + State Replay (moved from AGENTS.md, 2026-09-02)
 
 For Unicorn equivalence that under-covers live engine paths, capture live game
 state and replay it into `unicorn_diff.py --state-snapshot <path>` (or
@@ -400,8 +402,8 @@ Workflow:
   {"execute":"qmp_capabilities"}` → expect `return`); if raw works, **bypass the
   MCP**: use `tools/xbox/xbdm_screenshot.py --png` for screenshots and
   `dump_xemu_memory.py --xbdm` for memory. The MCP's launch path is also
-  env-driven (`XEMU_PATH`); the real binary is `/mnt/g/dev/xemu/dist/xemu.exe`
-  (WSL2 → xemu runs as a Windows `.exe`), and the HDD is opened `locked=on` so
+  env-driven (`XEMU_PATH`, the path to `xemu.exe`; under WSL2 xemu runs as a
+  Windows `.exe`), and the HDD is opened `locked=on` so
   only one instance can run at a time.
 
 ### Standalone ISO testing

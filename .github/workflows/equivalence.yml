@@ -39,12 +39,12 @@ on:
           - discover
 
 env:
-  VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
-  DELINKED_DIR: /mnt/g/dev/halo/delinked
-  XBE_DIR: /mnt/g/dev/halo/halo-patched
+  VENV_PYTHON: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/.venv/bin/python3
+  DELINKED_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/delinked
+  XBE_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/halo-patched
   # Directory holding the (host-only, never-committed) .halorec recordings.
   # build_host_snapshots.py reads this; if absent, snapshot-dependent targets SKIP.
-  HALO_HALOREC_DIR: /mnt/g/dev/halo-memory-viewer
+  HALO_HALOREC_DIR: ${{ vars.HALO_HALOREC_DIR || '/mnt/g/dev/halo-memory-viewer' }}
 
 jobs:
   regression:

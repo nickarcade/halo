@@ -65,10 +65,11 @@ is hot-patched directly into the running instance.
 | Target | Command |
 |--------|---------|
 | xemu (local) | `./tools/xbox/build_deploy_run.sh -q` |
-| Real Xbox | `./tools/xbox/build_deploy_run_real_hw.sh -q` |
-| Custom host | `./tools/xbox/build_deploy_run.sh --xbox <host> -q` |
+| Remote box | `./tools/xbox/build_deploy_run.sh --xbox <host> -q` |
 
-The real-hardware wrapper sets `XBOX_HOST` to `10.0.0.29` by default.
+Without `--xbox`, the script deploys to `$XBOX_HOST` (default `127.0.0.1`). Box addresses
+such as `$XEMU_CLIENT_HOST` live in the gitignored `tools/xbox.env` (copy
+`tools/xbox.env.example`).
 
 ## Standalone ISO Workflow & xemu Configuration
 

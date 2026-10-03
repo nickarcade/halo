@@ -9,7 +9,7 @@
 # runs only when explicitly requested. flock prevents overlap; logs rotate.
 set -u
 
-REPO="/mnt/g/dev/halo"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PY="$REPO/.venv/bin/python3"
 [ -x "$PY" ] || PY="$(command -v python3)"
 

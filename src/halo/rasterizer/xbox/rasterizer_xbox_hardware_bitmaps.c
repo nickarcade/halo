@@ -269,6 +269,107 @@ void rasterizer_bitmap_2d_changed(void *bitmap /* @<esi> */)
 }
 
 /*
+ * rasterizer_bitmap_3d_changed @ 0x1686c0 — re-upload every mip level of a
+ * 3D (volume) bitmap into its D3D volume texture (bitmap->hardware_format at
+ * +0x28). The bitmap arrives in EDI (TEST EDI,EDI at entry, no prior write).
+ * Each mip level is locked with D3DVolumeTexture_LockBox(..., NULL,
+ * D3DLOCK_NOOVERWRITE=0x20). Flag bit 1 at +0xe copies each depth slice raw
+ * (pixel_data_size / depth bytes, dst advanced by SlicePitch); otherwise the
+ * level is swizzled by bytes-per-pixel. As in rasterizer_bitmap_2d_changed,
+ * the post-LockBox TEST BL,BL branch to rasterizer_error is unreachable at
+ * runtime but kept to preserve the binary's blocks. locked_box is
+ * D3DLOCKED_BOX as int[3] (RowPitch @ -0x1c, SlicePitch @ -0x18,
+ * pBits @ -0x14). +0x2c is tested non-zero; meaning unproven.
+ */
+/* 0x1686c0 */
+void rasterizer_bitmap_3d_changed(void *bitmap /* @<edi> */)
+{
+  char *bm;
+  char success;
+  short mipmap_index;
+  int locked_box[3];
+  char *dst;
+  char *src;
+  short width;
+  short height;
+  short depth;
+  short slice_index;
+  int slice_size;
+
+  bm = (char *)bitmap;
+  success = 1;
+  if (bitmap == NULL) {
+    display_assert(
+      "bitmap",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0xcb, true);
+    system_exit(-1);
+  }
+  if (*(void **)0x476ab0 != NULL && *(int *)(bm + 0x2c) != 0 &&
+      *(void **)(bm + 0x28) != NULL) {
+    for (mipmap_index = 0; success && mipmap_index <= *(short *)(bm + 0x14);
+         mipmap_index++) {
+      D3DVolumeTexture_LockBox(*(void **)(bm + 0x28), (int)mipmap_index,
+                               locked_box, NULL, 0x20);
+      if (!success) {
+        rasterizer_error(0,
+                         "IDirect3DVolumeTexture8_LockBox("
+                         "(IDirect3DVolumeTexture8*)bitmap->hardware_format, "
+                         "mipmap_index, &d3d_locked_box, NULL, "
+                         "D3DLOCK_NOOVERWRITE)");
+      }
+      if (success && (void *)locked_box[2] != NULL) {
+        src = (char *)bitmap_mipmap_address(bitmap, mipmap_index);
+        dst = (char *)locked_box[2];
+        width = bitmap_mipmap_width(bitmap, mipmap_index);
+        height = bitmap_mipmap_get_height(bitmap, mipmap_index);
+        depth = (short)bitmap_mipmap_get_depth(bitmap, mipmap_index);
+        if ((*(unsigned char *)(bm + 0xe) & 2) != 0) {
+          for (slice_index = 0; slice_index < depth; slice_index++) {
+            slice_size =
+              bitmap_mipmap_get_pixel_data_size(bitmap, mipmap_index) / depth;
+            csmemcpy(dst, src, slice_size);
+            src += slice_size;
+            dst += locked_box[1];
+          }
+        } else {
+          switch (bitmap_format_bits_per_pixel(*(unsigned short *)(bm + 0xc)) /
+                  8) {
+          case 1:
+            rasterizer_xbox_bitmap_swizzle3d_byte(dst, src, width, height,
+                                                  depth);
+            break;
+          case 2:
+            rasterizer_xbox_bitmap_swizzle3d_word(dst, src, width, height,
+                                                  depth);
+            break;
+          case 4:
+            rasterizer_xbox_bitmap_swizzle3d_long(dst, src, width, height,
+                                                  depth);
+            break;
+          default:
+            display_assert("### ERROR uncompressed bitmap format does not "
+                           "have 1,2 or 4 bytes per pixel",
+                           "c:\\halo\\SOURCE\\rasterizer\\xbox\\"
+                           "rasterizer_xbox_hardware_bitmaps.c",
+                           0xf9, true);
+            system_exit(-1);
+            break;
+          }
+        }
+        success = 1;
+      } else {
+        error(2, "### ERROR failed to lock surface");
+        success = 0;
+      }
+    }
+    if (!success) {
+      error(2, "### ERROR failed to change bitmap hardware format");
+    }
+  }
+}
+
+/*
  * rasterizer_bitmap_cm_changed @ 0x1688d0 — re-upload every mip level of
  * all six faces of a cube-map bitmap into its D3D cube texture
  * (bitmap->hardware_format at +0x28). The bitmap arrives in ESI (TEST

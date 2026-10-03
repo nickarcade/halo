@@ -112,6 +112,11 @@ char actor_test_destination(int actor_handle)
   return ((actor_t *)actor)->field_484;
 }
 
+static __inline float dot_product3d(const real_vector3d *a, const real_vector3d *b)
+{
+  return a->i * b->i + a->j * b->j + a->k * b->k;
+}
+
 /* actor_get_stopping_distances (0x2a610) — Compute stopping distances for an
  * actor.
  *
@@ -163,9 +168,8 @@ void actor_get_stopping_distances(int actor_handle, float *param_2,
       tag = (char *)tag_get(0x76656869, *(int *)obj);
       /* disasm 0x2a688: FLD [ESI+0x20]*[ESI+0x2c], FLD [ESI+0x1c]*[ESI+0x28],
        * FADDP, FLD [ESI+0x18]*[ESI+0x24], FADDP */
-      current_speed = *(float *)(obj + 0x20) * *(float *)(obj + 0x2c) +
-                      *(float *)(obj + 0x1c) * *(float *)(obj + 0x28) +
-                      *(float *)(obj + 0x18) * *(float *)(obj + 0x24);
+      current_speed = dot_product3d((real_vector3d *)(obj + 0x18),
+                                    (real_vector3d *)(obj + 0x24));
       max_speed = *(float *)(tag + 0x2f8);
       turn_decel = *(float *)(tag + 0x300);
       brake_decel = turn_decel;
@@ -181,9 +185,8 @@ void actor_get_stopping_distances(int actor_handle, float *param_2,
         /* dot product: velocity [+0x18,+0x1c,+0x20] . facing
          * [+0x24,+0x28,+0x2c] disasm at 0x2a6eb: FLD [ESI+0x20]*[ESI+0x2c], FLD
          * [ESI+0x1c]*[ESI+0x28], FADDP, FLD [ESI+0x24]*[ESI+0x18], FADDP */
-        current_speed = *(float *)(obj + 0x20) * *(float *)(obj + 0x2c) +
-                        *(float *)(obj + 0x1c) * *(float *)(obj + 0x28) +
-                        *(float *)(obj + 0x24) * *(float *)(obj + 0x18);
+        current_speed = dot_product3d((real_vector3d *)(obj + 0x18),
+                                      (real_vector3d *)(obj + 0x24));
         /* bit 2 of byte at tag+0x2f4 enables custom movement params */
         if (*(unsigned char *)(tag + 0x2f4) & 4) {
           max_speed = *(float *)(tag + 0x334) * *(float *)0x2546a4;
@@ -265,15 +268,9 @@ bool actor_move_force_stop(int actor_handle)
     if (*(int *)(actor2 + 0x18) == -1 ||
         !unit_is_busy(*(int *)(actor2 + 0x18))) {
       if (!actor_action_deny_transition(actor_handle)) {
-        float *dest;
-        float *src;
         ((actor_t *)actor)->field_504 = 0;
-        src = halo_global_zero_vector_ptr;
-        actor += 0x6e0;
-        dest = (float *)actor;
-        ((float *)actor)[0] = src[0];
-        dest[1] = src[1];
-        dest[2] = src[2];
+        *(real_vector3d *)(actor + 0x6e0) =
+            *(const real_vector3d *)halo_global_zero_vector_ptr;
         actor_unit_control_stop_animation_impulse(actor_handle);
         result = 1;
       }
@@ -336,7 +333,7 @@ char actor_move_try_evasion_vector(int actor_handle, float *evasion_vector,
   float seg_a[3];
   float seg_b[3];
   int bsp;
-  float col_result[264];
+  collision_bsp_test_vector_result_t col_result;
   float height_delta;
   char found;
   char used_bsp_test;
@@ -386,14 +383,14 @@ char actor_move_try_evasion_vector(int actor_handle, float *evasion_vector,
       direction[1] = scale * evasion_vector[1];
       direction[2] = 0.0f;
       if (collision_bsp_test_vector(3, bsp, 0, 0, (int)origin, (int)direction,
-                                    3.4028235e+38f, col_result) == '\0') {
+                                    3.4028235e+38f, (float *)&col_result) == '\0') {
         found = 1;
         used_bsp_test = 1;
         if (param_4 < *(float *)0x2548fc) {
           vector3d_scale_add(origin, direction, 1.0f, seg_a);
           FUN_00012fb0(*(float **)0x31fc50, param_4, seg_b);
           if (collision_bsp_test_vector(3, bsp, 0, 0, (int)seg_a, (int)seg_b,
-                                        3.4028235e+38f, col_result) == '\0') {
+                                        3.4028235e+38f, (float *)&col_result) == '\0') {
             found = 0;
           }
         }
@@ -621,7 +618,8 @@ void actor_move_avoidance_setup(int actor_handle)
   float out[3];
   int object_handle;
   float center[3];
-  int j;
+  int16_t sphere_index;
+  float dx, dy;
   float obj_radius;
   int left;
   int *scan;
@@ -635,9 +633,10 @@ void actor_move_avoidance_setup(int actor_handle)
   void *matrix;
   unsigned short *marker;
   int16_t record_count;
-  int record;
+  vector_avoidance_data_t *avoidance_data;
 
-  obj = object_get_and_verify_type(*(int *)(actor_handle + 8), -1);
+  avoidance_data = (vector_avoidance_data_t *)actor_handle;
+  obj = object_get_and_verify_type(avoidance_data->object_index, -1);
 
   /* disasm 0x2adfc: FLD [0x2557f0]; FCOMP [0x255778]; JNZ loads 778 — i.e.
    * kbase = max(7f0, 778).  Written with the > leaf taken (load 7f0) so VC71
@@ -648,10 +647,10 @@ void actor_move_avoidance_setup(int actor_handle)
     kbase = *(float *)0x255778;
   }
   found = object_find_in_radius(1, 0xc2, (char *)obj + 0x48,
-                                (float *)(actor_handle + 0xc),
-                                kbase * *(float *)(actor_handle + 0x6044),
+                                (float *)&avoidance_data->origin,
+                                kbase * avoidance_data->avoid_distance,
                                 handles, 0x800);
-  *(int16_t *)(actor_handle + 0x3c) = 0;
+  avoidance_data->avoidance_object_count = 0;
 
   /* 0x2ae5e: movzx count; cursor walks handles[]; dec/jnz, not an index. */
   if (found > 0) {
@@ -661,7 +660,7 @@ void actor_move_avoidance_setup(int actor_handle)
       object_handle = *scan;
       obj = object_get_and_verify_type(object_handle, -1);
       if (object_handle != -1 &&
-          object_handle != *(int *)(actor_handle + 8)) {
+          object_handle != avoidance_data->object_index) {
         obj_tag = tag_get(0x6f626a65, *(int *)obj); /* 'obje' */
         coll_count =
             (int *)((char *)tag_get(0x636f6c6c,
@@ -673,54 +672,48 @@ void actor_move_avoidance_setup(int actor_handle)
           object_get_bounding_sphere(object_handle, center, &obj_radius);
           object_get_world_matrix(object_handle, world_matrix);
 
-          /* disasm 0x2af81-0x2af8a: j incremented full-width (INC EAX), but the
-           * loop-continue test compares the sign-extended low 16 bits
-           * (MOVSX EAX,AX) against *coll_count. */
-          j = 0;
-          if (j < *coll_count) {
-            do {
-              marker =
-                  (unsigned short *)tag_block_get_element(coll_count, j, 0x20);
-              /* disasm 0x2af07: CMP AX,0xffff; JZ — node!=0xffff is fall-through. */
-              if (*marker != 0xffff) {
-                matrix = object_get_node_matrix(object_handle, (int16_t)*marker);
-                matrix_transform_point((float *)matrix,
-                                       (float *)((char *)marker + 0x10), out);
-                scale_term = *(float *)((char *)marker + 0x1c) * *(float *)matrix;
-              } else {
-                matrix_transform_point(world_matrix,
-                                       (float *)((char *)marker + 0x10), out);
-                scale_term = world_matrix[0] * *(float *)((char *)marker + 0x1c);
-              }
-              scale_term = sqrtf((out[0] - center[0]) * (out[0] - center[0]) +
-                                 (out[1] - center[1]) * (out[1] - center[1])) +
-                           scale_term;
-              /* disasm 0x2af69: FLD maxdist; FCOMP scale_term; JZ keeps maxdist. */
-              if (maxdist > scale_term) {
-              } else {
-                maxdist = scale_term;
-              }
-              j++;
-            } while ((int16_t)j < *coll_count);
+          /* disasm 0x2af81-0x2af8a: sphere_index is 16-bit (INC EAX, then
+           * MOVSX EAX,AX before the compare against *coll_count). */
+          for (sphere_index = 0; sphere_index < *coll_count; sphere_index++) {
+            marker =
+                (unsigned short *)tag_block_get_element(coll_count,
+                                                        sphere_index, 0x20);
+            /* disasm 0x2af07: CMP AX,0xffff; JZ — node!=0xffff is fall-through. */
+            if (*marker != 0xffff) {
+              matrix = object_get_node_matrix(object_handle, (int16_t)*marker);
+              matrix_transform_point((float *)matrix,
+                                     (float *)((char *)marker + 0x10), out);
+              scale_term = *(float *)((char *)marker + 0x1c) * *(float *)matrix;
+            } else {
+              matrix_transform_point(world_matrix,
+                                     (float *)((char *)marker + 0x10), out);
+              scale_term = world_matrix[0] * *(float *)((char *)marker + 0x1c);
+            }
+            dx = out[0] - center[0];
+            dy = out[1] - center[1];
+            scale_term = sqrtf(dx * dx + dy * dy) + scale_term;
+            /* disasm 0x2af69: FLD maxdist; FCOMP scale_term; JZ keeps maxdist. */
+            if (maxdist > scale_term) {
+            } else {
+              maxdist = scale_term;
+            }
           }
 
-          record_count = *(int16_t *)(actor_handle + 0x3c);
-          if (record_count < 0x400) {
-            *(int16_t *)(actor_handle + 0x3c) = record_count + 1;
-            record = actor_handle + record_count * 0x18;
-            *(float *)(record + 0x54) = maxdist;
-            *(real_vector3d *)(record + 0x44) = *(real_vector3d *)center;
-            *(int *)(record + 0x40) = object_handle;
-            *(float *)(record + 0x4c) =
-                *(float *)(record + 0x4c) - (obj_radius - maxdist);
+          record_count = avoidance_data->avoidance_object_count;
+          if (record_count < MAXIMUM_NUMBER_OF_AVOIDANCE_OBJECTS) {
+            avoidance_data->avoidance_object_count = record_count + 1;
+            avoidance_data->avoidance_objects[record_count].width = maxdist;
+            avoidance_data->avoidance_objects[record_count].base =
+                *(real_point3d *)center;
+            avoidance_data->avoidance_objects[record_count].object_index =
+                object_handle;
+            avoidance_data->avoidance_objects[record_count].base.z -=
+                obj_radius - maxdist;
             scale_term = (obj_radius + obj_radius) - (maxdist + maxdist);
             /* disasm 0x2afe4: FLD [0x2533c0]; FCOMP scale_term; JNZ keeps
              * scale_term — i.e. max(const, scale_term). */
-            if (scale_term > *(float *)0x2533c0) {
-            } else {
-              scale_term = *(float *)0x2533c0;
-            }
-            *(float *)(record + 0x50) = scale_term;
+            avoidance_data->avoidance_objects[record_count].height =
+                0.0f > scale_term ? 0.0f : scale_term;
           }
         }
       }
@@ -968,8 +961,8 @@ char actor_move_vector_avoidance_find_direction(float *direction, short count, i
 
 /* 0x2b400 — actor_move_transform_avoidance_vector: transform a local-space
  * direction vector (in_vec) by the avoidance_data's per-instance 3x3 rotation
- * (rows at +0x18/+0x24/+0x30) and add the global world translation row read
- * from the dereferenced pointer at *0x31fc38 (translation at +0x0/+0x4/+0x8).
+ * (forward/left/up rows at +0x18/+0x24/+0x30), starting from the vector read
+ * through the global pointer at *0x31fc38 (halo_global_zero_vector_ptr).
  *
  * cdecl, all stack args (confirmed: PUSH EBP / RET, no RET N; caller
  * ai_debug_render_actor @ 0x4d39c-0x4d39d pushes EAX=[EDI+0x1a0] last).
@@ -977,38 +970,18 @@ char actor_move_vector_avoidance_find_direction(float *direction, short count, i
  *   in_vec   : float[3] local-space direction
  *   out_vec  : float[3] world-space output
  *
- * Confirmed (disasm 0x2b406-0x2b41c): out_vec is seeded from the world matrix
- * translation row via the once-dereferenced global pointer at *0x31fc38, NOT
- * the raw global address.  Confirmed three interleaved read-modify-write passes
- * (one per in_vec component) with operand order in_vec[c] * mtx[col] + out[r].
+ * Confirmed (disasm 0x2b406-0x2b41c): out_vec is seeded by a 12-byte copy
+ * through the once-dereferenced global pointer at *0x31fc38, NOT the raw
+ * global address.  Confirmed three interleaved read-modify-write passes (one
+ * per in_vec component) with operand order in_vec[c] * mtx[col] + out[r]; the
+ * body is the shared actor_move_transform_avoidance_vector_inline.
  */
 void actor_move_transform_avoidance_vector(int matrix, float *in_vec,
                                            float *out_vec)
 {
-  float *world_translation;
-  float component;
-  volatile int matrix_row_2_z;
-
-  matrix_row_2_z = matrix + 0x38;
-  world_translation = halo_global_zero_vector_ptr;
-  out_vec[0] = world_translation[0];
-  out_vec[1] = world_translation[1];
-  out_vec[2] = world_translation[2];
-
-  component = in_vec[0];
-  out_vec[0] += component * *(float *)(matrix + 0x18);
-  out_vec[1] += component * *(float *)(matrix + 0x1c);
-  out_vec[2] += component * *(float *)(matrix + 0x20);
-
-  component = in_vec[1];
-  out_vec[0] += component * *(float *)(matrix + 0x24);
-  out_vec[1] += component * *(float *)(matrix + 0x28);
-  out_vec[2] += component * *(float *)(matrix + 0x2c);
-
-  component = in_vec[2];
-  out_vec[0] += component * *(float *)(matrix + 0x30);
-  out_vec[1] += component * *(float *)(matrix + 0x34);
-  out_vec[2] += component * *(float *)matrix_row_2_z;
+  actor_move_transform_avoidance_vector_inline(
+      (const vector_avoidance_data_t *)matrix,
+      (const real_vector3d *)in_vec, (real_vector3d *)out_vec);
 }
 
 /* 0x2b490 — actor_move_get_avoidance_vector: map an avoidance "direction index"
@@ -1370,11 +1343,6 @@ void actor_move_calculate_controlled_by_aiming(float *facing_basis /* @<ecx> */,
  *   Asserts: real_normal2d(movement) @0x785, real_normal2d(facing) @0x786,
  *   realcmp(movement->k) @0x787, realcmp(facing->k) @0x788 (k-component must
  *   be finite and below the *0x2549d8 bound). */
-static __inline float dot_product3d(const real_vector3d *a, const real_vector3d *b)
-{
-  return a->i * b->i + a->j * b->j + a->k * b->k;
-}
-
 static __inline int valid_real(float n)
 {
   return (*(const unsigned long *)&n & 0x7F800000) != 0x7F800000;
@@ -2436,21 +2404,20 @@ void actor_destination_update(int actor_handle)
   char exhausted;
   char step_idx;
   bool is_facing;
-  int step_cnt;
+  char step_reached;
   float *cur;
   float *nxt;
-  float to_cur_x, to_cur_y;
-  float seg_x, seg_y;
+  real_vector2d to_step;
+  real_vector2d step_vector;
   float dot_seg_to_cur, dot_seg_facing;
-  float t, perp_x, perp_y, perp_sq;
+  double t;
+  float perp_x, perp_y, perp_sq;
   float dist_sq;
   char name_buf[0x200];
-  float *node;
-  volatile float *delta;
-  float dx, dy, dz, dist;
-  int sign_val;
+  real_point3d *position;
+  real_point3d *target;
+  real_vector3d *delta;
   float step;
-  unsigned int one;
 
   actor = (char *)datum_get(halo_actor_data_global, actor_handle);
 
@@ -2463,137 +2430,66 @@ void actor_destination_update(int actor_handle)
   actor_test_destination(actor_handle);
 
   path_ctl = actor + 0x4a8;
-  one = 1;
   if (((actor_t *)actor)->field_4a8 != '\0') {
     exhausted = '\0';
 
-    while (one) {
+    do {
       step_idx = path_ctl[0x1a];
-      step_cnt = (int)(signed char)path_ctl[0x19];
+      step_reached = '\0';
 
-      if (step_idx + one >= step_cnt) {
-        exhausted = '\x01';
-        break;
-      }
+      if (step_idx + 1 < (int)(signed char)path_ctl[0x19]) {
+        cur = (float *)(path_ctl + (step_idx + 2) * 0x10);
+        nxt = (float *)(path_ctl + (step_idx + 3) * 0x10);
 
-      cur = (float *)(path_ctl + (step_idx + 2) * 0x10);
-      nxt = (float *)(path_ctl + (step_idx + 3) * 0x10);
+        to_step.i = cur[0] - ((actor_t *)actor)->field_12c;
+        to_step.j = cur[1] - ((actor_t *)actor)->field_130;
 
-      to_cur_x = cur[0] - ((actor_t *)actor)->field_12c;
-      to_cur_y = cur[one] - ((actor_t *)actor)->field_130;
+        step_vector.i = nxt[0] - cur[0];
+        step_vector.j = nxt[1] - cur[1];
 
-      seg_x = nxt[0] - cur[0];
-      seg_y = nxt[one] - cur[one];
+        if (((actor_t *)actor)->field_506 != '\0') {
+          step_reached = '\x01';
+        } else if (((actor_t *)actor)->field_504 != '\0' &&
+                   ((actor_t *)actor)->field_507 != '\0') {
+          /* Segment projection test: advance only when facing along the
+           * step (dot > 0), already past the current node (dot < 0), and
+           * within 0.25 units of the segment line (perp_sq < 0.0625f).
+           * Compares are unordered-taken (FCOMP + TEST AH,0x41/0x5). */
+          dot_seg_to_cur = step_vector.j * to_step.j + step_vector.i * to_step.i;
+          dot_seg_facing =
+            step_vector.j * ((actor_t *)actor)->input_facing_vector[1] +
+            step_vector.i * ((actor_t *)actor)->input_facing_vector[0];
 
-      /* Load path_final_step flag (actor+0x506). */
-      if (((actor_t *)actor)->field_506 == '\0') {
-        /* Check whether to use simple distance or projected segment test. */
-        if (((actor_t *)actor)->field_504 != '\0' &&
-            ((actor_t *)actor)->field_507 != '\0') {
-          /* Segment projection test.
-           *
-           * dot_seg_to_cur = dot(seg_dir, to_cur)
-           * dot_seg_facing = dot(seg_dir, actor_facing)
-           *
-           * Skip advance if:
-           *   - dot_seg_facing <= 0.0f (not facing toward next step), OR
-           *   - dot_seg_to_cur >= 0.0f (actor already past current node)
-           *
-           * If both pass, compute perpendicular distance from actor to segment
-           * and advance only if perp_dist_sq < 0.0625f.
-           *
-           * Disassembly verified operand order:
-           *   0x2d425: FLD [EBP-0x10] (seg_y) FMUL [EBP-0x8] (to_cur_y)
-           *   0x2d42b: FLD [EBP-0x14] (seg_x) FMUL [EBP-0xc] (to_cur_x)
-           *   FADDP => dot_seg_to_cur = seg_y*to_cur_y + seg_x*to_cur_x
-           *   0x2d433: FLD [EBP-0x10] (seg_y) FMUL [ESI+0x178] (facing_y)
-           *   0x2d43f: FLD [EBP-0x14] (seg_x) FMUL [ESI+0x174] (facing_x)
-           *   FADDP => dot_seg_facing = seg_y*facing_y + seg_x*facing_x
-           */
-          dot_seg_to_cur = seg_y * to_cur_y + seg_x * to_cur_x;
-          dot_seg_facing = seg_y * ((actor_t *)actor)->input_facing_vector[one] +
-                           seg_x * ((actor_t *)actor)->input_facing_vector[0];
-
-          /* FCOMP [0x2533c0]; TEST AH,0x41; JNE => !(x > 0) (unordered-taken). */
-          if (!(dot_seg_facing > *(const float *)0x2533c0)) {
-            break;
-          }
-          /* FCOM [0x2533c0]; TEST AH,0x5; JP => !(x < 0) (unordered-taken). */
-          if (!(dot_seg_to_cur < *(const float *)0x2533c0)) {
-            break;
-          }
-
-          /* Perpendicular distance from actor to segment line.
-           * t = -dot_seg_to_cur (positive, since dot_seg_to_cur < 0)
-           * perp = to_cur + t * seg_dir
-           * perp_sq = perp.x^2 + perp.y^2
-           *
-           * Disasm 0x2d461-0x2d47b:
-           *   FCHS   => t = -dot_seg_to_cur (ST0 now t)
-           *   FLD seg_x; FMUL ST1 => seg_x * t
-           *   FADD to_cur_x => perp_x = seg_x*t + to_cur_x
-           *   FLD seg_y; FMUL ST2 => seg_y * t (ST2 = t)
-           *   FADD to_cur_y => perp_y = seg_y*t + to_cur_y
-           *   FLD ST0; FMUL ST1 => perp_y*perp_y
-           *   FLD ST2; FMUL ST3 => perp_x*perp_x (ST3=perp_x)
-           *   Wait: at 0x2d473: FLD ST0 = perp_y, FMUL ST1 = perp_y*perp_y
-           *         0x2d477: FLD ST2 = perp_x, FMUL ST3 = perp_x*perp_y ... no
-           *
-           * Re-trace FPU stack at 0x2d461:
-           *   ST0 = dot_seg_to_cur (the one from FADDP at 0x2d431)
-           *   dot_seg_facing was computed 0x2d433-0x2d445, then FCOMP popped it
-           *   So at 0x2d461: ST0 = dot_seg_to_cur
-           *   FCHS => ST0 = t = -dot_seg_to_cur
-           *   0x2d463: FLD seg_x (ST0=seg_x, ST1=t)
-           *   0x2d466: FMUL ST1 => ST0 = seg_x*t; ST1=t
-           *   0x2d468: FADD to_cur_x => ST0 = perp_x; ST1=t
-           *   0x2d46b: FLD seg_y (ST0=seg_y, ST1=perp_x, ST2=t)
-           *   0x2d46e: FMUL ST2 => ST0 = seg_y*t; ST1=perp_x; ST2=t
-           *   0x2d470: FADD to_cur_y => ST0=perp_y; ST1=perp_x; ST2=t
-           *   0x2d473: FLD ST0 => ST0=perp_y; ST1=perp_y; ST2=perp_x; ST3=t
-           *   0x2d475: FMUL ST1 => ST0=perp_y*perp_y; ST1=perp_y; ST2=perp_x
-           *   0x2d477: FLD ST2 => ST0=perp_x; ST1=perp_y*perp_y; ST2=perp_y;
-           * ST3=perp_x 0x2d479: FMUL ST3 => ST0=perp_x*perp_x;
-           * ST1=perp_y*perp_y 0x2d47b: FADDP => ST0=perp_x*perp_x+perp_y*perp_y
-           * = perp_sq
-           */
-          t = -dot_seg_to_cur;
-          perp_x = seg_x * t + to_cur_x;
-          perp_y = seg_y * t + to_cur_y;
-          perp_sq = perp_x * perp_x + perp_y * perp_y;
-
-          /* FCOMP [0x255d90]; TEST AH,0x5; JP => !(x < 0.0625) (unordered-taken). */
-          if (!(perp_sq < *(const float *)0x255d90)) {
-            break;
+          if (dot_seg_facing > *(const float *)0x2533c0 &&
+              dot_seg_to_cur < *(const float *)0x2533c0) {
+            t = -dot_seg_to_cur;
+            perp_x = step_vector.i * t + to_step.i;
+            perp_y = step_vector.j * t + to_step.j;
+            perp_sq = perp_x * perp_x + perp_y * perp_y;
+            step_reached = perp_sq < *(const float *)0x255d90;
           }
         } else {
-          /* Simple 2D distance-to-current-node check.
-           * Disasm 0x2d48b-0x2d499:
-           *   FLD to_cur_y; FMUL to_cur_y  => to_cur_y^2
-           *   FLD to_cur_x; FMUL to_cur_x  => to_cur_x^2
-           *   FADDP => dist_sq
-           *   FCOMP [0x255d8c]=0.0225f; TEST AH,0x5; JP => jump if >= 0.0225f
-           */
-          dist_sq = to_cur_y * to_cur_y + to_cur_x * to_cur_x;
-          if (!(dist_sq < *(const float *)0x255d8c)) {
-            break;
-          }
+          /* Simple 2D distance-to-current-node check (0.15^2 = 0.0225f). */
+          dist_sq = to_step.j * to_step.j + to_step.i * to_step.i;
+          step_reached = dist_sq < *(const float *)0x255d8c;
         }
-      }
 
-      /* Advance to next step. */
-      step_idx += one;
-      path_ctl[0x1a] = step_idx;
-      ((actor_t *)actor)->field_506 = '\0';
-    }
+        if (step_reached) {
+          path_ctl[0x1a] = step_idx + 1;
+          ((actor_t *)actor)->field_506 = '\0';
+        }
+      } else {
+        exhausted = '\x01';
+      }
+    } while (step_reached);
 
     /* Handle path-exhausted or final-step state. */
     if (((actor_t *)actor)->field_506 != '\0') {
       if (exhausted == '\0') {
         /* Reached the final step but loop says we shouldn't be here. */
         display_assert("final_step", "c:\\halo\\SOURCE\\ai\\actor_moving.c",
-                       0xb4, one);
-        system_exit(-one);
+                       0xb4, 1);
+        system_exit(-1);
       }
 
       if (((actor_t *)actor)->field_4c0 != '\0') {
@@ -2605,7 +2501,7 @@ void actor_destination_update(int actor_handle)
          * buf, 0x200) Disasm 0x2d518-0x2d529: PUSH 0x200; PUSH EDX(local_218);
          * PUSH 1; PUSH -1; PUSH EBX
          */
-        ai_debug_describe_actor(actor_handle, -one, one, name_buf, 0x200);
+        ai_debug_describe_actor(actor_handle, -1, 1, name_buf, 0x200);
         error(2, "%s: fell off end of unfinished path %d/%d", name_buf,
               (int)((actor_t *)actor)->field_4c1, 4);
       }
@@ -2621,66 +2517,22 @@ void actor_destination_update(int actor_handle)
        * Disasm 0x2d574-0x2d5a1: MOVSX EDX,byte[ESI+0x4c2]; SHL EDX,4;
        *   LEA ECX,[EDX+ESI+0x4c8]; copy 3 dwords to [ESI+0x50c].
        */
-      step_idx = ((actor_t *)actor)->field_4c2;
-      node = (float *)(actor + 0x4c8 + step_idx * 0x10);
-
-      ((actor_t *)actor)->field_50c = node[0];
-      ((actor_t *)actor)->field_510 = node[one];
-      ((actor_t *)actor)->field_514 = node[2];
+      target = (real_point3d *)(actor + 0x50c);
+      *target = *(real_point3d *)(actor + 0x4c8 +
+                                  ((actor_t *)actor)->field_4c2 * 0x10);
 
       /* Compute vector from actor to target. */
-      delta = (volatile float *)(actor + 0x518);
-      delta[0] = ((actor_t *)actor)->field_50c - ((actor_t *)actor)->field_12c;
-      delta[one] = ((actor_t *)actor)->field_510 - ((actor_t *)actor)->field_130;
-      delta[2] = ((actor_t *)actor)->field_514 - ((actor_t *)actor)->field_134;
+      position = (real_point3d *)(actor + 0x12c);
+      delta = (real_vector3d *)(actor + 0x518);
+      delta->i = target->x - position->x;
+      delta->j = target->y - position->y;
+      delta->k = target->z - position->z;
 
-      /* Sanity check: if distance^2 < 1,000,000 (i.e. < 1000 units), OK.
-       * Disasm 0x2d5d0-0x2d605: FPU computes sqrt(dx^2+dy^2+dz^2), then
-       *   FCOMP [0x255d50]=1000000.0f; TEST AH,0x1; JNZ => jump if < 1000000.
-       * TEST AH,0x1 = test C0 (ST0 < mem). JNZ = jump if C0 set (sqrt <
-       * 1000000). But FSQRT was done before, so we compare sqrt (distance)
-       * against sqrt(1000000) = 1000? No — looking again at disasm: FSQRT at
-       * 0x2d5f2 FSTP ST3 at 0x2d5f4 (saves result into ST3 slot, discards from
-       * top) FSTP ST0 twice (discards remaining ST0, ST1) Then FCOMP [0x255d50]
-       * at 0x2d5fa After FSTP ST3: the stack shrinks, so the FCOMP operand is
-       * the distance value itself (the sqrt result stored into ST3 then brought
-       * to top via the STPs). Actually:
-       *   At 0x2d5d0: FLD dz -> FLD dy -> FLD dx -> FLD ST0 (=dx)
-       *   0x2d5e4: FMUL ST1 => dx*dx; stack: dx*dx, dx, dy, dz
-       *   0x2d5e6: FLD ST2 (=dy); FMUL ST3 (=dy) => dy*dy
-       *   0x2d5ea: FADDP => dx*dx+dy*dy; stack: sum, dx, dy, dz
-       *   0x2d5ec: FLD ST3 (=dz); FMUL ST4 (=dz) => dz*dz
-       *   0x2d5f0: FADDP => sum+dz*dz; stack: dist_sq, dx, dy, dz
-       *   0x2d5f2: FSQRT => dist; stack: dist, dx, dy, dz
-       *   0x2d5f4: FSTP ST3 => ST3=dist, pops: stack: dx, dy, dist
-       *     (FSTP ST3 stores ST0 into ST3 slot then pops ST0)
-       *     After: ST0=dx, ST1=dy, ST2=dist, ST3=dz was at ST3
-       *     Wait: FSTP STn stores ST0 into STn then pops. After FSQRT:
-       *       ST0=dist, ST1=dx, ST2=dy, ST3=dz
-       *     FSTP ST3: ST3 = dist, pop ST0: ST0=dx, ST1=dy, ST2=dz -> wait
-       *     Actually FSTP ST3 sets ST3=ST0=dist, then increments stack pointer
-       *     (pops ST0). So new stack: ST0=dx, ST1=dy, ST2=dz, ST3=dist
-       *   0x2d5f6: FSTP ST0 => discard dx; ST0=dy, ST1=dz, ST2=dist
-       *   0x2d5f8: FSTP ST0 => discard dy; ST0=dz, ST1=dist
-       *   Hmm, but FCOMP at 0x2d5fa uses 1 operand and pops ST0.
-       *   We need dist to be in ST0. Let me re-read disasm...
-       *   0x2d5f4: FSTP ST3 => stores dist into position 3 (which is dz), pops
-       * ST0 After: ST0=dx, ST1=dy, ST2=dz(overwritten=dist) 0x2d5f6: FSTP ST0
-       * => pops ST0=dx, discards it After: ST0=dy, ST1=dist 0x2d5f8: FSTP ST0
-       * => pops ST0=dy, discards it After: ST0=dist 0x2d5fa: FCOMP
-       * [0x255d50]=1000000.0f => compares dist to 1000000.0f TEST AH,0x1 =>
-       * test C0 (ST0<mem). JNZ => jump if dist < 1000000.0f
-       *
-       * So we compare distance (not distance^2) to 1,000,000. This is
-       * "tau ceti" = 1 million world units (absurd distance).
-       */
-      dx = delta[0];
-      dy = delta[one];
-      dz = delta[2];
-      dist = sqrtf(dx * dx + dy * dy + dz * dz);
-
-      /* FCOMP [0x255d50]; TEST AH,0x1; JNE => !(dist >= 1e6) (unordered-taken). */
-      if (!(dist >= *(const float *)0x255d50)) {
+      /* "Tau ceti" guard: the distance (not its square) to the target is
+       * compared against 1,000,000 world units (0x255d50).
+       * FCOMP [0x255d50]; TEST AH,0x1; JNE => !(dist >= 1e6) (unordered-taken). */
+      if (!(sqrtf(delta->i * delta->i + delta->j * delta->j +
+                  delta->k * delta->k) >= *(const float *)0x255d50)) {
         return;
       }
 
@@ -2720,21 +2572,18 @@ void actor_destination_update(int actor_handle)
     is_facing = *(float *)(actor + 0x5ec) > *(const float *)0x2555d0;
     ((actor_t *)actor)->field_504 = '\x01';
     ((actor_t *)actor)->field_506 = '\0';
-    sign_val = !is_facing ? 1 : -one;
+    step = (float)(is_facing ? -1 : 1) * 3.0f;
 
-    step = (float)sign_val * 3.0f;
+    delta = (real_vector3d *)(actor + 0x518);
+    delta->i = step * ((actor_t *)actor)->input_facing_vector[0];
+    delta->j = step * ((actor_t *)actor)->input_facing_vector[1];
+    delta->k = step * ((actor_t *)actor)->input_facing_vector[2];
 
-    delta = (volatile float *)(actor + 0x518);
-    delta[0] = step * ((actor_t *)actor)->input_facing_vector[0];
-    delta[one] = step * ((actor_t *)actor)->input_facing_vector[one];
-    delta[2] = step * ((actor_t *)actor)->input_facing_vector[2];
-
-    ((actor_t *)actor)->field_50c =
-      ((actor_t *)actor)->field_12c + delta[0];
-    ((actor_t *)actor)->field_510 =
-      ((actor_t *)actor)->field_130 + delta[one];
-    ((actor_t *)actor)->field_514 =
-      ((actor_t *)actor)->field_134 + delta[2];
+    position = (real_point3d *)(actor + 0x12c);
+    target = (real_point3d *)(actor + 0x50c);
+    target->x = position->x + delta->i;
+    target->y = position->y + delta->j;
+    target->z = position->z + delta->k;
   } else {
     /* Not far-movement: reset path destination and target state. */
     ((actor_t *)actor)->field_504 = '\0';

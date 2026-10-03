@@ -19,7 +19,8 @@ description: Standard RDCP, XBDM, build-and-deploy, and file transfer (getfile) 
 Preferred tools:
 - Build: `cmake --build build`
 - Deploy: `rtk python3 tools/xbox/deploy_xbox.py`
-- Convenience wrapper: `./tools/xbox/build_deploy_run_real_hw.sh -q` (sets `XBOX_HOST=10.0.0.29` default)
+- Hosts: `XBOX_HOST` is the deploy target and `XBDM_HOST` the XBDM/RDCP address. The named boxes are `XEMU_CLIENT_HOST` (xemu-client: bridged xemu, patched build) and `XEMU_HOST_HOST` (xemu-host: bridged xemu, pristine build). All are set in the gitignored `tools/xbox.env` (copy `tools/xbox.env.example`; shell use needs `set -a; . tools/xbox.env; set +a`). A local xemu instance uses `127.0.0.1`.
+- Build and deploy to a box: `./tools/xbox/build_deploy_run.sh --xbox "$XEMU_CLIENT_HOST" -q` (without `--xbox` it uses `$XBOX_HOST`)
 
 ### Flow:
 1. Run `cmake --build build`.

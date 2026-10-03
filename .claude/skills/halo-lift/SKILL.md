@@ -67,7 +67,7 @@ At the start of every lift session:
 ```bash
 rtk git rev-parse --show-toplevel
 ```
-All edits target **that path**, not a hardcoded `/mnt/g/dev/halo`.
+All edits target **that path**, not a hardcoded checkout path.
 
 ### Sequence
 
@@ -76,8 +76,8 @@ All edits target **that path**, not a hardcoded `/mnt/g/dev/halo`.
 2. Resolve target by name or address in `kb.json` and Ghidra.
 3. **Gather target context & recover literals.** Callers, callees, globals,
    strings, imports, and existing declarations. Recover string/constant
-   literals pushed by address from `cachebeta.xbe`. Do not use PAL, CEA/HCEA,
-   PDB-derived corpora, or other cross-build bodies as source-shape, naming,
+   literals pushed by address from `cachebeta.xbe`. Do not use external or cross-build material (other
+   builds, PDB-derived corpora, or their bodies) as source-shape, naming,
    prototype, or layout evidence. Historical external-source notes may identify
    a claim that needs rechecking, but the claim remains unknown until 2276
    evidence independently proves it. Follow `PROVENANCE.md` and
@@ -169,8 +169,8 @@ If it fails, stop and tell the user.
 ## Token-Efficient Defaults
 
 - `rtk python3 tools/analysis/kb_meta.py list --object <obj>` for scoped symbols
-- `rtk python3 tools/lift_pipeline.py --target <name_or_addr> ...` for staged verify
-- `rtk python3 tools/llm_auto_lift.py select --limit 20` for target selection
+- `rtk python3 tools/lift/lift_pipeline.py --target <name_or_addr> ...` for staged verify
+- `rtk python3 tools/lift/llm_auto_lift.py select --limit 20` for target selection
 - Keep MCP passes staged: resolve → decompile → callers/callees → disassembly only if needed
 - One target per run; summarize evidence minimally
 
@@ -218,7 +218,7 @@ Proposed code, Proposed kb deltas, Validation, Open questions.
 | kb.json update rules | `docs/references/kb-update-policy.md` |
 | Output schema | `docs/references/output-schema.md` |
 
-## Commit Message File Safety (moved from CLAUDE.md, 2026-09-02)
+## Commit Message File Safety (moved from AGENTS.md, 2026-09-02)
 
 The standard recipe is:
 

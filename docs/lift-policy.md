@@ -8,7 +8,7 @@ Skills reference this document rather than duplicating prose.
 
 ## Verify policy presets
 
-Pass `--verify-policy <PRESET>` to `tools/lift_pipeline.py`.
+Pass `--verify-policy <PRESET>` to `tools/lift/lift_pipeline.py`.
 
 | Preset | Description |
 |--------|-------------|
@@ -35,7 +35,7 @@ After 3 failures → revert and skip.
 
 ## Oracle-strength model routing
 
-The `select` output (`tools/llm_auto_lift.py select`) now includes an `oracle_strength`
+The `select` output (`tools/lift/llm_auto_lift.py select`) now includes an `oracle_strength`
 column.  Use it to choose the Phase-1 model:
 
 | oracle_strength | Meaning | Suggested Phase-1 model |

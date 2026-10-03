@@ -1,5 +1,3 @@
-![Halo Decompilation Project](logo.png)
-
 The goal of this project is to study and create a free, open-source re-implementation of the original Xbox launch title [Halo: Combat Evolved](https://en.wikipedia.org/wiki/Halo:_Combat_Evolved).
 
 **Disclaimer:** This project is intended only for educational and research purposes, and is not indended to promote piracy or violation of any copyright laws. This repository does not include original game executables, nor does it include required game assets. You will need to provide these files from your own copy of the game. Buy a copy. Heck, buy two!
@@ -114,7 +112,7 @@ cmake -Bbuild -S. -DCMAKE_TOOLCHAIN_FILE=$PWD/toolchains/llvm.cmake
 cmake --build build
 ```
 
-When the build is complete, the original game with re-implementation patched in will be at `halo-patched/default.xbe`. To build and deploy to xemu in one step: `./tools/xbox/build_deploy_run.sh -q`. For xemu guests on a bridged adapter, use `./tools/xbox/build_deploy_run.sh --xemu-bridged --xbox <guest-ip> -q`; this keeps XBDM on WSL's reachable network path. For real Xbox hardware: `./tools/xbox/build_deploy_run_real_hw.sh -q`.
+When the build is complete, the original game with re-implementation patched in will be at `halo-patched/default.xbe`. To build and deploy to xemu in one step: `./tools/xbox/build_deploy_run.sh -q`. For xemu guests on a bridged adapter, use `./tools/xbox/build_deploy_run.sh --xemu-bridged --xbox <guest-ip> -q`; this keeps XBDM on WSL's reachable network path. For real Xbox hardware: `./tools/xbox/build_deploy_run.sh --xbox <xbox-ip> -q`, or set `XBOX_HOST`.
 
 You'll want to set up a debug environment.
 
@@ -140,3 +138,7 @@ Low-risk reverse engineering workflow metadata can be stored in `kb_meta.json`.
 Unlike `kb.json`, it does not affect code generation or linking. Use
 `tools/analysis/kb_meta.py` to validate and update metadata, and `tools/analysis/frontier.py` to
 rank `.obj` clusters referenced by current ported code.
+
+License
+-------
+Contributions by Stian Eklund are dedicated to the public domain under [CC0 1.0](LICENSE). Work by other authors from the original fork, and the vendored code under `third_party/`, keep their own terms; see [`NOTICE.md`](NOTICE.md). Halo and its assets belong to Microsoft and are not covered.

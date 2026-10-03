@@ -2617,7 +2617,7 @@ def _check_relocations(func_slice, label: str, quiet: bool = False,
 
 
 # ---------------------------------------------------------------------------
-# Pure-leaf cache (consumed by tools/llm_auto_lift.py for selection scoring)
+# Pure-leaf cache (consumed by tools/lift/llm_auto_lift.py for selection scoring)
 # ---------------------------------------------------------------------------
 
 _LEAF_CACHE_PATH = _REPO_ROOT / "tools" / "equivalence" / "leaf_cache.json"

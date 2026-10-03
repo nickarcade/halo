@@ -17,8 +17,8 @@
  * EBP-0x12 (+0x202), and the two flag bytes at EBP-0x10 / EBP-0xf
  * (+0x204 / +0x205) that are pushed as build_saved_game_file_index's two
  * boolean stack arguments.  `file.index` is named by the assert string
- * "profile_index == file.index"; the other field names follow PAL 2342
- * (T2): +0x204 is the read-only bit (bit 30 of the packed index, tested by
+ * "profile_index == file.index"; the other field names are inferred
+ * from use: +0x204 is the read-only bit (bit 30 of the packed index, tested by
  * delete_enumerated_saved_game_file before XDeleteSaveGame) and +0x205 is
  * set once the blank block with its checksum was written. */
 typedef struct {
@@ -308,7 +308,7 @@ void playlist_profiles_dispose(void)
   csmemset((void *)0x4eaa38, 0, 0x74);
 }
 
-/* 0x1c1e20 — playlist_profile_new (PAL 2342 playlist_profile.c body, T2).
+/* 0x1c1e20 — playlist_profile_new (inferred name).
  * Creates a new playlist-profile saved-game file (type 1, PUSH 0x1 at
  * 0x1c1e32) named `name`, fills its 0x200-byte record with the slayer default
  * variant, and returns the new saved-game file index, or -1.
@@ -318,11 +318,11 @@ void playlist_profiles_dispose(void)
  *   - the record is `= {0}` (MOV byte + REP STOSD/STOSW/STOSB), the variant is
  *     a 0x68-byte struct copy of game_engine_slayer_default's result (REP
  *     MOVSD 0x1a dwords) that csmemcpy puts at record +0; bit 0 of the flags
- *     byte at record +0x64 is cleared (AND byte [EBP-0x19c],0xfe; PAL
- *     _game_variant_is_system_default_bit); game_engine_variant_cleanup runs
+ *     byte at record +0x64 is cleared (AND byte [EBP-0x19c],0xfe;
+ *     the _game_variant_is_system_default_bit); game_engine_variant_cleanup runs
  *     on the record; 0xb name chars are copied to record +0 with the word
  *     terminator at +0x16; the checksum of the first 0x68 bytes goes to
- *     record +0x68 -- the layout FUN_001c2120 writes and playlist_profile_get
+ *     record +0x68 -- the layout FUN_001c2120 writes and playlist_profile_get_from_path
  *     reads back.
  *   - set_position/write failure: "failed to initialize newly created
  *     playlist profile", delete, index = -1.  The file is closed with the
@@ -375,10 +375,9 @@ int playlist_profile_new(unsigned short local_player_index, wchar_t *name)
  * the error() report, which passes the index as the third stack dword
  * (PUSH ESI at 0x1c1f89, severity 2 at 0x1c1f8f, ADD ESP,0xc after).
  *
- * Not named: the format string names playlist_profile_delete(), but the symbol
- * dump already places that name at 0x1c26f0, so this routine's own name is
- * unproven and stays FUN_. */
-void FUN_001c1f70(int param_1)
+ * Named from its own error format string, which begins
+ * "playlist_profile_delete() failed". */
+void playlist_profile_delete(int param_1)
 {
   if (param_1 != -1) {
     if (!delete_enumerated_saved_game_file(param_1)) {
@@ -393,7 +392,7 @@ void FUN_001c1f70(int param_1)
   }
 }
 
-/* 0x1c1fa0 — playlist_profile_get: load a playlist profile ("variant") out of a
+/* 0x1c1fa0 — playlist_profile_get_from_path: load a playlist profile ("variant") out of a
  * saved-game file and verify its checksum.
  *
  * Both stack dwords are required: [EBP+8] (full_path, into ESI) and [EBP+0xc]
@@ -416,7 +415,7 @@ void FUN_001c1f70(int param_1)
  * returns true.  The two in-file failures share one error() call site through
  * the JMP at 0x1c208a; note the open/create failure path at 0x1c20b3 does NOT
  * call file_close. */
-boolean playlist_profile_get(const char *full_path, void *variant)
+boolean playlist_profile_get_from_path(const char *full_path, void *variant)
 {
   file_ref_t info;
   char block[0x200];
@@ -518,7 +517,7 @@ int16_t playlist_profile_number_of_default_profiles_on_disk(void)
  *   - FUN_0019d420(tag_index, i) (0x1c21b3) returns the localized display name;
  *     its kb.json decl returns int, so the wide-string use is a cast here.
  *   - The 0x200-byte record block (EBP-0x47c) is the same shape
- *     playlist_profile_get (0x1c1fa0) reads back: the 0x68-byte variant at
+ *     playlist_profile_get_from_path (0x1c1fa0) reads back: the 0x68-byte variant at
  *     offset 0, its 0x14-byte checksum at offset 0x68.  ustrncpy writes 0xb
  *     wide chars over the variant's leading name and the terminator is the word
  *     store at offset 0x16 (0x1c21f5).  The OR at 0x1c21fe folds the loop index
@@ -590,18 +589,16 @@ void FUN_001c2120(void)
   saved_game_files_notify_memory_units_changed();
 }
 
-/* 0x1c22e0 — playlist_profile_create_default_profiles_on_disk
+/* 0x1c22e0 — playlist_profile_read
  * Source TU confirmed by the __FILE__ assert string
  * "c:\halo\SOURCE\saved games\playlist_profile.c" (line 0x18c).
  *
- * The kb name comes from PDB line containment and does not match the body:
- * no string names this function, so the name is kept, but behaviourally it
- * reads one playlist profile (a 0x68-byte game variant) into the record in
+ * Reads one playlist profile (a 0x68-byte game variant) into the record in
  * EBX (TEST EBX,EBX at 0x1c22e9 before any write, "variant" assert string).
  *
  * The stack dword is a saved game file index, tested signed (JNS at
  * 0x1c2362) and forwarded to saved_game_file_open/_close/_get_display_name.
- * Its meaning beyond that is not proven, so it stays an explicit unknown.
+ * It indexes the playlist profile file being read.
  * With the sign bit set: drain the async playlist io thread, take the saved
  * game files mutex, open + read a 0x200-byte block, verify the 0x14-byte
  * checksum over the first 0x68 bytes, and copy the variant out.  With the
@@ -615,8 +612,8 @@ void FUN_001c2120(void)
  * 0x14, success byte [EBP-0x1].  default_variant is copied from the slayer
  * result with REP MOVSD 0x1a dwords (a struct assignment).
  */
-boolean playlist_profile_create_default_profiles_on_disk(
-  game_variant_t *variant /* @<ebx> */, int unknown)
+boolean playlist_profile_read(
+  game_variant_t *variant /* @<ebx> */, int playlist_profile_index)
 {
   char block[0x200];
   file_ref_t file;
@@ -641,9 +638,9 @@ boolean playlist_profile_create_default_profiles_on_disk(
     *(void **)0x4eaaa4 = NULL;
   }
 
-  if (unknown & 0x80000000) {
+  if (playlist_profile_index & 0x80000000) {
     if (saved_game_files_take_mutex()) {
-      if (saved_game_file_open(&file, unknown)) {
+      if (saved_game_file_open(&file, playlist_profile_index)) {
         if (file_read(&file, 0x200, block)) {
           saved_game_file_generate_checksum(block, 0x68, checksum);
           if (csmemcmp(checksum, &block[0x68], 0x14) == 0) {
@@ -655,7 +652,7 @@ boolean playlist_profile_create_default_profiles_on_disk(
             /* word store MOV [EBP-0x1c],SI = default_variant + 0x64 */
             *(int16_t *)default_variant.pad_64 = 0;
             ustrncpy((wchar_t *)&default_variant,
-                     saved_game_file_get_display_name(unknown), 0xb);
+                     saved_game_file_get_display_name(playlist_profile_index), 0xb);
             /* word store MOV [EBP-0x6a],SI = name element 0xb (+0x16) */
             ((wchar_t *)&default_variant)[0xb] = 0;
             csmemcpy(variant, &default_variant, 0x68);
@@ -664,7 +661,7 @@ boolean playlist_profile_create_default_profiles_on_disk(
         } else {
           error(2, "failed to read playlist profile from file");
         }
-        saved_game_file_close(&file, unknown);
+        saved_game_file_close(&file, playlist_profile_index);
       } else {
         error(2, "failed to open playlist profile file");
       }
@@ -679,7 +676,7 @@ boolean playlist_profile_create_default_profiles_on_disk(
              "resident version...");
     *(int16_t *)default_variant.pad_64 = 0;
     ustrncpy((wchar_t *)&default_variant,
-             saved_game_file_get_display_name(unknown), 0xb);
+             saved_game_file_get_display_name(playlist_profile_index), 0xb);
     ((wchar_t *)&default_variant)[0xb] = 0;
     csmemcpy(variant, &default_variant, 0x68);
     success = true;
@@ -688,11 +685,11 @@ boolean playlist_profile_create_default_profiles_on_disk(
   return success;
 }
 
-/* 0x1c2550 — playlist_profile_write
+/* 0x1c2550 — playlist_profile_write_thread_proc
  * Source TU confirmed by the __FILE__ assert string
  * "c:\halo\SOURCE\saved games\playlist_profile.c" (line 0x202).
  *
- * Worker thread started by playlist_profile_read via thread_new with the
+ * Worker thread started by playlist_profile_write via thread_new with the
  * 0x4eaa38 state block as its parameter: __stdcall (RET 0x4), one stack
  * argument asserted non-NULL ("input"), always returns 0 (XOR EAX,EAX).
  * input[0] is the saved game file index forwarded to open/close/delete and
@@ -701,7 +698,7 @@ boolean playlist_profile_create_default_profiles_on_disk(
  * also forwarded as the display name to the metadata sync.
  * Frame (from the LEAs): block [EBP-0x30c] 0x200, file [EBP-0x10c].
  */
-int __stdcall playlist_profile_write(int *input)
+int __stdcall playlist_profile_write_thread_proc(int *input)
 {
   char block[0x200];
   file_ref_t file;
@@ -759,30 +756,29 @@ void FUN_001c26b0(int param_1, int *param_2, int *param_3)
     param_1, 1, param_2, param_3, 1);
 }
 
-/* 0x1c26f0 — playlist_profile_delete
+/* 0x1c26f0 — playlist_profile_get
  * Source TU confirmed by the __FILE__ assert string
  * "c:\halo\SOURCE\saved games\playlist_profile.c" (line 0xd9).
  *
- * Twin of playlist_profile_get_display_name below: two cdecl stack arguments,
- * [EBP+0x8] an int that is only ever compared against -1 and forwarded (its
- * meaning is unproven, so it stays an explicit unknown) and [EBP+0xc] the
- * variant record, asserted non-NULL before anything else (MOV ESI,[EBP+0xc] /
- * TEST ESI,ESI at 0x1c26f5).  Despite the CEA PDB name no delete behaviour is
- * observable here, so nothing is inferred from it.
+ * Twin of playlist_profile_save below: two cdecl stack arguments,
+ * [EBP+0x8] the playlist profile index, only ever compared against -1 and
+ * forwarded, and [EBP+0xc] the variant record, asserted non-NULL before
+ * anything else (MOV ESI,[EBP+0xc] / TEST ESI,ESI at 0x1c26f5).  An index of
+ * -1 is the "no profile" sentinel and fetches the next playlist instead.
  *
  * The result is a byte: XOR BL,BL at 0x1c26f8 seeds it false and the index==-1
  * path returns it via MOV AL,BL at 0x1c2735, while the other path returns the
  * callee's AL untouched — there is no store/reload through BL on that path, so
  * this is two returns rather than one result variable.
  *
- * playlist_profile_create_default_profiles_on_disk takes the record in EBX
+ * playlist_profile_read takes the record in EBX
  * (MOV EBX,ESI at 0x1c273b; the callee reads it with TEST EBX,EBX at 0x1c22e9
  * before any write and asserts on the same "variant" condition string) plus
  * the index as its one stack argument — the single PUSH EAX at 0x1c273a is
  * exactly what ADD ESP,0x4 at 0x1c2742 covers, so the register argument is not
  * an extra push.
  */
-boolean playlist_profile_delete(int unknown, game_variant_t *variant)
+boolean playlist_profile_get(int unknown, game_variant_t *variant)
 {
   if (variant == NULL) {
     display_assert("variant",
@@ -796,10 +792,10 @@ boolean playlist_profile_delete(int unknown, game_variant_t *variant)
     return false;
   }
 
-  return playlist_profile_create_default_profiles_on_disk(variant, unknown);
+  return playlist_profile_read(variant, unknown);
 }
 
-/* 0x1c2750 — playlist_profile_read
+/* 0x1c2750 — playlist_profile_write
  * Source TU confirmed by the __FILE__ assert string
  * "c:\halo\SOURCE\saved games\playlist_profile.c" (line 0x1ea).
  *
@@ -813,17 +809,16 @@ boolean playlist_profile_delete(int unknown, game_variant_t *variant)
  * Drains any in-flight playlist profile io (thread reference at 0x4eaaa4),
  * snapshots the 0x68-byte record into the state buffer at 0x4eaa3c
  * (PUSH 0x68 / PUSH ESI / PUSH 0x4eaa3c at 0x1c27be..0x1c27c1), then spawns
- * playlist_profile_write (0x1c2550) with the state block address as its
+ * playlist_profile_write_thread_proc (0x1c2550) with the state block address as its
  * argument and the thread reference slot at 0x4eaaa4.  thread_new's result is
  * discarded: the single ADD ESP,0x1c at 0x1c27e7 covers csmemcpy's 3 args plus
  * thread_new's 4.
  *
- * Despite the name the body only writes — the "read" naming comes from CEA PDB
- * line containment, not from behaviour, so no meaning is inferred from it.
- * The 0x74-byte block at 0x4eaa38 has no recovered struct yet, so both the
+ * The body only queues the write; the file access happens on the worker
+ * thread.  The 0x74-byte block at 0x4eaa38 has no recovered struct yet, so both the
  * state dword and the record buffer stay raw offsets.
  */
-void playlist_profile_read(void *variant /* @<esi> */, int unknown)
+void playlist_profile_write(void *variant /* @<esi> */, int unknown)
 {
   if (variant == NULL) {
     display_assert("variant",
@@ -843,10 +838,10 @@ void playlist_profile_read(void *variant /* @<esi> */, int unknown)
 
   *(int *)0x4eaa38 = unknown;
   csmemcpy((void *)0x4eaa3c, variant, 0x68);
-  thread_new(0, (void *)playlist_profile_write, 0x4eaa38, (void **)0x4eaaa4);
+  thread_new(0, (void *)playlist_profile_write_thread_proc, 0x4eaa38, (void **)0x4eaaa4);
 }
 
-/* 0x1c27f0 — playlist_profile_get_display_name
+/* 0x1c27f0 — playlist_profile_save
  * Source TU confirmed by the __FILE__ assert string
  * "c:\halo\SOURCE\saved games\playlist_profile.c" (line 0x131).
  *
@@ -854,18 +849,17 @@ void playlist_profile_read(void *variant /* @<esi> */, int unknown)
  * (CMP EDI,-0x1 at 0x1c281f) and [EBP+0xc] is the variant record, asserted
  * non-NULL before anything else (MOV ESI,[EBP+0xc] / TEST ESI,ESI at
  * 0x1c27f4).  The int's meaning is unproven — it is only tested against -1
- * and forwarded — so it stays an explicit unknown; despite the CEA PDB name
- * no display-name behaviour is observable here, so nothing is inferred from
- * it.
+ * and forwarded.  An index of -1 does nothing; otherwise the variant is
+ * cleaned up and queued for writing.
  *
  * When the index is not -1 the variant is cleaned up and then handed to
- * playlist_profile_read, which takes the record in ESI (still live from the
+ * playlist_profile_write, which takes the record in ESI (still live from the
  * cleanup call) plus the index on the stack.  The single ADD ESP,0x8 at
  * 0x1c2830 covers both pushes — game_engine_variant_cleanup's one argument
- * and playlist_profile_read's one stack argument — so the register argument
+ * and playlist_profile_write's one stack argument — so the register argument
  * is not an extra push.
  */
-void playlist_profile_get_display_name(int unknown, game_variant_t *variant)
+void playlist_profile_save(int unknown, game_variant_t *variant)
 {
   if (variant == NULL) {
     display_assert("variant",
@@ -876,7 +870,7 @@ void playlist_profile_get_display_name(int unknown, game_variant_t *variant)
 
   if (unknown != -1) {
     game_engine_variant_cleanup(variant);
-    playlist_profile_read(variant, unknown);
+    playlist_profile_write(variant, unknown);
   }
 }
 
@@ -2118,8 +2112,8 @@ int16_t enumerate_default_player_profiles(void)
 
 /* 0x1c3e40 — get_nth_entry_in_mapfile.  Name confirmed by the callers' error
  * strings ("get_nth_entry_in_mapfile() failed").  Read-side twin of
- * set_nth_entry_in_mapfile below, same shape as PAL 2342's
- * get_nth_entry_in_mapfile.
+ * set_nth_entry_in_mapfile below, with the same shape.
+ *
  *
  * `memory_unit_index` arrives in AX (MOV SI,AX at 0x1c3e48).  The entry index
  * arrives in EDI: the callee never saves or writes EDI before MOVZX EDI,DI at
@@ -2402,8 +2396,8 @@ bool append_entry_to_mapfile(int16_t memory_unit_index, const void *file,
 }
 
 /* 0x1c43f0 — remove_nth_entry_in_mapfile.  Name confirmed by the caller's
- * error string ("remove_nth_entry_in_mapfile() failed"); same shape as PAL
- * 2342's remove_nth_entry_in_mapfile.
+ * error string ("remove_nth_entry_in_mapfile() failed").
+ *
  *
  * `memory_unit_index` arrives in AX (MOV DI,AX at 0x1c4405) and the entry
  * index in CX (MOVZX ESI,CX / IMUL ESI,ESI,0x206 at 0x1c43fb, before the
@@ -2689,8 +2683,8 @@ bool saved_game_file_open(file_ref_t *saved_game_file,
 
 /* 0x1c4990 — synchronize_metadata_display_name_with_profile_name.  Name
  * confirmed by its own error string ("XCreateSaveGame() failed in
- * synchronize_metadata_display_name_with_profile_name() ...").  Same shape as
- * PAL 2342's function of that name.
+ * synchronize_metadata_display_name_with_profile_name() ...").
+ *
  *
  * Renames the XAPI save-game metadata of a mapfile entry to match
  * game_display_name: creates a new save game with the new name, copies the
@@ -2698,7 +2692,7 @@ bool saved_game_file_open(file_ref_t *saved_game_file,
  * the mapfile record.  game_display_name is the second stack argument; the
  * assert string "ustrlen(game_display_name)<MAXIMUM_SAVED_GAME_NAME_LENGTH"
  * names it, and the caller FUN_001c15c0 passes the profile payload, whose
- * first field is the wide profile name (FUN_001c1720 ustrncpy's the name to
+ * first field is the wide profile name (player_profile_new ustrncpy's the name to
  * offset 0 of the same record).
  *
  * The result starts TRUE (MOV BL,1 at 0x1c49b1), so the get_nth failure,
@@ -3235,7 +3229,7 @@ void FUN_001c5010(void)
 }
 
 /* saved_game_files_enumerate_available_to_local_player_index (0x1c53f0) —
- * PAL 2342 saved_game_files.c (names T2; assert line 0xec).  Fills
+ * inferred names; assert line 0xec.  Fills
  * player_profile_indices with the saved-game-file indices of every hard-drive
  * mapfile entry whose type (record+0x200) equals saved_game_file_type,
  * skipping read-only entries (record+0x204) unless include_default_profiles
@@ -3252,7 +3246,7 @@ void FUN_001c5010(void)
  *
  * When the general mutex cannot be taken the binary stores the low word of
  * player_index (MOV DX,[EBP+8] at 0x1c5546, before that slot is reused) into
- * *number_of_profiles, not 0 as PAL 2342 does; reproduced as-is. */
+ * *number_of_profiles, not 0; reproduced as-is. */
 void saved_game_files_enumerate_available_to_local_player_index(
   int player_index, int saved_game_file_type, int *number_of_profiles,
   int *player_profile_indices, int include_default_profiles)
@@ -3338,8 +3332,8 @@ void saved_game_files_enumerate_available_to_local_player_index(
  * EBP-0x214 and the 8-byte root path at EBP-0x8.  XCreateSaveGame (0x1d2f22,
  * __stdcall) gets (root_path, display_name, 1, 0, directory, 0x100); a
  * non-zero result means failure.  Type 0 builds "<dir>blam.sav" with a
- * 0x30-byte checksum span and calls FUN_001c0cd0(dir) (PAL:
- * game_state_create_persistent_storage), type 1 builds "<dir>blam.lst" with
+ * 0x30-byte checksum span and calls FUN_001c0cd0(dir) (inferred
+ * name game_state_create_persistent_storage), type 1 builds "<dir>blam.lst" with
  * a 0x68-byte span; any other type stores -1 into record.type and goes
  * straight to the XDeleteSaveGame cleanup.  append_entry_to_mapfile gets
  * unit 0 in EAX and writes the new entry index through its out pointer (the
@@ -3375,10 +3369,10 @@ int32_t create_enumerated_saved_game_file(uint16_t saved_game_file_type,
   file_system_check = saved_game_perform_file_system_checks();
 
   switch (file_system_check) {
-  case 1: /* PAL: _saved_game_file_system_out_of_disk_space */
+  case 1: /* out of disk space */
     display_error_abort_to_dashboard_deferred(0x21, 1);
     break;
-  case 2: /* PAL: _saved_game_file_system_too_many_saved_games */
+  case 2: /* too many saved games */
     display_error_abort_to_dashboard_deferred(0x22, 1);
     break;
   }

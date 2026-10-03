@@ -96,9 +96,9 @@ player_ui_get_single_player_local_player_controller(__int16 local_player_index)
  *   The miss path returns MOV AX,DX with EDX = -1 (OR EDX,-1), so only AX
  *   carries the result: the return is a 16-bit short, not int.
  * Confirmed: no assert on the argument.
- * Name/signature: PAL 2342 interface/player_ui.h declares
+ * Name/signature (inferred):
  *   short player_ui_get_single_player_local_player_from_controller(
- *   short controller_index) (T2). */
+ *   short controller_index). */
 short player_ui_get_single_player_local_player_from_controller(
   short controller_index)
 {
@@ -516,12 +516,12 @@ void player_ui_fast_setup_network_server(void)
 }
 
 /* Bit 30 of a saved-game file index.  build_saved_game_file_index (0x1c3710)
- * sets it; PAL 2342 names it _saved_game_file_index_read_only_bit (T2), and
+ * sets it (inferred name _saved_game_file_index_read_only_bit), and
  * player_ui_save_profile below reports "saving over a default player profile"
  * when it is set. */
 #define SAVED_GAME_FILE_INDEX_READ_ONLY_FLAG 0x40000000
 
-/* 0xe0d80 -- player_ui_edit_profile_is_default_profile (PAL 2342 body, T2).
+/* 0xe0d80 -- player_ui_edit_profile_is_default_profile (inferred name).
  * Returns bit 30 (read-only / default-profile flag) of the saved-game file
  * index being edited, player_ui_globals + 0x158 (0x46c038).
  *   - index == -1: returns false with no report (XOR BL,BL / MOV AL,BL).
@@ -696,7 +696,7 @@ void *player_ui_get_edit_playlist_profile(void)
                                                            NULL;
 }
 
-/* 0xe0ee0 -- player_ui_edit_profile_is_dirty (PAL 2342 body, T2).
+/* 0xe0ee0 -- player_ui_edit_profile_is_dirty (inferred name).
  * Compares the live edit copy (player_ui_globals + 0x15c, 0x46c03c) against
  * the pristine copy taken by player_ui_begin_editing_profile
  * (player_ui_globals + 0x1c4, 0x46c0a4) with the 16-bit flags word of both
@@ -888,9 +888,9 @@ int player0_joystick_set_is_normal(void)
 }
 
 /* Enumerations and records used by set_local_player_controls_from_player_profile.
- * Names and member order are PAL 2342 (input/input.h, saved games/
- * player_profile.h, input/input_abstraction.h) -- T2.  Every value below is
- * re-confirmed against the 2276 binary: the five button-preset arms of the
+ * Names and member order are inferred.
+ * Every value below is
+ * confirmed against the 2276 binary: the five button-preset arms of the
  * jump table at 0xe12bc store exactly these codes, the joystick preset is
  * clamped at 3, and the look-sensitivity tables have 10 entries. */
 enum {
@@ -965,8 +965,8 @@ co(game_input_preferences, game_control_to_xbox_buttons, 0x8);
 co(game_input_preferences, joystick_controls, 0x14);
 co(game_input_preferences, invert_look_aircraft_control, 0x17);
 
-/* 0xe10c0 -- set_local_player_controls_from_player_profile (PAL 2342 name and
- * body, T2; the 2276 assert sits at line 0x392, PAL has 0x396).
+/* 0xe10c0 -- set_local_player_controls_from_player_profile (inferred name;
+ * the 2276 assert sits at line 0x392).
  *
  * local_player_index arrives in DI: both callers (0xe14eb, 0xe17a7) CALL with
  * no pushes and ADD nothing, and the body reads DI before writing it
@@ -1274,18 +1274,16 @@ void player_ui_set_active_player_profile(short local_player_index,
   set_local_player_controls_from_player_profile(local_player_index);
 }
 
-/* 0xe1500 -- player_ui_begin_editing_profile (PAL 2342 name and body, T2).
+/* 0xe1500 -- player_ui_begin_editing_profile (inferred name).
  *
  * MOV [0x46c038],-1 (player_ui_globals + 0x158, the edited-file index) is
  * stored before the saved_game_file_get_type call; the result is MOVZX'd and
  * dispatched 0 / 1 / other.
- *   type 0 (player profile): CALL 0x1c18f0 (kb player_profile_new, which
- *     behaves as PAL player_profile_get) into player_ui_globals + 0x1c4
- *     (0x46c0a4), then csmemcpy 0x30 bytes to player_ui_globals + 0x15c
+ *   type 0 (player profile): CALL 0x1c18f0 (player_profile_get) into
+ *     player_ui_globals + 0x1c4 (0x46c0a4), then csmemcpy 0x30 bytes to player_ui_globals + 0x15c
  *     (0x46c03c).
- *   type 1 (playlist): CALL 0x1c26f0 (kb playlist_profile_delete, which
- *     behaves as PAL playlist_profile_get) into the same buffer, then the
- *     same csmemcpy with 0x68 bytes.  The two arms share the tail at
+ *   type 1 (playlist): CALL 0x1c26f0 (kb playlist_profile_get) into the
+ *     same buffer, then the same csmemcpy with 0x68 bytes.  The two arms share the tail at
  *     0xe1575 with only the size PUSH differing.
  *   other: error(2, "invalid profile index (#%08lX)", profile_index).
  * A failed get reports through error(2, ...) and returns without storing the
@@ -1295,7 +1293,7 @@ void player_ui_begin_editing_profile(int profile_index)
   *(int *)(player_ui_globals + 0x158) = -1;
   switch (saved_game_file_get_type(profile_index)) {
   case 0:
-    if (player_profile_new(profile_index, player_ui_globals + 0x1c4)) {
+    if (player_profile_get(profile_index, player_ui_globals + 0x1c4)) {
       csmemcpy(player_ui_globals + 0x15c, player_ui_globals + 0x1c4, 0x30);
     } else {
       error(2, "failed to retrieve player profile #%08lX for editing",
@@ -1305,7 +1303,7 @@ void player_ui_begin_editing_profile(int profile_index)
     break;
 
   case 1:
-    if (playlist_profile_delete(
+    if (playlist_profile_get(
           profile_index, (game_variant_t *)(player_ui_globals + 0x1c4))) {
       csmemcpy(player_ui_globals + 0x15c, player_ui_globals + 0x1c4, 0x68);
     } else {
@@ -1322,22 +1320,21 @@ void player_ui_begin_editing_profile(int profile_index)
   *(int *)(player_ui_globals + 0x158) = profile_index;
 }
 
-/* 0xe15b0 -- player_ui_save_profile (PAL 2342 body, T2).
+/* 0xe15b0 -- player_ui_save_profile (inferred name).
  * Writes the live edit copy (player_ui_globals + 0x15c, 0x46c03c) of the
  * saved-game file being edited (player_ui_globals + 0x158, 0x46c038) back to
- * disk, then clears the edit index to -1 on every path (the inlined PAL
+ * disk, then clears the edit index to -1 on every path (an inlined
  * clear_profile_edit_data).  There is no -1 guard before
  * saved_game_file_get_type.
  *   - type 0: warns when the read-only bit is set and when the profile is not
- *     dirty, then CALL 0x1c1bc0 (kb player_profile_get_from_path; PAL
- *     player_profile_save) with (index, edit copy); returns true.
+ *     dirty, then CALL 0x1c1bc0 (kb player_profile_get_from_path; a
+ *     profile save) with (index, edit copy); returns true.
  *   - type 1: warns when not dirty.  Read-only (default) playlist: the name
  *     must differ from the original (ustrncmp 0xc chars), else "cannot save
  *     over default profiles"; a renamed default clears bit 0 of the flags byte
  *     (AND byte [0x46c0a0],0xfe), creates a new playlist file with
  *     playlist_profile_new(0, name), writes the edit copy through CALL
- *     0x1c27f0 (kb playlist_profile_get_display_name; PAL
- *     playlist_profile_save), adopts the new index, and remembers its
+ *     0x1c27f0 (kb playlist_profile_save), adopts the new index, and remembers its
  *     directory.  A writable playlist is written in place and its directory
  *     remembered.  Directory lookup failure does not change the true result.
  *   - other: "failed to save profile because we are not editing one".
@@ -1374,7 +1371,7 @@ bool player_ui_save_profile(void)
         new_profile_index =
           playlist_profile_new(0, (wchar_t *)(player_ui_globals + 0x15c));
         if (new_profile_index != -1) {
-          playlist_profile_get_display_name(
+          playlist_profile_save(
             new_profile_index, (game_variant_t *)(player_ui_globals + 0x15c));
           *(int *)(player_ui_globals + 0x158) = new_profile_index;
           if (saved_game_file_get_path_to_enclosing_directory(new_profile_index,
@@ -1390,7 +1387,7 @@ bool player_ui_save_profile(void)
                  "new profile");
       }
     } else {
-      playlist_profile_get_display_name(
+      playlist_profile_save(
         *(int *)(player_ui_globals + 0x158),
         (game_variant_t *)(player_ui_globals + 0x15c));
       if (saved_game_file_get_path_to_enclosing_directory(

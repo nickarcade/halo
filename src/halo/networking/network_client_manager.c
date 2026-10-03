@@ -433,9 +433,9 @@ bool network_game_client_write(void *connection, void *message,
  * written by network_connection_get_address and discarded.
  */
 char network_game_client_address_matches_server(void *client,
-                                                void *source_address)
+                                                void *address)
 {
-  int connection_address[6]; /* EBP-0x18, 0x18 bytes */
+  transport_address server_address; char address_matches; /* EBP-0x18 */
 
   if (client == NULL) {
     display_assert("client != NULL",
@@ -449,22 +449,22 @@ char network_game_client_address_matches_server(void *client,
                    0x2d3, true);
     system_exit(-1);
   }
-  if (source_address == NULL) {
+  if (address == NULL) {
     display_assert("address != NULL",
                    "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
                    0x2d4, true);
     system_exit(-1);
   }
-  if (*(int *)source_address == 0) {
+  if (((transport_address *)address)->address.ipv4_address == 0) {
     display_assert("address->address.ipv4_address",
                    "c:\\halo\\SOURCE\\networking\\network_client_manager.c",
                    0x2d5, true);
     system_exit(-1);
   }
 
-  network_connection_get_address(*(int *)((char *)client + 0x82c),
-                                 connection_address, 0);
-  return connection_address[0] == *(int *)source_address;
+  network_connection_get_address(*(int *)((char *)client + 0x82c), &server_address, 0);
+  address_matches = server_address.address.ipv4_address == ((transport_address *)address)->address.ipv4_address;
+  return address_matches;
 }
 
 /* network_game_client_game_out_of_sync (0x124e20)

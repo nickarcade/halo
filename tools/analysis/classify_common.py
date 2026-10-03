@@ -517,7 +517,7 @@ def _split_into_contiguous(fns: list[CommonFunction],
 
 def print_delinker_plan(results: list[CommonFunction], objects: list[dict]) -> None:
     """Output delinker commands to validate high/medium confidence reclassifications."""
-    ARTIFACTS = "G:\\\\dev\\\\halo\\\\artifacts\\\\delinker"
+    ARTIFACTS = DELINKER_ARTIFACTS_WIN.replace("\\", "\\\\")
 
     print(f"{'=' * 78}")
     print("  Delinker Validation Plan")
@@ -576,8 +576,19 @@ def print_delinker_plan(results: list[CommonFunction], objects: list[dict]) -> N
 # ---------------------------------------------------------------------------
 
 GHIDRA_RPC_URL = "http://127.0.0.1:18081/rpc"
-DELINKER_ARTIFACTS = Path("/mnt/g/dev/halo/artifacts/delinker")
-DELINKER_ARTIFACTS_WIN = "G:\\dev\\halo\\artifacts\\delinker"
+
+
+def _wsl_to_win(path: Path) -> str:
+    """/mnt/<drive>/... -> <DRIVE>:\\... (other paths are returned unchanged)."""
+    s = str(path)
+    m = re.match(r"^/mnt/([a-zA-Z])/(.*)$", s)
+    if m:
+        return f"{m.group(1).upper()}:\\" + m.group(2).replace("/", "\\")
+    return s
+
+
+DELINKER_ARTIFACTS = REPO_ROOT / "artifacts" / "delinker"
+DELINKER_ARTIFACTS_WIN = _wsl_to_win(DELINKER_ARTIFACTS)
 
 SOURCE_PATH_RE = re.compile(
     r"s_c:\\halo\\(?:SOURCE|source)\\(.+?)_([0-9a-f]{8})$"

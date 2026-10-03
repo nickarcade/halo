@@ -16,7 +16,10 @@ description: >-
 # Bug Hunt — Tiered Automated Bug Scanning
 
 **Auto-triggered** after any `Write`/`Edit` to `src/` or `kb.json`.  
-**Manual:** `/bug-hunt [--all]` runs T0+T1; `--full` adds T3.
+**Manual:** `/bug-hunt [--all]` runs T0+T1; `--full` adds T3 (`--changed-only` limits scans to touched files).
+If the argument is a symptom (crash, page fault, assert, hang, wrong behavior, wrong color,
+invisible geometry, regression) load `debug` and `crash-debug` first, then return here for scans.
+Report the commands run, blocking findings, and the next narrow fix.
 
 Every check delegates to an existing script — this skill is the decision tree.
 

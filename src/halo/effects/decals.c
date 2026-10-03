@@ -265,8 +265,12 @@ void decals_unlock(bool full_reset)
  * Indexes into the decal_globals array: [layer * 512 + cluster_index]. */
 int decal_get_first_decal_index(int16_t cluster_index, int16_t layer)
 {
-  assert_halt(cluster_index >= 0 && cluster_index < 0x200);
-  assert_halt(layer >= 0 && layer < 5);
+  assert_halt_msg_at("cluster_index>=0 && cluster_index<MAXIMUM_CLUSTERS_PER_STRUCTURE",
+                     "c:\\halo\\SOURCE\\effects\\decals.c", 0x3ee,
+                     cluster_index >= 0 && cluster_index < 0x200);
+  assert_halt_msg_at("layer>=0 && layer<NUMBER_OF_DECAL_LAYERS",
+                     "c:\\halo\\SOURCE\\effects\\decals.c", 0x3ef,
+                     layer >= 0 && layer < 5);
 
   return decal_globals->first_decal_index[layer][cluster_index];
 }
@@ -876,8 +880,8 @@ void decals_disconnect_from_structure_bsp(void)
   int guard;
   int decal_index;
   int next_decal_index;
-  char *decal;
-  char *other;
+  decal_datum_t *decal;
+  decal_datum_t *other;
 
   if (global_decal_data == NULL) {
     display_assert("global_decal_data", "c:\\halo\\SOURCE\\effects\\decals.c",
@@ -895,32 +899,32 @@ void decals_disconnect_from_structure_bsp(void)
     for (cluster_index = 0; cluster_index < 0x200; ++cluster_index) {
       for (layer = 0; layer < 5; ++layer) {
         first = decal_get_first_decal_index(cluster_index, layer);
-        guard = 0;
         decal_index = first;
+        guard = 0;
 
         while (decal_index != -1) {
-          decal = (char *)datum_get(global_decal_data, decal_index);
-          /* latch next BEFORE the splice below rewrites +0x34 */
-          next_decal_index = *(int *)(decal + 0x34);
+          decal = (decal_datum_t *)datum_get(global_decal_data, decal_index);
+          /* latch next BEFORE the splice below rewrites next_decal_index */
+          next_decal_index = decal->next_decal_index;
 
           if (guard++ > 0x800) {
             error(2, "### ERROR decals: infinite loop -- tell Bernie!!");
             break;
           }
 
-          if (*(int16_t *)(decal + 4) != cluster_index) {
+          if (decal->cluster_index != cluster_index) {
             display_assert("decal->cluster_index==cluster_index",
                            "c:\\halo\\SOURCE\\effects\\decals.c", 0x2ea, true);
             system_exit(-1);
           }
-          *(int16_t *)(decal + 4) = -1;
+          decal->cluster_index = -1;
 
-          if (*(int *)(decal + 0x34) == -1) {
-            *(int *)(decal + 0x34) = decal_globals->first_disconnected_decal_index;
+          if (decal->next_decal_index == -1) {
+            decal->next_decal_index = decal_globals->first_disconnected_decal_index;
             if (decal_globals->first_disconnected_decal_index != -1) {
-              other = (char *)datum_get(global_decal_data,
-                                        decal_globals->first_disconnected_decal_index);
-              *(int *)(other + 0x30) = decal_index;
+              other = (decal_datum_t *)datum_get(
+                global_decal_data, decal_globals->first_disconnected_decal_index);
+              other->previous_decal_index = decal_index;
             }
             decal_globals->first_disconnected_decal_index = first;
 
@@ -1125,8 +1129,6 @@ void decal_projection_create(float *bounds, float *projection, float *basis)
   float abs_j;
   float abs_k;
   int16_t projection_axis;
-  float *u_axis;
-  float *v_axis;
 
   if (basis == NULL) {
     display_assert("basis", "c:\\halo\\SOURCE\\effects\\decals.c", 0x410, true);
@@ -1186,14 +1188,13 @@ void decal_projection_create(float *bounds, float *projection, float *basis)
   FUN_00061df0(projected, *(int16_t *)((char *)projection + 0x54),
                *(uint8_t *)((char *)projection + 0x56), projection + 0x1c);
 
-  u_axis = projection + 0x1e;
-  v_axis = projection + 0x20;
   projection[0x1e] = projection[0x18] - projection[0x16];
   projection[0x1f] = projection[0x19] - projection[0x17];
   projection[0x20] = projection[0x1c] - projection[0x16];
   projection[0x21] = projection[0x1d] - projection[0x17];
   projection[0x22] = *(float *)0x2533c8 /
-                     (v_axis[1] * u_axis[0] - u_axis[1] * v_axis[0]);
+                     (projection[0x21] * projection[0x1e] -
+                      projection[0x1f] * projection[0x20]);
 }
 
 void decal_clip_to_surface(void *geometry, float *projection, int surface_index,

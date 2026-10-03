@@ -9,13 +9,13 @@ Step-by-step instructions for configuring a GitHub Actions self-hosted runner on
 | Hostname | Hermes |
 | OS | Ubuntu 24.04.4 LTS on WSL2 (kernel 6.6.87.2-microsoft-standard-WSL2) |
 | Arch | x86_64 (amd64) |
-| User | `stian` |
-| Home | `/home/stian` |
+| User | `<runner-user>` |
+| Home | `/home/<runner-user>` |
 | Shell | `/bin/bash` (fish available) |
 | systemd | 255 (available, needed for the runner service) |
-| Repo root | `/mnt/g/dev/halo` |
+| Repo root | `<repo>` |
 | Repo remote | `https://github.com/stianeklund/halo.git` (fork of `halo-re/halo`) |
-| Python venv | `/mnt/g/dev/halo/.venv/bin/python3` (Python 3.12.3) |
+| Python venv | `<repo>/.venv/bin/python3` (Python 3.12.3) |
 
 ## Prerequisites Already Installed
 
@@ -82,7 +82,7 @@ cd ~/actions-runner
   --token <REGISTRATION_TOKEN> \
   --name hermes-wsl2 \
   --labels self-hosted,linux,x64,equivalence \
-  --work /home/stian/actions-runner/_work \
+  --work /home/<runner-user>/actions-runner/_work \
   --replace
 ```
 
@@ -100,7 +100,7 @@ The runner needs access to the project venv and system tools. Create an environm
 cat > ~/actions-runner/.env << 'EOF'
 # Ensure llvm-objdump, cmake, clang are on PATH
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/llvm-18/bin
-# The delinked/ directory is a symlink in the repo pointing to /mnt/g/dev/halo/delinked
+# The delinked/ directory is a symlink in the repo pointing to <repo>/delinked
 # The checkout action will clone fresh, so we need delinked refs accessible.
 # The workflow uses the repo's .venv — Step 5 ensures it exists in the work dir.
 EOF
@@ -124,11 +124,11 @@ cat > ~/actions-runner/hooks/pre-job.sh << 'HOOK'
 if [ -n "$GITHUB_WORKSPACE" ] && [ -d "$GITHUB_WORKSPACE" ]; then
     # Venv
     if [ ! -e "$GITHUB_WORKSPACE/.venv" ]; then
-        ln -sf /mnt/g/dev/halo/.venv "$GITHUB_WORKSPACE/.venv"
+        ln -sf <repo>/.venv "$GITHUB_WORKSPACE/.venv"
     fi
     # Delinked oracle objects
     if [ ! -e "$GITHUB_WORKSPACE/delinked" ]; then
-        ln -sf /mnt/g/dev/halo/delinked "$GITHUB_WORKSPACE/delinked"
+        ln -sf <repo>/delinked "$GITHUB_WORKSPACE/delinked"
     fi
 fi
 HOOK
@@ -140,12 +140,12 @@ Then tell the runner to use this hook:
 
 ```bash
 # Add to ~/actions-runner/.env:
-echo 'ACTIONS_RUNNER_HOOK_JOB_STARTED=/home/stian/actions-runner/hooks/pre-job.sh' >> ~/actions-runner/.env
+echo 'ACTIONS_RUNNER_HOOK_JOB_STARTED=/home/<runner-user>/actions-runner/hooks/pre-job.sh' >> ~/actions-runner/.env
 ```
 
 ### Option B: Modify the workflow to use absolute paths
 
-Change `VENV_PYTHON` in `.github/workflows/equivalence.yml` to `/mnt/g/dev/halo/.venv/bin/python3`. Simpler but less portable.
+Change `VENV_PYTHON` in `.github/workflows/equivalence.yml` to `<repo>/.venv/bin/python3`. Simpler but less portable.
 
 ## Step 6: Install as a systemd Service
 
@@ -153,7 +153,7 @@ Change `VENV_PYTHON` in `.github/workflows/equivalence.yml` to `/mnt/g/dev/halo/
 cd ~/actions-runner
 
 # Install the service (runs as your user, not root)
-sudo ./svc.sh install stian
+sudo ./svc.sh install <runner-user>
 
 # Start the service
 sudo ./svc.sh start
@@ -180,7 +180,7 @@ Then restart WSL: `wsl --shutdown` from PowerShell, then reopen.
 WSL2 doesn't start automatically. To ensure the runner is always available:
 
 1. Create a Windows Task Scheduler task that runs at login:
-   - Action: `wsl -d Ubuntu -u stian -- bash -c "sudo systemctl start actions.runner.stianeklund-halo.hermes-wsl2.service"`
+   - Action: `wsl -d Ubuntu -u <runner-user> -- bash -c "sudo systemctl start actions.runner.stianeklund-halo.hermes-wsl2.service"`
    - Trigger: At log on
 
 2. Or add to PowerShell profile (`$PROFILE`):
@@ -222,7 +222,7 @@ gh run view <run-id> --log
 ### Run the regression test locally to confirm baseline
 
 ```bash
-cd /mnt/g/dev/halo
+cd <repo>
 .venv/bin/python3 tools/equivalence/regression_test.py --quick
 ```
 
@@ -233,7 +233,7 @@ Expected: 3 targets, all PASS, ~10 seconds.
 Before the nightly job can detect regressions, create a baseline:
 
 ```bash
-cd /mnt/g/dev/halo
+cd <repo>
 
 # Run a full batch verify with discovery mode
 .venv/bin/python3 tools/equivalence/batch_verify.py \
@@ -251,7 +251,7 @@ This `summary.json` becomes the `--baseline` for future nightly runs. The workfl
 After seeding the baseline, auto-populate the fast regression targets:
 
 ```bash
-cd /mnt/g/dev/halo
+cd <repo>
 
 # Dry run — see what would be added
 .venv/bin/python3 tools/equivalence/populate_regression_targets.py --from-batch
@@ -283,7 +283,7 @@ The pre-job hook didn't symlink the venv. Check:
 ```bash
 ls -la ~/actions-runner/_work/halo/halo/.venv
 ```
-Should be a symlink to `/mnt/g/dev/halo/.venv`. If missing, verify the hook path in `~/actions-runner/.env`.
+Should be a symlink to `<repo>/.venv`. If missing, verify the hook path in `~/actions-runner/.env`.
 
 ### Delinked refs not found
 

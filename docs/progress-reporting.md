@@ -88,6 +88,7 @@ Add per-function byte-accuracy tracking via objdiff integration.
 3. **Dashboard updates** — color coding (green=100%, yellow=partial, red=ported-not-matching)
 
 ```bash
+./tools/fetch_objdiff.sh  # pinned objdiff CLI
 ./tools/objdiff-cli-linux-x86_64 diff \
   --base delinked/actors.obj \
   --target build/CMakeFiles/halo.dir/src/halo/ai/actors.c.obj \
@@ -113,7 +114,7 @@ Store daily/weekly snapshots for trend graphs and velocity metrics.
 ### Components
 
 1. **`tools/report/history.py`** — historical data management
-2. **`tools/report/graph_data.py`** — Chart.js-compatible datasets
+2. **`History.get_graph_data()`** (in `tools/report/history.py`) — Chart.js-compatible datasets
 3. **Enhanced Dashboard** — line charts, burn-down charts, velocity charts (Chart.js from CDN)
 
 ### Open Questions

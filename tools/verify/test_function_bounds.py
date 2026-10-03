@@ -64,10 +64,12 @@ def test_tail_jump_thunk_is_five_bytes():
 def test_listing_gap_functions_get_true_ends():
     """kb.json is not a complete listing; the gap is not a size.
 
-    Each of these is followed by a real function that kb.json does not list, so
-    the kb gap over-counts.  Sizes are from the pristine XBE.
+    When written, each of these was followed by a real function that kb.json
+    did not list, so the kb gap over-counted.  Later lifts list most of those
+    neighbours, so only the binary-derived ends are pinned.  Sizes are from the
+    pristine XBE.
     """
-    cases = {  # addr: (end, real neighbour, kb gap end, neighbour is unlisted)
+    cases = {  # addr: (end, real neighbour, kb gap end, neighbour was unlisted)
         0x155110: (0x155126, 0x155130, 0x155350, True),
         0x1592E0: (0x159300, 0x159300, 0x1595C0, True),
         0x15C2D0: (0x15C336, 0x15C340, 0x15C5F0, True),
@@ -78,16 +80,12 @@ def test_listing_gap_functions_get_true_ends():
         0x155580: (0x155616, 0x155620, 0x155620, False),
         0x0FB3C0: (0x0FB406, 0x0FB410, 0x0FB510, True),
     }
-    starts = {a for a, _ in fb.load_kb_functions()[0]}
-    for addr, (want, neighbour, kb_end, is_hole) in cases.items():
+    for addr, (want, _neighbour, kb_end, _was_hole) in cases.items():
         got = _end(addr)
         assert got == want, f"0x{addr:x}: end 0x{got:x}, want 0x{want:x}"
         assert got < kb_end, (
             f"0x{addr:x}: end 0x{got:x} reached the kb gap end 0x{kb_end:x} -- "
             f"the bound came from the listing, not the binary")
-        assert (neighbour not in starts) == is_hole, (
-            f"0x{neighbour:x}: listed={neighbour in starts}, fixture expects "
-            f"unlisted={is_hole} -- kb.json changed under this test")
 
 
 def test_interior_ret_does_not_end_a_function():

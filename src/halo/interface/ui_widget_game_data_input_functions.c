@@ -2655,7 +2655,7 @@ void FUN_000f3690(int *out_indices, void *widget_ptr)
  * never fires when all 3 records are occupied -- the scan instead falls
  * through with k == 3 and the call below addresses one record past the
  * table. This is the reference's own behavior (0xf37c4-0xf37f6), reproduced
- * as-is. On a free (or out-of-bounds) k, call player_profile_new(id,
+ * as-is. On a free (or out-of-bounds) k, call player_profile_get(id,
  * &table[k].name) to fill in the record's name; on success store the id into
  * table[k].id and mark found[k] = 1 (skipped when k == 3, matching the
  * reference, which never touches found[3]); on failure log
@@ -2723,7 +2723,7 @@ void player_profile_update_cache_for_nwide_list(int *ids, int count)
         } while (k < 3);
 
         slot = (int *)(k * 0x34 + 0x5aa3c0);
-        if (player_profile_new(ids[i], (wchar_t *)((char *)slot + 4))) {
+        if (player_profile_get(ids[i], (wchar_t *)((char *)slot + 4))) {
           *slot = ids[i];
           found[k] = 1;
         } else {
@@ -2740,7 +2740,7 @@ void player_profile_update_cache_for_nwide_list(int *ids, int count)
  * 0x6c: int id followed by an embedded game_variant_t). Evidence: disasm
  * base 0x5aa260 / end 0x5aa3a4 / stride 0x6c (matches ui_widget.c's
  * csmemset((void *)0x5aa260, -1, 0x144) comment "profile scratch block"),
- * callee playlist_profile_delete(id, variant*) at 0x1c26f0 with args
+ * callee playlist_profile_get(id, variant*) at 0x1c26f0 with args
  * (EAX=id, ECX=&slot+4) traced from the two PUSHes before the CALL, assert
  * line 0xcd5 / error string "failed to cache playlist profile" read
  * directly off the pushed literals. */
@@ -2807,7 +2807,7 @@ void variant_profile_update_cache_for_nwide_list(int *ids, int count)
         } while (k < 3);
 
         slot = (int *)(k * 0x6c + 0x5aa260);
-        if (playlist_profile_delete(ids[i],
+        if (playlist_profile_get(ids[i],
                                     (game_variant_t *)((char *)slot + 4))) {
           *slot = ids[i];
           found[k] = 1;
@@ -2846,7 +2846,7 @@ int __cdecl list_indices_sort_proc(const void *a, const void *b)
  *
  * Takes one stack argument (MOV EDI,[EBP+0x8] at 0xf39e5; *widget is the
  * 'DeLa' tag index). Fetches local player 0's profile and calls
- * player_profile_save_last_level_played on it (outputs unused). Asserts the
+ * player_profile_get_highest_completed_solo_level on it (outputs unused). Asserts the
  * list tag is a spinner list (type 2) with 3 children, then
  * FUN_000f3690(indices@<eax>, widget@<ecx>) fills the 3 visible item indices
  * (no -1 pre-fill in this function). Per visible item (stops at the first
@@ -2877,7 +2877,7 @@ void solo_level_select_list_update_displayed_items(int *widget)
   unsigned char *level_entry;
 
   player_ui_get_active_player_profile(0, profile);
-  player_profile_save_last_level_played(profile, &last_level,
+  player_profile_get_highest_completed_solo_level(profile, &last_level,
                                         &last_level_unused);
   list_tag = (short *)tag_get(0x44654c61 /* 'DeLa' */, *widget);
   if (*list_tag != 2) {
@@ -3478,7 +3478,7 @@ void multiplayer_settings_select_list_update_item(int *widget)
               *(char *)(level_text + 0x10) = 0;
               *(char *)(skill_text + 0x10) = 0;
             } else {
-              player_profile_save_last_level_played(rec, &last_level,
+              player_profile_get_highest_completed_solo_level(rec, &last_level,
                                                     &skill_level);
               if (last_level + 1 > 9) {
                 last_level = 9;

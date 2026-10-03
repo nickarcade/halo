@@ -171,9 +171,9 @@ Ask only when a binary fact cannot be checked directly. If needed, ask for:
 
 Memory:
 Store durable RE findings at:
-`/mnt/g/dev/halo/.claude/agent-memory/xbox-halo-re-analyst/`
+`.claude/agent-memory/xbox-halo-re-analyst/` (relative to the repo root)
 
 Save recurring RE patterns, confirmed global meanings/types, Ghidra pitfalls,
 register-argument conventions, subsystem boundaries, and explicit user
 requests to remember or forget something. Do not save ephemeral task state,
-repo structure derivable from code, or anything already in CLAUDE.md.
+repo structure derivable from code, or anything already in AGENTS.md.

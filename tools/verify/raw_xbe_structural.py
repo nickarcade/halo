@@ -1578,8 +1578,10 @@ def _function_opt(source, function):
     vc71_verify keeps per-function overrides for mixed-optimization TUs, such
     as functions whose original has no EBP frame (/Oy).  Compiling them at the
     TU default would measure a frame-pointer difference the lift does not have.
+    The merged game TUs (vc71._OB1_TUS) default to /O2 /Ob1 because the original
+    CALLs their small helpers instead of inlining them.
     """
-    return vc71._per_function_opt_for(source).get(function, DEFAULT_OPT)
+    return vc71._per_function_opt_for(source).get(function, vc71.tu_opt(source, DEFAULT_OPT))
 
 
 def _candidate_object(artifact_dir, source, opt):

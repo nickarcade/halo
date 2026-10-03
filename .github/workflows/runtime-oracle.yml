@@ -20,7 +20,7 @@ on:
         type: boolean
 
 env:
-  VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
+  VENV_PYTHON: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/.venv/bin/python3
 
 jobs:
   # GitHub dispatches scheduled runs on a best-effort basis and has been

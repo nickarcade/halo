@@ -352,7 +352,7 @@ Examples:
   python tools/xbox/clear_cache.py              # Clear Halo cache
   python tools/xbox/clear_cache.py --dry-run    # Preview what would be deleted
   python tools/xbox/clear_cache.py --deep       # Include generated z:\\saved files
-  python tools/xbox/clear_cache.py -x 192.168.1.42
+  python tools/xbox/clear_cache.py -x <xbox-ip>
 
 Clears Halo files from P:, T:, U:, and Z: partitions (devkit cache).
 The z:\\saved directory is preserved unless --deep is passed.

@@ -1,3 +1,180 @@
+/* 0x1929a0 -- Project a leaf face's 2D vertex back onto its 3D node plane.
+ * The projection axis is the plane normal's largest absolute component
+ * (z, then y, else x); the sign byte comes from FUN_00099270. */
+void leaf_face_get_vertex3d(int *collision_bsp_ref, int *leaf_face,
+                            int16_t vertex_index, float *point)
+{
+  int *node;
+  float *plane;
+  float abs_x;
+  float abs_y;
+  float abs_z;
+  int projection;
+  uint8_t sign;
+
+  node =
+    (int *)tag_block_get_element((void *)*collision_bsp_ref, *leaf_face, 0xc);
+  plane = (float *)tag_block_get_element((void *)(*collision_bsp_ref + 0xc),
+                                         *node, 0x10);
+  abs_x = (float)fabs(plane[0]);
+  abs_y = (float)fabs(plane[1]);
+  abs_z = (float)fabs(plane[2]);
+  if (abs_z >= abs_y && abs_z >= abs_x) {
+    projection = 2;
+  } else if (abs_y >= abs_x) {
+    projection = 1;
+  } else {
+    projection = 0;
+  }
+  sign = (uint8_t)FUN_00099270(plane, (short)projection);
+  project_point2d(
+    (float *)tag_block_get_element((void *)(leaf_face + 1), vertex_index, 8),
+    plane, (int16_t)projection, sign, point);
+}
+
+/* 0x192a50 -- Debug-draw each face of a leaf-map leaf: a triangle fan
+ * filled with the local color {0.2, 1, 0, 0} plus outline lines in the
+ * color pointer stored at 0x2ee6c4. Leaf elements are 0x18 bytes, face
+ * elements 0x10 bytes with the vertex count at +0x04. */
+void render_debug_leaf_faces(int *leaf_map, int leaf_index)
+{
+  int *leaf;
+  int *face;
+  float color[4];
+  float point0[3];
+  float point1[3];
+  float point2[3];
+  float previous[3];
+  int16_t face_index;
+  int16_t vertex_index;
+
+  leaf = (int *)tag_block_get_element((void *)(leaf_map + 1),
+                                      leaf_index & 0x7fffffff, 0x18);
+  color[0] = 0.2f;
+  color[1] = 1.0f;
+  color[2] = 0.0f;
+  color[3] = 0.0f;
+  if (*leaf_map == 0) {
+    display_assert("map->bsp", "c:\\halo\\SOURCE\\structures\\leaf_map.c",
+                   0x3ac, 1);
+    system_exit(-1);
+  }
+  for (face_index = 0; face_index < *leaf; face_index++) {
+    face = (int *)tag_block_get_element(leaf, face_index, 0x10);
+    leaf_face_get_vertex3d(leaf_map, face, 0, point0);
+    leaf_face_get_vertex3d(leaf_map, face, 1, point1);
+    previous[0] = point1[0];
+    previous[1] = point1[1];
+    previous[2] = point1[2];
+    FUN_00189270(1, point0, point1, *(void **)0x2ee6c4);
+    for (vertex_index = 2; vertex_index < face[1]; vertex_index++) {
+      leaf_face_get_vertex3d(leaf_map, face, vertex_index, point2);
+      FUN_00188890(1, point0, previous, point2, color);
+      FUN_00189270(1, previous, point2, *(void **)0x2ee6c4);
+      previous[0] = point2[0];
+      previous[1] = point2[1];
+      previous[2] = point2[2];
+    }
+  }
+}
+
+/* 0x192f80 polygon working buffer: 0x204 bytes (REP MOVSD 0x81 dwords from
+ * the template at 0x3271e0); int16 count at +0x00, 64 2D points at +0x04
+ * (clip max_count 0x40, csmemcpy size count<<3). */
+typedef struct leaf_map_polygon2d {
+  int16_t vertex_count;
+  uint8_t pad_02[2];
+  float vertices[64][2];
+} leaf_map_polygon2d;
+
+/* 0x192f80 -- Build the 2D leaf face lying on a node's plane: start from the
+ * template polygon, clip it against the intersection line of every other
+ * plane on the node stack, then store it as a new face of the leaf.
+ * intersect_planes3d returns 1 (line found -> clip), 0 (empty -> discard). */
+void leaf_map_build_leaf_face_for_leaf_on_node(int *leaf_map, int leaf_index,
+                                               int node_reference)
+{
+  leaf_map_polygon2d polygon;
+  float line[3];
+  float *plane;
+  int node_index;
+  float other_plane[4];
+  int *node;
+  float *source_plane;
+  int other_reference;
+  int16_t levels_up;
+  int16_t result;
+  void *leaf;
+  int16_t face_index;
+  int *face;
+
+  node_index = node_reference & 0x7fffffff;
+  node = (int *)tag_block_get_element((void *)*leaf_map, node_index, 0xc);
+  plane =
+    (float *)tag_block_get_element((void *)(*leaf_map + 0xc), *node, 0x10);
+  polygon = *(leaf_map_polygon2d *)0x3271e0;
+  for (levels_up = 0;
+       levels_up < *(int16_t *)0x4d8e90 && polygon.vertex_count != 0;
+       levels_up++) {
+    if (levels_up < 0 || levels_up >= *(int16_t *)0x4d8e90) {
+      display_assert(
+        "levels_up>=0 && levels_up<leaf_map_globals.node_stack_count",
+        "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x3b, 1);
+      system_exit(-1);
+    }
+    other_reference =
+      *(int *)(0x4d8a8c + ((int)*(int16_t *)0x4d8e90 - (int)levels_up) * 4);
+    if (other_reference != node_reference) {
+      node = (int *)tag_block_get_element((void *)*leaf_map,
+                                          other_reference & 0x7fffffff, 0xc);
+      source_plane =
+        (float *)tag_block_get_element((void *)(*leaf_map + 0xc), *node, 0x10);
+      other_plane[0] = source_plane[0];
+      other_plane[1] = source_plane[1];
+      other_plane[2] = source_plane[2];
+      other_plane[3] = source_plane[3];
+      if (other_reference < 0) {
+        other_plane[0] = -other_plane[0];
+        other_plane[1] = -other_plane[1];
+        other_plane[2] = -other_plane[2];
+        other_plane[3] = -other_plane[3];
+      }
+      result = intersect_planes3d(plane, other_plane, line);
+      if (result == 1) {
+        polygon.vertex_count = convex_polygon2d_clip_to_plane(
+          polygon.vertex_count, &polygon.vertices[0][0], line, 0x40,
+          &polygon.vertices[0][0], NULL, NULL, 0.00024414063f);
+        if (polygon.vertex_count == -1) {
+          display_assert("result.vertex_count!=NONE",
+                         "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0xe3, 1);
+          system_exit(-1);
+        }
+      } else if (result == 0) {
+        polygon.vertex_count = 0;
+      }
+    }
+  }
+  if (polygon.vertex_count != 0) {
+    leaf = tag_block_get_element((void *)(leaf_map + 1),
+                                 leaf_index & 0x7fffffff, 0x18);
+    face_index = tag_block_add_element(leaf);
+    if (face_index == -1) {
+      if (*(char **)0x4d8e94 == NULL) {
+        *(char **)0x4d8e94 = "couldn't allocate leaf face.";
+      }
+    } else {
+      face = (int *)tag_block_get_element(leaf, face_index, 0x10);
+      face[0] = node_index;
+      if (tag_block_resize((void *)(face + 1), polygon.vertex_count)) {
+        csmemcpy((void *)face[2], &polygon.vertices[0][0],
+                 polygon.vertex_count << 3);
+      } else if (*(char **)0x4d8e94 == NULL) {
+        *(char **)0x4d8e94 = "couldn't allocate leaf vertices.";
+      }
+    }
+  }
+}
+
 /* 0x1931e0 -- Push each child of a leaf-map node onto the node stack and
  * recurse; negative (non -1) children build portals from the leaf.
  * The fifth callee arg is the node-stack count minus one (dword read of the
@@ -77,6 +254,48 @@ void FUN_00193340(int *leaf_map, int leaf_index)
     }
     --*(int16_t *)0x4d8e90;
   }
+}
+
+/* 0x193420 -- Bind a leaf map to its BSP, size the leaves block, then
+ * walk the BSP from node 0 building leaves and portals. Errors recorded
+ * in leaf_map_globals.error (0x4d8e94) are reported via error(1, ...).
+ * Returns true when no error was recorded. */
+bool leaf_map_initialize_from_bsp(int *leaf_map, int *bsp, int leaf_count)
+{
+  if (leaf_map == NULL) {
+    display_assert("leaf_map", "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x56,
+                   1);
+    system_exit(-1);
+  }
+  if (bsp == NULL) {
+    display_assert("bsp", "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x57, 1);
+    system_exit(-1);
+  }
+  if (*(int16_t *)0x4d8e90 != 0) {
+    display_assert("leaf_map_globals.node_stack_count==0",
+                   "c:\\halo\\SOURCE\\structures\\leaf_map.c", 0x58, 1);
+    system_exit(-1);
+  }
+  *(char **)0x4d8e94 = NULL;
+  if (*(char *)0x449ef1 != 0 && *(char *)0x326bf0 != 0) {
+    profile_enter_private((void *)0x326be8);
+  }
+  *leaf_map = (int)bsp;
+  if (tag_block_resize((void *)(leaf_map + 1), leaf_count)) {
+    if (*bsp > 0) {
+      FUN_00193340(leaf_map, 0);
+      leaf_map_build_portals(leaf_map, 0);
+    }
+  } else if (*(char **)0x4d8e94 == NULL) {
+    *(char **)0x4d8e94 = "couldn't allocate leaf_map leaves.";
+  }
+  if (*(char **)0x4d8e94 != NULL) {
+    error(1, *(char **)0x4d8e94);
+  }
+  if (*(char *)0x449ef1 != 0 && *(char *)0x326bf0 != 0) {
+    profile_exit_private((void *)0x326be8);
+  }
+  return *(char **)0x4d8e94 == NULL;
 }
 
 /* Return pointer to a cluster's sound bit-vector data (0x193550).

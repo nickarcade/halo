@@ -18,11 +18,7 @@ Two command sources live in the binary (debug build 2276):
    from arg types the way ``hs_function_format_usage`` does.
 
 Grouping is prefix-based (renderer / ai / collision / sound / ...).
-Descriptions for globals are joined from the Reclaimers extract at
-``docs/references/h1/scripting-reference.md`` when the name matches; those
-strings are PC/H1A-derived commentary, not Xbox binary evidence, and the
-catalog labels them as such. Names present only in the doc (73) or only in
-the Xbox binary (16) are listed separately.
+Everything in the catalog comes from the binary.
 
 Usage:
     python3 tools/docs/debug_command_catalog.py                 # write md
@@ -35,7 +31,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import struct
 import sys
 from collections import OrderedDict
@@ -47,7 +42,6 @@ sys.path.insert(0, str(REPO_ROOT / "tools" / "equivalence"))
 from xbe_image import load_xbe, read_va, read_va_raw, section_at  # noqa: E402
 
 OUT_MD = REPO_ROOT / "docs" / "debug-command-catalog.md"
-DOC_REF = REPO_ROOT / "docs" / "references" / "h1" / "scripting-reference.md"
 
 HS_TYPE_TABLE = 0x2F14A8  # char *type_names[]
 HS_FUNC_TABLE = 0x2F1588
@@ -394,40 +388,6 @@ def load_functions(raw, secs):
     return out
 
 
-def load_doc_prose():
-    """Parse Reclaimers external-global descriptions keyed by name.
-
-    Returns {name: prose}. The extract packs several `(name [type])` entries
-    into one ```lisp fence and puts the prose after the closing fence, so a
-    fence-scoped walk is required rather than one regex per entry. Prose is
-    PC/H1A commentary — flagged as such in the catalog, never presented as
-    Xbox binary evidence.
-    """
-    if not DOC_REF.exists():
-        return {}
-    text = DOC_REF.read_text(encoding="utf-8", errors="replace")
-    start = text.find("## External globals")
-    if start < 0:
-        return {}
-    end = text.find("\n## ", start + 1)
-    sec = text[start:end if end > 0 else len(text)]
-
-    out = {}
-    pending: list[str] = []
-    for block in re.split(r"```(?:lisp)?\n?", sec):
-        if not block.strip():
-            continue
-        if block.lstrip().startswith("("):
-            pending = re.findall(r"^\(([A-Za-z_][\w]*)", block, re.M)
-            continue
-        prose = " ".join(block.split())
-        if prose and pending:
-            for name in pending:
-                out.setdefault(name, prose[:400])
-            pending = []
-    return out
-
-
 def md_escape(s):
     return (s or "").replace("|", "\\|").replace("\n", " ").strip()
 
@@ -440,7 +400,7 @@ def fmt_default(val, typ):
     return str(val)
 
 
-def build_markdown(globals_, functions, doc_prose, only_debug=False, area=None, grep=None):
+def build_markdown(globals_, functions, only_debug=False, area=None, grep=None):
     def keep(entry):
         if area and entry["area"] != area:
             return False
@@ -498,8 +458,7 @@ def build_markdown(globals_, functions, doc_prose, only_debug=False, area=None, 
     w("")
     w("Type is the HS descriptor type at `desc+4`. Default is the value")
     w("backed by the live C variable in the pristine image (BSS tails read")
-    w("as zero). Descriptions marked *(Reclaimers)* come from the PC/H1A")
-    w("extract and are commentary, not Xbox binary evidence.")
+    w("as zero).")
     w("")
     for a in areas:
         rows = [g for g in g_all if g["area"] == a]
@@ -507,17 +466,12 @@ def build_markdown(globals_, functions, doc_prose, only_debug=False, area=None, 
             continue
         w(f"### {a}")
         w("")
-        w("| Command | Type | Default | Description |")
-        w("|---------|------|---------|-------------|")
+        w("| Command | Type | Default |")
+        w("|---------|------|---------|")
         for g in sorted(rows, key=lambda x: x["name"]):
-            prose = doc_prose.get(g["name"], "")
-            if prose:
-                desc = f"*(Reclaimers)* {md_escape(prose)}"
-            else:
-                desc = ""
             w(
                 f"| `{g['name']}` | {g['type']} | "
-                f"`{fmt_default(g['default'], g['type'])}` | {desc} |"
+                f"`{fmt_default(g['default'], g['type'])}` |"
             )
         w("")
 
@@ -544,30 +498,11 @@ def build_markdown(globals_, functions, doc_prose, only_debug=False, area=None, 
             )
         w("")
 
-    # Diff vs Reclaimers doc
-    if doc_prose and not only_debug and not area and not grep:
-        bin_names = {g["name"] for g in globals_}
-        doc_names = set(doc_prose)
-        only_bin = sorted(bin_names - doc_names)
-        only_doc = sorted(doc_names - bin_names)
-        w("## Coverage vs Reclaimers external-globals extract")
-        w("")
-        w(f"- Xbox binary: **{len(globals_)}** entries "
-          f"(**{len(bin_names)}** unique names; "
-          f"{len(globals_) - len(bin_names)} duplicate)")
-        w(f"- Reclaimers extract: **{len(doc_names)}** entries")
-        w(f"- In binary, missing from extract ({len(only_bin)}): "
-          + ", ".join(f"`{n}`" for n in only_bin))
-        w(f"- In extract, not in this Xbox build ({len(only_doc)}) — "
-          "PC/H1A/server-only names, not usable here: "
-          + ", ".join(f"`{n}`" for n in only_doc))
-        w("")
+    if not only_debug and not area and not grep:
         w("## Related docs")
         w("")
         w("- `docs/debug-commands-keyboard.md` — keyboard shortcuts,")
         w("  cheats.txt, console evaluate internals")
-        w("- `docs/references/h1/scripting-reference.md` — Reclaimers HSC")
-        w("  reference (PC/H1A; includes names absent from this binary)")
         w("- In-game: `(script_doc)` → `hs_doc.txt`, `(help <name>)`")
         w("")
     return "\n".join(lines) + "\n"
@@ -613,13 +548,12 @@ def main(argv=None):
     raw, secs = load_xbe()
     globals_ = load_globals(raw, secs)
     functions = load_functions(raw, secs)
-    doc_prose = load_doc_prose()
 
     if not globals_ or not functions:
         print("error: extracted 0 commands — wrong XBE?", file=sys.stderr)
         return 1
 
-    md = build_markdown(globals_, functions, doc_prose,
+    md = build_markdown(globals_, functions,
                         only_debug=args.debug_only,
                         area=args.area, grep=args.grep)
 
@@ -627,7 +561,6 @@ def main(argv=None):
         payload = {
             "globals": globals_,
             "functions": functions,
-            "doc_prose_keys": sorted(doc_prose),
             "counts": {"globals": len(globals_), "functions": len(functions)},
         }
         args.json.parent.mkdir(parents=True, exist_ok=True)

@@ -9,7 +9,7 @@
 
 #include "../../common.h"
 #include "../../x87_math.h"
-
+#include "../math/real_math.h"
 #define NUMBER_OF_UNIT_BASE_SEATS 6
 #define NUMBER_OF_UNIT_BASE_WEAPONS 1
 #define MAXIMUM_WEAPONS_PER_UNIT 4
@@ -812,7 +812,7 @@ short unit_test_speech(int unit_handle, short priority, char param_3, char param
                    "c:\\halo\\SOURCE\\units\\unit_dialogue.c", 0x81, 1);
     system_exit(-1);
   }
-  /* XBE: test si,si; jl / cmp si,0xb; jl. name: PAL 2342 unit_dialogue.c:250 */
+  /* XBE: test si,si; jl / cmp si,0xb; jl. */
   if (priority < 0 || priority >= NUMBER_OF_UNIT_SPEECH_PRIORITIES) {
     display_assert(
       "(priority >= 0) && (priority < NUMBER_OF_UNIT_SPEECH_PRIORITIES)",
@@ -859,14 +859,14 @@ short unit_test_speech(int unit_handle, short priority, char param_3, char param
     result = 2;
   } else {
     slot_secondary = *(short *)(unit + 0x368);
-    max_priority = slot_priority;
-    if (slot_priority <= slot_secondary) {
-      max_priority = slot_secondary;
-    }
+    /* max_priority = MAX(slot_priority, slot_secondary), as a ternary so
+     * the compare and branch order follow the reference. */
+    max_priority =
+      (slot_priority > slot_secondary) ? slot_priority : slot_secondary;
 
     priority_int = (int)priority;
 
-    /* XBE subtracts 2/5/3. name: PAL 2342 unit_dialogue.c:304 */
+    /* XBE subtracts 2/5/3. */
     switch (priority_int) {
     case _unit_speech_pain:
     case _unit_speech_involuntary:
@@ -903,7 +903,7 @@ short unit_test_speech(int unit_handle, short priority, char param_3, char param
             if (priority <= slot_secondary) {
               can_queue = 0;
             } else {
-              /* name: PAL 2342 unit_dialogue.c:356 */
+
               switch ((int)slot_priority) {
               case _unit_speech_pain:
               case _unit_speech_involuntary:
@@ -1258,7 +1258,7 @@ void unit_speak(int unit_handle, short priority, void *speech_item)
 
   if (priority == _unit_speech_idle) {
     /* Queue to backup slot */
-    if (*(int16_t *)(unit + 0x338) < 1) {
+    if (!(*(int16_t *)(unit + 0x338) > 0)) {
       display_assert("unit->unit.speech.current.priority > _unit_speech_none",
                      "c:\\halo\\SOURCE\\units\\unit_dialogue.c", 0x16e, 1);
       system_exit(-1);
@@ -1976,7 +1976,7 @@ int unit_scripting_get_grenade_count(int datum_handle)
  * Sets or clears bit 23 (0x800000) in unit flags for all child units. */
 void unit_scripting_impervious(int object_list_index, char impervious)
 {
-  /* name: PAL 2342 unit_scripting_commands.c:206 object_list_index, impervious */
+
   int reference_index;
   int unit_index;
   char *unit;
@@ -2061,8 +2061,8 @@ char unit_scripting_has_weapon_readied(int unit_handle, int weapon_def_tag)
 /* units_initialize (0x1a7f00)
  *
  * Allocates the 8-byte "unit globals" block from game state and asserts it.
- * Name from PAL-2342 units.c (T2); reason string "unit_globals", path and
- * line 0x108 (264) are PUSHed verbatim.  Second argument is NULL, as in PAL. */
+ * Reason string "unit_globals", path and line 0x108 (264) are PUSHed verbatim.
+ * Second argument is NULL. */
 void units_initialize(void)
 {
   unit_globals = game_state_malloc("unit globals", NULL, 8);
@@ -2071,10 +2071,10 @@ void units_initialize(void)
 
 /* units_initialize_for_new_map (0x1a7f40)
  *
- * Clears the first 4 bytes of unit_globals.  PAL-2342 (T2) writes this as
- * memset(unit_globals, 0, offsetof(struct unit_globals, used_time)); the
- * layout is not recovered here, so the size stays the literal 4 from the
- * PUSH 4 at 0x1a7f45. */
+ * Clears the first 4 bytes of unit_globals.  The layout is not recovered
+ * here, so the size stays the literal 4 from the PUSH 4 at 0x1a7f45.
+ *
+ */
 void units_initialize_for_new_map(void)
 {
   csmemset(unit_globals, 0, 4);
@@ -2084,8 +2084,8 @@ void units_initialize_for_new_map(void)
  *
  * Confirmed: the body is a single RET (C3); no prologue, no side effects.
  * Confirmed: only reference is the unit object_type_definition table at
- *   0x323ca8, slot +0x1c (dispose_from_old_map); name from PAL 2342
- *   objects/object_types.c unit_data_definition (T2). */
+ *   0x323ca8, slot +0x1c (dispose_from_old_map).
+ */
 void units_dispose_from_old_map(void)
 {
 }
@@ -2874,7 +2874,7 @@ void unit_animation_start_action(int object_handle, int16_t state)
     break;
   }
 
-  /* PAL: interpolation_frame_count = action==7 ? 0 : 6. NTSC: SETE/DEC/AND 6. */
+  /* interpolation_frame_count = action==7 ? 0 : 6; 2276 emits SETE/DEC/AND 6. */
   interpolation_frame_count = (int16_t)((state == 7) ? 0 : 6);
 
   if (animation_index != (int16_t)-1) {
@@ -4465,38 +4465,41 @@ int units_debug_get_next_unit(int current_unit)
  */
 int units_debug_get_closest_unit(int reference_object_index)
 {
-  /* name: PAL 2342 units.c:3843 reference_object_index, closest_index */
+
   int closest_index;
   float closest_distance;
-  int iter[4];
-  char *obj;
-  float pos_a[3];
-  float pos_b[3];
-  float dx, dy, dz, dist;
+  int iterator[4];
+  char *object;
+  real_point3d reference_origin;
+  real_point3d object_origin;
+  float dx, dy, dz, distance;
 
   closest_index = -1;
   closest_distance = 3.4028235e+38f;
 
-  object_iterator_new(iter, 1, 0);
-  obj = (char *)object_iterator_next(iter);
-  while (obj != NULL) {
-    if (iter[2] != reference_object_index && (*(uint8_t *)(obj + 0xb6) & 4) == 0) {
+  object_iterator_new(iterator, 1, 0);
+  object = (char *)object_iterator_next(iterator);
+  while (object != NULL) {
+    if (iterator[2] != reference_object_index && (*(uint8_t *)(object + 0xb6) & 4) == 0) {
       if (reference_object_index != -1) {
-        object_get_world_position(reference_object_index, (vector3_t *)pos_a);
-        object_get_world_position(iter[2], (vector3_t *)pos_b);
-        dx = pos_b[0] - pos_a[0];
-        dy = pos_b[1] - pos_a[1];
-        dz = pos_b[2] - pos_a[2];
-        dist = sqrtf(dx * dx + dy * dy + dz * dz);
+        object_get_world_position(reference_object_index, &reference_origin);
+        object_get_world_position(iterator[2], &object_origin);
+        dx = object_origin.x - reference_origin.x;
+        dy = object_origin.y - reference_origin.y;
+        dz = object_origin.z - reference_origin.z;
+        distance = dz * dz;
+        distance += dx * dx;
+        distance += dy * dy;
+        distance = sqrtf(distance);
       } else {
-        dist = *(float *)0x2533c0;
+        distance = *(float *)0x2533c0;
       }
-      if (dist < closest_distance) {
-        closest_index = iter[2];
-        closest_distance = dist;
+      if (distance < closest_distance) {
+        closest_index = iterator[2];
+        closest_distance = distance;
       }
     }
-    obj = (char *)object_iterator_next(iter);
+    object = (char *)object_iterator_next(iterator);
   }
   return closest_index;
 }
@@ -5004,7 +5007,7 @@ bool unit_try_add_grenade(int unit_handle, int equipment_handle)
     if ((int16_t)current_count < *(int16_t *)grenade) {
       *(char *)(unit + grenade_type + 0x2ce) = current_count + 1;
 
-      /* PAL calls player_index_from_unit_index twice (NTSC 0x1aaa33 and 0x1aaa41). */
+      /* player_index_from_unit_index is called twice (0x1aaa33 and 0x1aaa41). */
       if (player_index_from_unit_index(unit_handle) == -1) {
         local_player_index = -1;
       } else {
@@ -6404,12 +6407,8 @@ void unit_start_running_blindly(int unit_handle)
   char *unit;
   uint32_t flags;
   int actor_handle;
-  char has_blind_vector;
-  float base_angle;
-  float spread;
-  int *seed;
-  float angles[2];
-  char blind_vector[12];
+  float angle_range;
+  real_vector3d run_vector;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   flags = *(uint32_t *)(unit + 0x1b4);
@@ -6419,29 +6418,24 @@ void unit_start_running_blindly(int unit_handle)
   *(uint32_t *)(unit + 0x1b4) = flags | 0x2000000;
 
   actor_handle = *(int *)(unit + 0x1a4);
-  if (actor_handle != -1) {
-    has_blind_vector =
-      actor_get_running_blind_vector(actor_handle, (float *)blind_vector);
-  } else {
-    has_blind_vector = 0;
-  }
-
-  if (has_blind_vector) {
+  if (actor_handle != -1 &&
+      actor_get_running_blind_vector(actor_handle, (float *)&run_vector)) {
     *(float *)(unit + 0x3c4) = 0.0f;
-    spread = 0.43633232f;
+    angle_range = 0.43633232f;
   } else {
-    vector_to_angles(angles, (float *)(unit + 0x24));
-    base_angle = angles[0];
-    if (base_angle > 3.1415927f) {
-      base_angle = base_angle - 6.2831855f;
+    real_euler_angles2d facing_angles;
+
+    vector_to_angles((float *)&facing_angles, (float *)(unit + 0x24));
+    if (facing_angles.yaw > 3.1415927f) {
+      facing_angles.yaw -= 6.2831855f;
     }
-    *(float *)(unit + 0x3c4) = base_angle;
-    spread = 1.7453293f;
+    *(float *)(unit + 0x3c4) = facing_angles.yaw;
+    angle_range = 1.7453293f;
   }
 
-  seed = get_global_random_seed_address();
   *(float *)(unit + 0x3c4) =
-    random_real_range(seed, -spread, spread) + *(float *)(unit + 0x3c4);
+    random_real_range(get_global_random_seed_address(), -angle_range, angle_range) +
+    *(float *)(unit + 0x3c4);
 }
 
 /* unit_stop_running_blindly (0x1ac520)
@@ -7830,7 +7824,6 @@ char unit_clip_to_aiming_bounds(int unit_handle, float *vector, char flag)
   char *unit;
   char enabled;
   float *bounds;
-  float *pos;
 
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   clamped = 0;
@@ -7852,112 +7845,113 @@ char unit_clip_to_aiming_bounds(int unit_handle, float *vector, char flag)
     system_exit(-1);
   }
 
-  if (!enabled)
-    return clamped;
+  if (enabled) {
+    matrix[0] = 1.0f;
+    object_get_orientation(unit_handle, &matrix[1], &matrix[7]);
 
-  matrix[0] = 1.0f;
-  object_get_orientation(unit_handle, &matrix[1], &matrix[7]);
+    /* left = cross(up, forward), written directly into matrix[4..6] */
+    matrix[4] = matrix[8] * matrix[3] - matrix[2] * matrix[9];
+    matrix[5] = matrix[1] * matrix[9] - matrix[7] * matrix[3];
+    matrix[6] = matrix[7] * matrix[2] - matrix[1] * matrix[8];
 
-  /* left = cross(forward, up), written directly into matrix[4..6] */
-  matrix[4] = matrix[3] * matrix[8] - matrix[9] * matrix[2];
-  matrix[5] = matrix[9] * matrix[1] - matrix[3] * matrix[7];
-  matrix[6] = matrix[2] * matrix[7] - matrix[8] * matrix[1];
+    /* position row = global origin vector (pointer at 0x31fc1c),
+       copied as one 12-byte vector */
+    *(real_vector3d *)&matrix[10] =
+        **(real_vector3d **)0x31fc1c;
 
-  pos = *(float **)0x31fc1c;
-  matrix[10] = pos[0];
-  matrix[11] = pos[1];
-  matrix[12] = pos[2];
-  real_matrix4x3_transform_point(matrix, vector, relative_vector);
+    real_matrix4x3_transform_point(matrix, vector, relative_vector);
 
-  if (!(char)real_vector3d_valid(relative_vector)) {
-    display_assert(csprintf(error_string_buffer,
-                            "%s: assert_valid_real_vector2d(%f, %f, %f)",
-                            "&relative_vector", (double)relative_vector[0],
-                            (double)relative_vector[1],
-                            (double)relative_vector[2]),
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x15fa, 1);
-    system_exit(-1);
-  }
+    if (!(char)real_vector3d_valid(relative_vector)) {
+      display_assert(csprintf(error_string_buffer,
+                              "%s: assert_valid_real_vector2d(%f, %f, %f)",
+                              "&relative_vector", (double)relative_vector[0],
+                              (double)relative_vector[1],
+                              (double)relative_vector[2]),
+                     "c:\\halo\\SOURCE\\units\\units.c", 0x15fa, 1);
+      system_exit(-1);
+    }
 
-  vector_to_angles(angles, relative_vector);
+    vector_to_angles(angles, relative_vector);
 
-  if ((*(uint32_t *)&angles[1] & 0x7f800000) == 0x7f800000) {
-    display_assert(csprintf(error_string_buffer,
-                            "%s: assert_valid_real(0x%08X %f)",
-                            "relative_aiming_angles.pitch",
-                            *(uint32_t *)&angles[1], (double)angles[1]),
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x15fd, 1);
-    system_exit(-1);
-  }
+    if (!valid_real(angles[1])) {
+      display_assert(csprintf(error_string_buffer,
+                              "%s: assert_valid_real(0x%08X %f)",
+                              "relative_aiming_angles.pitch",
+                              *(uint32_t *)&angles[1], (double)angles[1]),
+                     "c:\\halo\\SOURCE\\units\\units.c", 0x15fd, 1);
+      system_exit(-1);
+    }
 
-  if ((*(uint32_t *)&angles[0] & 0x7f800000) == 0x7f800000) {
-    display_assert(csprintf(error_string_buffer,
-                            "%s: assert_valid_real(0x%08X %f)",
-                            "relative_aiming_angles.yaw",
-                            *(uint32_t *)&angles[0], (double)angles[0]),
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x15fe, 1);
-    system_exit(-1);
-  }
+    if (!valid_real(angles[0])) {
+      display_assert(csprintf(error_string_buffer,
+                              "%s: assert_valid_real(0x%08X %f)",
+                              "relative_aiming_angles.yaw",
+                              *(uint32_t *)&angles[0], (double)angles[0]),
+                     "c:\\halo\\SOURCE\\units\\units.c", 0x15fe, 1);
+      system_exit(-1);
+    }
 
-  /* clamp yaw to bounds */
-  if (angles[0] < bounds[0]) {
-    angles[0] = bounds[0];
-    clamped = 1;
-  } else if (angles[0] > bounds[1]) {
-    angles[0] = bounds[1];
-    clamped = 1;
-  }
+    /* clamp yaw to bounds */
+    if (angles[0] < bounds[0]) {
+      angles[0] = bounds[0];
+      clamped = 1;
+    } else if (angles[0] > bounds[1]) {
+      angles[0] = bounds[1];
+      clamped = 1;
+    }
 
-  /* clamp pitch to bounds */
-  if (angles[1] < bounds[2]) {
-    angles[1] = bounds[2];
-    clamped = 1;
-  } else if (angles[1] > bounds[3]) {
-    angles[1] = bounds[3];
-    clamped = 1;
-  } else if (!clamped) {
-    return 0;
-  }
+    /* clamp pitch to bounds */
+    if (angles[1] < bounds[2]) {
+      clamped = 1;
+      angles[1] = bounds[2];
+    } else if (angles[1] > bounds[3]) {
+      clamped = 1;
+      angles[1] = bounds[3];
+    }
 
-  if ((*(uint32_t *)&angles[1] & 0x7f800000) == 0x7f800000) {
-    display_assert(csprintf(error_string_buffer,
-                            "%s: assert_valid_real(0x%08X %f)",
-                            "relative_aiming_angles.pitch",
-                            *(uint32_t *)&angles[1], (double)angles[1]),
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x161d, 1);
-    system_exit(-1);
-  }
+    if (clamped) {
+      /* rotate the clamped angles back into the world frame */
+      if (!valid_real(angles[1])) {
+        display_assert(csprintf(error_string_buffer,
+                                "%s: assert_valid_real(0x%08X %f)",
+                                "relative_aiming_angles.pitch",
+                                *(uint32_t *)&angles[1], (double)angles[1]),
+                       "c:\\halo\\SOURCE\\units\\units.c", 0x161d, 1);
+        system_exit(-1);
+      }
 
-  if ((*(uint32_t *)&angles[0] & 0x7f800000) == 0x7f800000) {
-    display_assert(csprintf(error_string_buffer,
-                            "%s: assert_valid_real(0x%08X %f)",
-                            "relative_aiming_angles.yaw",
-                            *(uint32_t *)&angles[0], (double)angles[0]),
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x161e, 1);
-    system_exit(-1);
-  }
+      if (!valid_real(angles[0])) {
+        display_assert(csprintf(error_string_buffer,
+                                "%s: assert_valid_real(0x%08X %f)",
+                                "relative_aiming_angles.yaw",
+                                *(uint32_t *)&angles[0], (double)angles[0]),
+                       "c:\\halo\\SOURCE\\units\\units.c", 0x161e, 1);
+        system_exit(-1);
+      }
 
-  angles_to_vector(relative_vector, angles);
+      angles_to_vector(relative_vector, angles);
 
-  if (!(char)real_vector3d_valid(relative_vector)) {
-    display_assert(csprintf(error_string_buffer,
-                            "%s: assert_valid_real_vector2d(%f, %f, %f)",
-                            "&relative_vector", (double)relative_vector[0],
-                            (double)relative_vector[1],
-                            (double)relative_vector[2]),
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x1621, 1);
-    system_exit(-1);
-  }
+      if (!(char)real_vector3d_valid(relative_vector)) {
+        display_assert(csprintf(error_string_buffer,
+                                "%s: assert_valid_real_vector2d(%f, %f, %f)",
+                                "&relative_vector", (double)relative_vector[0],
+                                (double)relative_vector[1],
+                                (double)relative_vector[2]),
+                       "c:\\halo\\SOURCE\\units\\units.c", 0x1621, 1);
+        system_exit(-1);
+      }
 
-  matrix_transform_vector(matrix, relative_vector, vector);
+      matrix_transform_vector(matrix, relative_vector, vector);
 
-  if (!(char)real_vector3d_valid(vector)) {
-    display_assert(csprintf(error_string_buffer,
-                            "%s: assert_valid_real_vector2d(%f, %f, %f)",
-                            "vector", (double)vector[0], (double)vector[1],
-                            (double)vector[2]),
-                   "c:\\halo\\SOURCE\\units\\units.c", 0x1623, 1);
-    system_exit(-1);
+      if (!(char)real_vector3d_valid(vector)) {
+        display_assert(csprintf(error_string_buffer,
+                                "%s: assert_valid_real_vector2d(%f, %f, %f)",
+                                "vector", (double)vector[0], (double)vector[1],
+                                (double)vector[2]),
+                       "c:\\halo\\SOURCE\\units\\units.c", 0x1623, 1);
+        system_exit(-1);
+      }
+    }
   }
 
   return clamped;
@@ -8386,8 +8380,8 @@ bool unit_should_swap_weapon(int unit_handle, int weapon_handle)
   tag_get(0x77656170, weapon_tag);
 
   approved = true;
-  /* PAL unit_get_current_weapon_index is unit_get + inventory_get_weapon.
-   * NTSC emits that extra unit_get (0x1ae3fa) before 0x1adeb0. */
+  /* 2276 emits an extra unit_get (0x1ae3fa) before the call at
+   * 0x1adeb0. */
   current_weapon = unit_inventory_get_weapon(unit_handle,
     *(int16_t *)((char *)object_get_and_verify_type(unit_handle, 3) + 0x2a2));
   if (current_weapon == -1)
@@ -8665,8 +8659,9 @@ bool unit_set_in_vehicle(int unit_handle, bool flag)
  * Returns the name string of the unit's currently selected weapon.
  * If no weapon is equipped, returns "unarmed".
  * Register arg: unit_handle in ESI.
- * Stack arg: 1 cdecl param (unused in function body, always 1 from callers). */
-char *unit_get_weapon_name(int unit_handle, int unused)
+ * No stack args: the `push 1` before each call belongs to the caller's next
+ * call. */
+char *unit_get_weapon_name(int unit_handle)
 {
   char *unit;
   int weapon_handle;
@@ -9242,7 +9237,7 @@ void unit_apply_alignment_vector(int unit_handle, float *alignment_vector)
 
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
 
-  /* PAL/NTSC: body is inside parent==NONE, not an early return. Assert fail
+  /* Body is inside parent==NONE, not an early return. Assert fail
    * paths call csprintf into the temporary then display_assert (9 calls). */
   if (unit->object.parent_object_index.value == -1) {
     if (!valid_real_normal2d(alignment_vector)) {
@@ -10605,10 +10600,10 @@ short unit_update_animation(int unit_handle, char *anim_state)
         if ((short)global_seat < 0) {
           base_seat = 0;
         } else {
-          base_seat = 6;
-          if ((short)global_seat < 7) {
-            base_seat = (short)global_seat;
-          }
+          /* base_seat = MIN(global_seat, 6), as a ternary so the compare
+           * and branch order follow the reference. */
+          base_seat =
+            ((short)global_seat > 6) ? 6 : (short)global_seat;
         }
       }
     }
@@ -10619,7 +10614,7 @@ short unit_update_animation(int unit_handle, char *anim_state)
     if ((unit[0x6e] & 0x200) != 0) {
       base_seat = 1;
     }
-    if (*(char *)((int)unit + 0x23b) != 0) {
+    if (*(unsigned char *)((int)unit + 0x23b) > 0) {
       base_seat = 5;
     }
 
@@ -10629,7 +10624,7 @@ short unit_update_animation(int unit_handle, char *anim_state)
       if (can_change != 0) {
         char *weapon_name;
         const char *seat_label;
-        weapon_name = unit_get_weapon_name(unit_handle, 1);
+        weapon_name = unit_get_weapon_name(unit_handle);
         seat_label = base_seat_label_get(base_seat);
         unit_set_or_test_seat_and_weapon_label(unit_handle, seat_label, weapon_name, 1);
       }
@@ -10650,13 +10645,13 @@ short unit_update_animation(int unit_handle, char *anim_state)
     if (anim_status == 1) {
       unit_anim_byte = *(char *)((int)unit + 0x253);
       switch (unit_anim_byte) {
+      case 0x21:
+        unit_throw_grenade_release(unit_handle, 0);
+        break;
       case 0x1e:
       case 0x1f:
       case 0x29:
         unit_cause_melee_damage(unit_handle, 0, -1, -1, -1, -1, (float *)0);
-        break;
-      case 0x21:
-        unit_throw_grenade_release(unit_handle, 0);
         break;
       default:
         break;
@@ -10664,26 +10659,28 @@ short unit_update_animation(int unit_handle, char *anim_state)
     } else if (anim_status == 2) {
       unit_anim_byte = *(char *)((int)unit + 0x253);
       switch (unit_anim_byte) {
-      case 0x19:
-        if ((*(unsigned char *)(unit_tag_data + 0x17c) & 2) == 0) {
-          goto start_limp;
-        }
-        if ((*(unsigned char *)((int)unit + 4) & 0x20) != 0) {
-          goto destroy_unit;
-        }
-        if (*(short *)(unit + 0x19) != 0) {
-          goto set_garbage_flag;
-        }
-        biped_data = (int)object_get_and_verify_type(unit_handle, 1);
-        biped_tag = (int)tag_get(0x62697064, *(unsigned int *)biped_data);
-        if ((*(unsigned char *)(biped_data + 0x424) & 1) != 0 &&
-            (*(unsigned int *)(biped_tag + 0x2f4) & 0x400) == 0) {
-          goto start_limp;
-        }
-      destroy_unit:
-        unit_destroy(unit_handle);
+      case 0x27:
+        result = 1;
+        desired_state = 0x28;
         break;
-      start_limp:
+
+      case 0x19:
+        if ((*(unsigned char *)(unit_tag_data + 0x17c) & 2) != 0) {
+          if ((*(unsigned char *)((int)unit + 4) & 0x20) != 0) {
+            goto destroy_unit;
+          }
+          if (*(short *)(unit + 0x19) != 0) {
+            goto set_garbage_flag;
+          }
+          biped_data = (int)object_get_and_verify_type(unit_handle, 1);
+          biped_tag = (int)tag_get(0x62697064, *(unsigned int *)biped_data);
+          if ((*(unsigned char *)(biped_data + 0x424) & 1) == 0 ||
+              (*(unsigned int *)(biped_tag + 0x2f4) & 0x400) != 0) {
+          destroy_unit:
+            unit_destroy(unit_handle);
+            break;
+          }
+        }
         if (*(short *)(unit + 0x19) == 0) {
           biped_start_limp_body_physics(unit_handle);
         }
@@ -10707,6 +10704,11 @@ short unit_update_animation(int unit_handle, char *anim_state)
         vector3d_add((float *)(unit + 6), delta, (float *)(unit + 6));
         break;
 
+      case 0x25:
+      case 0x26:
+        *(short *)((int)unit + 0x82) = *(short *)((int)unit + 0x82) - 1;
+        break;
+
       case 0x1a:
         vehicle_unit =
           (unsigned int *)object_get_and_verify_type(unit[0x33], 3);
@@ -10717,16 +10719,6 @@ short unit_update_animation(int unit_handle, char *anim_state)
         if (vehicle_unit[0xb5] == (unsigned int)unit_handle) {
           unit_close((int)unit[0x33]);
         }
-        break;
-
-      case 0x25:
-      case 0x26:
-        *(short *)((int)unit + 0x82) = *(short *)((int)unit + 0x82) - 1;
-        break;
-
-      case 0x27:
-        result = 1;
-        desired_state = 0x28;
         break;
 
       default:
@@ -10759,12 +10751,15 @@ short unit_update_animation(int unit_handle, char *anim_state)
     int anim_status_wide;
     anim_status_wide = unit_animation_update((void *)((int)unit + 0x25e),
                                *(int *)(unit_tag_data + 0x44), unit_handle);
-    if (anim_status_wide == 2 || anim_status_wide == 4) {
+    switch (anim_status_wide) {
+    case 2:
+    case 4:
       unit_anim_byte = *(char *)((int)unit + 0x253);
       if (unit_anim_byte < 3 || unit_anim_byte > 4) {
         *(char *)((int)unit + 0x255) = 0;
         *(short *)((int)unit + 0x25e) = -1;
       }
+      break;
     }
   }
 
@@ -10861,7 +10856,7 @@ char unit_has_night_vision_weapon(int unit_handle)
   active = 0;
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   if (*(uint8_t *)(unit + 0x2d0) != 0xff) {
-    /* PAL unit_get_current_weapon_index = unit_get + inventory_get_weapon */
+    /* 2276 re-fetches the unit (unit_get) before inventory_get_weapon */
     unit = (char *)object_get_and_verify_type(unit_handle, 3);
     weapon_handle = unit_inventory_get_weapon(unit_handle, *(int16_t *)(unit + 0x2a2));
     if (weapon_handle != -1) {
@@ -11042,7 +11037,7 @@ check_ping:
 
   if (is_melee != 0) {
     char *weapon_name;
-    weapon_name = unit_get_weapon_name(unit_handle, 1);
+    weapon_name = unit_get_weapon_name(unit_handle);
     unit_set_or_test_seat_and_weapon_label(unit_handle, *(char **)0x32e48c, weapon_name, 0);
   }
 
@@ -11250,7 +11245,7 @@ bool unit_apply_animation_impulse(int unit_handle, int anim_index,
   result = 0;
   unit = (unit_data_t *)object_get_and_verify_type(unit_handle, 3);
 
-  /* PAL result=FALSE; if (allows) { ... result=TRUE }. NTSC stores 0 at
+  /* result=FALSE; if (allows) { ... result=TRUE }. 2276 stores 0 at
    * [ebp-1] and the fail epilogue reloads it. */
   if (unit_animation_state_allows_impulse(unit_handle, anim_index)) {
   unit_tag = (char *)tag_get(0x756e6974, *(int *)unit);
@@ -11411,7 +11406,7 @@ char unit_melee_attack_begin(int unit_handle, char param_2, int param_3)
  */
 char unit_leap_begin(int unit_handle, float *alignment_vector)
 {
-  /* name: PAL 2342 units.c:4249 alignment_vector */
+
   char *unit;
   char result;
   char biped_limping;
@@ -11494,7 +11489,7 @@ char unit_unsuspecting(int object_handle, void *position)
       dz = unit->object.unk_88 - pos[2];
       dot = dx * unit->unk_528.x + dy * unit->unk_528.y + dz * unit->unk_528.z;
 
-      /* NTSC: FCOMP 0.0; TEST AH,0x41; JE true. PAL: looking·dir > 0.f */
+      /* FCOMP 0.0; TEST AH,0x41; JE true. */
       if (dot > 0.f)
         return 1;
 
@@ -11858,7 +11853,6 @@ void unit_impact_melee_damage(int unit_handle, int param_2, int param_3,
   int target_tag;
   int parent_handle;
   int parent_obj;
-  char *fwd_ptr;
   char *up_ptr;
   float *impact_dir;
   float local_vec[3];
@@ -11889,7 +11883,7 @@ void unit_impact_melee_damage(int unit_handle, int param_2, int param_3,
     return;
   }
   /* Target must be a biped or vehicle (object type 0 or 1) */
-  if (((1 << (*(uint8_t *)(target_data + 0x64) & 0x1f)) & 3) == 0) {
+  if ((3 & (1 << *(short *)(target_data + 0x64))) == 0) {
     return;
   }
   /* Target must not be dying/dead */
@@ -11910,25 +11904,25 @@ void unit_impact_melee_damage(int unit_handle, int param_2, int param_3,
     parent_handle = *(int *)(parent_obj + 0xcc);
   }
 
-  /* Copy global forward vector to unit position (obj+0x18) and unit up
-   * (obj+0x3c).  The reference loads the X component once and stores it to
-   * both fields before reloading the global pointer, so the assignment is
-   * chained rather than repeated. */
-  fwd_ptr = *(char **)0x0031fc38;
-  *(float *)(unit + 0x18) = (*(float *)(unit + 0x3c) = *(float *)fwd_ptr);
-  *(float *)(unit + 0x1c) = *(float *)(fwd_ptr + 4);
-  *(float *)(unit + 0x20) = *(float *)(fwd_ptr + 8);
+  /* Zero both velocities from the global zero vector.  The reference
+   * copies each one as a whole 12-byte vector through a base pointer
+   * (lea; three dword moves) and re-reads the global pointer for the
+   * second copy, so both are struct assignments. */
+  ((object_datum_t *)unit)->translational_velocity =
+    **(real_vector3d **)0x0031fc38;
+  ((object_datum_t *)unit)->angular_velocity =
+    **(real_vector3d **)0x0031fc38;
 
-  fwd_ptr = *(char **)0x0031fc38;
-  *(float *)(unit + 0x40) = *(float *)(fwd_ptr + 4);
-  *(float *)(unit + 0x44) = *(float *)(fwd_ptr + 8);
+  /* The unit's forward becomes the negated impact normal: copied as a
+   * whole vector, then each component negated in place. */
+  impact_dir = (float *)&((object_datum_t *)unit)->forward;
+  *(real_vector3d *)impact_dir =
+    *(real_vector3d *)param_7;
 
-  /* Copy and negate damage direction as the impact vector (obj+0x24) */
-  impact_dir = (float *)(unit + 0x24);
-  ((float *)(unit + 0x24))[0] = param_7[0];
-  ((float *)(unit + 0x24))[1] = param_7[1];
-  ((float *)(unit + 0x24))[2] = param_7[2];
-  ((float *)(unit + 0x24))[0] = -impact_dir[0];
+  /* Negate in place, one component at a time (the reference interleaves
+   * each fld/fchs/fstp with the cross_product3d argument pushes). */
+
+  impact_dir[0] = -impact_dir[0];
   impact_dir[1] = -impact_dir[1];
   impact_dir[2] = -impact_dir[2];
 
@@ -11941,11 +11935,12 @@ void unit_impact_melee_damage(int unit_handle, int param_2, int param_3,
     cross_product3d((float *)up_ptr, impact_dir, local_vec);
     mag = normalize3d(local_vec);
     if (mag == 0.0f) {
-      /* Still degenerate — use global left vector */
-      fwd_ptr = *(char **)0x0031fc3c;
-      local_vec[0] = *(float *)fwd_ptr;
-      local_vec[1] = *(float *)(fwd_ptr + 4);
-      local_vec[2] = *(float *)(fwd_ptr + 8);
+      /* Still degenerate — use the global vector at 0x31fc3c.  Whole-vector
+       * copy: the reference loads all three dwords before storing any of
+       * them, the shape of a 12-byte struct assignment. */
+
+      *(real_vector3d *)local_vec =
+        **(real_vector3d **)0x0031fc3c;
     }
   }
 

@@ -6,7 +6,7 @@ description: >
 
 # WHY A COPY AND NOT A SYMLINK
 #
-# Every job used to do `ln -s /mnt/g/dev/halo/<dir> <dir>`, which put a path
+# Every job used to do `ln -s <host-tree>/<dir> <dir>`, which put a path
 # inside the runner workspace pointing at the live development tree. That is
 # only safe while git can be relied on never to descend through the link, and
 # on 2026-09-16 it stopped being safe: delinked/ held 8 tracked .obj files, so

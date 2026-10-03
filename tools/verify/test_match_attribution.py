@@ -30,7 +30,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 
 def _load_pipeline():
-    path = os.path.join(ROOT, "tools", "lift_pipeline.py")
+    path = os.path.join(ROOT, "tools", "lift", "lift_pipeline.py")
     spec = importlib.util.spec_from_file_location("_lp_under_test", path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["_lp_under_test"] = mod

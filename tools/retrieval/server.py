@@ -58,7 +58,6 @@ def _canonical_repo_root() -> Path:
     except Exception:
         pass
     candidates.append(here.parent.parent.parent)
-    candidates.append(Path("/mnt/g/dev/halo"))
     for c in candidates:
         try:
             if (c / ".venv" / "bin" / "python3").exists() and (c / "tools" / "retrieval").is_dir():

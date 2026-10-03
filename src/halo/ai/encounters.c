@@ -141,12 +141,12 @@ void ai_profile_show_paths(void)
  * spelled as a literal to avoid an IMM mismatch against a DAT_ reference.
  *
  * MSVC frame layout (SUB ESP,0x38):
- *   [EBP-0x38] iter          0x18 bytes — actor_iterator_next writes the
- * current actor handle to iter+0x14 (EBP-0x24), so this must be one contiguous
- * buffer, not two locals. [EBP-0x1c] head_position 3 floats — out buffer for
- * unit_get_head_position [EBP-0x10] point         3 floats — camera-offset
- * point, passed by LEA [EBP-0x04] draw_flag     char (only the low byte is
- * stored; the original pushes the whole dword slot)
+ *   [EBP-0x38] iter           actor_iterator_t (0x1c bytes); the current
+ *                             actor index is iter.index (EBP-0x24) and
+ *                             actor_iterator_next also writes next_index.
+ *   [EBP-0x1c] head_position  3 floats, out buffer for unit_get_head_position
+ *   [EBP-0x10] point          3 floats, camera-offset point, passed by LEA
+ *   [EBP-0x04] draw_flag      char (the original pushes the whole dword slot)
  *
  * Confirmed: `PUSH EAX(flag); PUSH ECX(&iter)` at the 0x59b10 call — cdecl, so
  * the argument order is (iter, flag).  The `ADD ESP,0xc` there is a merged
@@ -164,7 +164,7 @@ void ai_profile_show_paths(void)
  */
 void ai_profile_render_spray(void)
 {
-  char iter[0x18];
+  actor_iterator_t iter;
   float head_position[3];
   float point[3];
   char draw_flag;
@@ -179,27 +179,27 @@ void ai_profile_render_spray(void)
   debug_mode = *(int16_t *)0x5abaa2;
   if (debug_mode > 0 && camera != NULL) {
     draw_flag = 1;
-    if (debug_mode == 2) {
+    switch (debug_mode) {
+    case 2:
       draw_flag = 0;
+      break;
     }
 
     point[0] = camera[8] * 0.05f + camera[0];
     point[1] = camera[9] * 0.05f + camera[1];
     point[2] = camera[10] * 0.05f + camera[2];
 
-    actor_iterator_new(iter, draw_flag);
-    while (actor_iterator_next(iter) != 0) {
-      actor_record = (char *)datum_get(actor_data, *(int *)(iter + 0x14));
-
+    actor_iterator_new(&iter, draw_flag);
+    while (actor_iterator_next(&iter) != 0) {
+      actor_record = (char *)datum_get(actor_data, iter.index);
+      color = NULL;
       switch (*(int16_t *)0x5abaa2) {
       case 1:
-        color = actor_action_debug_color(*(int *)(iter + 0x14));
+        color = actor_action_debug_color(iter.index);
         break;
       case 2:
-        color = actor_activation_debug_color(*(int *)(iter + 0x14));
+        color = actor_activation_debug_color(iter.index);
         break;
-      default:
-        continue;
       }
 
       if (color != NULL) {
@@ -434,48 +434,48 @@ int encounter_definition_get_platoon_by_name(void *ai_profile_element,
 short choose_random_array_element(void *base, short stride, short count,
                                   short first_offset, uint32_t *skip_flags)
 {
-  float total;
-  float running;
-  float threshold;
   char *p;
-  int i;
-  int n;
-  short j;
+  short i;
   short result;
+  float total;
 
   result = -1;
   total = 0.0f;
-  base = (char *)base + first_offset;
-  p = (char *)base;
-  if (count > 0) {
-    i = 0;
-    n = (unsigned short)count;
-    do {
+  p = (char *)base + first_offset;
+
+  for (i = 0; i < count;) {
+    if ((skip_flags[i >> 5] & (1u << (i & 31))) == 0) {
+      total += *(float *)p;
+    }
+    i++;
+    p += stride;
+  }
+
+  if (total > 0.0f) {
+    float running;
+    float threshold;
+
+    threshold =
+      random_real_range(get_global_random_seed_address(), 0.0f, total);
+    running = 0.0f;
+    p = (char *)base + first_offset;
+    for (i = 0; i < count;) {
       if ((skip_flags[i >> 5] & (1u << (i & 31))) == 0) {
-        total += *(float *)p;
+        running += *(float *)p;
+        if (threshold <= running) {
+          result = i;
+          break;
+        }
       }
       i++;
       p += stride;
-    } while (--n != 0);
-    if (total > 0.0f) {
-      threshold =
-        random_real_range(get_global_random_seed_address(), 0.0f, total);
-      running = 0.0f;
-      p = (char *)base;
-      j = 0;
-      do {
-        if ((skip_flags[j >> 5] & (1u << (j & 31))) == 0) {
-          running += *(float *)p;
-          if (threshold <= running) {
-            result = j;
-            break;
-          }
-        }
-        j++;
-        p += stride;
-      } while (j < count);
     }
   }
+
+  /* result stays NONE (-1) when the array is empty, every element is
+   * skipped, or the summed weight is not positive.  The second pass
+   * rebuilds the weight pointer from base + first_offset because the
+   * first pass leaves it one stride past the last element. */
   return result;
 }
 
@@ -2534,7 +2534,7 @@ void ai_scripting_magically_see_encounter(int param_1, int param_2)
  * Iff the AI trace flag at 0x5aca59 is non-zero, formats the encounter name
  * into a 256-byte stack buffer via ai_index_to_string then logs:
  *   "[scenario_tag_name]: ai_scripting_magically_see_players [encounter_name]"
- * via console_printf (channel 2).
+ * via error (0x8f390, priority 2).
  *
  * Then, iff combined_handle != -1, walks the player data pool
  * (*(data_t**)0x5aa6d4) using data_iterator_new / data_iterator_next and
@@ -2548,9 +2548,9 @@ void ai_scripting_magically_see_encounter(int param_1, int param_2)
  *     for subsequent ai_index_to_string call; ADD ESP,0x10 at 0x58a74 cleans 4
  * args.
  *   - Pre-push pattern: local_114 pushed before
- * hs_runtime_get_executing_thread_name (0-arg) as 4th arg to console_printf;
+ * hs_runtime_get_executing_thread_name (0-arg) as 4th arg to error;
  * ADD ESP,0x10 at 0x58a8a cleans 4 dwords.
- *   - console_printf(2, fmt, cb980_result, name_buf): first %s = scenario
+ *   - error(2, fmt, cb980_result, name_buf): first %s = scenario
  *     tag name from hs_runtime_get_executing_thread_name, second %s = encounter
  * name in name_buf.
  *   - MOV EDX,[0x005aa6d4] dereferences player_data before data_iterator_new.
@@ -2566,9 +2566,9 @@ void ai_scripting_magically_see_players(int combined_handle)
   if (*(char *)0x5aca59 != '\0') {
     ai_index_to_string((unsigned int)combined_handle,
                        (void *)global_scenario_get(), name_buf, 0x100);
-    console_printf(2, "%s: ai_magically_see_players %s",
-                   (const char *)hs_runtime_get_executing_thread_name(),
-                   name_buf);
+    error(2, "%s: ai_magically_see_players %s",
+          (const char *)hs_runtime_get_executing_thread_name(),
+          name_buf);
   }
   if (combined_handle != -1) {
     data_iterator_new((data_iter_t *)iter_buf, *(data_t **)0x5aa6d4);
@@ -3038,7 +3038,7 @@ void encounter_detach_actor(int actor_handle, char flag)
   if (flag == '\0') {
     squad = encounter_get_squad(encounter, *(int16_t *)(actor + 0x3a));
 
-    if (*(int16_t *)(encounter + 0x18) < 1) {
+    if (*(int16_t *)(encounter + 0x18) <= 0) {
       display_assert("encounter->original_count > 0",
                      "c:\\halo\\SOURCE\\ai\\encounters.c", 0x22c, 1);
       system_exit(-1);
@@ -3046,7 +3046,7 @@ void encounter_detach_actor(int actor_handle, char flag)
     (*(int16_t *)(encounter + 0x18))--;
 
     if (*(char *)(actor + 0x1c) != '\0') {
-      if (*(int16_t *)(encounter + 0x1c) < 1) {
+      if (*(int16_t *)(encounter + 0x1c) <= 0) {
         display_assert("encounter->unique_leader_count > 0",
                        "c:\\halo\\SOURCE\\ai\\encounters.c", 0x231, 1);
         system_exit(-1);
@@ -3054,7 +3054,7 @@ void encounter_detach_actor(int actor_handle, char flag)
       (*(int16_t *)(encounter + 0x1c))--;
     }
 
-    if (*(int16_t *)(squad + 0x16) < 1) {
+    if (*(int16_t *)(squad + 0x16) <= 0) {
       display_assert("squad->original_count > 0",
                      "c:\\halo\\SOURCE\\ai\\encounters.c", 0x235, 1);
       system_exit(-1);
@@ -3063,7 +3063,7 @@ void encounter_detach_actor(int actor_handle, char flag)
 
     if (*(int16_t *)(actor + 0x3c) != -1) {
       platoon = encounter_get_platoon(encounter, *(int16_t *)(actor + 0x3c));
-      if (*(int16_t *)(platoon + 4) < 1) {
+      if (*(int16_t *)(platoon + 4) <= 0) {
         display_assert("platoon->original_count > 0",
                        "c:\\halo\\SOURCE\\ai\\encounters.c", 0x23d, 1);
         system_exit(-1);
@@ -4587,7 +4587,6 @@ void encounter_stand_down(int encounter_handle)
   char *parent_prop;
   int actor_handle;
   int cur_actor_handle;
-  int next_actor_handle;
   int prop_iter[2]; /* 2-slot iterator: [0]=current prop handle, [1]=next */
 
   encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_handle);
@@ -4610,38 +4609,40 @@ void encounter_stand_down(int encounter_handle)
     }
   }
 
-  /* Outer actor loop: walks the actor linked list.
-   * actor_handle (EBX) = current actor for the outer-loop check.
-   * cur_actor_handle (EDI) = snapshot of actor_handle at outer-loop entry,
-   * used for all calls inside the inner loop. */
-  for (;;) {
-    ai_globals = *(char **)0x632574;
-    if (*(char *)(ai_globals + 1) == '\0')
-      break;
-    if (actor_handle == -1)
-      break;
+  /* Outer actor loop: walks the encounter's actor linked list.
+   *
+   * This is the encounter actor iterator expanded in place:
+   *   actor_handle (EBX)     = the iterator's next handle, tested at the
+   *                            loop head together with the ai-active flag.
+   *   cur_actor_handle (EDI) = the iterator's current handle; it is the
+   *                            actor passed to actor_switch_props and
+   *                            prop_delete inside the inner loop.
+   *   actor (EBP-0x4)        = the current actor datum.
+   * The next handle (actor+0x2c) is read before the actor's props are
+   * visited, so deleting props never disturbs the walk.
+   *
+   * Loop layout in the binary: the head (ai-active flag, then
+   * actor_handle != NONE) is emitted once at the top; the inner prop loop
+   * exits straight back to it and the body ends in an unconditional jump
+   * to the head.
+   *
+   * The ai-active flag is re-read from ai_globals on every pass because
+   * the calls in the body may change it.
+   *
+   * Inner prop loop: the prop iterator is a 2-slot local; the loop tests
+   * the prop pointer returned by prop_iterator_next.
+   */
+  while (*(char *)(*(char **)0x632574 + 1) != '\0' &&
+         (cur_actor_handle = actor_handle) != -1) {
+    actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+    actor_handle = *(int *)(actor + 0x2c);
 
-    /* Snapshot current actor_handle into cur_actor_handle (= EDI in
-     * binary). This is what gets passed to actor_switch_props and
-     * prop_delete. */
-    cur_actor_handle = actor_handle;
-    actor = (char *)datum_get(*(data_t **)0x6325a4, cur_actor_handle);
-    next_actor_handle = *(int *)(actor + 0x2c);
-
-    /* Init prop iterator and get first prop data ptr.
-     * prop_iter[0] (EBP-0xc) = current prop_handle (index).
+    /* prop_iter[0] (EBP-0xc) = current prop_handle (index).
      * prop_iter[1] (EBP-0x8) = next prop_handle (chain link).
      * prop (return value of prop_iterator_next) = prop data ptr. */
     prop_iterator_new(prop_iter, cur_actor_handle);
-    prop = (char *)prop_iterator_next(prop_iter);
-
-    /* The binary's inner while condition is a comma expression:
-     *   while (actor_handle = next_actor_handle, prop != NULL)
-     * The assignment runs unconditionally before the condition test,
-     * advancing the outer loop even when the actor has zero props. */
-    actor_handle = next_actor_handle;
-    while (prop != NULL) {
-      if (*(short *)(prop + 0x24) > 3 && *(short *)(prop + 0x24) < 6 &&
+    while ((prop = (char *)prop_iterator_next(prop_iter)) != NULL) {
+      if (*(short *)(prop + 0x24) >= 4 && *(short *)(prop + 0x24) <= 5 &&
           *(char *)(prop + 0x60) != '\0' &&
           prop_iter[0] != *(int *)(actor + 0x270)) {
         if (*(int *)(prop + 0xc) == -1) {
@@ -4661,7 +4662,6 @@ void encounter_stand_down(int encounter_handle)
         actor_switch_props(cur_actor_handle, prop_iter[0], -1);
         prop_delete(cur_actor_handle, prop_iter[0]);
       }
-      prop = (char *)prop_iterator_next(prop_iter);
     }
   }
 }
@@ -5630,10 +5630,7 @@ int16_t encounter_get_actor_starting_location(int encounter_index,
   char *squad_definition;
   unsigned long excluded_locations[2];
   int16_t found_index;
-  int16_t count;
-  int16_t random_index;
   int16_t index;
-  bool used_any;
 
   encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_index);
   encounter_definition = (char *)tag_block_get_element(
@@ -5641,91 +5638,94 @@ int16_t encounter_get_actor_starting_location(int encounter_index,
   squad = encounter_get_squad(encounter, (int16_t)squad_index);
   squad_definition = (char *)tag_block_get_element(encounter_definition + 0x80,
                                                    squad_index, 0xe8);
-
   found_index = NONE;
   csmemset(excluded_locations, 0, sizeof(excluded_locations));
 
-  /* pass 1: tally, then draw from the preferred ("first") locations. */
-  count = 0;
-  for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
-    if ((*(unsigned long *)(squad + (index >> 5) * 4) &
-         (1 << (index & 0x1f))) != 0 &&
-        (excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0)
-      count++;
-  }
-  if (count > 0) {
-    random_index = seed_random_range(
-      (unsigned int *)get_global_random_seed_address(), 0, count);
+  {
+    int16_t required_count = 0;
     for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
       if ((*(unsigned long *)(squad + (index >> 5) * 4) &
            (1 << (index & 0x1f))) != 0 &&
-          (excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0) {
-        if (random_index == 0) {
-          *(unsigned long *)(squad + (index >> 5) * 4) &=
-            ~(1 << (index & 0x1f));
-          if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
-               (1 << (index & 0x1f))) == 0) {
-            display_assert(
-              "BIT_VECTOR_TEST_FLAG(squad->unused_locations, index)",
-              "c:\\halo\\SOURCE\\ai\\encounters.c", 0x615, 1);
-            system_exit(-1);
-          }
-          *(unsigned long *)(squad + (index >> 5) * 4 + 4) &=
-            ~(1 << (index & 0x1f));
-          found_index = index;
-          break;
-        }
-        random_index--;
-      }
+          (excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0)
+        required_count++;
     }
-    if (found_index == NONE) {
-      display_assert("found_index != NONE",
-                     "c:\\halo\\SOURCE\\ai\\encounters.c", 0x623, 1);
-      system_exit(-1);
-    } else {
-      return found_index;
+    if (required_count > 0) {
+      int16_t random_index = seed_random_range(
+        (unsigned int *)get_global_random_seed_address(), 0, required_count);
+      for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
+        if ((*(unsigned long *)(squad + (index >> 5) * 4) &
+             (1 << (index & 0x1f))) != 0 &&
+            (excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0) {
+          if (random_index == 0) {
+            *(unsigned long *)(squad + (index >> 5) * 4) &=
+              ~(1 << (index & 0x1f));
+            if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
+                 (1 << (index & 0x1f))) == 0) {
+              display_assert(
+                "BIT_VECTOR_TEST_FLAG(squad->unused_locations, index)",
+                "c:\\halo\\SOURCE\\ai\\encounters.c", 0x615, 1);
+              system_exit(-1);
+            }
+            *(unsigned long *)(squad + (index >> 5) * 4 + 4) &=
+              ~(1 << (index & 0x1f));
+            found_index = index;
+            break;
+          }
+          random_index--;
+        }
+      }
+      if (found_index == NONE) {
+        display_assert("found_index != NONE",
+                       "c:\\halo\\SOURCE\\ai\\encounters.c", 0x623, 1);
+        system_exit(-1);
+      }
     }
   }
 
-  /* pass 2: tally the unused locations, refilling the vector when every
-   * non-excluded location has been consumed. */
-  for (;;) {
-    used_any = 0;
-    count = 0;
-    for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
-      if ((excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0) {
-        if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
-             (1 << (index & 0x1f))) != 0)
-          count++;
-        else
-          used_any = 1;
-      }
-    }
-    if (!used_any || count != 0)
-      break;
-    csmemset(squad + 4, NONE,
-             ((*(int *)(squad_definition + 0xd0) + 0x1f) >> 5) * 4);
-  }
-  if (count > 0) {
-    random_index = seed_random_range(
-      (unsigned int *)get_global_random_seed_address(), 0, count);
-    for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
-      if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
-           (1 << (index & 0x1f))) != 0 &&
-          (excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0) {
-        if (random_index == 0) {
-          *(unsigned long *)(squad + (index >> 5) * 4 + 4) &=
-            ~(1 << (index & 0x1f));
-          found_index = index;
-          break;
+  /* pass 2: draw from unused_locations, refilling it when exhausted. */
+  if (found_index == NONE) {
+    int16_t unused_count;
+    bool reset_unused;
+    do {
+      bool any_location_used = 0;
+      reset_unused = 0;
+      unused_count = 0;
+      for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
+        if ((excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0) {
+          if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
+               (1 << (index & 0x1f))) != 0)
+            unused_count++;
+          else
+            any_location_used = 1;
         }
-        random_index--;
       }
-    }
-    if (found_index == NONE) {
-      display_assert("found_index != NONE",
-                     "c:\\halo\\SOURCE\\ai\\encounters.c", 0x665, 1);
-      system_exit(-1);
+      if (any_location_used && unused_count == 0) {
+        csmemset(squad + 4, NONE,
+                 ((*(int *)(squad_definition + 0xd0) + 0x1f) >> 5) * 4);
+        reset_unused = 1;
+      }
+    } while (reset_unused);
+    if (unused_count > 0) {
+      int16_t random_index = seed_random_range(
+        (unsigned int *)get_global_random_seed_address(), 0, unused_count);
+      for (index = 0; index < *(int *)(squad_definition + 0xd0); index++) {
+        if ((*(unsigned long *)(squad + (index >> 5) * 4 + 4) &
+             (1 << (index & 0x1f))) != 0 &&
+            (excluded_locations[index >> 5] & (1 << (index & 0x1f))) == 0) {
+          if (random_index == 0) {
+            *(unsigned long *)(squad + (index >> 5) * 4 + 4) &=
+              ~(1 << (index & 0x1f));
+            found_index = index;
+            break;
+          }
+          random_index--;
+        }
+      }
+      if (found_index == NONE) {
+        display_assert("found_index != NONE",
+                       "c:\\halo\\SOURCE\\ai\\encounters.c", 0x665, 1);
+        system_exit(-1);
+      }
     }
   }
   return found_index;

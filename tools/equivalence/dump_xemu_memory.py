@@ -47,11 +47,19 @@ state_snapshot JSON that unicorn_diff can load directly.
 import argparse
 import json
 import os
+import re
 import struct
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+_TOOLS_DIR = str(Path(__file__).resolve().parents[1])
+if _TOOLS_DIR not in sys.path:
+    sys.path.insert(0, _TOOLS_DIR)
+from internal.local_env import load_repo_env  # noqa: E402
+
+load_repo_env("xbox.env")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 ARTIFACTS = REPO_ROOT / "artifacts"
@@ -167,10 +175,16 @@ def detect_build_label(dump: bytes) -> str | None:
     return None
 
 
+def _hmp_win_path(path: Path) -> str:
+    """/mnt/<drive>/a/b -> <DRIVE>:\\\\a\\\\b (backslashes doubled for HMP quoting)."""
+    s = re.sub(r"^/mnt/([a-zA-Z])/", lambda m: m.group(1).upper() + ":\\\\", str(path))
+    return s.replace("/", "\\\\")
+
+
 def dump_xemu(output: Path) -> bool:
     """Dump full xemu memory via QMP pmemsave."""
     output.parent.mkdir(parents=True, exist_ok=True)
-    win_path = str(output).replace("/mnt/g/", "G:\\\\").replace("/", "\\\\")
+    win_path = _hmp_win_path(output)
 
     cmds = [
         f'pmemsave 0 {XBOX_RAM_SIZE} "{win_path}"',
@@ -233,7 +247,7 @@ def _xbdm_read_range(sock, base: int, size: int, chunk: int = 1024,
     return dump_data
 
 
-def dump_xbdm(output: Path, xbox_ip: str = "192.168.1.20",
+def dump_xbdm(output: Path, xbox_ip: str | None = None,
               chunk: int = 1024) -> bool:
     """Dump Xbox memory via XBDM getmem (virtual addresses, works on real hardware).
 
@@ -243,6 +257,11 @@ def dump_xbdm(output: Path, xbox_ip: str = "192.168.1.20",
     Saves as a JSON with hex regions keyed by base address.
     """
     import socket
+
+    xbox_ip = xbox_ip or os.environ.get("XBDM_HOST")
+    if not xbox_ip:
+        print("  ERROR: no Xbox address: pass --xbox-ip or set XBDM_HOST in tools/xbox.env")
+        return False
 
     output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -433,8 +452,8 @@ def main():
                         default=MEMORY_DUMPS_DEFAULT)
     p_dump.add_argument("--xbdm", action="store_true",
                         help="Use XBDM (real Xbox) instead of xemu QMP")
-    p_dump.add_argument("--xbox-ip", default="192.168.1.20",
-                        help="Xbox IP for XBDM (default: 192.168.1.20)")
+    p_dump.add_argument("--xbox-ip", default=None,
+                        help="Xbox IP for XBDM (default: $XBDM_HOST)")
     p_dump.add_argument("--build-label", "-B",
                         help="Label describing the build dumped (e.g. 'patched', 'original', commit hash)")
 
@@ -503,7 +522,7 @@ def main():
         if not dump_path.exists():
             print(f"  Dump not found at {dump_path}")
             print("  Pause xemu and run:")
-            win_path = str(dump_path).replace("/mnt/g/", "G:\\\\").replace("/", "\\\\")
+            win_path = _hmp_win_path(dump_path)
             print(f'  pmemsave 0 {XBOX_RAM_SIZE} "{win_path}"')
             sys.exit(1)
 

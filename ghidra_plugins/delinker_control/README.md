@@ -31,17 +31,17 @@ gradle buildExtension
 
 This uses Ghidra's `support/buildExtension.gradle` script.
 
-For this machine, the correct install root appears to be:
+The install root is the directory that contains `support/buildExtension.gradle`, for example:
 
 ```text
-/mnt/g/ghidra_12.0.3_PUBLIC_20260210/ghidra_12.0.3_PUBLIC
+/path/to/ghidra_12.0.3_PUBLIC
 ```
 
 The user extension directory is different and should not be used as
 `GHIDRA_INSTALL_DIR`:
 
 ```text
-/mnt/c/Users/stian/AppData/Roaming/ghidra/ghidra_12.0.3_PUBLIC/Extensions
+/mnt/c/Users/<you>/AppData/Roaming/ghidra/ghidra_12.0.3_PUBLIC/Extensions
 ```
 
 ## Current status

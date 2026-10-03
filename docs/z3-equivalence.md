@@ -40,8 +40,8 @@ The equivalence testing infrastructure (`tools/equivalence/`) was expanded from 
 | `tools/equivalence/coff_loader.py` | `FunctionSlice` now exposes `defined_symbols` for intra-object symbol resolution |
 | `tools/equivalence/unicorn_diff.py` | Fixed false-negative leaf classification; added `--z3-equiv`, `--allow-stubs`, `--batch-classify`; auto-maps unmapped memory pages |
 | `tools/equivalence/seeds.py` | Accepts `z3_seeds` parameter — Z3 branch seeds injected before random/corner seeds |
-| `tools/lift_pipeline.py` | Passes `--z3-equiv --allow-stubs` to unicorn_diff; reports "Z3 PROVEN EQUIVALENT" distinctly |
-| `tools/llm_auto_lift.py` | Reads extended `leaf_cache.json` schema; scores data_only +3, stubbable +3, z3_proven +5 |
+| `tools/lift/lift_pipeline.py` | Passes `--z3-equiv --allow-stubs` to unicorn_diff; reports "Z3 PROVEN EQUIVALENT" distinctly |
+| `tools/lift/llm_auto_lift.py` | Reads extended `leaf_cache.json` schema; scores data_only +3, stubbable +3, z3_proven +5 |
 
 ## Why This Approach
 
@@ -89,7 +89,7 @@ python3 tools/equivalence/unicorn_diff.py FUN_00106510 --allow-stubs --float-tol
 python3 tools/equivalence/unicorn_diff.py <func> --z3-equiv --allow-stubs --float-tolerance 32
 
 # Pipeline runs this automatically after lift
-python3 tools/lift_pipeline.py --target <name_or_addr> --verify-policy auto
+python3 tools/lift/lift_pipeline.py --target <name_or_addr> --verify-policy auto
 ```
 
 ## Verification Hierarchy

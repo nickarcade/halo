@@ -11,7 +11,7 @@ call routes through the same QMP client, which serializes commands over the one
 socket. Tools hold no per-connection state.
 
 Tool names and QMP commands are ported verbatim from the Node project at
-/mnt/g/dev/xemu_mcp (src/server.ts) so the existing mcp__xemu__* contract is
+the original Node xemu_mcp project (src/server.ts) so the existing mcp__xemu__* contract is
 unchanged.
 
 Launched by tools/shell/mcp-servers.sh via the repo .venv. Sibling modules

@@ -57,23 +57,22 @@ const LIFT_REG_ARGS = !!(args && args.liftRegArgs)
 const IMPROVE_GOAL = (args && args.improveGoal) || 0
 
 // Model-policy pass-through to goal-lift. Undefined by default -- goal-lift
-// keeps its own Opus reasoning default (see its M table comment: sonnet-default
-// was tried 2026-09-02 and reverted for a measured regression, 55% vs 34%
-// promote rate, 60K -> 140K tokens/commit). Set explicitly (e.g. --reasonModel
-// sonnet) only when you intend to override that default for this run.
+// keeps its own Opus reasoning default (see its M table comment). Set explicitly
+// (e.g. --reasonModel sonnet) only when you intend to override that default for
+// this run.
 //
 // `model` is a convenience alias for "the reasoning stages", matching
 // goal-lift's own M-table grouping (its comment: "Reasoning stages (select,
 // lift, review) use Opus" vs. "cheap deterministic tool-runs" for
 // mechanical/commit) -- so `model` feeds BOTH REASON_MODEL (lift/review) and
-// EXTRACT_MODEL (select), the same pair goal-lift's own doc calls out as
-// "one flag away" from Opus (`--extractModel` / `--reasonModel`). An explicit
+// EXTRACT_MODEL (select), the same pair goal-lift exposes as
+// `--extractModel` / `--reasonModel`. An explicit
 // --reasonModel/--extractModel always wins over it. It deliberately does NOT
 // feed:
 //   - COMMIT_MODEL — an explicit --commitModel still works, but --model alone
 //     leaves it at goal-lift's own default (MECHANICAL_MODEL/haiku). The
-//     commit-gate agent just runs a build + parses its output — it should
-//     stay cheap regardless of what --model was set to for the reasoning work.
+//     commit-gate agent just runs a build + parses its output, so it stays
+//     independent of what --model was set to for the reasoning work.
 //   - IMPROVE_MODEL — left unset here on purpose so goal-lift's own default
 //     applies (IMPROVE_MODEL defaults to REASON_MODEL there), which already
 //     follows whatever REASON_MODEL resolves to (via --model or --reasonModel)

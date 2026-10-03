@@ -219,7 +219,7 @@ build.bisect.tmp = polluted bisect dir. Anchor stash `stash@{0}` = orb-bisect-an
 ## EXP-6 (2026-06-04) — LIVE good-vs-bad capture: weapon STATE is byte-identical → confirmed render-code bug
 
 **Method (new):** real Xbox/xemu at 127.0.0.1 (default.xbe = patched, cachebeta.xbe = stock).
-`tools/xbox/capture_orb_state.py <label>` resolves the FP-weapon slot (0x46bea8, stride 0x1ea0;
+A one-off capture script (not kept in the repo) resolved the FP-weapon slot (0x46bea8, stride 0x1ea0;
 +0 active, +4 unit, +8 weapon handle) and the held weapon object (pool 0x5a8d50, elem 0xc, data
 ptr @+0x34, obj ptr @ elem+8), dumping obj 0x0..0x250 + FP slot 0x0..0x200 + node block. QMP reads
 work only when xemu PAUSED. Build-identity verified by prologue bytes (0xdc750 = `68 80 7a 00 00`

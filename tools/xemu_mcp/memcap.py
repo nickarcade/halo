@@ -25,7 +25,7 @@ SETTLE_S = 1.5
 
 
 def wsl_to_win(path: Path) -> str:
-    """/mnt/g/dev/... -> G:\\dev\\... (single-backslash Windows path)."""
+    """/mnt/<drive>/... -> <DRIVE>:\\... (single-backslash Windows path)."""
     p = path.resolve()
     parts = p.parts
     if len(parts) >= 3 and parts[0] == "/" and parts[1] == "mnt" and len(parts[2]) == 1:

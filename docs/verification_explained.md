@@ -26,7 +26,7 @@ operand order issues).
 Most of the time we run:
 
 ```bash
-rtk python3 tools/lift_pipeline.py --target <FUNC> --no-metadata-update --verify-policy auto
+rtk python3 tools/lift/lift_pipeline.py --target <FUNC> --no-metadata-update --verify-policy auto
 ```
 
 This orchestrates the checks and writes a run summary to:
@@ -278,7 +278,7 @@ Results go to `artifacts/batch_verify/`:
 The emulator needs to read the same global data as the real Xbox binary.
 `tools/equivalence/extract_globals.py` scans all delinked `.obj` files for
 `DIR32` relocations (absolute address references), reads the corresponding bytes
-from the XBE, and writes them to `tools/equivalence/known_globals.json`.
+from the XBE, and writes them to `tools/equivalence/known_globals.json` (generated and git-ignored).
 `unicorn_diff.py` loads this file at startup to seed the emulator's memory.
 
 ```bash

@@ -282,7 +282,7 @@
       "observed": 4
     },
     "0x1c2550": {
-      "name": "playlist_profile_write",
+      "name": "playlist_profile_write_thread_proc",
       "expected": 0,
       "observed": 4
     },

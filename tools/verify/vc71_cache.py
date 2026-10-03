@@ -13,6 +13,7 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import time
 from pathlib import Path
 
@@ -21,7 +22,12 @@ CACHE_DIR = REPO_ROOT / "artifacts" / "verify_cache"
 CACHE_DB = CACHE_DIR / "vc71.sqlite"
 
 # The VC71 compiler binary whose mtime+size we embed in the version string
-VC71_CL_WSL = "/mnt/c/Program Files (x86)/RXDK/xbox/bin/vc71/CL.Exe"
+_TOOLS_DIR = str(REPO_ROOT / "tools")
+if _TOOLS_DIR not in sys.path:
+    sys.path.insert(0, _TOOLS_DIR)
+from internal.local_env import rxdk_paths  # noqa: E402
+
+VC71_CL_WSL = rxdk_paths()[0] + "/xbox/bin/vc71/CL.Exe"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS fn_results (

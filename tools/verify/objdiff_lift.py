@@ -107,7 +107,8 @@ def parse_args() -> argparse.Namespace:
     if not os.path.isfile(default_tool):
         default_tool = 'objdiff'
     ap.add_argument('--tool', default=default_tool,
-                    help='objdiff executable name or path')
+                    help='objdiff executable name or path '
+                         '(tools/fetch_objdiff.sh installs the pinned one)')
     ap.add_argument('--no-cache', action='store_true',
                     help='Skip cache lookup and force a fresh objdiff run')
     return ap.parse_args()

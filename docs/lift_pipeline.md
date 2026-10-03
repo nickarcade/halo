@@ -1,6 +1,6 @@
 # lift_pipeline automation lane
 
-This document defines the input/output contract for `tools/lift_pipeline.py` and
+This document defines the input/output contract for `tools/lift/lift_pipeline.py` and
 how to plug in extraction tooling so decompile -> reimplementation -> verify can
 run with one command.
 
@@ -124,13 +124,13 @@ This keeps `kb_meta.json` updates aligned with what was actually validated.
 Target from frontier, no edits/build:
 
 ```bash
-python3 tools/lift_pipeline.py --skip-build --no-metadata-update
+python3 tools/lift/lift_pipeline.py --skip-build --no-metadata-update
 ```
 
 Insert candidate and build:
 
 ```bash
-python3 tools/lift_pipeline.py \
+python3 tools/lift/lift_pipeline.py \
   --target 0x17c7e0 \
   --candidate /tmp/rasterizer_frame_begin.c \
   --source src/halo/rasterizer/rasterizer.c
@@ -139,7 +139,7 @@ python3 tools/lift_pipeline.py \
 Auto-generate verify payload from files emitted by extraction:
 
 ```bash
-python3 tools/lift_pipeline.py \
+python3 tools/lift/lift_pipeline.py \
   --target 0x3f670 \
   --extract-cmd "python3 tools/my_extract.py --addr {target_addr} --out {artifact_dir}" \
   --verify-new-address 0x600000
@@ -148,7 +148,7 @@ python3 tools/lift_pipeline.py \
 Enforce verification on risky functions (fail if inputs are missing):
 
 ```bash
-python3 tools/lift_pipeline.py \
+python3 tools/lift/lift_pipeline.py \
   --target ai_initialize \
   --extract-cmd "python3 tools/my_extract.py --addr {target_addr} --out {artifact_dir}" \
   --verify-policy strict \
@@ -158,7 +158,7 @@ python3 tools/lift_pipeline.py \
 Auto-generate verify payload from commands:
 
 ```bash
-python3 tools/lift_pipeline.py \
+python3 tools/lift/lift_pipeline.py \
   --target ai_initialize \
   --verify-auto \
   --verify-new-address 0x600000 \

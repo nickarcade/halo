@@ -612,9 +612,9 @@ int prop_new_unacknowledged(int actor_handle, int unit_handle, bool flag)
               actor_handle, NONE, *(int *)(prop + 0x18), *(int *)(prop + 0x1c),
               *(unsigned char *)(prop + 0x63), *(unsigned char *)(prop + 0x12e),
               *(unsigned char *)(prop + 0x60), *(unsigned char *)(prop + 0x127),
-              *(unsigned short *)(prop + 0x76), *(int *)(prop + 0x20),
+              *(int16_t *)(prop + 0x76), *(float *)(prop + 0x20),
               *(float *)(prop + 0x11c) * *(float *)(prop + 0x11c),
-              *(unsigned short *)(prop + 0x6a), &desire_out)) {
+              *(int16_t *)(prop + 0x6a), &desire_out)) {
           if (*(float *)(prop + 0x11c) < nearest_unacknowledged) {
             unacknowledged_index = cur_handle;
             nearest_unacknowledged = *(float *)(prop + 0x11c);
@@ -672,8 +672,8 @@ int prop_new_unacknowledged(int actor_handle, int unit_handle, bool flag)
 /* 0x647c0 — prop_setup_orphan (@eax = source_prop_index, stack: actor_index,
  * orphan_prop_index).
  *
- * PAL 2342 source/ai/props.c `static void prop_setup_orphan(actor_index,
- * orphan_prop_index, source_prop_index)`; 2276 passes the source prop in EAX
+ * Signature `static void prop_setup_orphan(actor_index, orphan_prop_index,
+ * source_prop_index)`; 2276 passes the source prop in EAX
  * (kb @<eax>) and never reads actor_index ([EBP+8]).
  *
  * Copies the whole source prop into the orphan, then restores the orphan's

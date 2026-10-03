@@ -16,8 +16,8 @@ void players_initialize_for_new_map(void)
 {
   player_control_dispose();
   csmemset(players_globals, 0, sizeof(players_globals_t));
-  csmemset(&players_globals->unk_0[4], 0xFF, 0x10);
-  csmemset(&players_globals->unk_0[0x14], 0xFF, 0x10);
+  csmemset(&players_globals->unk_0[4], -1, 0x10);
+  csmemset(&players_globals->unk_0[0x14], -1, 0x10);
   *(_DWORD *)players_globals->unk_0 = -1;
   players_globals->unk_0[0x29] = 0;
   *(_WORD *)&players_globals->unk_0[0x26] = 0;
@@ -26,7 +26,7 @@ void players_initialize_for_new_map(void)
   *(_WORD *)&players_globals->unk_0[0x2C] = 0;
   data_delete_all(player_data);
   data_delete_all(team_data);
-  csmemset(&local_player_network_indices, 0xFF, 0x40);
+  csmemset(&local_player_network_indices, -1, 0x40);
 }
 
 void players_dispose_from_old_map(void)
@@ -874,23 +874,24 @@ bool player_handle_weapon_swap(int player_handle /* @<eax> */)
 {
   char *player;
   int *vehicle_obj;
+  bool result;
 
   player = (char *)datum_get(player_data, player_handle);
   object_get_and_verify_type(*(int *)(player + 0x34), 3);
-
-  switch ((int)*(short *)(player + 0x28) - 6) {
-  case 0:
-    /* Enter vehicle seat */
-    if (!unit_set_in_vehicle(*(int *)(player + 0x34), 1))
-      return true;
-    if (unit_enter_seat(*(int *)(player + 0x34), *(int *)(player + 0x24), 1)) {
+  result = false;
+  switch (*(short *)(player + 0x28)) {
+  case 6:
+    /* Enter vehicle seat; reports handled even when the seat is refused. */
+    if (unit_set_in_vehicle(*(int *)(player + 0x34), 1) &&
+        unit_enter_seat(*(int *)(player + 0x34), *(int *)(player + 0x24), 1)) {
       vehicle_obj =
         (int *)object_get_and_verify_type(*(int *)(player + 0x24), 4);
       hud_picked_up_weapon(*(unsigned short *)(player + 0x2), *vehicle_obj);
       player_control_unzoom(*(int *)(player + 0x34));
     }
-    return true;
-  case 1:
+    result = true;
+    break;
+  case 7:
     /* Interact with seat object */
     if (unit_enter_seat(*(int *)(player + 0x34), *(int *)(player + 0x24), 1)) {
       vehicle_obj =
@@ -898,10 +899,9 @@ bool player_handle_weapon_swap(int player_handle /* @<eax> */)
       hud_picked_up_weapon(*(unsigned short *)(player + 0x2), *vehicle_obj);
     }
     break;
-  default:
-    break;
   }
-  return false;
+
+  return result;
 }
 
 /* Apply the overshield powerup effect to the player.
@@ -1188,17 +1188,17 @@ int valid_real_vector2d(float *v)
 
 /* Allocate and initialise a new player datum.
  *
- * local_player_index  (a1) -- which local player slot to assign; NONE (-1) is
- *                             allowed (player is not locally controlled).
- * player_handle_hint  (a2) -- if -1, allocate the next free datum;
- *                             otherwise re-use this specific datum handle.
- * local_player_index2 (a3) -- same value as a1; written into the player
- *                             record at offset +0x2.
- * player_name         (a4) -- pointer to a wide-char name (max 0xb chars),
- *                             or NULL to use the empty default name.
+ * local_player_index  -- slot handed to machine_add_player.
+ * player_handle_hint  -- if -1, allocate the next free datum;
+ *                        otherwise re-use this specific datum handle.
+ * local_player_index2 -- asserted to be NONE or 0..3 (signed compare);
+ *                        written into the player record at offset +0x2.
+ * player_name         -- pointer to a wide-char name (max 0xb chars),
+ *                        or NULL to use the empty default name.
  *
  * Returns the new player datum handle, or -1 on failure. */
-int player_new(unsigned __int16 a1, int a2, unsigned __int16 a3, char *a4)
+int player_new(unsigned __int16 local_player_index, int player_handle_hint,
+               int16_t local_player_index2, char *player_name)
 {
   int player_handle;
   char *player;
@@ -1206,14 +1206,15 @@ int player_new(unsigned __int16 a1, int a2, unsigned __int16 a3, char *a4)
   wchar_t *name_src;
 
   /* Allocate the player datum. */
-  if (a2 == -1) {
+  if (player_handle_hint == -1) {
     player_handle = data_new_at_index(player_data);
   } else {
-    player_handle = data_new_datum(player_data, a2);
+    player_handle = data_new_datum(player_data, player_handle_hint);
   }
 
   /* Validate the local_player_index argument. */
-  if (((a3 < 0) || (3 < a3)) && (a3 != (unsigned __int16)-1)) {
+  if (!((local_player_index2 >= 0 && local_player_index2 < 4) ||
+        local_player_index2 == -1)) {
     display_assert(
       "((local_player_index>=0) && (local_player_index<MAXIMUM_NUMBER_OF_"
       "LOCAL_PLAYERS)) || (local_player_index==NONE)",
@@ -1227,15 +1228,15 @@ int player_new(unsigned __int16 a1, int a2, unsigned __int16 a3, char *a4)
 
     /* Copy player name (up to 0xb wide chars); use empty default if no name
      * supplied. */
-    name_src = (a4 != NULL) ? (wchar_t *)a4 : (wchar_t *)0x26cdf0;
+    name_src = (wchar_t *)0x26cdf0; /* L"" */
+    if (player_name != NULL) name_src = (wchar_t *)player_name;
     ustrncpy((wchar_t *)(player + 4), name_src, 0xb);
-
     *(unsigned __int16 *)(player + 0x1a) = 0;
-    *(short *)(player + 0x2) = (short)a3;
+    *(short *)(player + 0x2) = local_player_index2;
     *(int *)(player + 0x34) = -1;
     *(int *)(player + 0x38) = -1;
     *(int *)(player + 0x1c) = -1;
-    *(unsigned short *)(player + 0x3c) = 0xffff;
+    *(short *)(player + 0x3c) = -1;
     *(int *)(player + 0x40) = -1;
     *(int *)(player + 0x6c) = 0x3f800000; /* 1.0f */
     *(int *)(player + 0x20) = 1;
@@ -1250,13 +1251,13 @@ int player_new(unsigned __int16 a1, int a2, unsigned __int16 a3, char *a4)
     *(char *)(player + 0xd1) = 0;
 
     /* Copy full player name into the +0x48 slot if a name was given. */
-    if (a4 != NULL) {
-      csmemcpy(player + 0x48, a4, 0x20);
+    if (player_name != NULL) {
+      csmemcpy(player + 0x48, player_name, 0x20);
     }
   }
 
   /* Register the player handle in the machine-local slot table. */
-  machine_add_player(a1, player_handle);
+  machine_add_player(local_player_index, player_handle);
   return player_handle;
 }
 
@@ -1354,8 +1355,7 @@ void player_aiming_vector_from_facing(int datum_handle, float *aiming_out,
   char *vehicle;
   char *vehi_tag;
   unsigned char *seat_data;
-  float forward[3];
-  float matrix[13]; /* 3x3 matrix + scale, 52 bytes at [EBP-0x34] */
+  real_matrix4x3 rotation;
 
   player = (char *)datum_get(player_data, datum_handle);
   angles_to_vector(aiming_out, desired_facing);
@@ -1378,16 +1378,17 @@ void player_aiming_vector_from_facing(int datum_handle, float *aiming_out,
   if ((*seat_data & 0x10) != 0)
     return;
 
-  /* Build a rotation matrix from the vehicle's up vector (forward in
-   * object space at +0x30). Cross product with global -Y to get the
-   * right vector; if degenerate, fall back to -Z. */
-  cross_product3d((float *)(vehicle + 0x30), *(float **)0x31fc4c, forward);
-  if (normalize3d(forward) == 0.0f) {
-    cross_product3d((float *)(vehicle + 0x30), *(float **)0x31fc50, forward);
-    normalize3d(forward);
+  /* forward = vehicle up (+0x30) x global -Y; -Z when that degenerates. */
+  cross_product3d((float *)(vehicle + 0x30), *(float **)0x31fc4c,
+                  (float *)&rotation.forward);
+  if (normalize3d((float *)&rotation.forward) == 0.0f) {
+    cross_product3d((float *)(vehicle + 0x30), *(float **)0x31fc50,
+                    (float *)&rotation.forward);
+    normalize3d((float *)&rotation.forward);
   }
-  matrix_from_forward_and_up(matrix, forward, (float *)(vehicle + 0x30));
-  matrix_transform_vector(matrix, aiming_out, aiming_out); /* dup-args-ok */
+  matrix_from_forward_and_up((float *)&rotation, (float *)&rotation.forward,
+                             (float *)(vehicle + 0x30));
+  matrix_transform_vector((float *)&rotation, aiming_out, aiming_out); /* dup-args-ok */
 }
 
 /* 0xbbb80 — Teleport a player's unit to an anchor object's position.
@@ -1446,12 +1447,11 @@ int find_best_starting_location_index(int player_index)
   char *scenario;
   char *elem;
   int16_t count;
-  int best_index;
+  int16_t best_index;
   float best_score;
   float rating;
-  double score;
   int loc;
-  int i;
+  int16_t i;
 
   scenario = (char *)global_scenario_get();
   count = *(int16_t *)(scenario + 0x354);
@@ -1463,23 +1463,24 @@ int find_best_starting_location_index(int player_index)
     }
   }
 
+  /* Rate every starting location; the random factor jitters the pick so
+   * respawns are not perfectly deterministic.  Only a strictly greater
+   * (ordered) score wins, so the result stays NONE when nothing rates
+   * above zero.  The weight is pow(random, 0.5); the 0.5 is the double
+   * constant at 0x25fea8. */
   best_index = -1;
   best_score = 0.0f;
-  if (count >= 1) {
-    i = 0;
-    do {
-      loc = (int)player_get_starting_location(i);
-      rating = game_engine_get_starting_location_rating(player_index, loc);
-      score =
-        pow(random_real_range(get_global_random_seed_address(), 0.0f, 1.0f),
-            *(double *)0x25fea8) *
-        rating;
-      if (best_score < score) {
-        best_score = (float)score;
-        best_index = i;
-      }
-      i++;
-    } while (i < count);
+  for (i = 0; i < count; i++) {
+    loc = (int)player_get_starting_location(i);
+    rating = game_engine_get_starting_location_rating(player_index, loc);
+    rating *=
+      pow(
+        random_real_range(get_global_random_seed_address(), 0.0f, 1.0f),
+        *(double *)0x25fea8);
+    if (rating > best_score) {
+      best_score = rating;
+      best_index = i;
+    }
   }
 
   return (int16_t)best_index;
@@ -2036,14 +2037,12 @@ void players_debug_render(void)
   char *bipd_tag;
 
   if (*(char *)0x46b6c4 != '\0') {
-    counter = 0;
-    local_player_index = local_player_get_next(NONE);
-    do {
-      if (local_player_index == NONE)
-        return;
+    for (counter = 0, local_player_index = local_player_get_next(NONE);
+         (int16_t)counter < 2 && local_player_index != NONE;
+         counter++,
+        local_player_index = local_player_get_next(local_player_index)) {
       assert_halt_at("c:\\halo\\SOURCE\\game\\players.c", 0x3ab,
-                     local_player_index >= NONE &&
-                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+                     local_player_index>=NONE && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
       if (*(int *)&players_globals->unk_0[4 + local_player_index * 4] != -1) {
         player_index = local_player_get_player_index(local_player_index);
         player = (char *)datum_get(player_data, player_index);
@@ -2077,9 +2076,7 @@ void players_debug_render(void)
           }
         }
       }
-      counter = counter + 1;
-      local_player_index = local_player_get_next(local_player_index);
-    } while ((int16_t)counter < 2);
+    }
   }
 }
 
@@ -2446,20 +2443,17 @@ void player_set_action_result(int player_handle /* @<eax> */,
  * With a donor player found, every OTHER local player's unit is re-seated to
  * that position via player_teleport_on_bsp_switch and has its +0x3c field
  * cleared; the BSP request is then retired and all +0x3c fields reset.
- * No donor -> "no players in the bsp" assert.
+ * No donor -> "no players in the bsp" assert, and the re-seat pass is skipped.
  *
  * NOTE: the original reuses one stack slot (EBP-0x8) for both the collision
  * search offset and biped_get_camera_height_and_offset's camera-height output;
- * `search_offset` below is that shared slot, so the frame stays 0x38 bytes.
+ * both are block-scoped below so VC71 overlaps them and the frame stays 0x38.
  */
 void players_reconnect_to_structure_bsp(void)
 {
   data_iter_t iter;
-  vector3_t camera_pos;
   vector3_t position;
-  float height_offset;
   int donor_unit_handle;
-  float search_offset;
   char use_camera_height;
   char *player;
   int16_t bsp_index;
@@ -2467,7 +2461,6 @@ void players_reconnect_to_structure_bsp(void)
   int16_t local_player;
   int player_index;
   int unit_handle;
-  int location;
   int bsp_reference;
   bool found;
   void *scenario;
@@ -2487,6 +2480,7 @@ void players_reconnect_to_structure_bsp(void)
     spawn_index = *(int16_t *)((char *)element + 6);
     if (spawn_index != -1) {
       void *spawn;
+      float search_offset;
 
       search_offset = 0.0f;
       spawn =
@@ -2499,7 +2493,7 @@ void players_reconnect_to_structure_bsp(void)
         search_offset = search_offset + 0.05f;
       } while (search_offset < 0.3f);
       use_camera_height = 1;
-      if (search_offset >= 0.3f)
+      if (!(search_offset < 0.3f))
         use_camera_height = 0;
     }
 
@@ -2516,24 +2510,30 @@ void players_reconnect_to_structure_bsp(void)
           element = tag_block_get_element((char *)global_scenario_get() + 0x39c,
                                           (int)bsp_index, 8);
           if (FUN_0018ef00((int)*(uint16_t *)element, unit_handle) != 0) {
+            vector3_t camera_pos;
+            float height_offset;
+            float camera_height;
+
             biped_get_camera_height_and_offset(*(int *)(player + 0x34),
                                                &camera_pos, &height_offset,
-                                               &search_offset);
-            if (FUN_0018e720((int)&camera_pos) != -1) {
-              /* Deliberately re-evaluated: the original calls twice. */
-              location = FUN_0018e720((int)&camera_pos) & 0x7fffffff;
-              element = tag_block_get_element((char *)scenario_get() + 0xe0,
-                                              location, 0x10);
-              bsp_reference = *(int16_t *)((char *)element + 8);
-              if (bsp_reference != -1) {
-                if (use_camera_height == 0) {
-                  position = camera_pos;
-                } else {
-                  position.z = search_offset + position.z;
-                }
-                donor_unit_handle = *(int *)(player + 0x34);
-                found = true;
+                                               &camera_height);
+            /* Deliberately re-evaluated: the original calls twice. */
+            bsp_reference =
+              FUN_0018e720((int)&camera_pos) == -1
+                ? -1
+                : *(int16_t *)((char *)tag_block_get_element(
+                                 (char *)scenario_get() + 0xe0,
+                                 FUN_0018e720((int)&camera_pos) & 0x7fffffff,
+                                 0x10) +
+                               8);
+            if (bsp_reference != -1) {
+              if (use_camera_height == 0) {
+                position = camera_pos;
+              } else {
+                position.z += camera_height;
               }
+              donor_unit_handle = *(int *)(player + 0x34);
+              found = true;
             }
           }
         }
@@ -2547,16 +2547,18 @@ void players_reconnect_to_structure_bsp(void)
       system_exit(-1);
     }
 
-    for (local_player = local_player_get_next(-1); local_player != -1;
-         local_player = local_player_get_next(local_player)) {
-      player_index = local_player_get_player_index(local_player);
-      player = (char *)datum_get(player_data, player_index);
-      if (*(int *)(player + 0x34) != -1 &&
-          *(int *)(player + 0x34) != donor_unit_handle) {
-        player_teleport_on_bsp_switch(player_index, donor_unit_handle,
-                                          &position);
+    if (found) {
+      for (local_player = local_player_get_next(-1); local_player != -1;
+           local_player = local_player_get_next(local_player)) {
+        player_index = local_player_get_player_index(local_player);
         player = (char *)datum_get(player_data, player_index);
-        *(int16_t *)(player + 0x3c) = -1;
+        if (*(int *)(player + 0x34) != -1 &&
+            *(int *)(player + 0x34) != donor_unit_handle) {
+          player_teleport_on_bsp_switch(player_index, donor_unit_handle,
+                                        &position);
+          player = (char *)datum_get(player_data, player_index);
+          *(int16_t *)(player + 0x3c) = -1;
+        }
       }
     }
 

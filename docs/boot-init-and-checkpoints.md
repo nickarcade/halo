@@ -43,10 +43,10 @@ So:
 
 `tools/xbox/deploy_xbox.py`, function `deploy_init_txt()` (~line 819):
 
-- If `/mnt/g/dev/halo/init.txt` **exists**: uploads it to the Xbox on every deploy.
-- If `/mnt/g/dev/halo/init.txt` **does not exist**: deletes the remote one.
+- If `<repo>/init.txt` **exists**: uploads it to the Xbox on every deploy.
+- If `<repo>/init.txt` **does not exist**: deletes the remote one.
 
-**You control boot behavior simply by editing `/mnt/g/dev/halo/init.txt`.** No other config is needed — just save the file and run the next deploy.
+**You control boot behavior simply by editing `<repo>/init.txt`.** No other config is needed — just save the file and run the next deploy.
 
 ---
 
@@ -91,7 +91,7 @@ The core is saved to and loaded from `d:\core\` on the Xbox.
    - Default slot: `core_save` — saves to `d:\core\core.bin`.
    - Named slot (recommended if you want to keep it): `core_save_name <name>` — saves to `d:\core\<name>`.
 
-3. **Edit `/mnt/g/dev/halo/init.txt`** to load the core on next boot.
+3. **Edit `<repo>/init.txt`** to load the core on next boot.
 
 4. **Deploy** — every subsequent deploy will boot that map and overlay your saved state, dropping you straight to your checkpoint.
 
@@ -150,7 +150,7 @@ map_name a10
 - `core_load_at_startup` restores the map that was active when `core_save` was called. If `map_name` in `init.txt` names a different map, the core load will not match and the behavior is undefined. Use the same map name as when you saved.
 
 **The engine generated a `d:\a10_init.txt` (slow-frame core):**
-- When the engine detects sustained slow frames, it auto-saves a core and writes `d:\<map>_init.txt` containing `map_name <map>` and a commented `;core_load_name_at_startup <name>` line. This is for diagnostic replay, not normal use. Copy the relevant lines to `/mnt/g/dev/halo/init.txt` if you want to boot from it.
+- When the engine detects sustained slow frames, it auto-saves a core and writes `d:\<map>_init.txt` containing `map_name <map>` and a commented `;core_load_name_at_startup <name>` line. This is for diagnostic replay, not normal use. Copy the relevant lines to `<repo>/init.txt` if you want to boot from it.
 
 ---
 
@@ -187,9 +187,6 @@ then magicboot it: send `magicboot title=E:\GAMES\halo-patched\default.xbe debug
   (header magic `XBEH` is live at `0x10000`).
 - **In-game byte** @ a ported function (e.g. `0x2cdb0`, AI pages load only in-game): `55 8b ec` = unpatched
   prologue; `68 .. .. .. 00 c3` (`push <impl>; ret`) = patched redirect.
-
-See `.claude/agent-memory/xbox-halo-re-analyst/project_a10_FAITHFUL_REPRO_and_gold_signature.md` for the full
-field-offset table and the gold behavior signature.
 
 ---
 
@@ -295,4 +292,4 @@ That shows up as "call-seq diverged at index 0" plus lifted-only writes, and it 
 
 - `docs/debug-commands-keyboard.md` — full HaloScript command reference, console keys, cheats.
 - `docs/xbdm.md` — XBDM/RDCP workflow, deploy commands, real Xbox probing.
-- `.claude/skills/halo-deploy-xbdm/SKILL.md` — deploy skill, covers `init.txt` upload in context of the full deploy flow.
+- `.claude/skills/halo-xbdm/SKILL.md` — deploy skill, covers `init.txt` upload in context of the full deploy flow.

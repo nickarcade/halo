@@ -14,13 +14,13 @@ Usage:
 
 Examples:
     python tools/xbox/deploy_xbox.py                        # deploy to default host
-    python tools/xbox/deploy_xbox.py -x 192.168.1.42        # specify Xbox IP
-    python tools/xbox/deploy_xbox.py -x 192.168.1.42 --full # full halo-patched dir
+    python tools/xbox/deploy_xbox.py -x <xbox-ip>            # specify Xbox IP
+    python tools/xbox/deploy_xbox.py -x <xbox-ip> --full     # full halo-patched dir
     python tools/xbox/deploy_xbox.py --dry-run              # show what would be copied
 
 The deployed XBE is automatically launched on the Xbox after deployment.
 
-Requires: XDK installed at "C:\\Program Files (x86)\\RXDK\\xbox\\bin\\xbcp.exe"
+Requires: the Xbox SDK (RXDK_ROOT, default "C:\\Program Files (x86)\\RXDK") providing xbox\\bin\\xbcp.exe
           or XBCP_PATH env var pointing to xbcp.exe.
 """
 
@@ -35,7 +35,7 @@ import time
 
 from build.build import build as run_build
 from build.build_hash import print_build_hash
-from internal.local_env import build_windows_python_command, is_wsl, load_repo_env, to_windows_path
+from internal.local_env import build_windows_python_command, is_wsl, load_repo_env, rxdk_paths, to_windows_path
 
 
 load_repo_env("xbox.env")
@@ -51,9 +51,7 @@ def build_xbdm_python_command(script_path: str, script_args: list[str]) -> list[
     if os.environ.get("HALO_NATIVE_XBDM") == "1":
         return [sys.executable, script_path, *script_args]
     return build_windows_python_command(script_path, script_args)
-DEFAULT_XBCP = os.path.join(
-    "C:", os.sep, "Program Files (x86)", "RXDK", "xbox", "bin", "xbcp.exe"
-)
+DEFAULT_XBCP = rxdk_paths()[1] + "\\xbox\\bin\\xbcp.exe"
 DEFAULT_XBOX_HOST = os.environ.get("XBOX_HOST", "")
 DEFAULT_XBOX_DEST = os.environ.get("XBOX_DEST", "xE:\\GAMES\\halo-patched")
 
@@ -81,7 +79,7 @@ def find_xbcp() -> tuple[str, str]:
         return env_path, env_path
     if sys.platform == "win32" and os.path.isfile(DEFAULT_XBCP):
         return DEFAULT_XBCP, DEFAULT_XBCP
-    wsl_path = "/mnt/c/Program Files (x86)/RXDK/xbox/bin/xbcp.exe"
+    wsl_path = rxdk_paths()[0] + "/xbox/bin/xbcp.exe"
     if os.path.isfile(wsl_path):
         return wsl_path, to_windows_path(wsl_path)
     print("error: cannot find xbcp.exe", file=sys.stderr)

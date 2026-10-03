@@ -13,7 +13,7 @@ set -u
 
 CACHE_TTL=60
 CACHE_FILE="/tmp/halo_ghidra_preflight_ok"
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo /mnt/g/dev/halo)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd))"
 
 # Drain stdin (hook payload) so the writer never blocks on a full pipe.
 cat >/dev/null 2>&1 || true

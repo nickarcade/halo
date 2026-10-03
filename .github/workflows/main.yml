@@ -16,13 +16,13 @@ jobs:
       - name: Clone Tree
         uses: actions/checkout@v3
 
-      - name: Check AGENTS/CLAUDE sync
+      - name: Check agent docs
         run: |
           set +e
           OUTPUT=$(python3 tools/audit/check_agent_docs.py 2>&1)
           RC=$?
           if [ $RC -ne 0 ]; then
-            printf '## ❌ Agent Docs Out of Sync\n\n```\n%s\n```\n' "$OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+            printf '## ❌ Agent Docs Check Failed\n\n```\n%s\n```\n' "$OUTPUT" >> "$GITHUB_STEP_SUMMARY"
           else
             printf '## ✅ Agent Docs\n\n%s\n' "$OUTPUT" >> "$GITHUB_STEP_SUMMARY"
           fi

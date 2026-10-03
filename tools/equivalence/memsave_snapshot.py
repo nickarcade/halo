@@ -232,9 +232,13 @@ def write_snapshot(regions: dict, target: str, out_path: Path) -> None:
 
 
 def write_plan(plan: list, target: str, region_dir: Path, out_path: Path) -> None:
+    try:
+        stored_dir = str(Path(region_dir).resolve().relative_to(ROOT.resolve()))
+    except ValueError:
+        stored_dir = str(region_dir)
     obj = {
         "target": target,
-        "region_dir": str(region_dir),
+        "region_dir": stored_dir,
         "regions": [{"addr": f"0x{a:08x}", "size": s, "label": l} for a, s, l in plan],
         "memsave_commands": [
             memsave_cmd(a, s, region_dir / f"r_{a:08x}_{s:x}.bin") for a, s, l in plan
@@ -251,7 +255,9 @@ def write_plan(plan: list, target: str, region_dir: Path, out_path: Path) -> Non
 def load_plan(path: Path) -> tuple:
     obj = json.loads(Path(path).read_text())
     plan = [(int(r["addr"], 16), int(r["size"]), r["label"]) for r in obj["regions"]]
-    region_dir = Path(obj.get("region_dir") or (ROOT / "artifacts/equivalence/regions"))
+    region_dir = Path(obj.get("region_dir") or "artifacts/equivalence/regions")
+    if not region_dir.is_absolute():
+        region_dir = ROOT / region_dir  # relative region_dir is repo-relative
     return plan, region_dir, obj.get("target", "unknown")
 
 

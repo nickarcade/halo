@@ -181,6 +181,68 @@ class SnapshotValidation(unittest.TestCase):
                                       self.plan, allow_empty=True), {})
 
 
+class HeaderNoise(unittest.TestCase):
+    def test_classified_losses_are_reported_but_do_not_fail(self):
+        result = gate.compare({1: record()}, {1: record(7)}, lambda before, after: True)
+        self.assertFalse(result["errors"])
+        self.assertIn("bytes 8/10 -> 7/10", result["header_noise"][0])
+        result = gate.compare({1: record()}, {1: record(7)}, lambda before, after: False)
+        self.assertTrue(result["errors"])
+        self.assertFalse(result["header_noise"])
+
+    def classifier(self, changed="kb.json\nsrc/other.c", names=("changed_fn",), symbols=("_other",)):
+        def parse(path, function):
+            if path == "missing.obj":
+                raise OSError("missing")
+            return b"", [{"symbol": {"name": name}} for name in symbols], {}
+        raw = SimpleNamespace(_parse_coff=parse, _c_name=lambda name: name[1:])
+        with patch.object(gate, "git", return_value=changed), \
+                patch.object(gate, "changed_kb_names", return_value=set(names)), \
+                patch.dict("sys.modules", {"raw_xbe_structural": raw}):
+            return gate.header_noise_filter(Path("/unused"), "base", "head")
+
+    def after(self, **changes):
+        after = record(7)
+        after["candidate"] = {"path": "example.obj"}
+        after.update(changes)
+        return after
+
+    def test_unrelated_function_is_noise(self):
+        self.assertTrue(self.classifier()(record(), self.after()))
+
+    def test_caller_of_changed_declaration_is_a_regression(self):
+        is_noise = self.classifier(symbols=("_other", "_changed_fn"))
+        self.assertFalse(is_noise(record(), self.after()))
+
+    def test_changed_function_source_or_object_is_a_regression(self):
+        is_noise = self.classifier(names=("example",))
+        self.assertFalse(is_noise(record(), self.after()))
+        is_noise = self.classifier()
+        self.assertFalse(is_noise(record(), self.after(source={"path": "src/example.c",
+                                                              "sha256": "edited"})))
+        self.assertFalse(is_noise(record(), self.after(candidate={"path": "missing.obj"})))
+
+    def test_other_shared_inputs_disable_classification(self):
+        for changed in ("kb.json\nsrc/types.h", "CMakeLists.txt", "tools/analysis/knowledge.py"):
+            with self.subTest(changed=changed):
+                self.assertIsNone(self.classifier(changed=changed))
+
+    def test_changed_kb_names_collects_changed_entries_only(self):
+        def kb(decl, source="a.c"):
+            return json.dumps({"md5": "m", "objects": [{
+                "name": "a.obj", "source": source,
+                "functions": [{"addr": "0x10", "decl": decl},
+                              {"addr": "0x20", "decl": "void same(void);"}]}]})
+        with patch.object(gate.subprocess, "check_output",
+                          side_effect=[kb("void f(void);"), kb("int f(short value);")]):
+            names = gate.changed_kb_names(Path("/unused"), "base", "head")
+        self.assertIn("f", names)
+        self.assertNotIn("same", names)
+        with patch.object(gate.subprocess, "check_output",
+                          side_effect=[kb("void f(void);"), kb("void f(void);", "b.c")]):
+            self.assertIsNone(gate.changed_kb_names(Path("/unused"), "base", "head"))
+
+
 class ScopeAndInputs(unittest.TestCase):
     def test_c_only_checks_whole_changed_tus_including_deleted_files(self):
         with patch.object(gate, "git", return_value="src/a.c\nsrc/deleted.c\ndocs/readme.md"):

@@ -38,6 +38,16 @@ on:
       - 'tools/build/**'
       - 'tools/audit/**'
       - 'tools/equivalence/**'
+      # Tool self-tests.
+      - 'tools/bytematch/**'
+      - 'tools/integrate/**'
+      - 'tools/lift/**'
+      - 'tools/memory/**'
+      - 'tools/recovery/**'
+      - 'tools/report/**'
+      - 'tools/retrieval/**'
+      - 'tools/verify/**'
+      - 'tools/xbox/**'
       # A change to this workflow should run this workflow -- otherwise an edit
       # to the gating logic lands unverified.
       - '.github/workflows/audit.yml'
@@ -52,15 +62,24 @@ on:
       # equivalence.yml because several of them (test_xbe_symbol_addrs) read
       # the pristine XBE, which only this workflow links.
       - 'tools/equivalence/**'
+      - 'tools/bytematch/**'
+      - 'tools/integrate/**'
+      - 'tools/lift/**'
+      - 'tools/memory/**'
+      - 'tools/recovery/**'
+      - 'tools/report/**'
+      - 'tools/retrieval/**'
+      - 'tools/verify/**'
+      - 'tools/xbox/**'
       - '.github/workflows/audit.yml'
 
 env:
-  XBE_DIR: /mnt/g/dev/halo/halo-patched
-  DELINKED_DIR: /mnt/g/dev/halo/delinked
+  XBE_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/halo-patched
+  DELINKED_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/delinked
   # The other audits need only capstone, which system python3 has. The
   # equivalence self-tests also want z3/unicorn, which live in the venv --
   # without it two suites SKIP instead of running.
-  VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
+  VENV_PYTHON: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/.venv/bin/python3
 
 jobs:
   audit:
@@ -182,6 +201,73 @@ jobs:
             fi
           fi
           exit $RC
+
+      # Tool self-tests that ran nowhere before. Listed explicitly: a glob
+      # would pick up test_inventory.py (a 60s report writer) and
+      # test_periodic_tables.py (needs a live XBDM).
+      - name: Tool self-tests
+        if: always()
+        run: |
+          set +e
+          PY="${{ env.VENV_PYTHON }}"
+          [ -x "$PY" ] || PY=python3
+          OUTPUT=$("$PY" -m pytest -q -p no:cacheprovider \
+            tools/audit/test_audit_object_provenance.py \
+            tools/audit/test_check_ported_addr_compare.py \
+            tools/audit/test_detect_param_return.py \
+            tools/audit/test_patch.py \
+            tools/audit/test_recover_assert_sites.py \
+            tools/audit/test_routing_stats.py \
+            tools/bytematch/test_bytematch.py \
+            tools/bytematch/test_param_returns.py \
+            tools/bytematch/test_target_campaign_policy.py \
+            tools/bytematch/test_target_classifier.py \
+            tools/lift/test_auto_lift_opencode.py \
+            tools/lift/test_llm_auto_lift_enrichment.py \
+            tools/lift/test_research_bundle.py \
+            tools/lift/test_research_reuse_workflow.py \
+            tools/lift/test_route_attempt.py \
+            tools/lift/test_shape_atlas.py \
+            tools/memory/test_skill_router_hook.py \
+            tools/recovery/test_assert_metadata_guard.py \
+            tools/recovery/test_check_category_purity.py \
+            tools/recovery/test_coff_candidate_guard.py \
+            tools/recovery/test_evidence_table.py \
+            tools/recovery/test_recovery_goal.py \
+            tools/recovery/test_source_recovery.py \
+            tools/recovery/test_structize.py \
+            tools/recovery/test_structize_e2e.py \
+            tools/report/test_behavior_count.py \
+            tools/report/test_behavior_report.py \
+            tools/report/test_dashboard_js_syntax.py \
+            tools/report/test_progress_server_match.py \
+            tools/report/test_raw_byte_audit_report.py \
+            tools/retrieval/test_cohort_report.py \
+            tools/retrieval/test_singleton_lock.py \
+            tools/verify/test_compare_obj_disassembly.py \
+            tools/verify/test_compiler_profile.py \
+            tools/verify/test_decals_obj_remaining_thunks.py \
+            tools/verify/test_frame_mismatch.py \
+            tools/verify/test_function_bounds.py \
+            tools/verify/test_persistent_storage_crc.py \
+            tools/verify/test_ref_selection.py \
+            tools/verify/test_run_dual_oracle_tests.py \
+            tools/verify/test_vc71_low_score_census.py \
+            tools/xbox/test_symbolize_exception.py \
+            tools/xbox/test_verify_toggles_live.py 2>&1)
+          RC=$?
+          set -e
+          echo "$OUTPUT"
+          [ $RC -eq 0 ] || exit $RC
+          PASSED=$(echo "$OUTPUT" | sed -n 's/^\([0-9]\+\) passed.*/\1/p' | tail -1)
+          if [ -z "$PASSED" ] || [ "$PASSED" -lt 500 ]; then
+            echo "::error::expected at least 500 tool self-tests to pass, got ${PASSED:-0}"
+            exit 1
+          fi
+          # Script-style suites that pytest collects nothing from.
+          "$PY" tools/integrate/test_auto_reintegrate_absorb.py
+          "$PY" tools/integrate/test_auto_reintegrate_derived.py
+          "$PY" tools/verify/test_match_attribution.py
 
       - name: XCALL type audit
         run: |

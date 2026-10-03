@@ -55,7 +55,7 @@ and `objcopy -I pe-i386 -O elf32-i386` used to convert them for the permuter's
 
 `CL.Exe` is a native Windows process running under WSL. It cannot create or read files
 under `/tmp` (which is a Linux tmpfs). All temp `.c` files produced by the permuter's
-`tempfile.NamedTemporaryFile` must land on a drive-mapped path (e.g. `/mnt/g/...`).
+`tempfile.NamedTemporaryFile` must land on a drive-mapped path (e.g. `/mnt/<drive>/...`).
 `run.py` sets `TMPDIR=/path/to/build/vc71/permuter_tmp` before launching the permuter.
 `compile.sh` uses this same directory for intermediate COFF files.
 

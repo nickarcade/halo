@@ -478,6 +478,46 @@ int TIFFGetFieldDefaulted(void *tif, unsigned int tag, ...)
   return (ok);
 }
 
+/* 0x65250 -- upstream libtiff setString. The slot address arrives in EDI and
+ * the new string in EBX (no stack arguments, plain RET). debug_malloc's result
+ * is stored into the slot before the NULL test (0x6528e), matching upstream's
+ * assignment-in-condition. */
+void FUN_00065250(char **destination /* @<edi> */, char *value /* @<ebx> */)
+{
+  if (*destination) {
+    debug_free(*destination, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c",
+               0x45);
+    *destination = 0;
+  }
+  if (value) {
+    size_t len = csstrlen(value) + 1;
+    if ((*destination = (char *)debug_malloc(
+           len, false, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c",
+           0x48)) != NULL)
+      csmemcpy(*destination, value, len);
+  }
+}
+
+/* 0x652a0 -- upstream libtiff setShortArray. The slot address arrives in ESI
+ * and the source array in EBX; only the element count is on the stack. The
+ * byte count is `count + count` (ADD EDI,EDI at 0x652c3), computed before the
+ * NULL test of the source, and debug_malloc's result is stored into the slot
+ * before its own NULL test (0x652dd). */
+void FUN_000652a0(unsigned short **destination /* @<esi> */,
+                  unsigned short *value /* @<ebx> */, long count)
+{
+  if (*destination) {
+    debug_free(*destination, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c",
+               0x51);
+    *destination = 0;
+  }
+  count *= sizeof(unsigned short);
+  if (value && (*destination = (unsigned short *)debug_malloc(
+                  count, false, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dir.c",
+                  0x53)) != NULL)
+    csmemcpy(*destination, value, count);
+}
+
 /* ---------------------------------------------------------------------------
  * _TIFFVSetField (0x652f0) -- upstream libtiff tif_dir.c.
  *
@@ -904,8 +944,7 @@ int TIFFSetField(int file, int field, ...)
     /* 0x65a33-0x65a58. */
     fip = (tiff_field_info_t *)TIFFFindFieldInfo(field, TIFF_NOTYPE);
     if (fip != 0)
-      FUN_00068a30("TIFFSetField",
-                   "%s: Cannot modify tag \"%s\" while writing",
+      FUN_00068a30("TIFFSetField", "%s: Cannot modify tag \"%s\" while writing",
                    tif->tif_name, fip->field_name);
   }
   /* 0x65a5b, MOV EAX,EDI with EDI still zero on the error path: `status`

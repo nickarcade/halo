@@ -61,561 +61,560 @@ there, which is why this catalog exists.
 
 Type is the HS descriptor type at `desc+4`. Default is the value
 backed by the live C variable in the pristine image (BSS tails read
-as zero). Descriptions marked *(Reclaimers)* come from the PC/H1A
-extract and are commentary, not Xbox binary evidence.
+as zero).
 
 ### AI
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `ai_debug_ballistic_lineoffire_freeze` | boolean | `—` | *(Reclaimers)* If enabled, the ballistic arc drawn by ai_render_ballistic_lineoffire will not update when new grenades are thrown. |
-| `ai_debug_blind` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_communication_focus_enable` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_communication_random_disabled` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_communication_timeout_disabled` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_communication_unit_repeat_disabled` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_deaf` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_disable_wounded_sounds` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_evaluate_all_positions` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_fast_los` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_flee_always` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_force_all_active` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_force_crouch` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_force_vocalizations` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_ignore_player` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_invisible_player` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_oversteer_disable` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_accept_radius` | real | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_attractor` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_attractor_radius` | real | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_attractor_weight` | real | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_disable_obstacle_avoidance` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_disable_smoothing` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_end_freeze` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_flood` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_maximum_radius` | real | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_debug_path_start_freeze` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_fix_actor_variants` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_fix_defending_guard_firing_positions` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_acknowledgement` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_allegiance` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_automatic_migration` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_bsp_transition` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_command_lists` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_communication` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_communication_player` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_conversations` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_damage_modifiers` | boolean | `—` | *(Reclaimers)* When an encounter is selected, damage modifiers are logged at the bottom of the screen. |
-| `ai_print_evaluation_statistics` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_killing_sprees` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_lost_speech` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_major_upgrade` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_migration` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_oversteer` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_placement` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_pursuit_checks` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_respawn` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_rule_values` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_rules` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_scripting` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_secondary_looking` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_speech` | boolean | `—` | *(Reclaimers)* Displays red text over AI whenever they vocalize, with the name of the dialogue field played. For example, pain body minor. |
-| `ai_print_speech_timers` | boolean | `—` | *(Reclaimers)* Prints vocalizations to the console as they happen, including the encounter, squad, actor, dialogue type (e.g. exclaim), and line. For example, beach_lz/camp_center_grunt/grunt: talk flee [72/flee]. |
-| `ai_print_surprise` | boolean | `—` | *(Reclaimers)* Prints vocalizations to the console as they happen, including the encounter, squad, actor, dialogue type (e.g. exclaim), and line. For example, beach_lz/camp_center_grunt/grunt: talk flee [72/flee]. |
-| `ai_print_uncovering` | boolean | `—` | *(Reclaimers)* Prints vocalizations to the console as they happen, including the encounter, squad, actor, dialogue type (e.g. exclaim), and line. For example, beach_lz/camp_center_grunt/grunt: talk flee [72/flee]. |
-| `ai_print_unfinished_paths` | boolean | `—` | *(Reclaimers)* Prints vocalizations to the console as they happen, including the encounter, squad, actor, dialogue type (e.g. exclaim), and line. For example, beach_lz/camp_center_grunt/grunt: talk flee [72/flee]. |
-| `ai_print_vocalizations` | boolean | `—` | *(Reclaimers)* Prints vocalizations to the console as they happen, including the encounter, squad, actor, dialogue type (e.g. exclaim), and line. For example, beach_lz/camp_center_grunt/grunt: talk flee [72/flee]. |
-| `ai_profile_disable` | boolean | `—` | *(Reclaimers)* Toggles the display of any enabled AI debug overlays. Defaults to true. |
-| `ai_profile_random` | boolean | `—` | *(Reclaimers)* Toggles the display of any enabled AI debug overlays. Defaults to true. |
-| `ai_render` | boolean | `—` | *(Reclaimers)* Toggles the display of any enabled AI debug overlays. Defaults to true. |
-| `ai_render_activation` | boolean | `—` | *(Reclaimers)* Toggles the rendering of ballistic aiming arcs when AI throw grenades only (does not include hunter guns, wraiths, or other ballistic weapons). The arc is shown in green when unobstructed and orange when obstructed by an object or the BSP. Its origin point and vector are shown in yellow. Only a single arc is shown at a time and updates whenever a new grenade is thrown. This can be paused with ai_d |
-| `ai_render_active_cover_seeking` | boolean | `—` | *(Reclaimers)* Toggles the rendering of ballistic aiming arcs when AI throw grenades only (does not include hunter guns, wraiths, or other ballistic weapons). The arc is shown in green when unobstructed and orange when obstructed by an object or the BSP. Its origin point and vector are shown in yellow. Only a single arc is shown at a time and updates whenever a new grenade is thrown. This can be paused with ai_d |
-| `ai_render_aiming_validity` | boolean | `—` | *(Reclaimers)* Toggles the rendering of ballistic aiming arcs when AI throw grenades only (does not include hunter guns, wraiths, or other ballistic weapons). The arc is shown in green when unobstructed and orange when obstructed by an object or the BSP. Its origin point and vector are shown in yellow. Only a single arc is shown at a time and updates whenever a new grenade is thrown. This can be paused with ai_d |
-| `ai_render_aiming_vectors` | boolean | `—` | *(Reclaimers)* Toggles the rendering of ballistic aiming arcs when AI throw grenades only (does not include hunter guns, wraiths, or other ballistic weapons). The arc is shown in green when unobstructed and orange when obstructed by an object or the BSP. Its origin point and vector are shown in yellow. Only a single arc is shown at a time and updates whenever a new grenade is thrown. This can be paused with ai_d |
-| `ai_render_all_actors` | boolean | `—` | *(Reclaimers)* Toggles the rendering of ballistic aiming arcs when AI throw grenades only (does not include hunter guns, wraiths, or other ballistic weapons). The arc is shown in green when unobstructed and orange when obstructed by an object or the BSP. Its origin point and vector are shown in yellow. Only a single arc is shown at a time and updates whenever a new grenade is thrown. This can be paused with ai_d |
-| `ai_render_audibility` | boolean | `—` | *(Reclaimers)* Toggles the rendering of ballistic aiming arcs when AI throw grenades only (does not include hunter guns, wraiths, or other ballistic weapons). The arc is shown in green when unobstructed and orange when obstructed by an object or the BSP. Its origin point and vector are shown in yellow. Only a single arc is shown at a time and updates whenever a new grenade is thrown. This can be paused with ai_d |
-| `ai_render_ballistic_lineoffire` | boolean | `—` | *(Reclaimers)* Toggles the rendering of ballistic aiming arcs when AI throw grenades only (does not include hunter guns, wraiths, or other ballistic weapons). The arc is shown in green when unobstructed and orange when obstructed by an object or the BSP. Its origin point and vector are shown in yellow. Only a single arc is shown at a time and updates whenever a new grenade is thrown. This can be paused with ai_d |
-| `ai_render_burst_geometry` | boolean | `—` | *(Reclaimers)* Shows pink text overlays over each unit with dialogue showing which variant they use, like if marines are a "mendoza" or a "bisenti". For example, variant 11 dialogue 0 aussie. |
-| `ai_render_charge_decisions` | boolean | `—` | *(Reclaimers)* Shows pink text overlays over each unit with dialogue showing which variant they use, like if marines are a "mendoza" or a "bisenti". For example, variant 11 dialogue 0 aussie. |
-| `ai_render_control` | boolean | `—` | *(Reclaimers)* Shows pink text overlays over each unit with dialogue showing which variant they use, like if marines are a "mendoza" or a "bisenti". For example, variant 11 dialogue 0 aussie. |
-| `ai_render_current_state` | boolean | `—` | *(Reclaimers)* Shows pink text overlays over each unit with dialogue showing which variant they use, like if marines are a "mendoza" or a "bisenti". For example, variant 11 dialogue 0 aussie. |
-| `ai_render_danger_zones` | boolean | `—` | *(Reclaimers)* Shows pink text overlays over each unit with dialogue showing which variant they use, like if marines are a "mendoza" or a "bisenti". For example, variant 11 dialogue 0 aussie. |
-| `ai_render_detailed_state` | boolean | `—` | *(Reclaimers)* Shows pink text overlays over each unit with dialogue showing which variant they use, like if marines are a "mendoza" or a "bisenti". For example, variant 11 dialogue 0 aussie. |
-| `ai_render_dialogue_variants` | boolean | `—` | *(Reclaimers)* Shows pink text overlays over each unit with dialogue showing which variant they use, like if marines are a "mendoza" or a "bisenti". For example, variant 11 dialogue 0 aussie. |
-| `ai_render_emotions` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_encounter_activeregion` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_evaluations` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_firing_positions` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_grenade_decisions` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_gun_positions` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_idle_look` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_inactive_actors` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_lineoffire` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_lineoffire_crouching` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_lineofsight` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_melee_check` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_avoidance_obstacles` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_avoidance_search` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_avoidance_segment` | short | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_avoided` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_current` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_destination` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_failed` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_nodes` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_nodes_all` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_nodes_closest` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_nodes_costs` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_nodes_polygons` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_raw` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_selected_only` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_paths_smoothed` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_player_aiming_blocked` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_player_ratings` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_postcombat` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_projectile_aiming` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_props` | boolean | `—` | *(Reclaimers)* Toggles the display of how many props each actor has in green. If ai_render_props_web is enabled this switches from a total to being split out by type, e.g. friend or enemy. |
-| `ai_render_props_no_friends` | boolean | `—` | *(Reclaimers)* Hides prop lines for friends if enabled, which can make seeing enemy props easier. |
-| `ai_render_props_target_weight` | boolean | `—` | *(Reclaimers)* Toggles the display of props as a web of lines. |
-| `ai_render_props_unopposable` | boolean | `—` | *(Reclaimers)* Toggles the display of props as a web of lines. |
-| `ai_render_props_unreachable` | boolean | `—` | *(Reclaimers)* Toggles the display of props as a web of lines. |
-| `ai_render_props_web` | boolean | `—` | *(Reclaimers)* Toggles the display of props as a web of lines. |
-| `ai_render_pursuit` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_recent_damage` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_secondary_looking` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_shooting` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_spatial_effects` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_speech` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_states` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_support_surfaces` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_targets` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_targets_last_visible` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_teams` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_threats` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_trigger` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vector_avoidance` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vector_avoidance_avoid_t` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vector_avoidance_clear_time` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vector_avoidance_intermediate` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vector_avoidance_objects` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vector_avoidance_rays` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vector_avoidance_sense_t` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vector_avoidance_weights` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vehicle_avoidance` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vehicles_enterable` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vision_cones` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_render_vitality` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_show` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_show_actors` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_show_line_of_sight` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_show_paths` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_show_prop_types` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_show_sound_distance` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_show_stats` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
-| `ai_show_swarms` | boolean | `—` | *(Reclaimers)* Displays debug information in the bottom left with the current counts for swarms and swarm component datum arrays. Swarms are groups of Flood infection forms while components are individual infection forms. |
+| Command | Type | Default |
+|---------|------|---------|
+| `ai_debug_ballistic_lineoffire_freeze` | boolean | `—` |
+| `ai_debug_blind` | boolean | `—` |
+| `ai_debug_communication_focus_enable` | boolean | `—` |
+| `ai_debug_communication_random_disabled` | boolean | `—` |
+| `ai_debug_communication_timeout_disabled` | boolean | `—` |
+| `ai_debug_communication_unit_repeat_disabled` | boolean | `—` |
+| `ai_debug_deaf` | boolean | `—` |
+| `ai_debug_disable_wounded_sounds` | boolean | `—` |
+| `ai_debug_evaluate_all_positions` | boolean | `—` |
+| `ai_debug_fast_los` | boolean | `—` |
+| `ai_debug_flee_always` | boolean | `—` |
+| `ai_debug_force_all_active` | boolean | `—` |
+| `ai_debug_force_crouch` | boolean | `—` |
+| `ai_debug_force_vocalizations` | boolean | `—` |
+| `ai_debug_ignore_player` | boolean | `—` |
+| `ai_debug_invisible_player` | boolean | `—` |
+| `ai_debug_oversteer_disable` | boolean | `—` |
+| `ai_debug_path` | boolean | `—` |
+| `ai_debug_path_accept_radius` | real | `—` |
+| `ai_debug_path_attractor` | boolean | `—` |
+| `ai_debug_path_attractor_radius` | real | `—` |
+| `ai_debug_path_attractor_weight` | real | `—` |
+| `ai_debug_path_disable_obstacle_avoidance` | boolean | `—` |
+| `ai_debug_path_disable_smoothing` | boolean | `—` |
+| `ai_debug_path_end_freeze` | boolean | `—` |
+| `ai_debug_path_flood` | boolean | `—` |
+| `ai_debug_path_maximum_radius` | real | `—` |
+| `ai_debug_path_start_freeze` | boolean | `—` |
+| `ai_fix_actor_variants` | boolean | `—` |
+| `ai_fix_defending_guard_firing_positions` | boolean | `—` |
+| `ai_print_acknowledgement` | boolean | `—` |
+| `ai_print_allegiance` | boolean | `—` |
+| `ai_print_automatic_migration` | boolean | `—` |
+| `ai_print_bsp_transition` | boolean | `—` |
+| `ai_print_command_lists` | boolean | `—` |
+| `ai_print_communication` | boolean | `—` |
+| `ai_print_communication_player` | boolean | `—` |
+| `ai_print_conversations` | boolean | `—` |
+| `ai_print_damage_modifiers` | boolean | `—` |
+| `ai_print_evaluation_statistics` | boolean | `—` |
+| `ai_print_killing_sprees` | boolean | `—` |
+| `ai_print_lost_speech` | boolean | `—` |
+| `ai_print_major_upgrade` | boolean | `—` |
+| `ai_print_migration` | boolean | `—` |
+| `ai_print_oversteer` | boolean | `—` |
+| `ai_print_placement` | boolean | `—` |
+| `ai_print_pursuit_checks` | boolean | `—` |
+| `ai_print_respawn` | boolean | `—` |
+| `ai_print_rule_values` | boolean | `—` |
+| `ai_print_rules` | boolean | `—` |
+| `ai_print_scripting` | boolean | `—` |
+| `ai_print_secondary_looking` | boolean | `—` |
+| `ai_print_speech` | boolean | `—` |
+| `ai_print_speech_timers` | boolean | `—` |
+| `ai_print_surprise` | boolean | `—` |
+| `ai_print_uncovering` | boolean | `—` |
+| `ai_print_unfinished_paths` | boolean | `—` |
+| `ai_print_vocalizations` | boolean | `—` |
+| `ai_profile_disable` | boolean | `—` |
+| `ai_profile_random` | boolean | `—` |
+| `ai_render` | boolean | `—` |
+| `ai_render_activation` | boolean | `—` |
+| `ai_render_active_cover_seeking` | boolean | `—` |
+| `ai_render_aiming_validity` | boolean | `—` |
+| `ai_render_aiming_vectors` | boolean | `—` |
+| `ai_render_all_actors` | boolean | `—` |
+| `ai_render_audibility` | boolean | `—` |
+| `ai_render_ballistic_lineoffire` | boolean | `—` |
+| `ai_render_burst_geometry` | boolean | `—` |
+| `ai_render_charge_decisions` | boolean | `—` |
+| `ai_render_control` | boolean | `—` |
+| `ai_render_current_state` | boolean | `—` |
+| `ai_render_danger_zones` | boolean | `—` |
+| `ai_render_detailed_state` | boolean | `—` |
+| `ai_render_dialogue_variants` | boolean | `—` |
+| `ai_render_emotions` | boolean | `—` |
+| `ai_render_encounter_activeregion` | boolean | `—` |
+| `ai_render_evaluations` | boolean | `—` |
+| `ai_render_firing_positions` | boolean | `—` |
+| `ai_render_grenade_decisions` | boolean | `—` |
+| `ai_render_gun_positions` | boolean | `—` |
+| `ai_render_idle_look` | boolean | `—` |
+| `ai_render_inactive_actors` | boolean | `—` |
+| `ai_render_lineoffire` | boolean | `—` |
+| `ai_render_lineoffire_crouching` | boolean | `—` |
+| `ai_render_lineofsight` | boolean | `—` |
+| `ai_render_melee_check` | boolean | `—` |
+| `ai_render_paths` | boolean | `—` |
+| `ai_render_paths_avoidance_obstacles` | boolean | `—` |
+| `ai_render_paths_avoidance_search` | boolean | `—` |
+| `ai_render_paths_avoidance_segment` | short | `—` |
+| `ai_render_paths_avoided` | boolean | `—` |
+| `ai_render_paths_current` | boolean | `—` |
+| `ai_render_paths_destination` | boolean | `—` |
+| `ai_render_paths_failed` | boolean | `—` |
+| `ai_render_paths_nodes` | boolean | `—` |
+| `ai_render_paths_nodes_all` | boolean | `—` |
+| `ai_render_paths_nodes_closest` | boolean | `—` |
+| `ai_render_paths_nodes_costs` | boolean | `—` |
+| `ai_render_paths_nodes_polygons` | boolean | `—` |
+| `ai_render_paths_raw` | boolean | `—` |
+| `ai_render_paths_selected_only` | boolean | `—` |
+| `ai_render_paths_smoothed` | boolean | `—` |
+| `ai_render_player_aiming_blocked` | boolean | `—` |
+| `ai_render_player_ratings` | boolean | `—` |
+| `ai_render_postcombat` | boolean | `—` |
+| `ai_render_projectile_aiming` | boolean | `—` |
+| `ai_render_props` | boolean | `—` |
+| `ai_render_props_no_friends` | boolean | `—` |
+| `ai_render_props_target_weight` | boolean | `—` |
+| `ai_render_props_unopposable` | boolean | `—` |
+| `ai_render_props_unreachable` | boolean | `—` |
+| `ai_render_props_web` | boolean | `—` |
+| `ai_render_pursuit` | boolean | `—` |
+| `ai_render_recent_damage` | boolean | `—` |
+| `ai_render_secondary_looking` | boolean | `—` |
+| `ai_render_shooting` | boolean | `—` |
+| `ai_render_spatial_effects` | boolean | `—` |
+| `ai_render_speech` | boolean | `—` |
+| `ai_render_states` | boolean | `—` |
+| `ai_render_support_surfaces` | boolean | `—` |
+| `ai_render_targets` | boolean | `—` |
+| `ai_render_targets_last_visible` | boolean | `—` |
+| `ai_render_teams` | boolean | `—` |
+| `ai_render_threats` | boolean | `—` |
+| `ai_render_trigger` | boolean | `—` |
+| `ai_render_vector_avoidance` | boolean | `—` |
+| `ai_render_vector_avoidance_avoid_t` | boolean | `—` |
+| `ai_render_vector_avoidance_clear_time` | boolean | `—` |
+| `ai_render_vector_avoidance_intermediate` | boolean | `—` |
+| `ai_render_vector_avoidance_objects` | boolean | `—` |
+| `ai_render_vector_avoidance_rays` | boolean | `—` |
+| `ai_render_vector_avoidance_sense_t` | boolean | `—` |
+| `ai_render_vector_avoidance_weights` | boolean | `—` |
+| `ai_render_vehicle_avoidance` | boolean | `—` |
+| `ai_render_vehicles_enterable` | boolean | `—` |
+| `ai_render_vision_cones` | boolean | `—` |
+| `ai_render_vitality` | boolean | `—` |
+| `ai_show` | boolean | `—` |
+| `ai_show_actors` | boolean | `—` |
+| `ai_show_line_of_sight` | boolean | `—` |
+| `ai_show_paths` | boolean | `—` |
+| `ai_show_prop_types` | boolean | `—` |
+| `ai_show_sound_distance` | boolean | `—` |
+| `ai_show_stats` | boolean | `—` |
+| `ai_show_swarms` | boolean | `—` |
 
 ### Animation
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_bink` | boolean | `—` | *(Reclaimers)* When set to true, pauses the biped limp body system, which is responsible for moving model nodes towards the ground when an eligible biped has died and has come to rest on the structure BSP. Bipeds will lay roughly at the right angle, but they will not conform to the shape of the surfaces below them. If set to false, the limp body system will take effect again even for existing dead bipeds. |
-| `debug_recording` | boolean | `—` | *(Reclaimers)* Freezes the rendering viewport at the current camera location. The camera may still move after frozen, but all portal-based culling, skybox origin, FP models, and some debug overlays will still be based on the previously frozen camera location. This command is useful for inspecting portal behaviour where the camera cannot directly see. |
-| `debug_recording_newlines` | short | `10` | *(Reclaimers)* Freezes the rendering viewport at the current camera location. The camera may still move after frozen, but all portal-based culling, skybox origin, FP models, and some debug overlays will still be based on the previously frozen camera location. This command is useful for inspecting portal behaviour where the camera cannot directly see. |
-| `model_animation_bullshit0` | long | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `model_animation_bullshit1` | long | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `model_animation_bullshit2` | long | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `model_animation_bullshit3` | long | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `model_animation_compression` | boolean | `true` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `model_animation_data_compressed_size` | long | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `model_animation_data_compression_savings_in_bytes` | long | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `model_animation_data_compression_savings_in_bytes_at_import` | long | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `model_animation_data_compression_savings_in_percent` | real | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `model_animation_data_uncompressed_size` | long | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_bink` | boolean | `—` |
+| `debug_recording` | boolean | `—` |
+| `debug_recording_newlines` | short | `10` |
+| `model_animation_bullshit0` | long | `—` |
+| `model_animation_bullshit1` | long | `—` |
+| `model_animation_bullshit2` | long | `—` |
+| `model_animation_bullshit3` | long | `—` |
+| `model_animation_compression` | boolean | `true` |
+| `model_animation_data_compressed_size` | long | `—` |
+| `model_animation_data_compression_savings_in_bytes` | long | `—` |
+| `model_animation_data_compression_savings_in_bytes_at_import` | long | `—` |
+| `model_animation_data_compression_savings_in_percent` | real | `—` |
+| `model_animation_data_uncompressed_size` | long | `—` |
 
 ### Camera
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_camera` | boolean | `—` | *(Reclaimers)* Shows debug information about the camera in the top left corner, including: 3D coordinates in world units BSP leaf indices Cluster indices, e.g. (#2 [2]). If the camera leaves the BSP then the first index will be -1 while the second index tracks the last known valid cluster. This is what allows the game to keep rendering part of the BSP while the camera is outside it. Ground point coordinates and |
-| `director_camera_switch_fast` | boolean | `—` | *(Reclaimers)* Force-disconnects from the current multiplayer session and returns to the menu. This can be handy for quickly leaving a server after a game has ended without having to wait for the "Quit" option in the post-game lobby. |
-| `force_all_player_views_to_default_player` | boolean | `false` | *(Reclaimers)* When set to true, forces all split-screen rendering windows to display the default (first) player's camera view. By default the game allocates one render window per local player; enabling this global shows every window from player 1's perspective. Useful for debugging co-op splitscreen rendering or scripting cutscenes. |
-| `freeze_flying_camera` | short | `0` | *(Reclaimers)* Pauses the game world simulation. Backported from later titles for H1A. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_camera` | boolean | `—` |
+| `director_camera_switch_fast` | boolean | `—` |
+| `force_all_player_views_to_default_player` | boolean | `false` |
+| `freeze_flying_camera` | short | `0` |
 
 ### Cheats
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `cheat_bottomless_clip` | boolean | `—` | *(Reclaimers)* Prevents player weapons from generating heat and depleting ammo rounds. Battery will still be depleted. |
-| `cheat_bump_possession` | boolean | `—` | *(Reclaimers)* Allows the player to "possess" other characters by walking into them. The player will then be able to control the possessed character and see the world from its view. |
-| `cheat_controller` | boolean | `—` | *(Reclaimers)* If enabled, the game loads a cheats.txt file which binds controller buttons to console commands. Known only to work in Halo beta versions. |
-| `cheat_deathless_player` | boolean | `—` | *(Reclaimers)* Prevents players from being killed, including all multiplayer clients if enabled on the server. Although the players can still take damage, being reduced to 0 health or falling long distances will not kill them. This also prevents players from being killed with unit_kill. |
-| `cheat_infinite_ammo` | boolean | `—` | *(Reclaimers)* Prevents weapons from depleting battery or reserve ammo. Weapons will still generate heat. Magazine-based weapons will still empty their current magazine, but reloading will not use up any reserve ammo. |
-| `cheat_jetpack` | boolean | `—` | *(Reclaimers)* If enabled, players take no fall damage. In MCC, holding crouch while mid-air will also cause the player to hover and holding jump will cause you to fly. |
-| `cheat_medusa` | boolean | `—` | *(Reclaimers)* Causes enemy AI to be killed instantly if they "look" at or become aware of the player. This does not include allies like Marines, even after allegiance has been broken by killing them. It is unknown if the command is hard-coded to kill certain AI types. |
-| `cheat_omnipotent` | boolean | `—` | *(Reclaimers)* The player will instantly kill any unit they damage, including destroying vehicles. Even multiplayer vehicles can be "killed" and rendered inoperable. |
-| `cheat_reflexive_damage_effects` | boolean | `—` | *(Reclaimers)* Any damage_effect applied to other characters, even dead ones, will appear on the player's screen regardless of who applied the damage. For example, if an Elite shoots a flood infection form, the player will see their screen flash blue and damage direction indicators appear. The player takes no actual damage. This can be helpful for testing visual effects. |
-| `cheat_super_jump` | boolean | `—` | *(Reclaimers)* Players jump to an extreme height, and will die of fall damage if cheat_jetpack or cheat_deathless_player are not used. This can be used to quickly reach areas when testing maps. |
+| Command | Type | Default |
+|---------|------|---------|
+| `cheat_bottomless_clip` | boolean | `—` |
+| `cheat_bump_possession` | boolean | `—` |
+| `cheat_controller` | boolean | `—` |
+| `cheat_deathless_player` | boolean | `—` |
+| `cheat_infinite_ammo` | boolean | `—` |
+| `cheat_jetpack` | boolean | `—` |
+| `cheat_medusa` | boolean | `—` |
+| `cheat_omnipotent` | boolean | `—` |
+| `cheat_reflexive_damage_effects` | boolean | `—` |
+| `cheat_super_jump` | boolean | `—` |
 
 ### Collision
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `collision_debug` | boolean | `—` | *(Reclaimers)* If enabled, a ray is continually shot from the camera (by default) to troubleshoot ray-object and ray-BSP collisions. A red normal-aligned marker will be shown where the ray collides with a surface. The collision surface itself, whether BSP or model, will be outline in red. Information about the collision surface will be shown in the top left corner of the screen, including plane and surface indic |
-| `collision_debug_features` | boolean | `—` | *(Reclaimers)* Toggles the display of collision features near the camera, which can be spheres (red), cylinders (blue), or prisms (green). Collision size can be adjusted with collision_debug_width and collision_debug_height. The test point can be frozen in place using collision_debug_repeat. |
-| `collision_debug_flag_back_facing_surfaces` | boolean | `—` | *(Reclaimers)* When collision_debug or collision_debug_spray are enabled, causes the test rays to collide with back-facing surfaces (those facing away from the camera). Defaults to false. |
-| `collision_debug_flag_front_facing_surfaces` | boolean | `true` | *(Reclaimers)* When collision_debug or collision_debug_spray are enabled, causes the test rays to collide with front-facing surfaces (those facing towards the camera). Defaults to true. Disabling this will have no effect unless collision_debug_flag_back_facing_surfaces is also enabled. |
-| `collision_debug_flag_ignore_breakable_surfaces` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays ignore breakable surfaces. Defaults to false. |
-| `collision_debug_flag_ignore_invisible_surfaces` | boolean | `true` | *(Reclaimers)* Toggles if collision debug rays ignore invisible surfaces (e.g. collision-only player clipping). Defaults to true. |
-| `collision_debug_flag_ignore_two_sided_surfaces` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays ignore two-sided surfaces. Defaults to false. |
-| `collision_debug_flag_media` | boolean | `true` | *(Reclaimers)* Toggles if collision debug rays collide with water surfaces. |
-| `collision_debug_flag_objects` | boolean | `true` | *(Reclaimers)* Toggles if collision debug rays collide with any class of object's collision geometry. This setting will be ignored if any more specific object flag is enabled, such as collision_debug_flag_objects_equipment. |
-| `collision_debug_flag_objects_bipeds` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with bipeds. |
-| `collision_debug_flag_objects_controls` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with device_control. |
-| `collision_debug_flag_objects_equipment` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with equipment. |
-| `collision_debug_flag_objects_light_fixtures` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with device_light_fixture. |
-| `collision_debug_flag_objects_machines` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with device_machine. |
-| `collision_debug_flag_objects_placeholders` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with placeholders. This would require a custom placeholder to have an effect, since the placeholder tags that come with the HEK have no collision model. |
-| `collision_debug_flag_objects_projectiles` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with projectiles. Note that most projectiles do not have a collision model. |
-| `collision_debug_flag_objects_scenery` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with scenery. |
-| `collision_debug_flag_objects_vehicles` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with vehicles. |
-| `collision_debug_flag_objects_weapons` | boolean | `—` | *(Reclaimers)* Toggles if collision debug rays collide with weapons. |
-| `collision_debug_flag_skip_passthrough_bipeds` | boolean | `—` | *(Reclaimers)* Unknown purpose. Does not seem to affect collision ray tests against bipeds. |
-| `collision_debug_flag_structure` | boolean | `true` | *(Reclaimers)* Toggles if collision debug rays collide with the structure BSP. Collisions with model_collision_geometry BSPs are unaffected. |
-| `collision_debug_flag_try_to_keep_location_valid` | boolean | `—` | *(Reclaimers)* Unknown purpose. |
-| `collision_debug_flag_use_vehicle_physics` | boolean | `—` | *(Reclaimers)* If enabled, collision debug rays will collide with vehicle physics spheres rather than their model_collision_geometry. |
-| `collision_debug_height` | real | `—` | *(Reclaimers)* When and collision_debug_features is enabled, controls the height in world units of collision features. Defaults to 0.0. |
-| `collision_debug_length` | real | `100.0` | *(Reclaimers)* Sets the maximum test ray length for collision_debug and collision_debug_spray in world units. When the ray reaches this maxmimum, a floating green marker will be shown for collision_debug while spray rays will simply not be shown. Defaults to 100.0. |
-| `collision_debug_phantom_bsp` | boolean | `—` | *(Reclaimers)* Causes a floating pink cube and label "phantom bsp" to appear whenever a test ray from the center of the screen intersects with phantom BSP. It can be helpful to pair this with collision_debug_spray. |
-| `collision_debug_point_x` | real | `—` | *(Reclaimers)* Represents the current origin of the collision_debug test ray. While collision_debug is active, this value will be continually updated with the camera's location unless collision_debug_repeat is also enabled. In repeat mode, you are able to set this global to move the ray origin to any point you need. See also collision_debug_vector_i. |
-| `collision_debug_point_y` | real | `—` | *(Reclaimers)* See collision_debug_point_x. |
-| `collision_debug_point_z` | real | `—` | *(Reclaimers)* See collision_debug_point_x. |
-| `collision_debug_repeat` | boolean | `—` | *(Reclaimers)* Setting this to true will freeze the test rays and points for collision_debug, collision_debug_phantom_bsp, collision_debug_spray, and collision_debug_features, allowing you to move and view the debug information from another angle or manually set the origin and direction with the collision_debug_point_* and collision_debug_vector_* globals. |
-| `collision_debug_spray` | boolean | `—` | *(Reclaimers)* Setting this to true will cause collision ray tests to be performed in a dense grid from the viewport. This operates independently of the collision_debug setting, and only the destination hit markers are shown. Can be affected by collision flags, length, and frozen with collision_debug_repeat. |
-| `collision_debug_vector_i` | real | `—` | *(Reclaimers)* Represents the current direction of the collision_debug test ray as ijk vector components. While collision_debug is active, this value will be continually updated with the camera's direction unless collision_debug_repeat is also enabled. In repeat mode, you are able to set this global to orient the ray as needed. |
-| `collision_debug_vector_j` | real | `—` | *(Reclaimers)* See collision_debug_vector_i. |
-| `collision_debug_vector_k` | real | `—` | *(Reclaimers)* See collision_debug_vector_i. |
-| `collision_debug_width` | real | `—` | *(Reclaimers)* When collision_debug and collision_debug_features are enabled, controls the width in world units of collision features. Defaults to 0.0. |
-| `collision_log_detailed` | boolean | `—` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `collision_log_extended` | boolean | `—` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `collision_log_render` | boolean | `—` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `collision_log_time` | boolean | `—` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `collision_log_totals_only` | boolean | `—` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `debug_collision_skip_objects` | boolean | `—` | *(Reclaimers)* Disables collision tests against objects. For example, projectiles will pass through scenery and bipeds through non-moving vehicles. Vehicle-to-vehicle collision still happens, as does moving vehicle against biped. Everything still collides with the BSP. |
-| `debug_collision_skip_vectors` | boolean | `—` | *(Reclaimers)* Globally disables vector/ray collision tests, with the following observed effects: Projectiles, particles and moving items will pass through everything, even the BSP. Melees will have no effect. Vehicle suspension, such as the Warthog's wheels, will hang. Object lighting will be unable to determine the ground point below the object when it moves, resulting in incorrect lighting and shadow directio |
+| Command | Type | Default |
+|---------|------|---------|
+| `collision_debug` | boolean | `—` |
+| `collision_debug_features` | boolean | `—` |
+| `collision_debug_flag_back_facing_surfaces` | boolean | `—` |
+| `collision_debug_flag_front_facing_surfaces` | boolean | `true` |
+| `collision_debug_flag_ignore_breakable_surfaces` | boolean | `—` |
+| `collision_debug_flag_ignore_invisible_surfaces` | boolean | `true` |
+| `collision_debug_flag_ignore_two_sided_surfaces` | boolean | `—` |
+| `collision_debug_flag_media` | boolean | `true` |
+| `collision_debug_flag_objects` | boolean | `true` |
+| `collision_debug_flag_objects_bipeds` | boolean | `—` |
+| `collision_debug_flag_objects_controls` | boolean | `—` |
+| `collision_debug_flag_objects_equipment` | boolean | `—` |
+| `collision_debug_flag_objects_light_fixtures` | boolean | `—` |
+| `collision_debug_flag_objects_machines` | boolean | `—` |
+| `collision_debug_flag_objects_placeholders` | boolean | `—` |
+| `collision_debug_flag_objects_projectiles` | boolean | `—` |
+| `collision_debug_flag_objects_scenery` | boolean | `—` |
+| `collision_debug_flag_objects_vehicles` | boolean | `—` |
+| `collision_debug_flag_objects_weapons` | boolean | `—` |
+| `collision_debug_flag_skip_passthrough_bipeds` | boolean | `—` |
+| `collision_debug_flag_structure` | boolean | `true` |
+| `collision_debug_flag_try_to_keep_location_valid` | boolean | `—` |
+| `collision_debug_flag_use_vehicle_physics` | boolean | `—` |
+| `collision_debug_height` | real | `—` |
+| `collision_debug_length` | real | `100.0` |
+| `collision_debug_phantom_bsp` | boolean | `—` |
+| `collision_debug_point_x` | real | `—` |
+| `collision_debug_point_y` | real | `—` |
+| `collision_debug_point_z` | real | `—` |
+| `collision_debug_repeat` | boolean | `—` |
+| `collision_debug_spray` | boolean | `—` |
+| `collision_debug_vector_i` | real | `—` |
+| `collision_debug_vector_j` | real | `—` |
+| `collision_debug_vector_k` | real | `—` |
+| `collision_debug_width` | real | `—` |
+| `collision_log_detailed` | boolean | `—` |
+| `collision_log_extended` | boolean | `—` |
+| `collision_log_render` | boolean | `—` |
+| `collision_log_time` | boolean | `—` |
+| `collision_log_totals_only` | boolean | `—` |
+| `debug_collision_skip_objects` | boolean | `—` |
+| `debug_collision_skip_vectors` | boolean | `—` |
 
 ### Console
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `console_dump_to_file` | boolean | `—` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `terminal_render` | boolean | `true` | *(Reclaimers)* Toggles the display of console output. Defaults to true. |
+| Command | Type | Default |
+|---------|------|---------|
+| `console_dump_to_file` | boolean | `—` |
+| `terminal_render` | boolean | `true` |
 
 ### Effects
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_damage` | boolean | `—` | *(Reclaimers)* When enabled, looking at any collideable object and pressing Space will display the object's body and shield vitalities on the HUD. |
-| `debug_damage_taken` | boolean | `—` | *(Reclaimers)* Logs damage to the player as messages at the bottom of the screen. Includes body and shield vitality and the damage source. |
-| `debug_effects_nonviolent` | boolean | `—` | *(Reclaimers)* Outlines the edges of fog plane volumes with white lines. |
-| `debug_material_effects` | boolean | `—` | *(Reclaimers)* Displays cyan spheres wherever material_effects are being generated, like under the player's feet and where physics spheres intersect with the BSP or model_collision_geometry. |
-| `decals` | boolean | `true` |  |
-| `decals` | boolean | `true` |  |
-| `effects_corpse_nonviolent` | boolean | `true` | *(Reclaimers)* Toggles if shooting bodies produces additional blood effects. |
-| `weather` | boolean | `true` | *(Reclaimers)* Toggles the rendering of all weather_particle_system. Defaults to true. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_damage` | boolean | `—` |
+| `debug_damage_taken` | boolean | `—` |
+| `debug_effects_nonviolent` | boolean | `—` |
+| `debug_material_effects` | boolean | `—` |
+| `decals` | boolean | `true` |
+| `decals` | boolean | `true` |
+| `effects_corpse_nonviolent` | boolean | `true` |
+| `weather` | boolean | `true` |
 
 ### Game
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_game_save` | boolean | `—` | *(Reclaimers)* Displays a series of ticks at the top of the screen which do not seem to be affected by player input. May be a broken feature? |
-| `debug_scripting` | boolean | `—` | *(Reclaimers)* Displays a table of active script threads, with their name, sleep time, and currently executing function. |
-| `recover_saved_games_hack` | boolean | `—` | *(Reclaimers)* Toggles the display of all contrails. |
-| `run_game_scripts` | boolean | `—` | *(Reclaimers)* If enabled, causes level scripts to be run in Sapien. This would allow you to see how the beach battle plays out in b30, for example. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_game_save` | boolean | `—` |
+| `debug_scripting` | boolean | `—` |
+| `recover_saved_games_hack` | boolean | `—` |
+| `run_game_scripts` | boolean | `—` |
 
 ### HUD/UI
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `temporary_hud` | boolean | `—` | *(Reclaimers)* Renders a debug HUD with basic weapon information in text and line-drawn circular reticules representing the current error angle (yellow) and autoaim angle (blue, or red if autoaim active). Works in debug builds only. |
+| Command | Type | Default |
+|---------|------|---------|
+| `temporary_hud` | boolean | `—` |
 
 ### Input
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `controls_enable_crouch` | boolean | `—` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `controls_enable_doubled_spin` | boolean | `—` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `controls_swap_doubled_spin_state` | boolean | `—` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `controls_swapped` | boolean | `true` | *(Reclaimers)* No visible effect. May be related to controller input during development. |
-| `debug_input` | boolean | `—` | *(Reclaimers)* Displays a series of ticks at the top of the screen which do not seem to be affected by player input. May be a broken feature? |
-| `debug_input_target` | short | `—` | *(Reclaimers)* Shows orange and white spheres with the radius of each dynamic light. White seems to show when a light is not yet been activated, such as the Warthog's brake lights until their first use. Lens flare only lights are not shown since their radius is 0. |
-| `pad3` | short | `0` | *(Reclaimers)* Enables or disables the magnetism aim assist for controllers. |
-| `pad3_scale` | real | `1.0` | *(Reclaimers)* Enables or disables the magnetism aim assist for controllers. |
+| Command | Type | Default |
+|---------|------|---------|
+| `controls_enable_crouch` | boolean | `—` |
+| `controls_enable_doubled_spin` | boolean | `—` |
+| `controls_swap_doubled_spin_state` | boolean | `—` |
+| `controls_swapped` | boolean | `true` |
+| `debug_input` | boolean | `—` |
+| `debug_input_target` | short | `—` |
+| `pad3` | short | `0` |
+| `pad3_scale` | real | `1.0` |
 
 ### Lighting
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `object_light_ambient_base` | real | `0.029999999329447746` | *(Reclaimers)* Sets the amount of ambient light all objects receive. Note that this only affects moving objects when their lighting updates, so you will not see any change on scenery. Setting this to 1 makes objects fullbright. Defaults to 0.03. |
-| `object_light_ambient_scale` | real | `0.4000000059604645` | *(Reclaimers)* Scales ambient light from the lightmap. Defaults to 0.4. |
-| `object_light_interpolate` | boolean | `true` | *(Reclaimers)* Toggles if object lighting transitions smoothly when the object moves between different ground point surfaces or default lighting. |
-| `object_light_secondary_scale` | real | `1.0` | *(Reclaimers)* Scales secondary light on objects, but doesn't apply to default lighting. Defaults to 1. |
+| Command | Type | Default |
+|---------|------|---------|
+| `object_light_ambient_base` | real | `0.029999999329447746` |
+| `object_light_ambient_scale` | real | `0.4000000059604645` |
+| `object_light_interpolate` | boolean | `true` |
+| `object_light_secondary_scale` | real | `1.0` |
 
 ### Misc
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `breakable_surfaces` | boolean | `true` | *(Reclaimers)* Enables or disables the breakable surfaces effect. If disabled, breakable surfaces will simply disappear rather than shatter. |
-| `debug_motion_sensor_draw_all_units` | boolean | `—` | *(Reclaimers)* If enabled, completely stops the game from rendering new frames. This includes preventing the rendering of the developer console itself, so disabling this feature can be tricky. If you think the console is still open, press Up to re-enter the previous command, then replace its final argument with true or 1 and press Enter to resume rendering. |
-| `f0` | real | `0.0` | *(Reclaimers)* Limits rendering to 30 FPS. |
-| `f1` | real | `0.0` | *(Reclaimers)* Limits rendering to 30 FPS. |
-| `f2` | real | `0.0` | *(Reclaimers)* Limits rendering to 30 FPS. |
-| `f3` | real | `0.0` | *(Reclaimers)* Limits rendering to 30 FPS. |
-| `f4` | real | `0.0` | *(Reclaimers)* Limits rendering to 30 FPS. |
-| `f5` | real | `0.0` | *(Reclaimers)* Limits rendering to 30 FPS. |
-| `find_all_fucked_up_shit` | boolean | `—` | *(Reclaimers)* Limits rendering to 30 FPS. |
-| `rider_ejection` | boolean | `true` | *(Reclaimers)* Toggles if bipeds are ejected from overturned vehicles, including players and AI characters. Defaults to true. |
-| `stun_enable` | boolean | `—` | *(Reclaimers)* Renders a debug HUD with basic weapon information in text and line-drawn circular reticules representing the current error angle (yellow) and autoaim angle (blue, or red if autoaim active). Works in debug builds only. |
+| Command | Type | Default |
+|---------|------|---------|
+| `breakable_surfaces` | boolean | `true` |
+| `debug_motion_sensor_draw_all_units` | boolean | `—` |
+| `f0` | real | `0.0` |
+| `f1` | real | `0.0` |
+| `f2` | real | `0.0` |
+| `f3` | real | `0.0` |
+| `f4` | real | `0.0` |
+| `f5` | real | `0.0` |
+| `find_all_fucked_up_shit` | boolean | `—` |
+| `rider_ejection` | boolean | `true` |
+| `stun_enable` | boolean | `—` |
 
 ### Network
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `allow_out_of_sync` | boolean | `—` | *(Reclaimers)* Unknown purpose. Default value is 7. |
-| `global_connection_dont_timeout` | boolean | `—` | *(Reclaimers)* Unknown purpose. |
+| Command | Type | Default |
+|---------|------|---------|
+| `allow_out_of_sync` | boolean | `—` |
+| `global_connection_dont_timeout` | boolean | `—` |
 
 ### Objects
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_inactive_objects` | boolean | `—` | *(Reclaimers)* Displays a series of ticks at the top of the screen which do not seem to be affected by player input. May be a broken feature? |
-| `debug_object_garbage_collection` | boolean | `—` | *(Reclaimers)* When garbage_collect_now is run, enabling this causes information to print to the console about the total number of objects, garbage objects, and how many objects were garbage collected. |
-| `debug_object_lights` | boolean | `—` | *(Reclaimers)* Shows the incoming light colour and vector for all objects which results from sampling lightmap data at the ground point beneath the object. This data is used to shade the object and cast its shadow. |
-| `debug_objects` | boolean | `—` | *(Reclaimers)* When enabled, toggles if debug information is visible on objects (such as bounding sphere and collision models). Individual debug features can be toggled with the debug_objects_* commands. In H1A this now has debug_objects_root_node enabled by default; turn it off if you don't want the orange text. |
-| `debug_objects_biped_autoaim_pills` | boolean | `—` | *(Reclaimers)* When debug_objects is enabled, displays biped autoaim pills in red. |
-| `debug_objects_biped_physics_pills` | boolean | `—` | *(Reclaimers)* When debug_objects is enabled, displays biped physics pills in white. |
-| `debug_objects_bounding_spheres` | boolean | `true` | *(Reclaimers)* When debug_objects is enabled, displays yellow spheres for object bounding radius. The sphere will be black when the object is inactive. This setting defaults to true in HEK Sapien but not H1A Sapien. |
-| `debug_objects_collision_models` | boolean | `true` | *(Reclaimers)* When debug_objects is enabled, displays green meshes for object collision models. This setting defaults to true in HEK Sapien but not H1A Sapien. |
-| `debug_objects_devices` | boolean | `—` | *(Reclaimers)* Toggles the display of object names, for named objects. The names are shown in purple. |
-| `debug_objects_names` | boolean | `—` | *(Reclaimers)* Toggles the display of object names, for named objects. The names are shown in purple. |
-| `debug_objects_pathfinding_spheres` | boolean | `—` | *(Reclaimers)* When debug_objects is enabled, displays object pathfinding spheres in blue. |
-| `debug_objects_physics` | boolean | `—` | *(Reclaimers)* When debug_objects is enabled, displays physics mass points as white spheres. |
-| `debug_objects_position_velocity` | boolean | `—` | *(Reclaimers)* When debug_objects is enabled, displays red, green, and blue object-space reference axes and a yellow velocity vector on each object. |
-| `debug_objects_root_node` | boolean | `—` | *(Reclaimers)* When debug_objects is enabled, displays red, green, and blue object-space reference axes and orange text including object ID, class, and tag name on each object. Defaults to true in H1A. |
-| `debug_objects_unit_mouth_apeture` | boolean | `—` | *(Reclaimers)* When debug_objects is enabled, displays blue markers at unit seat locations, red markers at their entry points, and a yellow marker at the object origin. |
-| `debug_objects_unit_seats` | boolean | `—` | *(Reclaimers)* When debug_objects is enabled, displays blue markers at unit seat locations, red markers at their entry points, and a yellow marker at the object origin. |
-| `debug_objects_unit_vectors` | boolean | `—` | *(Reclaimers)* When debug_objects is enabled, displays white and red vectors on objects. Their meaning is unknown. |
-| `debug_objects_vehicle_powered_mass_points` | boolean | `—` | *(Reclaimers)* No visible effect, even with debug_objects_physics enabled. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_inactive_objects` | boolean | `—` |
+| `debug_object_garbage_collection` | boolean | `—` |
+| `debug_object_lights` | boolean | `—` |
+| `debug_objects` | boolean | `—` |
+| `debug_objects_biped_autoaim_pills` | boolean | `—` |
+| `debug_objects_biped_physics_pills` | boolean | `—` |
+| `debug_objects_bounding_spheres` | boolean | `true` |
+| `debug_objects_collision_models` | boolean | `true` |
+| `debug_objects_devices` | boolean | `—` |
+| `debug_objects_names` | boolean | `—` |
+| `debug_objects_pathfinding_spheres` | boolean | `—` |
+| `debug_objects_physics` | boolean | `—` |
+| `debug_objects_position_velocity` | boolean | `—` |
+| `debug_objects_root_node` | boolean | `—` |
+| `debug_objects_unit_mouth_apeture` | boolean | `—` |
+| `debug_objects_unit_seats` | boolean | `—` |
+| `debug_objects_unit_vectors` | boolean | `—` |
+| `debug_objects_vehicle_powered_mass_points` | boolean | `—` |
 
 ### Pathfinding
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_obstacle_path` | boolean | `—` | *(Reclaimers)* Toggles the display of yellow bounding spheres around each permanent decal in the environment. |
-| `debug_obstacle_path_goal_point_x` | real | `—` | *(Reclaimers)* Toggles the display of yellow bounding spheres around each permanent decal in the environment. |
-| `debug_obstacle_path_goal_point_y` | real | `—` | *(Reclaimers)* Toggles the display of yellow bounding spheres around each permanent decal in the environment. |
-| `debug_obstacle_path_goal_surface_index` | long | `—` | *(Reclaimers)* Toggles the display of yellow bounding spheres around each permanent decal in the environment. |
-| `debug_obstacle_path_on_failure` | boolean | `—` | *(Reclaimers)* Toggles the display of yellow bounding spheres around each permanent decal in the environment. |
-| `debug_obstacle_path_start_point_x` | real | `—` | *(Reclaimers)* Toggles the display of yellow bounding spheres around each permanent decal in the environment. |
-| `debug_obstacle_path_start_point_y` | real | `—` | *(Reclaimers)* Toggles the display of yellow bounding spheres around each permanent decal in the environment. |
-| `debug_obstacle_path_start_surface_index` | long | `—` | *(Reclaimers)* Toggles the display of yellow bounding spheres around each permanent decal in the environment. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_obstacle_path` | boolean | `—` |
+| `debug_obstacle_path_goal_point_x` | real | `—` |
+| `debug_obstacle_path_goal_point_y` | real | `—` |
+| `debug_obstacle_path_goal_surface_index` | long | `—` |
+| `debug_obstacle_path_on_failure` | boolean | `—` |
+| `debug_obstacle_path_start_point_x` | real | `—` |
+| `debug_obstacle_path_start_point_y` | real | `—` |
+| `debug_obstacle_path_start_surface_index` | long | `—` |
 
 ### Physics
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_physics_disable_penetration_freeze` | boolean | `—` | *(Reclaimers)* Sets the player's armour color in non-team games. The setting will take effect when the player respawns. The default value -1 causes the player's profile setting to be used. |
-| `debug_point_physics` | boolean | `—` | *(Reclaimers)* Renders green or red markers wherever point_physics are being simulated. This includes flags, antenna, contrails, particles, and particle_systems. For weather_particle_system, markers are only shown in their simulation cube and while the weather global not disabled. Red markers indicate point_physics with the collides with structures flag, which are more computationally expensive. It can help to e |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_physics_disable_penetration_freeze` | boolean | `—` |
+| `debug_point_physics` | boolean | `—` |
 
 ### Player
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_player` | boolean | `—` | *(Reclaimers)* Sets the player's armour color in non-team games. The setting will take effect when the player respawns. The default value -1 causes the player's profile setting to be used. |
-| `debug_player_color` | short | `-1` | *(Reclaimers)* Sets the player's armour color in non-team games. The setting will take effect when the player respawns. The default value -1 causes the player's profile setting to be used. |
-| `debug_player_teleport` | boolean | `—` | *(Reclaimers)* Displays a green physics pill where a co-op player would spawn if safe. |
-| `player0_look_pitch_rate` | real | `—` |  |
-| `player0_look_yaw_rate` | real | `—` |  |
-| `player1_look_pitch_rate` | real | `—` |  |
-| `player1_look_yaw_rate` | real | `—` |  |
-| `player2_look_pitch_rate` | real | `—` |  |
-| `player2_look_yaw_rate` | real | `—` |  |
-| `player3_look_pitch_rate` | real | `—` |  |
-| `player3_look_yaw_rate` | real | `—` |  |
-| `player_autoaim` | boolean | `true` | *(Reclaimers)* Enables or disables the magnetism aim assist for controllers. |
-| `player_magnetism` | boolean | `true` | *(Reclaimers)* Enables or disables the magnetism aim assist for controllers. |
-| `player_spawn_count` | short | `1` | *(Reclaimers)* Displays profiling and budget information in the upper-left of the screen, including object, effects, particles, AI encounters, collision tests, and more. You may find it useful to open the console while using this feature in order to stop the game simulation. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_player` | boolean | `—` |
+| `debug_player_color` | short | `-1` |
+| `debug_player_teleport` | boolean | `—` |
+| `player0_look_pitch_rate` | real | `—` |
+| `player0_look_yaw_rate` | real | `—` |
+| `player1_look_pitch_rate` | real | `—` |
+| `player1_look_yaw_rate` | real | `—` |
+| `player2_look_pitch_rate` | real | `—` |
+| `player2_look_yaw_rate` | real | `—` |
+| `player3_look_pitch_rate` | real | `—` |
+| `player3_look_yaw_rate` | real | `—` |
+| `player_autoaim` | boolean | `true` |
+| `player_magnetism` | boolean | `true` |
+| `player_spawn_count` | short | `1` |
 
 ### Profiling
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `profile_display` | boolean | `—` | *(Reclaimers)* Displays profiling and budget information in the upper-left of the screen, including object, effects, particles, AI encounters, collision tests, and more. You may find it useful to open the console while using this feature in order to stop the game simulation. |
-| `profile_dump_frames` | boolean | `—` | *(Reclaimers)* Broken feature -- causes a crash. |
-| `profile_dump_lost_frames` | boolean | `—` | *(Reclaimers)* Broken feature -- causes a crash. |
-| `profile_graph` | boolean | `—` | *(Reclaimers)* Broken feature -- causes a crash. |
-| `profile_timebase_ticks` | boolean | `—` | *(Reclaimers)* Toggles the active camouflage distortion effect. When disabled, objects with active camouflage are rendered as they normally would without the effect. |
+| Command | Type | Default |
+|---------|------|---------|
+| `profile_display` | boolean | `—` |
+| `profile_dump_frames` | boolean | `—` |
+| `profile_dump_lost_frames` | boolean | `—` |
+| `profile_graph` | boolean | `—` |
+| `profile_timebase_ticks` | boolean | `—` |
 
 ### Renderer
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_decals` | boolean | `—` | *(Reclaimers)* Displays red numbers over each dynamic and permanent decal in the environment. The mesh of the most recently created decal (initially a permanent decal if one exists, then any new dynamic one) will also be highlighted so you can see how it conforms around the BSP. White points indicate the original 4 corners of the decal, while red ones were added during the conformation to the BSP. The meaning of |
-| `debug_detail_objects` | boolean | `—` | *(Reclaimers)* When enabled, active detail object cells will be outlined in blue and individual detail objects are highlighted with red markers. |
-| `debug_fog_planes` | boolean | `—` | *(Reclaimers)* Outlines the edges of fog plane volumes with white lines. |
-| `debug_framerate` | boolean | `—` | *(Reclaimers)* No visible effect. Replaced with the Ctrl + F12 hotkey? |
-| `debug_frustum` | boolean | `—` | *(Reclaimers)* Draws a series of red lines between corners and midpoints of the screen within the view frustrum. These can be seen to intersect with level geometry. |
-| `debug_lights` | boolean | `—` | *(Reclaimers)* Shows orange and white spheres with the radius of each dynamic light. White seems to show when a light is not yet been activated, such as the Warthog's brake lights until their first use. Lens flare only lights are not shown since their radius is 0. |
-| `debug_no_drawing` | boolean | `—` | *(Reclaimers)* If enabled, completely stops the game from rendering new frames. This includes preventing the rendering of the developer console itself, so disabling this feature can be tricky. If you think the console is still open, press Up to re-enter the previous command, then replace its final argument with true or 1 and press Enter to resume rendering. |
-| `debug_no_frustum_clip` | boolean | `—` | *(Reclaimers)* Disables portal-based occlusion culling for objects and BSP faces (use rasterizer_wireframe 1 to see this). In addition to the PVS, which determines the set of clusters which are potentially visible, groups of faces and objects within those clusters can still be culled further using the limited view from the camera's location through the series of portals leading to those clusters (a portal-dimini |
-| `debug_permanent_decals` | boolean | `—` | *(Reclaimers)* Toggles the display of yellow bounding spheres around each permanent decal in the environment. |
-| `debug_render_freeze` | boolean | `—` | *(Reclaimers)* Freezes the rendering viewport at the current camera location. The camera may still move after frozen, but all portal-based culling, skybox origin, FP models, and some debug overlays will still be based on the previously frozen camera location. This command is useful for inspecting portal behaviour where the camera cannot directly see. |
-| `debug_sprites` | boolean | `—` | *(Reclaimers)* Renders 2D sprite effects like particles and weather_particle_system with white triangle outlines. This also displays some sprite statistics at the top of the screen (coverage and big sprites count). |
-| `debug_texture_cache` | boolean | `—` | *(Reclaimers)* If enabled, causes red messages to appear in the HUD which are related to texture and/or sound cache events. Exact meaning unknown. |
-| `display_framerate` | boolean | `—` | *(Reclaimers)* Displays the current framerate in green in the bottom-right corner of the screen. |
-| `display_precache_progress` | boolean | `—` | *(Reclaimers)* Toggles if shooting bodies produces additional blood effects. |
-| `display_vblank_deltas` | boolean | `—` |  |
-| `framerate_lock` | boolean | `—` | *(Reclaimers)* Limits rendering to 30 FPS. |
-| `framerate_throttle` | boolean | `true` | *(Reclaimers)* Limits rendering to 30 FPS. |
-| `radiosity_lines` | boolean | `—` |  |
-| `radiosity_normals` | boolean | `—` |  |
-| `radiosity_quality` | short | `—` |  |
-| `radiosity_step_count` | short | `—` |  |
-| `rasterizer_DXTC_noise` | boolean | `false` | *(Reclaimers)* Toggles alpha testing for BSP shader_environment. These shaders are rendered opaquely when disabled. |
-| `rasterizer_active_camouflage` | boolean | `true` | *(Reclaimers)* Toggles the active camouflage distortion effect. When disabled, objects with active camouflage are rendered as they normally would without the effect. |
-| `rasterizer_active_camouflage_multipass` | boolean | `true` | *(Reclaimers)* Toggles whether or not transparent shaders are shown through active camouflage. If disabled, shaders like glass or lights will not be visible through a camouflaged unit. |
-| `rasterizer_bump_mapping` | boolean | `true` | *(Reclaimers)* Toggles bump mapping on the BSP, affecting both environmental bump lighting and specular reflections. If you only want to toggle bump lighting, use rasterizer_lightmaps_incident_radiosity. |
-| `rasterizer_debug_geometry` | boolean | `true` | *(Reclaimers)* Forces certain object LODs to be used. A value of 4 is the highest quality, and 0 the worst. The default value -1 returns to automatic behaviour. |
-| `rasterizer_debug_geometry_multipass` | boolean | `false` | *(Reclaimers)* Forces certain object LODs to be used. A value of 4 is the highest quality, and 0 the worst. The default value -1 returns to automatic behaviour. |
-| `rasterizer_debug_meter_shader` | boolean | `false` | *(Reclaimers)* Forces certain object LODs to be used. A value of 4 is the highest quality, and 0 the worst. The default value -1 returns to automatic behaviour. |
-| `rasterizer_debug_model_lod` | short | `-1` | *(Reclaimers)* Forces certain object LODs to be used. A value of 4 is the highest quality, and 0 the worst. The default value -1 returns to automatic behaviour. |
-| `rasterizer_debug_model_vertices` | boolean | `false` | *(Reclaimers)* Disabling this silences "generic shader has no maps or stages" warnings in the console. Newly added to the MCC tools in the July 2023 CU. |
-| `rasterizer_debug_transparents` | boolean | `false` | *(Reclaimers)* Toggles the rendering of detail objects. |
-| `rasterizer_detail_objects` | boolean | `true` | *(Reclaimers)* Toggles the rendering of detail objects. |
-| `rasterizer_detail_objects_offset_multiplier` | real | `0.4000000059604645` | *(Reclaimers)* Defaults to 0.4. No visible effect on detail objects when changed. |
-| `rasterizer_draw_first_person_weapon_first` | boolean | `true` | *(Reclaimers)* Controls whether the first person weapon/arms is rendered before or after the rest of the scene. Defaults to true. If set to false, parts of the FP model can be occluded by nearby objects because they fail the depth test against the depth buffer. This is easily seen in the Warthog passenger seat or with the sniper rifle against scenery. Typically, the FP view draws first and also writes to a stenc |
-| `rasterizer_dynamic_lit_geometry` | boolean | `true` | *(Reclaimers)* Toggles alpha testing for BSP shader_environment. These shaders are rendered opaquely when disabled. |
-| `rasterizer_dynamic_screen_geometry` | boolean | `true` | *(Reclaimers)* Toggles alpha testing for BSP shader_environment. These shaders are rendered opaquely when disabled. |
-| `rasterizer_dynamic_unlit_geometry` | boolean | `true` | *(Reclaimers)* Toggles alpha testing for BSP shader_environment. These shaders are rendered opaquely when disabled. |
-| `rasterizer_environment` | boolean | `true` | *(Reclaimers)* Toggles alpha testing for BSP shader_environment. These shaders are rendered opaquely when disabled. |
-| `rasterizer_environment_alpha_testing` | boolean | `true` | *(Reclaimers)* Toggles alpha testing for BSP shader_environment. These shaders are rendered opaquely when disabled. |
-| `rasterizer_environment_decals` | boolean | `true` | *(Reclaimers)* Toggles the display and creation of both permanent and dynamic decals. While false, effects cannot create new decals but previous ones will reappear when reset to true. |
-| `rasterizer_environment_diffuse_lights` | boolean | `true` | *(Reclaimers)* Toggles the rendering of dynamic light diffuse illumination on the BSP. Does not affect specular highlights. |
-| `rasterizer_environment_diffuse_textures` | boolean | `true` | *(Reclaimers)* Disables diffuse textures in the BSP, showing just the lightmap shading and specular components. |
-| `rasterizer_environment_fog` | boolean | `true` | *(Reclaimers)* Toggles both environmental sky fog and fog plane colors. Does not affect fog screen. Use rasterizer_fog_plane or rasterizer_fog_atmosphere to individually toggle fog types. |
-| `rasterizer_environment_fog_screen` | boolean | `true` | *(Reclaimers)* Toggles the cloudy fog screen effect of fog planes, seen in the levels a30, c10, and c40. |
-| `rasterizer_environment_lightmaps` | boolean | `true` | *(Reclaimers)* Toggles the rendering of structure BSP lightmaps. When disabled, the level will be completely invisible. |
-| `rasterizer_environment_reflection_lightmap_mask` | boolean | `true` | *(Reclaimers)* Toggles the rendering of dynamic mirrors. |
-| `rasterizer_environment_reflection_mirrors` | boolean | `true` | *(Reclaimers)* Toggles the rendering of dynamic mirrors. |
-| `rasterizer_environment_reflections` | boolean | `true` | *(Reclaimers)* Toggles specular reflections in the BSP. |
-| `rasterizer_environment_shadows` | boolean | `true` | *(Reclaimers)* Toggles dynamic shadow mapping for objects. Same effect as render_shadows. |
-| `rasterizer_environment_specular_lightmaps` | boolean | `true` | *(Reclaimers)* Sets the far clip distance, which is the maximum draw distance (world units). Defaults to 1024.0. |
-| `rasterizer_environment_specular_lights` | boolean | `true` | *(Reclaimers)* Sets the far clip distance, which is the maximum draw distance (world units). Defaults to 1024.0. |
-| `rasterizer_environment_specular_mask` | boolean | `true` | *(Reclaimers)* Sets the far clip distance, which is the maximum draw distance (world units). Defaults to 1024.0. |
-| `rasterizer_environment_transparents` | boolean | `true` | *(Reclaimers)* Sets the far clip distance, which is the maximum draw distance (world units). Defaults to 1024.0. |
-| `rasterizer_far_clip_distance` | real | `1024.0` | *(Reclaimers)* Sets the far clip distance, which is the maximum draw distance (world units). Defaults to 1024.0. |
-| `rasterizer_filthy_decal_fog_hack` | boolean | `true` | *(Reclaimers)* Sets the far clip distance, for the first person arms and weapon. Defaults to 1024.0. The world clipping distance can be set with rasterizer_far_clip_distance. |
-| `rasterizer_first_person_weapon_far_clip_distance` | real | `1024.0` | *(Reclaimers)* Sets the far clip distance, for the first person arms and weapon. Defaults to 1024.0. The world clipping distance can be set with rasterizer_far_clip_distance. |
-| `rasterizer_first_person_weapon_near_clip_distance` | real | `0.01171875` | *(Reclaimers)* Sets the near clip distance of the first person arms and weapon. Defaults to 0.011719. |
-| `rasterizer_floating_point_zbuffer` | boolean | `false` | *(Reclaimers)* Toggles atmospheric fog as defined in the active sky tag. |
-| `rasterizer_fog_atmosphere` | boolean | `true` | *(Reclaimers)* Toggles atmospheric fog as defined in the active sky tag. |
-| `rasterizer_fog_plane` | boolean | `true` | *(Reclaimers)* Toggles the rendering of fog planes. |
-| `rasterizer_frame_bounds_bottom` | short | `0` | *(Reclaimers)* Toggles the yellow and red dots seen in the motion sensor. |
-| `rasterizer_frame_bounds_left` | short | `0` | *(Reclaimers)* Toggles the yellow and red dots seen in the motion sensor. |
-| `rasterizer_frame_bounds_right` | short | `0` | *(Reclaimers)* Toggles the yellow and red dots seen in the motion sensor. |
-| `rasterizer_frame_bounds_top` | short | `0` | *(Reclaimers)* Toggles the yellow and red dots seen in the motion sensor. |
-| `rasterizer_framerate_stabilization` | boolean | `false` | *(Reclaimers)* Toggles the yellow and red dots seen in the motion sensor. |
-| `rasterizer_framerate_throttle` | boolean | `true` | *(Reclaimers)* Toggles the yellow and red dots seen in the motion sensor. |
-| `rasterizer_hud_motion_sensor` | boolean | `true` | *(Reclaimers)* Toggles the yellow and red dots seen in the motion sensor. |
-| `rasterizer_lens_flares` | boolean | `true` | *(Reclaimers)* Toggles rendering of all lens flares. |
-| `rasterizer_lens_flares_occlusion` | boolean | `true` | *(Reclaimers)* Toggles lens flare occlusion. If set to false, lens flares will no longer be occluded and stay visible even through objects in the foreground. |
-| `rasterizer_lens_flares_occlusion_debug` | boolean | `false` | *(Reclaimers)* Displays red squares over lens flares in the environment. How much the square is occluded by other geometry or the view frustrum is how much the lens flare fades out. The size of the square relates to the occlusion radius. |
-| `rasterizer_lightmap_ambient` | real | `1.0` | *(Reclaimers)* Sets the amount of ambient light when rendering the BSP in fullbright mode (like when radiosity has not yet been baked or rasterizer_lightmap_mode 2) This defaults to 1.0. It has no effect on the normal lightmap rendering mode. |
-| `rasterizer_lightmap_mode` | short | `0` | *(Reclaimers)* Changes the rendering mode of lightmaps: Mode Description 0 Normal (default). 1 BSP specular reflections will not be multiplied by the lightmap. 2 Fullbright mode. You can set the ambient light with rasterizer_lightmap_ambient. 3 Colours BSP surfaces by what lightmap bitmap index they use (technically, with a random colour seeded by the lightmap address). It can help to disable rasterizer_environm |
-| `rasterizer_lightmaps_filtering` | boolean | `true` | *(Reclaimers)* Enables or disables texture filtering for lightmaps. When disabled, lightmaps will appear blocky and jagged. Has no effect in H1A. |
-| `rasterizer_lightmaps_incident_radiosity` | boolean | `true` | *(Reclaimers)* Toggles directional environmental bump mapped lighting. Does not affect the sampling of stored incident radiosity for object shadows. |
-| `rasterizer_mode` | short | `0` | *(Reclaimers)* Changes rendering mode of the level and its objects: Mode Description 0 Normal (default). 1 Additive blending. 2 Disables specular on the BSP (like rasterizer_environment_reflections). |
-| `rasterizer_model_lighting_ambient` | real | `0.0` | *(Reclaimers)* Toggles the rendering of transparent shaders in models. For example, the Warthog's windshield. |
-| `rasterizer_model_transparents` | boolean | `true` | *(Reclaimers)* Toggles the rendering of transparent shaders in models. For example, the Warthog's windshield. |
-| `rasterizer_models` | boolean | `true` | *(Reclaimers)* Toggles the rendering of all models. When disabled, all objects like scenery, units, projectiles, and even the skybox and FP arms will become invisible. The BSP and effects like particles and decals are still visible. |
-| `rasterizer_near_clip_distance` | real | `0.0625` | *(Reclaimers)* Sets the near clip distance, which is the minimum draw distance (world units). Defaults to 0.0625. This does not appear to work fully, as the near clip distance will only be adjusted for one frame. |
-| `rasterizer_plasma_energy` | boolean | `true` | *(Reclaimers)* Toggles the lens flare "god rays" effect, present on sky lights or lens flares explicitly set to sun. |
-| `rasterizer_profile_log` | boolean | `false` | *(Reclaimers)* Toggles the lens flare "god rays" effect, present on sky lights or lens flares explicitly set to sun. |
-| `rasterizer_profile_objectlock_time` | real | `0.0` | *(Reclaimers)* Toggles the lens flare "god rays" effect, present on sky lights or lens flares explicitly set to sun. |
-| `rasterizer_profile_print_locks` | boolean | `false` | *(Reclaimers)* Toggles the lens flare "god rays" effect, present on sky lights or lens flares explicitly set to sun. |
-| `rasterizer_pushbuffer_kickoff_size` | short | `0` |  |
-| `rasterizer_pushbuffer_size` | short | `768` |  |
-| `rasterizer_ray_of_buddha` | boolean | `true` | *(Reclaimers)* Toggles the lens flare "god rays" effect, present on sky lights or lens flares explicitly set to sun. |
-| `rasterizer_refresh_rate` | short | `0` | *(Reclaimers)* Toggles the display of screen flashes, such as those from a damage_effect or powerup equipment. |
-| `rasterizer_safe_frame_bounds` | boolean | `false` | *(Reclaimers)* Toggles the display of screen flashes, such as those from a damage_effect or powerup equipment. |
-| `rasterizer_screen_effects` | boolean | `true` | *(Reclaimers)* Toggles the display of screen flashes, such as those from a damage_effect or powerup equipment. |
-| `rasterizer_screen_flashes` | boolean | `true` | *(Reclaimers)* Toggles the display of screen flashes, such as those from a damage_effect or powerup equipment. |
-| `rasterizer_secondary_render_target_debug` | boolean | `false` | *(Reclaimers)* Toggles the blurring of dynamic object shadows. Defaults to true. |
-| `rasterizer_shadows_convolution` | boolean | `true` | *(Reclaimers)* Toggles the blurring of dynamic object shadows. Defaults to true. |
-| `rasterizer_shadows_debug` | boolean | `false` | *(Reclaimers)* When enabled, all dynamic object shadow maps will be rendered with a partially-shadowed background, making their rectangular boundaries visible. The size of this rectangle depends on the object's bounding radius. |
-| `rasterizer_smart` | boolean | `true` | *(Reclaimers)* No visible effect. |
-| `rasterizer_soft_filter` | boolean | `false` | *(Reclaimers)* No visible effect. |
-| `rasterizer_splitscreen_VB_optimization` | boolean | `false` | *(Reclaimers)* Displays renderer statistics on the screen, with several modes. All modes include at least framerate stats. Mode Description 0 Off (default). 1 Some unknown counts which usually read 0, though fast increases when flags are on-screen. 2 Vertices, triangles, and primitives counts for various model and environment features and effects. 3 GPU profiling for each stage of rendering. Uknown if this still |
-| `rasterizer_stats` | short | `0` | *(Reclaimers)* Displays renderer statistics on the screen, with several modes. All modes include at least framerate stats. Mode Description 0 Off (default). 1 Some unknown counts which usually read 0, though fast increases when flags are on-screen. 2 Vertices, triangles, and primitives counts for various model and environment features and effects. 3 GPU profiling for each stage of rendering. Uknown if this still |
-| `rasterizer_stencil_mask` | boolean | `true` | *(Reclaimers)* Enables or disables the stencil mask used to prevent the background scene from overlapping the first person view. Defaults to true. Disabling this has the same effect as disabling rasterizer_draw_first_person_weapon_first and you will sometimes see nearby objects occluding parts of the FP model. |
-| `rasterizer_transparent_pixel_counter` | boolean | `false` | *(Reclaimers)* Toggles the rendering of shader_transparent_water shaders. |
-| `rasterizer_water` | boolean | `true` | *(Reclaimers)* Toggles the rendering of shader_transparent_water shaders. |
-| `rasterizer_water_mipmapping` | boolean | `false` | *(Reclaimers)* No visible effect. Defaults to false. |
-| `rasterizer_wireframe` | boolean | `false` | *(Reclaimers)* Toggles rendering in wireframe mode, which only draws pixels along triangle edges rather than filling trangles. This can be useful for troubleshooting portals. |
-| `rasterizer_zbias` | long | `8` | *(Reclaimers)* Controls how far away from surfaces new decals are generated, e.g. for projectile impacts. Defaults to 0.003906. The units are not world units. |
-| `rasterizer_zoffset` | real | `0.00390625` | *(Reclaimers)* Controls how far away from surfaces new decals are generated, e.g. for projectile impacts. Defaults to 0.003906. The units are not world units. |
-| `rasterizer_zsprites` | boolean | `true` | *(Reclaimers)* Toggles the display of all contrails. |
-| `render_contrails` | boolean | `true` | *(Reclaimers)* Toggles the display of all contrails. |
-| `render_model_index_counts` | boolean | `—` | *(Reclaimers)* If true, displays a red number above each object with its model index count. If render_model_vertex_counts is also enabled, the vertex count and index count are separated by a slash like "<vertices>/<indices>". |
-| `render_model_markers` | boolean | `—` | *(Reclaimers)* If enabled, all model markers will be rendered in 3D with their name and rotation axis. |
-| `render_model_no_geometry` | boolean | `—` | *(Reclaimers)* If true, displays a red number above each object with its model vertex count. If render_model_index_counts is also enabled, the vertex count and index count are separated by a slash like "<vertices>/<indices>". |
-| `render_model_nodes` | boolean | `—` | *(Reclaimers)* If enabled, all model skeletons will be rendered. Nodes are shown as axis gizmos and connected to their parents by white lines. |
-| `render_model_vertex_counts` | boolean | `—` | *(Reclaimers)* If true, displays a red number above each object with its model vertex count. If render_model_index_counts is also enabled, the vertex count and index count are separated by a slash like "<vertices>/<indices>". |
-| `render_particles` | boolean | `true` | *(Reclaimers)* Toggles the display of all particles. |
-| `render_psystems` | boolean | `true` | *(Reclaimers)* Toggles the rendering of particle_systems and weather_particle_system. |
-| `render_shadows` | boolean | `true` | *(Reclaimers)* Toggles the display of dynamic object shadows. Same effect as rasterizer_environment_shadows. |
-| `render_wsystems` | boolean | `true` | *(Reclaimers)* No visible effect on weather or particle systems. |
-| `screenshot_count` | short | `—` | *(Reclaimers)* When the -screenshot argument is enabled, pressing Prnt Scrn will generate a series of tiled screenhots in the screenshots directory. For example, a value of 2 will generate 4 screenshots meant to tile in a 2x2 arrangement for a high resolution result. You should disable the HUD with show_hud 0 before using this. |
-| `screenshot_size` | short | `1` | *(Reclaimers)* Appears to set some kind of crop or scaling factor for generated screenshots, but is probably not working as intended. Setting this to a value other than 1 can crash when using screenshot_size. |
-| `texture_cache_graph` | boolean | `—` | *(Reclaimers)* Toggles a live representation of the texture cache in the top left corner of the screen, depicting which entries are being loaded and evicted. Works in debug builds only. |
-| `texture_cache_list` | boolean | `—` | *(Reclaimers)* Shows a live list of all bitmap tag paths currently loaded in the texture cache. Works in debug builds only. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_decals` | boolean | `—` |
+| `debug_detail_objects` | boolean | `—` |
+| `debug_fog_planes` | boolean | `—` |
+| `debug_framerate` | boolean | `—` |
+| `debug_frustum` | boolean | `—` |
+| `debug_lights` | boolean | `—` |
+| `debug_no_drawing` | boolean | `—` |
+| `debug_no_frustum_clip` | boolean | `—` |
+| `debug_permanent_decals` | boolean | `—` |
+| `debug_render_freeze` | boolean | `—` |
+| `debug_sprites` | boolean | `—` |
+| `debug_texture_cache` | boolean | `—` |
+| `display_framerate` | boolean | `—` |
+| `display_precache_progress` | boolean | `—` |
+| `display_vblank_deltas` | boolean | `—` |
+| `framerate_lock` | boolean | `—` |
+| `framerate_throttle` | boolean | `true` |
+| `radiosity_lines` | boolean | `—` |
+| `radiosity_normals` | boolean | `—` |
+| `radiosity_quality` | short | `—` |
+| `radiosity_step_count` | short | `—` |
+| `rasterizer_DXTC_noise` | boolean | `false` |
+| `rasterizer_active_camouflage` | boolean | `true` |
+| `rasterizer_active_camouflage_multipass` | boolean | `true` |
+| `rasterizer_bump_mapping` | boolean | `true` |
+| `rasterizer_debug_geometry` | boolean | `true` |
+| `rasterizer_debug_geometry_multipass` | boolean | `false` |
+| `rasterizer_debug_meter_shader` | boolean | `false` |
+| `rasterizer_debug_model_lod` | short | `-1` |
+| `rasterizer_debug_model_vertices` | boolean | `false` |
+| `rasterizer_debug_transparents` | boolean | `false` |
+| `rasterizer_detail_objects` | boolean | `true` |
+| `rasterizer_detail_objects_offset_multiplier` | real | `0.4000000059604645` |
+| `rasterizer_draw_first_person_weapon_first` | boolean | `true` |
+| `rasterizer_dynamic_lit_geometry` | boolean | `true` |
+| `rasterizer_dynamic_screen_geometry` | boolean | `true` |
+| `rasterizer_dynamic_unlit_geometry` | boolean | `true` |
+| `rasterizer_environment` | boolean | `true` |
+| `rasterizer_environment_alpha_testing` | boolean | `true` |
+| `rasterizer_environment_decals` | boolean | `true` |
+| `rasterizer_environment_diffuse_lights` | boolean | `true` |
+| `rasterizer_environment_diffuse_textures` | boolean | `true` |
+| `rasterizer_environment_fog` | boolean | `true` |
+| `rasterizer_environment_fog_screen` | boolean | `true` |
+| `rasterizer_environment_lightmaps` | boolean | `true` |
+| `rasterizer_environment_reflection_lightmap_mask` | boolean | `true` |
+| `rasterizer_environment_reflection_mirrors` | boolean | `true` |
+| `rasterizer_environment_reflections` | boolean | `true` |
+| `rasterizer_environment_shadows` | boolean | `true` |
+| `rasterizer_environment_specular_lightmaps` | boolean | `true` |
+| `rasterizer_environment_specular_lights` | boolean | `true` |
+| `rasterizer_environment_specular_mask` | boolean | `true` |
+| `rasterizer_environment_transparents` | boolean | `true` |
+| `rasterizer_far_clip_distance` | real | `1024.0` |
+| `rasterizer_filthy_decal_fog_hack` | boolean | `true` |
+| `rasterizer_first_person_weapon_far_clip_distance` | real | `1024.0` |
+| `rasterizer_first_person_weapon_near_clip_distance` | real | `0.01171875` |
+| `rasterizer_floating_point_zbuffer` | boolean | `false` |
+| `rasterizer_fog_atmosphere` | boolean | `true` |
+| `rasterizer_fog_plane` | boolean | `true` |
+| `rasterizer_frame_bounds_bottom` | short | `0` |
+| `rasterizer_frame_bounds_left` | short | `0` |
+| `rasterizer_frame_bounds_right` | short | `0` |
+| `rasterizer_frame_bounds_top` | short | `0` |
+| `rasterizer_framerate_stabilization` | boolean | `false` |
+| `rasterizer_framerate_throttle` | boolean | `true` |
+| `rasterizer_hud_motion_sensor` | boolean | `true` |
+| `rasterizer_lens_flares` | boolean | `true` |
+| `rasterizer_lens_flares_occlusion` | boolean | `true` |
+| `rasterizer_lens_flares_occlusion_debug` | boolean | `false` |
+| `rasterizer_lightmap_ambient` | real | `1.0` |
+| `rasterizer_lightmap_mode` | short | `0` |
+| `rasterizer_lightmaps_filtering` | boolean | `true` |
+| `rasterizer_lightmaps_incident_radiosity` | boolean | `true` |
+| `rasterizer_mode` | short | `0` |
+| `rasterizer_model_lighting_ambient` | real | `0.0` |
+| `rasterizer_model_transparents` | boolean | `true` |
+| `rasterizer_models` | boolean | `true` |
+| `rasterizer_near_clip_distance` | real | `0.0625` |
+| `rasterizer_plasma_energy` | boolean | `true` |
+| `rasterizer_profile_log` | boolean | `false` |
+| `rasterizer_profile_objectlock_time` | real | `0.0` |
+| `rasterizer_profile_print_locks` | boolean | `false` |
+| `rasterizer_pushbuffer_kickoff_size` | short | `0` |
+| `rasterizer_pushbuffer_size` | short | `768` |
+| `rasterizer_ray_of_buddha` | boolean | `true` |
+| `rasterizer_refresh_rate` | short | `0` |
+| `rasterizer_safe_frame_bounds` | boolean | `false` |
+| `rasterizer_screen_effects` | boolean | `true` |
+| `rasterizer_screen_flashes` | boolean | `true` |
+| `rasterizer_secondary_render_target_debug` | boolean | `false` |
+| `rasterizer_shadows_convolution` | boolean | `true` |
+| `rasterizer_shadows_debug` | boolean | `false` |
+| `rasterizer_smart` | boolean | `true` |
+| `rasterizer_soft_filter` | boolean | `false` |
+| `rasterizer_splitscreen_VB_optimization` | boolean | `false` |
+| `rasterizer_stats` | short | `0` |
+| `rasterizer_stencil_mask` | boolean | `true` |
+| `rasterizer_transparent_pixel_counter` | boolean | `false` |
+| `rasterizer_water` | boolean | `true` |
+| `rasterizer_water_mipmapping` | boolean | `false` |
+| `rasterizer_wireframe` | boolean | `false` |
+| `rasterizer_zbias` | long | `8` |
+| `rasterizer_zoffset` | real | `0.00390625` |
+| `rasterizer_zsprites` | boolean | `true` |
+| `render_contrails` | boolean | `true` |
+| `render_model_index_counts` | boolean | `—` |
+| `render_model_markers` | boolean | `—` |
+| `render_model_no_geometry` | boolean | `—` |
+| `render_model_nodes` | boolean | `—` |
+| `render_model_vertex_counts` | boolean | `—` |
+| `render_particles` | boolean | `true` |
+| `render_psystems` | boolean | `true` |
+| `render_shadows` | boolean | `true` |
+| `render_wsystems` | boolean | `true` |
+| `screenshot_count` | short | `—` |
+| `screenshot_size` | short | `1` |
+| `texture_cache_graph` | boolean | `—` |
+| `texture_cache_list` | boolean | `—` |
 
 ### Sound
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_looping_sound` | boolean | `—` | *(Reclaimers)* Displays active sound_looping with cyan spheres for their maxmimum distance and blue spheres for their minimum. |
-| `debug_sound` | boolean | `—` | *(Reclaimers)* Sound sources will be labeled in 3D with their tag path and a their minimum and maximum distances shown as red and yellow spheres, respectively. |
-| `debug_sound_cache` | boolean | `—` | *(Reclaimers)* If enabled, sound cache statistics will be shown in the top left corner of the screen, including how full it is. |
-| `debug_sound_channels` | boolean | `—` | *(Reclaimers)* Displays the utilization of sound channel limits in the top left corner of the screen. |
-| `debug_sound_environment` | boolean | `—` | *(Reclaimers)* If enabled, shows the tag path of the cluster's current sound_environment. |
-| `loud_dialog_hack` | boolean | `—` | *(Reclaimers)* Controls the amount of mouse input acceleration. Set to 0 for none. Defaults to 0.7. |
-| `sound_gain_under_dialog` | real | `0.699999988079071` | *(Reclaimers)* Controls how quiet non-dialog sounds are when scripted dialog is playing (sound class must be scripted_dialog_other, scripted_dialog_force_player, or scripted_dialog_force_unspatialized). Does not apply to involuntary AI dialog like death/pain lines. Defaults to 0.7. The effect takes about half a second to fade in/out. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_looping_sound` | boolean | `—` |
+| `debug_sound` | boolean | `—` |
+| `debug_sound_cache` | boolean | `—` |
+| `debug_sound_channels` | boolean | `—` |
+| `debug_sound_environment` | boolean | `—` |
+| `loud_dialog_hack` | boolean | `—` |
+| `sound_gain_under_dialog` | real | `0.699999988079071` |
 
 ### Structures
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_bsp` | boolean | `—` | *(Reclaimers)* Toggles the display of structure BSP node traversal for the camera location. At each level, the node and plane indices are shown as well as a + or - symbol indicating if the camera was on the front or back side of the plane. |
-| `debug_leaf_index` | long | `-1` | *(Reclaimers)* Shows orange and white spheres with the radius of each dynamic light. White seems to show when a light is not yet been activated, such as the Warthog's brake lights until their first use. Lens flare only lights are not shown since their radius is 0. |
-| `debug_leaf_portal_index` | long | `-1` | *(Reclaimers)* Shows orange and white spheres with the radius of each dynamic light. White seems to show when a light is not yet been activated, such as the Warthog's brake lights until their first use. Lens flare only lights are not shown since their radius is 0. |
-| `debug_leaf_portals` | boolean | `—` | *(Reclaimers)* Shows orange and white spheres with the radius of each dynamic light. White seems to show when a light is not yet been activated, such as the Warthog's brake lights until their first use. Lens flare only lights are not shown since their radius is 0. |
-| `debug_portals` | boolean | `—` | *(Reclaimers)* Draws BSP portals as red outlines. You may wish to pair this with rasterizer_wireframe 1 to help you understand how portals result in culling parts of the BSP from rendering. The related function debug_pvs will enable/disable this global and structures_use_pvs_for_vs. |
-| `debug_structure` | boolean | `—` | *(Reclaimers)* When enabled, all scenario_structure_bsp collision surfaces will be rendered with green outlines. A red bounding box surrounds renderable surfaces. |
-| `debug_trigger_volumes` | boolean | `—` | *(Reclaimers)* Renders all scenario trigger volumes and their names. |
-| `structures_use_pvs_for_vs` | boolean | `—` | *(Reclaimers)* If enabled, forces the renderer to fully render all clusters and subclusters in the potentially visible set (PVS) without any culling of occluded faces, and even if portals into those clusters are off-screen. Pair with rasterizer_wireframe 1 to see the effects. Use this to debug which clusters are in the PVS of the camera's cluster, which can help you understand why a cluster is considered indoor |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_bsp` | boolean | `—` |
+| `debug_leaf_index` | long | `-1` |
+| `debug_leaf_portal_index` | long | `-1` |
+| `debug_leaf_portals` | boolean | `—` |
+| `debug_portals` | boolean | `—` |
+| `debug_structure` | boolean | `—` |
+| `debug_trigger_volumes` | boolean | `—` |
+| `structures_use_pvs_for_vs` | boolean | `—` |
 
 ### Units
 
-| Command | Type | Default | Description |
-|---------|------|---------|-------------|
-| `debug_biped_limp_body_disable` | boolean | `—` | *(Reclaimers)* When set to true, pauses the biped limp body system, which is responsible for moving model nodes towards the ground when an eligible biped has died and has come to rest on the structure BSP. Bipeds will lay roughly at the right angle, but they will not conform to the shape of the surfaces below them. If set to false, the limp body system will take effect again even for existing dead bipeds. |
-| `debug_biped_physics` | boolean | `—` | *(Reclaimers)* For this to be visible, collision_debug must also be enabled which has the side-effect of making the collision_debug feature itself unusable until the game is restarted. This displays several markers and vectors within the player's physics pill (debug_objects_biped_physics_pill) which can be more easily observed in third person and with framerate_throttle 1. The number and colours of the debug ove |
-| `debug_biped_skip_collision` | boolean | `—` | *(Reclaimers)* If true, disables collision checks for bipeds. They will be able to keep "walking" horizontally, but cannot jump or collide with any objects the BSP, and are unaffected by gravity. They will still be forced to stay crouched if crouching below or within a collideable surface. |
-| `debug_biped_skip_update` | boolean | `—` | *(Reclaimers)* Toggles the display of structure BSP node traversal for the camera location. At each level, the node and plane indices are shown as well as a + or - symbol indicating if the camera was on the front or back side of the plane. |
-| `debug_unit_all_animations` | boolean | `—` | *(Reclaimers)* Logs lines to the console output as unit animations occur. For example: cyborg_mp: animation stand pistol move-right. |
-| `debug_unit_animations` | boolean | `—` | *(Reclaimers)* Shows red console log output whenever a unit animation is missing. For example: MISSING: cyborg 'G-driver unarned aim-still'. |
-| `debug_unit_illumination` | boolean | `—` | *(Reclaimers)* Force-disconnects from the current multiplayer session and returns to the menu. This can be handy for quickly leaving a server after a game has ended without having to wait for the "Quit" option in the post-game lobby. |
+| Command | Type | Default |
+|---------|------|---------|
+| `debug_biped_limp_body_disable` | boolean | `—` |
+| `debug_biped_physics` | boolean | `—` |
+| `debug_biped_skip_collision` | boolean | `—` |
+| `debug_biped_skip_update` | boolean | `—` |
+| `debug_unit_all_animations` | boolean | `—` |
+| `debug_unit_animations` | boolean | `—` |
+| `debug_unit_illumination` | boolean | `—` |
 
 ## HaloScript functions (parenthesized)
 
@@ -1146,18 +1145,9 @@ string (same text `help` / `script_doc` print).
 | `(vehicle_test_seat_list <type_39> <type_9> <object_list>)` | boolean | `<type_39> <type_9> <object_list>` | tests whether the named seat has an object in the object list |
 | `(vehicle_unload <unit> <type_9>)` | short | `<unit> <type_9>` | makes units get out of a vehicle from the substring-specified seats (e.g. CD-passenger... empty string matches all seats) |
 
-## Coverage vs Reclaimers external-globals extract
-
-- Xbox binary: **443** entries (**442** unique names; 1 duplicate)
-- Reclaimers extract: **499** entries
-- In binary, missing from extract (16): `decals`, `display_vblank_deltas`, `player0_look_pitch_rate`, `player0_look_yaw_rate`, `player1_look_pitch_rate`, `player1_look_yaw_rate`, `player2_look_pitch_rate`, `player2_look_yaw_rate`, `player3_look_pitch_rate`, `player3_look_yaw_rate`, `radiosity_lines`, `radiosity_normals`, `radiosity_quality`, `radiosity_step_count`, `rasterizer_pushbuffer_kickoff_size`, `rasterizer_pushbuffer_size`
-- In extract, not in this Xbox build (73) — PC/H1A/server-only names, not usable here: `allow_client_side_weapon_projectiles`, `biped_incremental_rate`, `breadcrumbs_navpoints_enabled_override`, `cl_remote_player_action_queue_limit`, `cl_remote_player_action_queue_tick_limit`, `client_log_destination`, `debug_objects_biped_messages`, `debug_objects_equipment_messages`, `debug_objects_projectile_messages`, `debug_objects_vehicle_messages`, `debug_objects_weapon_messages`, `debug_score`, `debug_sound_cache_graph`, `debug_sound_channels_detail`, `debug_sound_hardware`, `debug_structure_automatic`, `developer_mode`, `director_camera_switching`, `disconnect`, `equipment_incremental_rate`, `error_suppress_all`, `game_paused`, `game_speed_value`, `hud_filter`, `leaf_to_leaf_latency`, `local_player_log_level`, `local_player_update_rate`, `local_player_vehicle_update_rate`, `log_server_player_update_history`, `mouse_acceleration`, `multiplayer_draw_teammates_names`, `multiplayer_hit_sound_volume`, `net_bandwidth`, `net_graph_enabled`, `net_graph_period`, `network_connect_timeout`, `object_prediction`, `oddball_baseline_rate`, `projectile_incremental_rate`, `rasterizer_d3dlight_attenuation0`, `rasterizer_d3dlight_attenuation1`, `rasterizer_d3dlight_attenuation2`, `rasterizer_d3dlight_falloff`, `rasterizer_d3dlight_phi`, `rasterizer_d3dlight_theta`, `rasterizer_debug_shader_transparent_generic`, `rasterizer_effects_level`, `rasterizer_fps`, `rasterizer_frame_drop_ms`, `remote_player_action_baseline_update_rate`, `remote_player_action_update_rate`, `remote_player_log_level`, `remote_player_position_baseline_update_rate`, `remote_player_position_update_rate`, `remote_player_vehicle_baseline_update_rate`, `remote_player_vehicle_update_rate`, `slow_server_startup_safety_zone_in_seconds`, `sound_cache_dump_to_file`, `sound_cache_size`, `sound_obstruction_ratio`, `speed_hack_detection`, `speed_hack_log_level`, `sv_client_action_queue_limit`, `sv_client_action_queue_tick_limit`, `sv_mapcycle_timeout`, `sv_public`, `sv_tk_ban`, `texture_cache_flush`, `transport_dumping`, `use_new_vehicle_update_scheme`, `use_super_remote_players_action_update`, `vehicle_incremental_rate`, `weapon_incremental_rate`
-
 ## Related docs
 
 - `docs/debug-commands-keyboard.md` — keyboard shortcuts,
   cheats.txt, console evaluate internals
-- `docs/references/h1/scripting-reference.md` — Reclaimers HSC
-  reference (PC/H1A; includes names absent from this binary)
 - In-game: `(script_doc)` → `hs_doc.txt`, `(help <name>)`
 

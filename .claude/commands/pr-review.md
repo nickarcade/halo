@@ -17,7 +17,7 @@ offset X") gets checked against the binary — Ghidra / `ghidra-live` MCP,
 `kb.json`, disassembly, VC71/equivalence output — the same evidence policy as
 `halo-lift`. Evidence can support the PR's claims or contradict them; either
 outcome is a valid finding. Run `python3 tools/audit/check_ghidra_mcp.py`
-before any Ghidra MCP call (CLAUDE.md Ghidra Pre-flight).
+before any Ghidra MCP call (AGENTS.md Ghidra Pre-flight).
 
 ## Step 1 — CI status
 
@@ -50,7 +50,7 @@ For each functional claim in the diff:
   field offsets against Ghidra disassembly per `lift-decompiler-traps` (register
   aliasing, push-then-fstp floats, struct field rotation, buffer-alias
   confusion). Check C89 compliance, no inline asm, no MSVC intrinsics
-  transcribed as calls (CLAUDE.md §2 table).
+  transcribed as calls (AGENTS.md §2 table).
 - **Struct/offset changes**: field names must follow `naming-confidence` —
   `field_<hex>` vs `pad_<hex>[n]` distinction, no invented semantic names
   without string/PDB evidence.
@@ -82,7 +82,7 @@ merging is shared, hard-to-reverse state. Do not merge unilaterally.
 
 1. `gh pr checkout $ARGUMENTS`
 2. Make small, scoped fixup commits addressing exactly the findings (respect
-   CLAUDE.md commit discipline — `/lift`'s commit path for lift-touching
+   AGENTS.md commit discipline — `/lift`'s commit path for lift-touching
    fixes, ordinary messages otherwise; never bundle unrelated cleanup).
 3. Push: `git push` (confirm with the user first — pushing to someone else's
    branch is a shared-state action).

@@ -15,13 +15,13 @@ The only skills meant for you to invoke directly.
 
 - **`/clear-cache`** — Clear Halo CE cache files from Xbox devkit cache partitions
 - **`/handover`** — Create a concise continuation handover for Halo CE Xbox RE/lift work when the user runs /handover or asks to transfer context to a new agen…
-- **`/input-fixture`** — Interactive wizard to capture (record) or replay a deterministic
+- **`/input-fixture`** — Interactive wizard to record or replay a controller-input fixture for a Halo CE level.
 - **`/recover-campaign`** — Target-only readability campaign for already lifted Halo Xbox source, using 2276 evidence and byte-neutral gates.
 - **`/recover-goal`** — Goal-mode readability recovery — loop the recovery frontier, run the source-recovery ladder per object, park on failure, until N objects ar…
 - **`/recovery-session`** — End-to-end recovery session — recover enums, structs, fields, and readable source per object, improve that object's VC71 byte accuracy, run…
 - **`/reintegrate-to-main`** — Safely re-integrate a lift/session worktree branch into main — bring the branch up to date, rebase, gate (whole-object kb.json partition +…
 - **`/score-campaign`** — Goal-mode VC71 byte-accuracy campaign — sweep the whole score frontier (not just the permuter's [85,98] band), route each target to the rig…
-- **`/source-recovery`** — The single readability/source-recovery orchestrator for already-lifted Halo Xbox code — /recover-source (and its alias /cleanup) scopes deb…
+- **`/source-recovery`** — The single readability/source-recovery orchestrator for already-lifted Halo Xbox code — `/source-recovery` scopes debt into a manifest, wor…
 
 ## Auto-applied doctrine (agent self-invokes)
 
@@ -30,6 +30,7 @@ words in your message. Listed for transparency, not as a to-do.
 
 | Skill | What it covers | Example triggers |
 |---|---|---|
+| `auto-lift-checklist` | Compact non-mechanical judgment checklist for memoryless auto-lift agents. | `auto-lift checklist`, `memoryless auto-lift` |
 | `bug-hunt` | Tiered automated bug scanner for Halo CE Xbox lifts. Run after editing source | `bug hunt`, `bug-hunt`, `hazard scan`, `check_lift_hazards`, `before deploy` |
 | `check-callee-regs` | "@<reg>, register arg, in_EAX/in_ECX, unported callee, XCALL, missing ABI annotation: scan ported code for calls to original functions that… | `register arg`, `reg arg`, `in_eax`, `in_ecx`, `in_edx` |
 | `cleanup-regression-triage` | Isolate and explain a VC71-match or test regression caused by cleanup work — localize to the ladder category and unit via per-category comm… | `cleanup regression`, `match dropped`, `score dropped`, `match regression`, `score regression` |

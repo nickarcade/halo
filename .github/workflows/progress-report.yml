@@ -30,11 +30,11 @@ jobs:
       contents: write
       actions: read
     env:
-      VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
-      BUILD_DIR: /mnt/g/dev/halo/build
-      ARTIFACTS_DIR: /mnt/g/dev/halo/artifacts
-      DELINKED_DIR: /mnt/g/dev/halo/delinked
-      XBE_DIR: /mnt/g/dev/halo/halo-patched
+      VENV_PYTHON: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/.venv/bin/python3
+      BUILD_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/build
+      ARTIFACTS_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/artifacts
+      DELINKED_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/delinked
+      XBE_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/halo-patched
     
     steps:
       - name: Clone Repository
@@ -111,7 +111,7 @@ jobs:
 
       - name: Generate Progress Report
         env:
-          HALO_REPORT_BATCH_VERIFY_DIR: /mnt/g/dev/halo/artifacts/batch_verify
+          HALO_REPORT_BATCH_VERIFY_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/artifacts/batch_verify
         run: |
           "$VENV_PYTHON" tools/report/generate_decomp_report.py \
             --output artifacts/progress/report.json \

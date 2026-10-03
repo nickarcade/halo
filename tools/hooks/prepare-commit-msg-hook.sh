@@ -1,6 +1,6 @@
 #!/bin/sh
-# .git/hooks/prepare-commit-msg — auto-generate lift commit messages
-# Install: cp tools/prepare-commit-msg-hook.sh .git/hooks/prepare-commit-msg && chmod +x .git/hooks/prepare-commit-msg
+# prepare-commit-msg — auto-generate lift commit messages
+# Wired in by tools/hooks/prepare-commit-msg (core.hooksPath=tools/hooks).
 #
 # When kb.json, kb_meta.json, or src/**/*.c files are staged, this hook
 # prepopulates the commit message with the output of generate_lift_commit.py.

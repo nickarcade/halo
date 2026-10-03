@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Entry point for core.hooksPath=tools/hooks: git only runs hooks by exact name.
+# Opt-in: the script runs a full Unicorn sweep and a raw-XBE byte regression
+# (up to hours, needs the proprietary XBE). Enable with HALO_HEAVY_HOOKS=1.
+# CI remains the backstop for pushes that skip it.
+[ "${HALO_HEAVY_HOOKS:-}" = 1 ] || exit 0
+ROOT="$(git rev-parse --show-toplevel)"
+exec bash "$ROOT/tools/hooks/pre-push.sh" "$@"

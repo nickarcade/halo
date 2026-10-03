@@ -129,6 +129,31 @@ unsigned int FUN_0011ea90(void *block_hdr)
   return blk[0] & 0x7fffffff;
 }
 
+/* memory_block_get_user_size (0x11eac0) — block size minus 0x20 header bytes.
+ *
+ * Register convention: block_hdr in ESI (kb.json @<esi>).
+ * Binary: assert block (line 0x237), then an inlined copy of FUN_0011ea90
+ * (its own block assert at line 0x22f and the low-31-bit size read), then
+ * SUB EAX,0x20. Both assert blocks share one ADD ESP,0x28 cleanup.
+ */
+unsigned int memory_block_get_user_size(void *block_hdr)
+{
+  unsigned int *blk = (unsigned int *)block_hdr;
+
+  if (blk == 0) {
+    display_assert("block", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c",
+                   0x237, 1);
+    system_exit(-1);
+  }
+  if (blk == 0) {
+    display_assert("block", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c",
+                   0x22f, 1);
+    system_exit(-1);
+  }
+
+  return (blk[0] & 0x7fffffff) - 0x20;
+}
+
 /* memory_block_get_pool_index (0x11eb10) — return a block's pool slot index.
  *
  * Register convention: block_hdr in ESI (kb.json @<esi>).
@@ -1118,6 +1143,120 @@ void *pool_new_handle(void *pool, int size, const char *file, unsigned int line)
   return 0;
 }
 
+/* pool_new_handle_clear (0x11f880) — allocate a block, zero its user area,
+ * and update pool accounting.
+ *
+ * Binary evidence (0x11f880..0x11f92a):
+ *   CALL 0x11f1e0 with EAX=size, stack [pool, file, line]
+ *   CALL 0x11ecf0 memory_block_valid(ECX=block_hdr); assert line 0x23f
+ *   CALL 0x8db80  csmemset(block_hdr + 0x1c, 0, size)
+ * Returns the block header pointer itself, or NULL on allocation failure.
+ * Pool offsets touched: +0x14, +0x18 (signed compare), +0x1c, +0x20, +0x24.
+ */
+void *pool_new_handle_clear(void *pool, int size, const char *file,
+                            unsigned int line)
+{
+  char *pool_p = (char *)pool;
+  char *block_hdr;
+
+  block_hdr = (char *)stack_memory_pool_alloc_internal(size, pool, file, line);
+
+  if (block_hdr != 0) {
+    if (!(memory_block_valid(block_hdr) & 0xff)) {
+      display_assert("memory_block_valid(block)",
+                     "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x23f, 1);
+      system_exit(-1);
+    }
+
+    csmemset(block_hdr + 0x1c, 0, size);
+
+    *(unsigned int *)(pool_p + 0x14) += *(unsigned int *)block_hdr & 0x7fffffff;
+    *(unsigned int *)(pool_p + 0x1c) += 1;
+
+    if (*(int *)(pool_p + 0x14) > *(int *)(pool_p + 0x18)) {
+      *(unsigned int *)(pool_p + 0x18) = *(unsigned int *)(pool_p + 0x14);
+    }
+
+    if (*(unsigned int *)(pool_p + 0x1c) > *(unsigned int *)(pool_p + 0x20)) {
+      *(unsigned int *)(pool_p + 0x20) = *(unsigned int *)(pool_p + 0x1c);
+    }
+
+    if ((*(unsigned int *)block_hdr & 0x7fffffff) >
+        *(unsigned int *)(pool_p + 0x24)) {
+      *(unsigned int *)(pool_p + 0x24) =
+        *(unsigned int *)block_hdr & 0x7fffffff;
+    }
+
+    return block_hdr;
+  }
+
+  return 0;
+}
+
+/* pool_resize_handle (0x11f930) — resize the block referenced by *h and
+ * update pool accounting.
+ *
+ * Binary evidence (0x11f930..0x11fa35):
+ *   assert h (line 0xc1)
+ *   CALL 0x11ef50 stack_memory_pool_valid_block(EAX=*h, ECX=pool); the AL
+ *     result is kept in [EBP-1] and returned on the success paths
+ *   inlined FUN_0011ea90 on the old block (assert block, line 0x22f)
+ *   CALL 0x11f750 with EAX=new_size, ECX=pool, stack [block, file, line]
+ *   CALL 0x11ea90 (ESI=new block) only when largest_alloc grows
+ * Returns false (XOR AL,AL) when the resize fails.
+ * Pool offsets touched: +0x14, +0x18 (signed compare), +0x24 (unsigned).
+ */
+bool pool_resize_handle(void *pool, void **h, int new_size, const char *file,
+                        unsigned int line)
+{
+  char *pool_p = (char *)pool;
+  unsigned int *block_hdr;
+  unsigned int *new_hdr;
+  unsigned int old_size;
+  bool valid;
+
+  if (h == 0) {
+    display_assert("h", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0xc1,
+                   1);
+    system_exit(-1);
+  }
+
+  block_hdr = (unsigned int *)*h;
+  valid = stack_memory_pool_valid_block(block_hdr, pool);
+  if (!valid) {
+    display_assert("not a valid handle, or trying to resize a locked handle",
+                   "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0xc5, 1);
+    system_exit(-1);
+  } else {
+    if (block_hdr == 0) {
+      display_assert("block", "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c",
+                     0x22f, 1);
+      system_exit(-1);
+    }
+    old_size = *block_hdr & 0x7fffffff;
+
+    new_hdr = (unsigned int *)stack_memory_pool_alloc_or_resize(
+      new_size, pool, block_hdr, file, line);
+    if (new_hdr != 0) {
+      *h = new_hdr;
+      *(int *)(pool_p + 0x14) += (int)((*new_hdr & 0x7fffffff) - old_size);
+      if (*(int *)(pool_p + 0x14) > *(int *)(pool_p + 0x18)) {
+        *(int *)(pool_p + 0x18) = *(int *)(pool_p + 0x14);
+      }
+
+      if ((*new_hdr & 0x7fffffff) > *(unsigned int *)(pool_p + 0x24)) {
+        *(unsigned int *)(pool_p + 0x24) = FUN_0011ea90(new_hdr);
+      }
+
+      return valid;
+    }
+
+    return 0;
+  }
+
+  return valid;
+}
+
 /* stack_memory_pool_allocate — allocate a new block from the pool.
  *
  * Calls internal allocator 0x11f1e0 with EAX=size and stack args
@@ -1180,6 +1319,66 @@ void *stack_memory_pool_allocate(void *pool, int size, const char *file,
   }
 
   return (void *)(block_hdr + 0x1c);
+}
+
+/* pool_new_pointer_clear (0x11faf0) — allocate a block, zero its user area,
+ * mark it in-use, update pool accounting, and return the user pointer.
+ *
+ * Binary evidence (0x11faf0..0x11fbd4):
+ *   CALL 0x11f1e0 with EAX=size, stack [pool, file, line]
+ *   CALL 0x11ecf0 memory_block_valid(ECX=block_hdr); assert line 0x23f
+ *   CALL 0x8db80  csmemset(block_hdr + 0x1c, 0, size)
+ *   CALL 0x11f070 stack_memory_pool_mark_used(ESI=block_hdr, ECX=pool)
+ *   CALL 0x11ecf0 memory_block_valid(ECX=block_hdr); assert line 0x23f
+ * Returns block_hdr + 0x1c, or NULL on allocation failure.
+ * Pool offsets touched: +0x14, +0x18 (signed compare), +0x1c, +0x20, +0x24.
+ */
+void *pool_new_pointer_clear(void *pool, int size, const char *file,
+                             unsigned int line)
+{
+  char *pool_p = (char *)pool;
+  char *block_hdr;
+  char *pointer;
+
+  pointer = 0;
+  block_hdr = (char *)stack_memory_pool_alloc_internal(size, pool, file, line);
+
+  if (block_hdr != 0) {
+    if (!(memory_block_valid(block_hdr) & 0xff)) {
+      display_assert("memory_block_valid(block)",
+                     "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x23f, 1);
+      system_exit(-1);
+    }
+
+    pointer = block_hdr + 0x1c;
+    csmemset(pointer, 0, size);
+    stack_memory_pool_mark_used(block_hdr, pool);
+
+    if (!(memory_block_valid(block_hdr) & 0xff)) {
+      display_assert("memory_block_valid(block)",
+                     "c:\\halo\\SOURCE\\memory\\stack_memory_pool.c", 0x23f, 1);
+      system_exit(-1);
+    }
+
+    *(unsigned int *)(pool_p + 0x14) += *(unsigned int *)block_hdr & 0x7fffffff;
+    *(unsigned int *)(pool_p + 0x1c) += 1;
+
+    if (*(int *)(pool_p + 0x14) > *(int *)(pool_p + 0x18)) {
+      *(unsigned int *)(pool_p + 0x18) = *(unsigned int *)(pool_p + 0x14);
+    }
+
+    if (*(unsigned int *)(pool_p + 0x1c) > *(unsigned int *)(pool_p + 0x20)) {
+      *(unsigned int *)(pool_p + 0x20) = *(unsigned int *)(pool_p + 0x1c);
+    }
+
+    if ((*(unsigned int *)block_hdr & 0x7fffffff) >
+        *(unsigned int *)(pool_p + 0x24)) {
+      *(unsigned int *)(pool_p + 0x24) =
+        *(unsigned int *)block_hdr & 0x7fffffff;
+    }
+  }
+
+  return pointer;
 }
 
 /* stack_memory_pool_realloc — resize (or allocate) a block in the pool.
@@ -1561,4 +1760,151 @@ bool qsort_texture_indexes(int16_t index_a, int16_t index_b)
   entry_b = (char *)datum_get(*(data_t **)(page_b + 0x18), index_b);
 
   return (*(int16_t *)(entry_b + 0xa) - *entry_a_field_0a) > 0;
+}
+
+
+/* FUN_0011ff70 — pack every live texture of a texture page into channels
+ * (0x11ff70..0x120249). Returns false when a texture does not fit.
+ *
+ * Name left as FUN_: kb.json has no name for it. Assert strings (texture_page.c
+ * lines 0x124, 0x105, 0x168) are the only text evidence.
+ *
+ * Reference shape:
+ *   - spacing assert reads int16 +0x0c; ceiling_power2 gets it zero-extended
+ *     and its int result is compared against the MOVSX field.
+ *   - texture_page_verify(page) via ESI (kb.json @<esi>).
+ *   - Walks textures->data in 0xc-byte steps for current_count (+0x2e)
+ *     datums. Each datum with a nonzero first word adds its index to a local
+ *     int16 array of 0x8000 entries at [EBP-0x10c24].
+ *   - Stores the page at 0x46e808 (read by qsort_texture_indexes) and sorts the
+ *     array with FUN_00091da0(indexes, count, qsort_texture_indexes).
+ *   - spacing (+0x0c) is used only when more than one index exists; mask is
+ *     ceiling_power2(spacing)-1 when spacing is nonzero, else 0.
+ *   - +0x14 is cleared, then gets width*height added for each texture placed.
+ *   - The channel table at [EBP-0xc24] holds 0x200 int16 triples
+ *     {x, y, free height}. Channel 0 starts as {0, 0, page height (+0x0a)}.
+ *   - Each iteration repeats texture_page_verify's width/height assert (0x105)
+ *     and the data_verify call inline (no NULL-page assert), then datum_get.
+ *     The texture datum's +0x08/+0x0a (padded by 2*spacing and rounded up by
+ *     mask) choose the first channel where it fits. The datum's +0x04/+0x06 get
+ *     the channel's x/y plus spacing.
+ *   - Line 0x168 asserts after the increment (CMP DX,0x200 on count+1).
+ */
+bool FUN_0011ff70(void *page)
+{
+  int16_t texture_indexes[0x8000];
+  int16_t channels[0x200 * 3];
+  char *texture_page;
+  data_t *textures;
+  int16_t *datum;
+  int16_t datum_index;
+  int16_t index_count;
+  int16_t spacing;
+  int16_t spacing_mask;
+  int16_t channel_count;
+  int16_t texture_index;
+
+  texture_page = (char *)page;
+
+  if (*(int16_t *)(texture_page + 0xc) != 0 &&
+      ceiling_power2(*(int16_t *)(texture_page + 0xc)) !=
+        *(int16_t *)(texture_page + 0xc)) {
+    ((fatal_assert_stdcall_fn)(void *)display_assert)(
+      "texture_page->spacing==0 || "
+      "ceiling_power2(texture_page->spacing)==texture_page->spacing",
+      "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x124, 1);
+    system_exit(-1);
+  }
+
+  texture_page_verify(texture_page);
+
+  textures = *(data_t **)(texture_page + 0x18);
+  datum = (int16_t *)textures->data;
+  index_count = 0;
+  for (datum_index = 0; datum_index < textures->current_count;
+       datum_index++, datum += 6) {
+    if (*datum != 0) {
+      texture_indexes[index_count] = datum_index;
+      index_count++;
+    }
+  }
+
+  *(char **)0x46e808 = texture_page;
+  FUN_00091da0(texture_indexes, index_count, (void *)qsort_texture_indexes);
+
+  spacing = index_count > 1 ? *(int16_t *)(texture_page + 0xc) : 0;
+  spacing_mask = spacing != 0 ? (int16_t)(ceiling_power2(spacing) - 1) : 0;
+
+  *(int32_t *)(texture_page + 0x14) = 0;
+  channel_count = 1;
+  channels[0] = 0;
+  channels[1] = 0;
+  channels[2] = *(int16_t *)(texture_page + 0xa);
+
+  for (texture_index = 0; texture_index < index_count; texture_index++) {
+    int16_t *texture;
+    int16_t *channel;
+    int16_t width;
+    int16_t height;
+    int16_t remaining_height;
+    int16_t channel_index;
+
+    datum_index = texture_indexes[texture_index];
+
+    if (*(int16_t *)(texture_page + 8) <= 0 ||
+        *(int16_t *)(texture_page + 0xa) <= 0) {
+      ((fatal_assert_stdcall_fn)(void *)display_assert)(
+        "texture_page->width>0 && texture_page->height>0",
+        "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x105, 1);
+      system_exit(-1);
+    }
+    data_verify(*(data_t **)(texture_page + 0x18));
+    texture =
+      (int16_t *)datum_get(*(data_t **)(texture_page + 0x18), datum_index);
+
+    width = (int16_t)(texture[4] + spacing * 2);
+    height = (int16_t)(texture[5] + spacing * 2);
+    if ((width & spacing_mask) != 0) {
+      width = (int16_t)((width & ~spacing_mask) + spacing);
+    }
+    if ((height & spacing_mask) != 0) {
+      height = (int16_t)((height & ~spacing_mask) + spacing);
+    }
+
+    for (channel_index = 0; channel_index < channel_count; channel_index++) {
+      channel = &channels[channel_index * 3];
+      if (width <= *(int16_t *)(texture_page + 8) - channel[0] &&
+          height <= channel[2]) {
+        break;
+      }
+    }
+    if (channel_index >= channel_count) {
+      return false;
+    }
+
+    channel = &channels[channel_index * 3];
+    remaining_height = (int16_t)(channel[2] - height);
+    texture[2] = (int16_t)(channel[0] + spacing);
+    texture[3] = (int16_t)(channel[1] + spacing);
+    if (remaining_height != 0) {
+      int16_t *new_channel;
+
+      new_channel = &channels[channel_count * 3];
+      channel_count++;
+      if (channel_count >= 0x200) {
+        ((fatal_assert_stdcall_fn)(void *)display_assert)(
+          "channel_count<MAXIMUM_TEXTURE_CHANNELS",
+          "c:\\halo\\SOURCE\\memory\\texture_page.c", 0x168, 1);
+        system_exit(-1);
+      }
+      new_channel[0] = channel[0];
+      new_channel[1] = (int16_t)(channel[1] + height);
+      new_channel[2] = remaining_height;
+    }
+    channel[0] = (int16_t)(channel[0] + width);
+    channel[2] = height;
+    *(int32_t *)(texture_page + 0x14) += height * width;
+  }
+
+  return true;
 }

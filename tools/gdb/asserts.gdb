@@ -13,7 +13,7 @@
 # downstream page fault.
 #
 # Usage (xemu must be running with -s GDB stub on :1234):
-#     gdb -x tools/asserts.gdb
+#     gdb -x tools/gdb/asserts.gdb
 #
 # To stop at the first hit for interactive debugging, remove the
 # trailing `continue` in the commands block below.

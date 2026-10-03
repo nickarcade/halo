@@ -1087,7 +1087,7 @@ void ai_handle_bump(int param_1, int param_2, float *velocity_ptr)
  *   PUSH EDX(unit team) => (unit_team, resolved_team); provoke pushes are
  *   reversed => (resolved_team, unit_team).
  * Confirmed: FCOMP + TEST AH,1 + JNZ skip => call when damage >= threshold. */
-void ai_handle_damage(int unit_handle, int param_2, int param_3, float damage,
+void ai_handle_damage(int unit_handle, int param_2, int16_t param_3, float damage,
                       int param_5, char param_6)
 {
   void *unit_obj;

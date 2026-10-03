@@ -35,7 +35,7 @@ playthrough never loses the run.
 
 Two hard-won invariants are baked in:
   * ALWAYS pass repo-relative paths to xbdm_rdcp.py (absolute /tmp got remapped to
-    G:\\tmp by the windows-python path layer); cwd is always the repo root.
+    <drive>:\\tmp by the windows-python path layer); cwd is always the repo root.
   * ALWAYS delete write.xts before any reboot in finalize — a boot with write.xts
     present reopens state.data with CREATE_ALWAYS and TRUNCATES the recording.
 """

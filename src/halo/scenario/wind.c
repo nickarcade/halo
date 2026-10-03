@@ -33,9 +33,9 @@ typedef char wind_record_size_check[(sizeof(wind_record) == 0x20) ? 1 : -1];
  * valid 'wind' tag reference (element+0x8c != -1) it:
  *   - random-walks t, yaw_perturbation, pitch_perturbation by +/-0.01 with
  *     clamping (t to [0,1], the two perturbations to [-1,1]);
- *   - lerps the record velocity between the tag's min/max (wind[0]/wind[1]);
+ *   - lerps the record velocity between the tag's min/max (definition[0]/[1]);
  *   - converts the element's base direction (element+0x90) to angles,
- *     perturbs yaw/pitch by the tag's scale factors (wind[3]/wind[2]) times
+ *     perturbs yaw/pitch by the tag's scale factors (definition[3]/[2]) times
  *     the perturbation states times 0.5, converts back to a direction vector;
  *   - scales that direction by (element+0x9c) * velocity;
  *   - marks the record valid.
@@ -103,84 +103,66 @@ void wind_variance_get(float *out, float *position, float scale, float magnitude
 
 void wind_update(void)
 {
-  int *block;
   short i;
+  tag_block *block;
   char *elem;
-  float *wind;
+  float *definition;
   wind_record *rec;
-  unsigned int *seed;
-  float delta;
+  float *direction;
   float scale;
   float angles[2];
 
-  block = (int *)scenario_get();
+  block = (tag_block *)scenario_get();
   if (*(char *)0x5057c0 == 0) {
     display_assert("wind_globals.initialized",
                    "c:\\halo\\SOURCE\\scenario\\wind.c", 0x59, 1);
     system_exit(-1);
   }
   (*(int *)0x5064c8)++;
-  block = (int *)((char *)block + 0x1b4);
+  i = 0;
+  block = (tag_block *)((char *)block + 0x1b4);
 
-  for (i = 0; i < *block; i++) {
+  for (; i < block->count; i++) {
     elem = (char *)tag_block_get_element(block, i, 0xf0);
     rec = &((wind_record *)0x5060c8)[i];
-    if (*(int *)(elem + 0x8c) == -1) {
+    if (*(int *)(elem + 0x8c) != -1) {
+      definition =
+        (float *)tag_get(0x77696e64 /* 'wind' */, *(int *)(elem + 0x8c));
+
+      rec->t += seed_random_range(random_math_get_local_seed_address(), 0, 2)
+                  ? 0.01f : -0.01f;
+      rec->t = rec->t < 0.0f ? 0.0f : (rec->t > 1.0f ? 1.0f : rec->t);
+
+      rec->yaw_perturbation +=
+        seed_random_range(random_math_get_local_seed_address(), 0, 2)
+          ? 0.01f : -0.01f;
+      rec->yaw_perturbation = rec->yaw_perturbation < -1.0f ? -1.0f
+        : (rec->yaw_perturbation > 1.0f ? 1.0f : rec->yaw_perturbation);
+
+      rec->pitch_perturbation +=
+        seed_random_range(random_math_get_local_seed_address(), 0, 2)
+          ? 0.01f : -0.01f;
+      rec->pitch_perturbation = rec->pitch_perturbation < -1.0f ? -1.0f
+        : (rec->pitch_perturbation > 1.0f ? 1.0f : rec->pitch_perturbation);
+
+      rec->velocity = (definition[1] - definition[0]) * rec->t + definition[0];
+      vector_to_angles(angles, (float *)(elem + 0x90));
+      angles[1] += definition[3] * rec->yaw_perturbation * 0.5f;
+      angles[0] += definition[2] * rec->pitch_perturbation * 0.5f;
+
+      direction = rec->direction;
+      angles_to_vector(direction, angles);
+      scale = *(float *)(elem + 0x9c) * rec->velocity;
+      direction[0] *= scale;
+      direction[1] *= scale;
+      direction[2] *= scale;
+      rec->valid = 1;
+    } else {
       rec->valid = 0;
-      continue;
     }
-    wind = (float *)tag_get(0x77696e64 /* 'wind' */, *(int *)(elem + 0x8c));
-
-    seed = random_math_get_local_seed_address();
-    delta = (seed_random_range(seed, 0, 2) != 0) ? 0.01f : -0.01f;
-    {
-      float val_t = rec->t + delta;
-      rec->t = val_t;
-      if (val_t < 0.0f)
-        val_t = 0.0f;
-      else if (val_t > 1.0f)
-        val_t = 1.0f;
-      rec->t = val_t;
-    }
-
-    seed = random_math_get_local_seed_address();
-    delta = (seed_random_range(seed, 0, 2) != 0) ? 0.01f : -0.01f;
-    {
-      float val_yaw = rec->yaw_perturbation + delta;
-      rec->yaw_perturbation = val_yaw;
-      if (val_yaw < -1.0f)
-        val_yaw = -1.0f;
-      else if (val_yaw > 1.0f)
-        val_yaw = 1.0f;
-      rec->yaw_perturbation = val_yaw;
-    }
-
-    seed = random_math_get_local_seed_address();
-    delta = (seed_random_range(seed, 0, 2) != 0) ? 0.01f : -0.01f;
-    {
-      float val_pitch = rec->pitch_perturbation + delta;
-      rec->pitch_perturbation = val_pitch;
-      if (val_pitch < -1.0f)
-        val_pitch = -1.0f;
-      else if (val_pitch > 1.0f)
-        val_pitch = 1.0f;
-      rec->pitch_perturbation = val_pitch;
-    }
-
-    rec->velocity = (wind[1] - wind[0]) * rec->t + wind[0];
-    vector_to_angles(angles, (float *)(elem + 0x90));
-    angles[1] = angles[1] + wind[3] * rec->yaw_perturbation * 0.5f;
-    angles[0] = angles[0] + wind[2] * rec->pitch_perturbation * 0.5f;
-    angles_to_vector(rec->direction, angles);
-
-    scale = *(float *)(elem + 0x9c) * rec->velocity;
-    rec->direction[0] = rec->direction[0] * scale;
-    rec->direction[1] = rec->direction[1] * scale;
-    rec->direction[2] = rec->direction[2] * scale;
-    rec->valid = 1;
   }
 
-  *(int16_t *)0x5060c4 = (int16_t)*block;
+  *(int16_t *)0x5060c4 = (int16_t)block->count;
 }
 
 /* 0x190380 — build the wind noise table at 0x5057c4.

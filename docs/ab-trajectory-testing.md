@@ -17,7 +17,7 @@ slot-deterministic spawns ⇒ two trajectories that are tick-for-tick comparable
 
 See also: `docs/input-fixture-capture.md` (the input side),
 `docs/halorec-timeseries-leverage.md` (the time-series diff tooling),
-and `/mnt/g/dev/halo-memory-viewer` (the HMRC recorder/viewer).
+and `../halo-memory-viewer` (the HMRC recorder/viewer).
 
 ## Two tiers: A discovers, B confirms
 
@@ -89,7 +89,7 @@ Hard rules (from `reference_xemu_qmp_memsave_capture`, proven again 2026-06-29):
 - `memsave` is **virtual**; `pmemsave` is physical and reads the wrong bytes on
   this Cerbios/`kernel-irqchip=off` setup.
 - HMP `memsave` command-line needs **doubled backslashes** in the Windows path
-  (`G:\\dev\\halo\\...`); `G:\` → WSL `/mnt/g/`.
+  (`<repo>\\...`); `G:\` → WSL `/mnt/g/`.
 - Capture only during **active gameplay** (a menu/idle/pre-load pause reads zeros).
 - **Verify-datum-magic check on every capture**: objtable ptr `*0x5a8d50` must be
   `~0x80xxxxxx`, and its target `+0x28` must equal `0x64407440`. A zero-read

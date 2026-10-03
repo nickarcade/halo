@@ -26648,7 +26648,7 @@
       "score": 95.5,
       "source": "src/halo/saved_games/game_state_xbox.c"
     },
-    "FUN_001c1720": {
+    "player_profile_new": {
       "abi_model": "regarg_mixed_stripped",
       "abi_model_items": 1,
       "abi_modeled_mnemonic_pct": 91.5,
@@ -26768,7 +26768,7 @@
       "score": 100.0,
       "source": "src/halo/saved games/saved_game_files.c"
     },
-    "FUN_001c1f70": {
+    "playlist_profile_delete": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -83576,7 +83576,7 @@
       "score": 87.0,
       "source": "src/halo/interface/ui_widget_event_handler_functions.c"
     },
-    "player_profile_new": {
+    "player_profile_get": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 91.4,
@@ -83621,7 +83621,7 @@
       "score": 86.7,
       "source": "src/halo/interface/ui_widget_event_handler_functions.c"
     },
-    "player_profile_save_last_level_played": {
+    "player_profile_get_highest_completed_solo_level": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -84836,7 +84836,7 @@
       "score": 100.0,
       "source": "src/halo/interface/ui_widget_event_handler_functions.c"
     },
-    "playlist_profile_create_default_profiles_on_disk": {
+    "playlist_profile_read": {
       "abi_model": "regparam_stripped_saves",
       "abi_model_items": 8,
       "abi_modeled_mnemonic_pct": 98.1,
@@ -84851,7 +84851,7 @@
       "score": 98.1,
       "source": "src/halo/saved games/saved_game_files.c"
     },
-    "playlist_profile_delete": {
+    "playlist_profile_get": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 95.9,
@@ -84866,7 +84866,7 @@
       "score": 95.9,
       "source": "src/halo/saved games/saved_game_files.c"
     },
-    "playlist_profile_get": {
+    "playlist_profile_get_from_path": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 92.7,
@@ -84881,7 +84881,7 @@
       "score": 92.7,
       "source": "src/halo/saved games/saved_game_files.c"
     },
-    "playlist_profile_get_display_name": {
+    "playlist_profile_save": {
       "abi_model": "regarg_mixed_stripped",
       "abi_model_items": 1,
       "abi_modeled_mnemonic_pct": 100.0,
@@ -85076,7 +85076,7 @@
       "score": 100.0,
       "source": "src/halo/saved games/saved_game_files.c"
     },
-    "playlist_profile_read": {
+    "playlist_profile_write": {
       "abi_model": "regparam_stripped_saves",
       "abi_model_items": 3,
       "abi_modeled_mnemonic_pct": 98.9,
@@ -85121,7 +85121,7 @@
       "score": 100.0,
       "source": "src/halo/interface/ui_widget_event_handler_functions.c"
     },
-    "playlist_profile_write": {
+    "playlist_profile_write_thread_proc": {
       "abi_model": "raw",
       "abi_model_items": 0,
       "abi_modeled_mnemonic_pct": 94.6,

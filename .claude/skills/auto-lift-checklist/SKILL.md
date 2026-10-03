@@ -1,6 +1,8 @@
 ---
 name: auto-lift-checklist
+tier: agent
 version: 1
+triggers: ["auto-lift checklist", "memoryless auto-lift"]
 description: Compact non-mechanical judgment checklist for memoryless auto-lift agents.
 ---
 

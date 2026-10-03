@@ -6,18 +6,12 @@ cross-referenced by function name against the 5,209 score-context packs in
 rows, including all 221 rows below 70%. Counts below are measured from that
 snapshot unless explicitly described as interpretation.
 
-Reproduce the aggregate evidence with:
+Reproduce the aggregate evidence with (the output file is a local, regenerated
+artifact and is not tracked):
 
 ```bash
 rtk python3 tools/verify/vc71_low_score_census.py \
-  --output docs/vc71-low-score-census-data.json
-```
-
-CI-style drift check:
-
-```bash
-rtk python3 tools/verify/vc71_low_score_census.py --check \
-  --output docs/vc71-low-score-census-data.json
+  --output artifacts/vc71-low-score-census-data.json
 ```
 
 ## Candidate Worklist

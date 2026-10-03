@@ -116,7 +116,7 @@ rtk python3 tools/verify/test_inventory.py --no-write
 
 ## Automated Enforcement in lift_pipeline.py
 
-`tools/lift_pipeline.py` now enforces this policy with:
+`tools/lift/lift_pipeline.py` now enforces this policy with:
 
 - `--low-match-policy` (`strict` by default)
 - `--low-match-threshold` (default `50`)

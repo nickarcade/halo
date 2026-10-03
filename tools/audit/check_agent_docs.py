@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
+"""Check the always-loaded agent instructions in AGENTS.md.
 
-import sys, os
-_tools_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _tools_dir not in sys.path:
-    sys.path.insert(0, _tools_dir)
+CLAUDE.md is not tracked. Where a local copy exists (normally a symlink to
+AGENTS.md), it must read identically so both agents see the same rules.
+"""
 
 from pathlib import Path
 import sys
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-FILES = (ROOT / "AGENTS.md", ROOT / "CLAUDE.md")
+AGENTS = ROOT / "AGENTS.md"
+CLAUDE = ROOT / "CLAUDE.md"
 MAX_LINES = 300
 
 
@@ -23,34 +24,28 @@ def line_count(text: str) -> int:
 
 
 def main() -> int:
-    missing = [str(path) for path in FILES if not path.exists()]
-    if missing:
-        print("Missing required files:")
-        for path in missing:
-            print(f"- {path}")
+    if not AGENTS.exists():
+        print(f"Missing required file: {AGENTS}")
         return 1
 
-    agents_text = read_text(FILES[0])
-    claude_text = read_text(FILES[1])
+    agents_text = read_text(AGENTS)
 
     failed = False
 
-    for path, text in ((FILES[0], agents_text), (FILES[1], claude_text)):
-        lines = line_count(text)
-        if lines > MAX_LINES:
-            print(f"{path.name} has {lines} lines (limit: {MAX_LINES}).")
-            failed = True
+    lines = line_count(agents_text)
+    if lines > MAX_LINES:
+        print(f"{AGENTS.name} has {lines} lines (limit: {MAX_LINES}).")
+        failed = True
 
-    if agents_text != claude_text:
-        print("AGENTS.md and CLAUDE.md are out of sync.")
+    if CLAUDE.exists() and read_text(CLAUDE) != agents_text:
+        print("Local CLAUDE.md differs from AGENTS.md; make it a symlink:")
+        print("  ln -sf AGENTS.md CLAUDE.md")
         failed = True
 
     if failed:
         return 1
 
-    print(
-        f"OK: AGENTS.md and CLAUDE.md are identical and <= {MAX_LINES} lines."
-    )
+    print(f"OK: AGENTS.md is <= {MAX_LINES} lines.")
     return 0
 
 

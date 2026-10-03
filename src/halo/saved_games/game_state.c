@@ -108,8 +108,8 @@ void game_state_save_to_persistent_storage(void)
 /* Read and validate game state from persistent storage. Returns 1 on success,
  * 0 on failure. On success, copies the header and resets checkpoint flags.
  * 0x1bf920 / game_state.obj */
-int game_state_test_persistent_storage(char *out_header, int16_t *out_flags,
-                                       int param_3)
+char game_state_test_persistent_storage(char *out_header, int16_t *out_flags,
+                                        int param_3)
 {
   char header[0x14c];
 

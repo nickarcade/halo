@@ -876,6 +876,32 @@ int32_t profile_frame_get_stalls(void *iterator, int16_t *out_a, int32_t *out_b)
   return *(int32_t *)(entry + 0x1118);
 }
 
+/* profile_rasterizer_stalls (0x912c0) - cdecl, no callers found. Reads five
+ * stack slots: dword [ebp+8], word [ebp+0xc], dword [ebp+0x10] (FILD + 2^32
+ * fixup when negative = unsigned), dword [ebp+0x14] never read, qword
+ * [ebp+0x18]. The 0x449c80 block uses the profile_timesection_end layout:
+ * start stamp (+0x0) zeroed, end stamp (+0x8) = the qword, and its msec
+ * conversion (same scale 0x254cb8 / freq 0x3361a0) added unnarrowed to the
+ * floats at +0x10/+0x14. 0x449ee0/0x449ee4/0x449ee8 receive the dword, the
+ * word and the msec conversion of the unsigned dword. Parameter meanings
+ * beyond these slots are unconfirmed. */
+void profile_rasterizer_stalls(int32_t value_08, int16_t value_0c,
+                               uint32_t cycles_10, int32_t unused_14,
+                               int64_t cycles_18)
+{
+  float elapsed;
+
+  elapsed = (float)cycles_18 * *(float *)0x254cb8 / (float)unknown_3361a0;
+  unknown_449c80 = 0;
+  unknown_449c88 = cycles_18;
+  unknown_449ee0 = value_08;
+  unknown_449ee4 = value_0c;
+  unknown_449c90 += elapsed;
+  unknown_449c94 += elapsed;
+  unknown_449ee8 = (float)cycles_10 * *(float *)0x254cb8 / (float)unknown_3361a0;
+  (void)unused_14;
+}
+
 /* Read RDTSC into a caller-supplied low/high dword pair (register-argument
  * helper: out pointer arrives in ECX). Auto-lift-assigned name; no callers
  * found in this binary. Mirrors the RDTSC macro's two dword stores. */

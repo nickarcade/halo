@@ -3,7 +3,7 @@
 
 Read-only report over the two ledgers that already record lift attempts, so
 future model-routing changes are arithmetic instead of anecdote
-(docs/plans/agent-model-routing-2026-08.md section 4, "Per-rung outcome stats").
+(docs/history/agent-model-routing-2026-08.md section 4, "Per-rung outcome stats").
 
 Sources (never written, never mutated):
   1. Park ledger  artifacts/parked/<slug>.json  (tools/lift/park.py)

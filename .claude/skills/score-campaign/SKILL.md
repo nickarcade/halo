@@ -46,7 +46,7 @@ Argument: $ARGUMENTS
 ## Preflight (once)
 
 1. **Build clean.** `rtk python3 tools/build/build.py -q --target halo`.
-2. **Sync decl.h.** `rtk python3 tools/build/knowledge.py --decl-only -q` —
+2. **Sync decl.h.** `rtk python3 tools/analysis/knowledge.py --gen-header build/generated/decl.h` —
    stale headers break both `vc71_verify` and the permuter's pycparser step.
 3. **Branch note.** Unlike `/auto-session`, this flow never merges parallel
    worktrees, so `main` is not blocked outright. Still recommend a session
@@ -215,7 +215,7 @@ trend comparison. Sub-`--min-score` targets that were flagged rather than
 attempted are **not** failures of this campaign — list them separately as
 candidates for `xbox-halo-re-analyst` / a re-lift review, since a genuinely
 wrong score that low is usually a logic bug, not a codegen lever (per the
-verification decision table in CLAUDE.md: "<85% → investigate lift, don't
+verification decision table in AGENTS.md: "<85% → investigate lift, don't
 permute" — this campaign's own floor is more conservative than that, by
 design, to keep the unattended loop from silently papering over real bugs).
 

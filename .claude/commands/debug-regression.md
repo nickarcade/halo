@@ -28,7 +28,7 @@ Run:
 rtk python3 tools/memory/prior_fixes.py "$ARGUMENTS"
 ```
 
-This searches source-controlled docs/skills, `.claude/agent-memory`, recent
+This searches source-controlled docs and skills, `.claude/agent-memory`, recent
 git commits, and retrieval outcome metadata. Load any recommended skill(s), and
 carry matching prior fixes into Phase 1 as hypotheses to confirm or refute.
 

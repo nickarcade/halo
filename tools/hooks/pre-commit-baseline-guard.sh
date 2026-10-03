@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # HALO-HOOK-TRIGGER: ^tools/kb_reg_baseline\.json$
-# Pre-commit hook: prevent removal or modification of existing entries
-# in tools/kb_reg_baseline.json.  New entries (additions) are allowed.
-#
-# Install:  ln -sf ../../tools/hooks/pre-commit-baseline-guard.sh .git/hooks/pre-commit
+# Pre-commit hook: protect the @<reg> entries in tools/kb_reg_baseline.json.
+# New entries are allowed. An existing entry may change only in names or
+# types: it must keep its parameter count and pin the same parameters to the
+# same registers. Removing an entry or changing its registers is refused.
 
 BASELINE="tools/kb_reg_baseline.json"
 
@@ -13,58 +13,38 @@ if ! staged_list all | grep -qx "$BASELINE"; then
     exit 0
 fi
 
-# Get the committed version.  If the file is new, nothing to protect.
-OLD=$(git show HEAD:"$BASELINE" 2>/dev/null) || exit 0
+# If the file is new in HEAD, nothing to protect.
+git cat-file -e HEAD:"$BASELINE" 2>/dev/null || exit 0
 
-# Get the staged version.
-NEW=$(git show :"$BASELINE")
-
-# Extract the "functions" object keys and values from each version.
-# Output: "0xaddr<TAB>declaration" per line, sorted.
-extract() {
-    python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for addr, decl in sorted(data.get('functions', {}).items(),
-                         key=lambda kv: int(kv[0], 16)):
-    print(f'{addr}\t{decl}')
-"
-}
-
-OLD_ENTRIES=$(echo "$OLD" | extract)
-NEW_ENTRIES=$(echo "$NEW" | extract)
-
-# Check that every old entry is present and unchanged in the new version.
-REMOVED=()
-CHANGED=()
-
-while IFS=$'\t' read -r addr decl; do
-    new_decl=$(echo "$NEW_ENTRIES" | awk -F'\t' -v a="$addr" '$1 == a {print $2}')
-    if [ -z "$new_decl" ]; then
-        REMOVED+=("  $addr  $decl")
-    elif [ "$new_decl" != "$decl" ]; then
-        CHANGED+=("  $addr")
-        CHANGED+=("    old: $decl")
-        CHANGED+=("    new: $new_decl")
-    fi
-done <<< "$OLD_ENTRIES"
-
-if [ ${#REMOVED[@]} -gt 0 ] || [ ${#CHANGED[@]} -gt 0 ]; then
-    echo "ERROR: kb_reg_baseline.json entries are protected."
-    echo ""
-    echo "Existing @<reg> baseline entries cannot be removed or changed."
-    echo "Only additions of new entries are allowed."
-    if [ ${#REMOVED[@]} -gt 0 ]; then
-        echo ""
-        echo "REMOVED entries:"
-        printf '%s\n' "${REMOVED[@]}"
-    fi
-    if [ ${#CHANGED[@]} -gt 0 ]; then
-        echo ""
-        echo "CHANGED entries:"
-        printf '%s\n' "${CHANGED[@]}"
-    fi
-    echo ""
-    echo "If this is a deliberate policy change, use: git commit --no-verify"
-    exit 1
-fi
+# Compare each committed entry with its staged version.
+python3 -c '
+import json, subprocess, sys
+sys.path.insert(0, "tools/audit")
+from extract_reg_args import reg_shape
+def load(rev):
+    out = subprocess.run(["git", "show", rev + ":" + sys.argv[1]],
+                         capture_output=True, check=True).stdout
+    return json.loads(out).get("functions", {})
+old, new = load("HEAD"), load("")
+removed, changed = [], []
+for addr in sorted(old, key=lambda a: int(a, 16)):
+    decl = old[addr]
+    if addr not in new:
+        removed.append(f"  {addr}  {decl}")
+    elif new[addr] != decl and reg_shape(new[addr]) != reg_shape(decl):
+        changed += [f"  {addr}", f"    old: {decl}", f"    new: {new[addr]}"]
+if removed or changed:
+    print("ERROR: kb_reg_baseline.json entries are protected.")
+    print()
+    print("Existing @<reg> baseline entries cannot be removed, and an entry may")
+    print("change only in names or types: same parameter count, same registers.")
+    if removed:
+        print("\nREMOVED entries:")
+        print("\n".join(removed))
+    if changed:
+        print("\nCHANGED register shape:")
+        print("\n".join(changed))
+    print()
+    print("If this is a deliberate policy change, use: git commit --no-verify")
+    sys.exit(1)
+' "$BASELINE"

@@ -17,7 +17,7 @@ follows a clang-compiled (`-fomit-frame-pointer`) EBP chain into garbage.
 2. From the repo root:
 
    ```
-   gdb -x tools/asserts.gdb
+   gdb -x tools/gdb/asserts.gdb
    ```
 
 3. Type `continue` to run. Any `severity != 0` assertion will print:
@@ -72,4 +72,4 @@ line, before the walker even runs.
   image against retail hardware this isn't available.
 - Relies on `display_assert` staying at `0x8d9f0` — if the assertion
   funnel ever gets re-ported to C, update the breakpoint address in
-  `tools/asserts.gdb`.
+  `tools/gdb/asserts.gdb`.

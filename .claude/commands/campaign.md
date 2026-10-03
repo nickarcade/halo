@@ -94,7 +94,7 @@ Parse from $ARGUMENTS (all optional):
    `--commitModel`/`--improveModel` flag; `--model` alone should map to
    `model` only, not to all four.
 6. **Warm the next targets while it runs** (fire-and-forget, ignore failures):
-   `rtk python3 tools/llm_auto_lift.py cache-context --batch 8`.
+   `rtk python3 tools/lift/llm_auto_lift.py cache-context --batch 8`.
 7. **Triage the result** (`{branch, batches_landed, batches_unlanded,
    functions_committed, stopped_reason, park_reason, conflicts, resumable}`):
 
@@ -122,9 +122,7 @@ Parse from $ARGUMENTS (all optional):
    ```
    Record `model` even when `--model` was not given (as `"default"` — Opus) so a
    later `campaigns.jsonl` comparison across runs isn't silently comparing
-   different model policies without saying so (see the auto-session.js note on
-   the 2026-09-02 sonnet-default regression: 55% vs 34% promote rate, 60K vs
-   140K tokens/commit — model choice is not a neutral knob).
+   different model settings without saying so.
 
    `tokens_spent` comes from the run's result JSON; `wall_s` is your own
    launch→completion timestamps (workflow scripts cannot read the clock).
@@ -176,5 +174,5 @@ use `/reintegrate-to-main` if the gate parks.
 /campaign --max-runs 6 --lift-reg-args             # frontier is mostly @<reg> now
 /campaign --max-runs 2 --no-land                   # main busy; land once at the end
 /campaign --max-runs 1 --dry-run                   # trial: nothing commits, nothing lands
-/campaign --max-runs 3 --model sonnet              # cheaper/faster session, all runs
+/campaign --max-runs 3 --model sonnet              # override the reasoning model, all runs
 ```

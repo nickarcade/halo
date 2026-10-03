@@ -28,29 +28,16 @@ const DRY_RUN      = !!(args && args.dryRun)
 // improve model for perspective diversity. This is the payoff of never
 // discarding sub-bar work — see tools/lift/park.py.
 const IMPROVE      = !!(args && args.improve)
-// Model/effort policy (single point of control). Rationale:
-// - Policy 2026-09-02: default the reasoning stages back to Opus. The
-//   2026-08-25 sonnet default (068eae4b4) was measured against the opus era it
-//   replaced and lost on every axis: routing_stats.py reports opus/high at a
-//   55% promote rate vs sonnet/high at 34%, with tokens-per-commit rising
-//   60K -> 140K (a cheaper model that promotes half as often is not cheaper),
-//   and the three StructuredOutput crashes that killed campaign runs all
-//   landed in the sonnet window. Sonnet is still one flag away:
-//   --extractModel sonnet / --reasonModel sonnet.
+// Model/effort selection (single point of control).
 // - Reasoning stages (select, lift, review) use Opus low/medium/high.
+//   Override with --extractModel / --reasonModel.
 // - Cheap deterministic tool-runs (revert, permute-run, equiv-run, redelink,
 //   park, report) use Haiku-low.
 // - The escalation / improve tune follows REASON_MODEL (so: Opus by default),
 //   climbing reasoning EFFORT (ladder high -> xhigh, for every improve model —
-//   see IMPROVE_EFFORTS below). Fable is opt-in only (--improveModel fable), per user policy
-//   2026-08-10: never route to fable unless explicitly requested. For
-//   reference, routing_stats.py measured fable-high at an 80% promote rate
-//   with a +14.7pp mean score gain over 16 improve handoffs, vs 52% for
-//   opus-high (2026-08-07) — so opus/fable are worth requesting for the
-//   hardest parked targets that stall on Sonnet.
-// Provider/model names are intentionally opaque workflow arguments.  A quota
-// exhaustion should be a routing change, not a forked workflow or lost attempt
-// history.  Example: --reasonModel gpt-5.6-terra --mechanicalModel gpt-5.6-luna.
+//   see IMPROVE_EFFORTS below). Fable is opt-in only (--improveModel fable).
+// Provider/model names are opaque workflow arguments, so switching models is a
+// routing change, not a forked workflow or lost attempt history.
 const MECHANICAL_MODEL = (args && args.mechanicalModel) || 'haiku'
 const EXTRACT_MODEL = (args && args.extractModel) || 'opus'
 const REASON_MODEL = (args && args.reasonModel) || 'opus'
@@ -58,7 +45,7 @@ const COMMIT_MODEL = (args && args.commitModel) || MECHANICAL_MODEL
 const IMPROVE_MODEL = (args && args.improveModel) || REASON_MODEL
 // Effort ladder for the in-place score tune. Each rung re-runs the optimizer at
 // a higher effort, but only for a target still below the pass bar, not capped,
-// and while budget remains. User policy 2026-09-30: the match-optimizer runs at
+// and while budget remains. The match-optimizer runs at
 // 'high' and 'xhigh' only. --improveEfforts may reorder or drop a rung (e.g.
 // "xhigh"); any other effort is discarded.
 const IMPROVE_EFFORTS_OK = ['high', 'xhigh']
@@ -99,12 +86,12 @@ const M = {
   extract:    { model: EXTRACT_MODEL, effort: 'low'  },  // select + classified score lever
   // Commit runs a fixed 6-command script whose only judgement is "does the
   // build log contain an error: line" -- the same shape as the 19 sites already
-  // on `mechanical`. Measured 31 agents / ~4% of session spend on opus for it.
+  // on `mechanical`.
   commit:     { model: COMMIT_MODEL, effort: 'high'  },  // runs the clean-build gate
   reason:     { model: REASON_MODEL, effort: 'medium' },  // lift, review
   improve:    { model: IMPROVE_MODEL, effort: IMPROVE_EFFORTS[0] },  // improve-pass base rung
 }
-// --reviewEffort: A/B lever for reviewer cost (docs/plans/agent-model-routing-2026-08.md
+// --reviewEffort: A/B lever for reviewer cost (docs/history/agent-model-routing-2026-08.md
 // §6/§7.4). The review gate is fail-closed CLASSIFICATION of evidence that other
 // tools already produced (VC71/objdiff/hazard/ABI -> AUTO_ACCEPT | NEEDS_RUNTIME |
 // REJECT), not open-ended reasoning, so it may not need M.reason's 'high'. Default
@@ -223,7 +210,7 @@ const cacheMetrics = { hits: 0, misses: 0, ghidra_builds: 0 }
 // Facts come straight from llm_auto_lift.py select --json (authoritative). The
 // code-side pre-screen below uses has_reg_args / lane / addr to drop unsuitable
 // targets BEFORE research, instead of re-deriving them in 6 Opus research agents
-// (which drift). See LiftTarget/SelectedTarget in tools/llm_auto_lift.py.
+// (which drift). See LiftTarget/SelectedTarget in tools/lift/llm_auto_lift.py.
 const TARGETS_SCHEMA = {
   type: 'object',
   properties: {
@@ -464,10 +451,10 @@ const SQUASH_SCHEMA = {
 const AGENT_RULES =
   `OPERATING RULES (read first):
 [WORKTREE] If your CWD is a git WORKTREE, do ALL work here with RELATIVE paths.
-NEVER \`cd /mnt/g/dev/halo\` (the user's main checkout) and NEVER run git
+NEVER \`cd\` to the user's main checkout (the repo root outside your worktree) and NEVER run git
 mutations (stash/checkout/commit/reset) against any repo but this one.
 mcp__ghidra-live__export_delinked_object writes its .obj to the MAIN repo
-delinked/ (path like G:\\dev\\halo\\delinked\\...); if you are in a worktree,
+delinked/ (a Windows-form path under the main checkout); if you are in a worktree,
 COPY the exported file into THIS worktree instead of cd-ing to main.
 [STALL] Any single RE-RUNNABLE long command (permuter, unicorn equivalence, a
 full clean build) MUST be wrapped so it cannot run silently past 180s and trip
@@ -653,7 +640,7 @@ STEPS:
    workflow re-spawns a FRESH escalation agent rather than extending this one (this
    agent's whole context is re-read every turn, so a long agent costs quadratically
    in tokens — a short one is linear).
-   timeout 165 rtk python3 tools/lift_pipeline.py --target ${brief.name} --no-metadata-update --verify-policy goal90${brief.artifact_paths && brief.artifact_paths.ghidra ? ` --ghidra-context ${JSON.stringify(brief.artifact_paths.ghidra)}` : ''} 2>&1 || echo "[lift_pipeline timed-out]"
+   timeout 165 rtk python3 tools/lift/lift_pipeline.py --target ${brief.name} --no-metadata-update --verify-policy goal90${brief.artifact_paths && brief.artifact_paths.ghidra ? ` --ghidra-context ${JSON.stringify(brief.artifact_paths.ghidra)}` : ''} 2>&1 || echo "[lift_pipeline timed-out]"
    Parse the VC71 % line and build pass/fail ONLY. Do NOT paste the full objdiff or
    build log into your reasoning — quoting large tool output back inflates every
    following turn's re-read. If it timed out, status="needs_review", vc71_score=0.
@@ -729,7 +716,7 @@ const permutePrompt = (name) =>
 
 Run the decomp-permuter for ${name}, then re-verify (both wrapped — see [STALL]):
 timeout 150 rtk python3 tools/permuter/run.py -q --target ${name} --attempts 100 2>&1 || echo "[permuter stopped at timeout]"
-timeout 165 rtk python3 tools/lift_pipeline.py --target ${name} --no-metadata-update --verify-policy goal90 2>&1 || echo "[timed-out]"
+timeout 165 rtk python3 tools/lift/lift_pipeline.py --target ${name} --no-metadata-update --verify-policy goal90 2>&1 || echo "[timed-out]"
 
 Exit 3 from run.py = VACUOUS RUN (0 candidate iterations ran — a setup problem,
 not a real negative result; do not count it against the 2-invocation budget,
@@ -773,7 +760,7 @@ Read classification only from the returned artifact_paths.score_context.
 PROVENANCE BOUNDARY:
 Use only the 2276 target disassembly, target call sites, embedded strings and
 tables, independently observed runtime behavior, and already target-verified
-source. Cross-build PAL/CEA/PDB material is not an implementation-shape or
+source. External or cross-build material is not an implementation-shape or
 naming lever. If historical notes show such influence, preserve that disclosure
 and independently re-derive the relevant branch, expression, ABI, and field
 role from 2276 before accepting a change.
@@ -793,7 +780,7 @@ if you simply ran out of applicable levers), cap_reason (the ceiling's rule id
 when capped is true, else empty string), reason (short: which lever(s) you
 kept, and why — capped or not).`
 
-// Recipe-atlas short-circuit (docs/plans/agent-model-routing-2026-08.md §5/§7.2).
+// Recipe-atlas short-circuit (docs/history/agent-model-routing-2026-08.md §5/§7.2).
 // vc71_verify's _classify_score_context() writes classification[].rule into
 // artifacts/score_context/<name>.json, and those rule ids map 1:1 onto the
 // lift-score-improve recipe atlas — i.e. the remaining gap is already NAMED and
@@ -1147,7 +1134,7 @@ async function maybePermute(name, phaseTitle) {
 }
 
 const equivNote = (confidence, reason) =>
-  `+equiv_${confidence || 'unknown'} [equivalence detail: ${String(reason || '').slice(0, 500)} — a 0-divergence pass on the live-state infection_swarm snapshot (populated datum tables, real actor handles) is accepted runtime behavioral evidence for the sub-90% band per the state-snapshot equivalence lane in CLAUDE.md]`
+  `+equiv_${confidence || 'unknown'} [equivalence detail: ${String(reason || '').slice(0, 500)} — a 0-divergence pass on the live-state infection_swarm snapshot (populated datum tables, real actor handles) is accepted runtime behavioral evidence for the sub-90% band per the state-snapshot equivalence lane in AGENTS.md]`
 
 // Phase 3 — the fail-closed review gate. Every commit in this workflow goes
 // through here; nothing is committed on VC71 match alone. `preEquiv` is the
@@ -1717,8 +1704,8 @@ const BATCH_LIMIT = Math.min(60, Math.max(30, GOAL * 3))
 // in the allowlisted object(s), so a fresh-object goal-lift actually gets work.
 const RETURN_CAP = OBJECTS ? 200 : BATCH_LIMIT
 const selectCmds = OBJECTS
-  ? OBJECTS.map(o => `rtk python3 tools/llm_auto_lift.py -q select --object ${o} --min-score 0 --limit ${RETURN_CAP} --json 2>&1`)
-  : [`rtk python3 tools/llm_auto_lift.py -q select --limit ${BATCH_LIMIT} --json 2>&1`]
+  ? OBJECTS.map(o => `rtk python3 tools/lift/llm_auto_lift.py -q select --object ${o} --min-score 0 --limit ${RETURN_CAP} --json 2>&1`)
+  : [`rtk python3 tools/lift/llm_auto_lift.py -q select --limit ${BATCH_LIMIT} --json 2>&1`]
 
 const selectPrompt =
   `Select next batch of Halo CE Xbox functions to lift.
@@ -1845,7 +1832,7 @@ targets = targets.filter(t => {
   // bypass -- an explicit --addrs is an operator override.
   //
   // Removed 2026-09-01: skip_parked_repeat (attempts>=2 & best<85% skip).
-  // tools/llm_auto_lift.py's own selector docs (lines ~1379-1385) say this
+  // tools/lift/llm_auto_lift.py's own selector docs (lines ~1379-1385) say this
   // signal doesn't separate parked-forever from later-promoted targets — it
   // already applies a -15 ranking penalty upstream, which is the correct
   // place for this signal to act. The code-side hard skip additionally
@@ -2048,7 +2035,7 @@ while (true) {
 
   log(`[${committed.length}/${GOAL} committed] next: ${brief.name} (${brief.addr})`)
 
-  // ── Attempt 1: Opus lift (sonnet stall-loops under the workflow watchdog) ─
+  // ── Attempt 1: Opus lift ─
   const a1 = await schemaAgent(liftPrompt(brief, false, null), {
     label: `lift1:${brief.name}`, phase: 'Lift', agentType: 'auto-lift-analyst', ...M.reason, schema: LIFT_RESULT_SCHEMA,
   })
@@ -2136,7 +2123,7 @@ while (true) {
   const treatAsCapped = a1.capped === true && a1.cap_confidence === 'high'
   const capProvenance = a1.cap_confidence === 'high' ? 'deterministic(classify_cap.py)' : 'agent-judgment'
 
-  // ── Atlas-rule short-circuit (docs/plans/agent-model-routing-2026-08.md §5,
+  // ── Atlas-rule short-circuit (docs/history/agent-model-routing-2026-08.md §5,
   // §7.2). When the score-context classifier already produced a concrete recipe-
   // atlas rule id for this function, the remaining gap is a KNOWN mechanical
   // lever, not open-ended reasoning — apply it once at the cheap M.extract tier

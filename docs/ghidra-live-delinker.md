@@ -73,7 +73,7 @@ The live delinker is well-suited to catching bugs where our C has the right memo
 
 ### Path gotcha
 
-Ghidra runs on Windows even when the repo is under WSL. `export_path` is opened on the Ghidra side, so use Windows-format paths (e.g. `G:\dev\halo\artifacts\delinker\foo.o`). Pre-create the directory from WSL (`mkdir -p /mnt/g/dev/halo/artifacts/delinker/`).
+Ghidra runs on Windows even when the repo is under WSL. `export_path` is opened on the Ghidra side, so use Windows-format paths (e.g. `<repo>\artifacts\delinker\foo.o`). Pre-create the directory from WSL (`mkdir -p <repo>/artifacts/delinker/`).
 
 ### Tested example
 

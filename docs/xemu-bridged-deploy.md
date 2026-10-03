@@ -16,16 +16,18 @@ tool from WSL, not from a Windows shell.
 
 ## Addresses
 
-As of 2026-09-05. These come from DHCP and can change.
+The addresses come from DHCP and can change. Keep the current ones in the
+gitignored `tools/xbox.env` (see `tools/xbox.env.example`); commands and docs
+refer to the boxes by name.
 
-| Instance | Debug IP (XBDM) | Title IP |
+| Instance | Box name | Debug IP (XBDM) variable |
 |---|---|---|
-| Our patched build | `10.0.0.21` | `10.0.0.22` |
-| Pristine `cachebeta.xbe` | `10.0.0.24` | `10.0.0.23` |
+| Our patched build | xemu-client | `$XEMU_CLIENT_HOST` |
+| Pristine `cachebeta.xbe` | xemu-host | `$XEMU_HOST_HOST` |
 
 ## Build
 
-Build **only from `/mnt/g/dev/halo`**. Other worktrees on this box
+Build **only from the main checkout** (the repository root you deploy from). Other worktrees on this box
 (`halo-bugs`, `halo-fix-*`, …) build their own XBE, and deploying one of those
 by accident silently invalidates a capture — you end up analysing a binary that
 isn't the one you think you changed.
@@ -42,11 +44,11 @@ rtk python3 tools/build/build.py -q --rng-trace
 
 ```bash
 # Preferred: build and deploy through WSL-native XBDM.
-rtk ./tools/xbox/build_deploy_run.sh --xemu-bridged --xbox 10.0.0.21 -q
+rtk ./tools/xbox/build_deploy_run.sh --xemu-bridged --xbox "$XEMU_CLIENT_HOST" -q
 
 # Already-built XBE: deploy directly instead.
 HALO_NATIVE_XBDM=1 HALO_WINDOWS_REEXEC=1 python3 tools/xbox/deploy_xbox.py \
-    --skip-build --xbe-only -x 10.0.0.21
+    --skip-build --xbe-only -x "$XEMU_CLIENT_HOST"
 ```
 
 `--xemu-bridged` (also available as `--native-xbdm`) exports both variables for
@@ -69,15 +71,15 @@ the capture is gone. Dump before quitting.
 ```bash
 # ring from our client
 HALO_WINDOWS_REEXEC=1 python3 tools/xbox/rng_trace_dump.py \
-    --host 10.0.0.21 --out artifacts/rng_trace/aN.json
+    --host "$XEMU_CLIENT_HOST" --out artifacts/rng_trace/aN.json
 
 # decode the info probes
 python3 tools/xbox/rng_trace_dump.py --probes artifacts/rng_trace/aN.json
 
 # debug.txt from both boxes
-HALO_WINDOWS_REEXEC=1 python3 tools/xbox/xbdm_debug_txt.py --host 10.0.0.21 \
+HALO_WINDOWS_REEXEC=1 python3 tools/xbox/xbdm_debug_txt.py --host "$XEMU_CLIENT_HOST" \
     --lines 200 --output artifacts/rng_trace/debug_client_aN.txt --timeout 30
-HALO_WINDOWS_REEXEC=1 python3 tools/xbox/xbdm_debug_txt.py --host 10.0.0.24 \
+HALO_WINDOWS_REEXEC=1 python3 tools/xbox/xbdm_debug_txt.py --host "$XEMU_HOST_HOST" \
     --lines 200 --output artifacts/rng_trace/debug_host_aN.txt --timeout 30
 ```
 
@@ -95,7 +97,7 @@ Host-side probe tooling lives in `artifacts/rng_trace/`, not `tools/xbox/`:
 **"The guest is down / connection timed out."** Usually neither. A 3-second
 connect timeout reports a guest as down when it is merely in-game, and far more
 so while a build is saturating the box. Use 30s, which is what the commands
-above already pass. Measured 2026-09-06: `10.0.0.21` timed out at 3s during a
+above already pass. Measured 2026-09-06: the xemu-client box timed out at 3s during a
 concurrent worktree build, then answered `201- connected` on the first attempt
 at 5s once the box went idle. In-game XBDM is not a dead channel — the existing
 18 MB in-game ring dumps in `artifacts/rng_trace/` were all taken in-game.

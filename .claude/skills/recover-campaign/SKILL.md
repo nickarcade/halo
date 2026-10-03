@@ -7,8 +7,8 @@ triggers: ["recover campaign", "readability campaign", "cleanup campaign"]
 
 # Target-only recovery campaign
 
-Improve readability without changing behavior and without consulting PAL,
-CEA/HCEA, PDB-derived corpora, or other cross-build implementation bodies.
+Improve readability without changing behavior and without consulting external or
+cross-build material (other builds, PDB-derived corpora, or their implementation bodies).
 `PROVENANCE.md` and `naming-confidence` govern every recovered name and layout.
 
 ## Inputs
@@ -38,7 +38,7 @@ not implementation or naming evidence.
 8. Update the provenance remediation ledger with target addresses, result, and
    remaining uncertainty.
 
-Do not erase comments that disclose PAL/CEA/PDB influence. Replace them only
+Do not erase comments that disclose external or cross-build influence. Replace them only
 when a new comment records both the historical influence and the independent
 2276 evidence that now supports the claim.
 

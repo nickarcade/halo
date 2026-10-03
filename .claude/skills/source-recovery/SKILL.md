@@ -1,17 +1,16 @@
 ---
 name: source-recovery
 tier: user
-description: The single readability/source-recovery orchestrator for already-lifted Halo Xbox code — /recover-source (and its alias /cleanup) scopes debt into a manifest, works the cleanup ladder in mandatory risk order, gates every category on byte-identical codegen, and reports every parked failure.
+description: The single readability/source-recovery orchestrator for already-lifted Halo Xbox code — `/source-recovery` scopes debt into a manifest, works the cleanup ladder in mandatory risk order, gates every category on byte-identical codegen, and reports every parked failure.
 ---
 
-# /recover-source — Faithful Source Recovery
+# /source-recovery — Faithful Source Recovery
 
 The sole end-to-end workflow for recovering readability and source structure in
-already-lifted (`ported: true`, committed) code. `/cleanup <target>` is a
-deprecated alias for this skill. **Default contract: the compiled bytes do not
+already-lifted (`ported: true`, committed) code. **Default contract: the compiled bytes do not
 change.** Anything beyond that is opt-in.
 
-Usage: `/recover-source <src file | kb.json object> [--allow-risky]`
+Usage: `/source-recovery <src file | kb.json object> [--allow-risky]`
 
 The manifest at `tools/recovery/source_recovery.py` is the machine state — never
 work from an untracked baseline or silently rewrite a source file.
@@ -70,7 +69,7 @@ wins on spelling, and the byte gate wins on everything.
    signature live in kb.json. Delete comments that merely restate the code or
    transcribe disassembly. Keep knowledge the code cannot express: an ABI
    quirk, a match-sensitive construct, or an open uncertainty
-   (`re-comment-capture`). Never delete a PAL/CEA/PDB provenance note to hide
+   (`re-comment-capture`). Never delete an external or cross-build provenance note to hide
    historical influence; move it to the provenance remediation ledger with
    the independent 2276 evidence and leave a concise pointer when needed.
 8. **Concise.** Combine a declaration with its initializer when it is the first
@@ -83,7 +82,7 @@ wins on spelling, and the byte gate wins on everything.
    already includes. Prototypes come from kb.json/`decl.h`, never from a
    consumer `.c`.
 
-**Integrity** (CLAUDE.md rule 10)
+**Integrity** (AGENTS.md rule 10)
 10. Reject fake matching and source that is implausible for the original
     program. Reject nonsensical logic even when the bytes match.
 11. Credible, readable code that is *not* byte-neutral is not recovery. Hand it
@@ -424,7 +423,7 @@ For batch/multi-TU campaigns (`recover-goal`), category agents run as
 subagent, counterpart to `vc71-match-optimizer` on the score side. It knows
 this ladder, these gates, and the naming-confidence tiers; it never chases
 VC71 score and never touches `@<reg>` annotations. `.claude/workflows/recover-goal.js`
-already wires this. A single-session `/recover-source` invocation may run
+already wires this. A single-session `/source-recovery` invocation may run
 inline instead — delegate to the agent explicitly when scoping more than one
 TU or when running unattended.
 

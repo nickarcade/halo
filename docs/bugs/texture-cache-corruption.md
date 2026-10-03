@@ -155,6 +155,6 @@ Once a candidate divergence is found:
 
 - `src/halo/cache/physical_memory_map.c` — fully ported, start here
 - `src/halo/cache/xbox_texture_cache.c` — partially ported, check boundary
-- `src/halo/cache/lruv_cache.c` — partially ported, check page logic
+- `src/halo/memory/lruv_cache.c` — partially ported, check page logic
 - `src/halo/bitmaps/bitmaps.c` — partially ported, check format/offset fields
 - `src/halo/cache/predicted_resources.c` — precache triggers

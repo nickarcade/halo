@@ -1,7 +1,7 @@
 ---
 name: recover-goal
 tier: user
-description: Goal-mode readability recovery — loop the recovery frontier, run the source-recovery ladder per object, park on failure, until N objects are recovered or the queue is exhausted. The unattended driver around /recover-source.
+description: Goal-mode readability recovery — loop the recovery frontier, run the source-recovery ladder per object, park on failure, until N objects are recovered or the queue is exhausted. The unattended driver around /source-recovery.
 ---
 
 # /recover-goal — Goal-Mode Source Recovery
@@ -10,7 +10,7 @@ Thin dispatcher for the `recover-goal` **Workflow**
 (`.claude/workflows/recover-goal.js`). All select/baseline/ladder/commit/park/
 finish logic lives in that script, not in this file.
 
-`/recover-source` recovers **one** TU. This runs it object after object
+`/source-recovery` recovers **one** TU. This runs it object after object
 unattended: take the next target off the recovery frontier, work the ladder one
 category per **sequential** Opus agent (one purity-gated commit each), ratchet the
 VC71 floors, record the outcome in `recovery/goal_ledger.json`, repeat. It adds no

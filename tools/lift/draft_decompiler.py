@@ -678,7 +678,7 @@ def reset_counts():
 def load_from_json(path):
     """Load Ghidra pseudocode from a context-cache JSON file.
 
-    Expected shape (as used by tools/llm_auto_lift.py):
+    Expected shape (as used by tools/lift/llm_auto_lift.py):
       { "decompile_c": <str or dict with "result" key>, ... }
     """
     with open(path, 'r', encoding='utf-8') as f:

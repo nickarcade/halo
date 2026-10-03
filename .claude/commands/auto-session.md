@@ -49,11 +49,10 @@ Parse from $ARGUMENTS (all optional):
   what each batch would do.
 - `--model NAME` — override goal-lift's "reasoning stages" (its own M-table
   grouping: select + lift/review, i.e. EXTRACT_MODEL and REASON_MODEL, default
-  Opus) for every batch this run, e.g. `--model sonnet` for a cheaper/faster
-  session. Forward as `model` in the Workflow args — do not reimplement the
+  Opus) for every batch this run, e.g. `--model sonnet`. Forward as `model` in the Workflow args — do not reimplement the
   fan-out, `auto-session.js` already resolves it to BOTH `reasonModel` and
   `extractModel`. Deliberately does **not** affect the commit-gate agent
-  (stays on goal-lift's cheap MECHANICAL_MODEL/haiku default — it just runs a
+  (stays on goal-lift's MECHANICAL_MODEL/haiku default — it just runs a
   build and parses the result). The improve-pass agent has no separate default
   of its own — goal-lift defaults it to whatever REASON_MODEL resolves to, so
   it follows `--model` automatically.
@@ -89,7 +88,7 @@ Parse from $ARGUMENTS (all optional):
 /auto-session --batches 1 --batch-goal 2       # one real batch, then FF main
 /auto-session --batches 3 --batch-goal 12 --objects real_math.obj,rasterizer.obj
 /auto-session --batches 2 --batch-goal 12 --no-land  # main is busy; land later
-/auto-session --batches 2 --batch-goal 12 --model sonnet   # cheaper/faster session
+/auto-session --batches 2 --batch-goal 12 --model sonnet   # override the reasoning model
 ```
 
 ## Landing policy (why it may stop early)

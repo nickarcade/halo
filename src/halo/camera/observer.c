@@ -175,10 +175,11 @@ void following_camera_new(void *camera_data)
 }
 
 /* Resolve the active camera tag data for a unit (0x898b0). The unit handle
- * arrives in EAX. A vehicle-associated unit returns its vehicle tag seat data
- * when the selected seat flags include any of 0x15; otherwise it returns the
- * unit tag data. The +0xcc and +0x2a0 unit offsets remain mechanical. */
-void unit_camera_get(int unit_handle /* @eax */)
+ * arrives in EAX and the result is returned in EAX. A vehicle-associated unit
+ * returns seat element + 0x84 when the selected seat flags include any of
+ * 0x15; otherwise it returns unit definition + 0x1a8. The +0xcc and +0x2a0
+ * unit offsets remain mechanical. */
+void *unit_camera_get(int unit_handle /* @eax */)
 {
   uint8_t *tag_element;
   void *unit;
@@ -197,12 +198,12 @@ void unit_camera_get(int unit_handle /* @eax */)
       if ((tag_element[0] & 0x15) != 0) {
         tag_element = (uint8_t *)((uintptr_t)tag_element + 0x84);
         if (tag_element != NULL) {
-          return;
+          return tag_element;
         }
       }
     }
   }
-  tag_get(0x756e6974, *(int *)unit);
+  return (char *)tag_get(0x756e6974, *(int *)unit) + 0x1a8;
 }
 
 /* arcsine (0x89930) — Single-precision arc sine.
@@ -228,8 +229,8 @@ float arcsine(float x)
  * differences.  Asserts are real_math.h lines 0x5e4/0x5e5 with the XBE's own
  * strings "h > 0.0f" and "t >= t0 && t <= t0 + 3.0f*h".  The differences are
  * written back into the f1/f3 parameter slots (FSTP [EBP+0xc] / [EBP+0x14] at
- * 0x899c8 / 0x899cf), i.e. in-place parameter updates.  Body matches PAL 2342
- * real_math.h uniform_cubic_spline (T2) term for term; 3.0f is the pool
+ * 0x899c8 / 0x899cf), i.e. in-place parameter updates.
+ * 3.0f is the pool
  * constant at 0x254644. */
 float uniform_cubic_spline(float f0, float f1, float f2, float f3, float t0,
                            float h, float t)
@@ -351,9 +352,8 @@ void following_camera_update(void *camera_data, void *control_data,
   camera_command_t *result;
   player_control_unit_camera_info_t info;
   real_euler_angles2d facing;
-  real_vector3d track;
+  real_vector3d track_offset;
   real depth;
-  real magnitude;
   uint8_t crouched;
   char *unit;
 
@@ -367,15 +367,16 @@ void following_camera_update(void *camera_data, void *control_data,
   result->timer = 0.0f;
   result->flags = 0;
   result->field_of_view = 1.22173047f;
-  if (camera->initialized && (camera->unit_index != info.unit_index ||
-                              camera->seat_index != info.seat_index))
+  if (camera->initialized && (info.unit_index != camera->unit_index ||
+                              info.seat_index != camera->seat_index))
     result->timer = 1.0f;
   camera->unit_index = info.unit_index;
   camera->seat_index = info.seat_index;
   if (info.camera != NULL) {
     unit = (char *)object_get_and_verify_type(info.unit_index, 3);
     /* 0x89d9d loads only the low byte of unit control flags at +0x1b8. */
-    crouched = (*(uint8_t *)(unit + 0x1b8) & 3) != 0;
+    crouched = (*(uint8_t *)(unit + 0x1b8) & 1) ||
+               (*(uint8_t *)(unit + 0x1b8) & 2);
     if (crouched != camera->crouched) {
       result->field_4c[1] = 1;
       result->field_54[1] =
@@ -396,80 +397,38 @@ void following_camera_update(void *camera_data, void *control_data,
     facing = *(real_euler_angles2d *)player_control_get_facing_angles(
       controls->local_player_index);
     facing.yaw += camera->facing_offset.yaw;
-    facing.pitch += camera->facing_offset.pitch;
-    facing.pitch = facing.pitch < -1.57079637f ?
-                     -1.57079637f :
-                     (facing.pitch > 1.57079637f ? 1.57079637f : facing.pitch);
+    facing.pitch =
+      facing.pitch + camera->facing_offset.pitch < -1.57079637f ?
+        -1.57079637f :
+        (facing.pitch + camera->facing_offset.pitch > 1.57079637f ?
+           1.57079637f :
+           facing.pitch + camera->facing_offset.pitch);
     angles_to_vector((float *)&result->forward, (float *)&facing);
-    magnitude = (real)x87_sqrtd(result->forward.i * result->forward.i +
-                               result->forward.j * result->forward.j +
-                               result->forward.k * result->forward.k);
-    assert_halt_msg_at("magnitude3d(&result->forward) > 0.9999f && "
-                       "magnitude3d(&result->forward) < 1.0001f",
-                       "c:\\halo\\SOURCE\\camera\\following_camera.c", 0xd4,
-                       magnitude > 0.999899983f && magnitude < 1.00010002f);
-    camera_track_splut(info.camera, facing.pitch, (float *)&track);
+    assert_halt_msg_at(
+      "magnitude3d(&result->forward) > 0.9999f && "
+      "magnitude3d(&result->forward) < 1.0001f",
+      "c:\\halo\\SOURCE\\camera\\following_camera.c", 0xd4,
+      (real)x87_sqrtd(magnitude_squared3d(&result->forward)) > 0.999899983f &&
+        (real)x87_sqrtd(magnitude_squared3d(&result->forward)) < 1.00010002f);
+    camera_track_splut(info.camera, facing.pitch, (float *)&track_offset);
     depth =
-      (real)x87_sqrtd(track.k * track.k + track.j * track.j + track.i * track.i);
+      (real)x87_sqrtd(track_offset.i * track_offset.i + track_offset.j * track_offset.j + track_offset.k * track_offset.k);
     result->depth = depth;
     result->offset.i =
-      (depth * x87_fcos(facing.pitch) + track.i) * camera->distance_scale;
-    result->offset.j = -track.j * camera->distance_scale;
+      (depth * x87_fcos(facing.pitch) + track_offset.i) * camera->distance_scale;
+    result->offset.j = -track_offset.j * camera->distance_scale;
     result->offset.k =
-      (depth * x87_fsin(facing.pitch) + track.k) * camera->distance_scale;
+      (depth * x87_fsin(facing.pitch) + track_offset.k) * camera->distance_scale;
     depth = (depth - 0.6f) * camera->distance_scale + 0.6f;
     result->depth = depth > 0.6f ? depth : 0.6f;
     object_get_root_location(info.unit_index, (float *)&result->velocity, NULL);
     result->flags |= 1;
   }
   observer_up_from_forward((float *)&result->forward, (float *)&result->up);
-  if ((result->flags & 1) &&
-      (!valid_real_normal3d_perpendicular((float *)&result->forward,
-                                          (float *)&result->up) ||
-       (*(uint32_t *)&result->position.x & 0x7f800000) == 0x7f800000 ||
-       !(result->position.x >= *(float *)0x266e98) ||
-       !(result->position.x <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->position.y & 0x7f800000) == 0x7f800000 ||
-       !(result->position.y >= *(float *)0x266e98) ||
-       !(result->position.y <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->position.z & 0x7f800000) == 0x7f800000 ||
-       !(result->position.z >= *(float *)0x266e98) ||
-       !(result->position.z <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->offset.i & 0x7f800000) == 0x7f800000 ||
-       !(result->offset.i >= *(float *)0x266e98) ||
-       !(result->offset.i <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->offset.j & 0x7f800000) == 0x7f800000 ||
-       !(result->offset.j >= *(float *)0x266e98) ||
-       !(result->offset.j <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->offset.k & 0x7f800000) == 0x7f800000 ||
-       !(result->offset.k >= *(float *)0x266e98) ||
-       !(result->offset.k <= *(float *)0x266e94) ||
-       !real_vector3d_valid((float *)&result->velocity) ||
-       (*(uint32_t *)&result->depth & 0x7f800000) == 0x7f800000 ||
-       !(result->depth >= *(float *)0x2533c0) ||
-       !(result->depth <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->field_of_view & 0x7f800000) == 0x7f800000 ||
-       !(result->field_of_view >= *(float *)0x255ef8) ||
-       !(result->field_of_view <= *(float *)0x2568bc) ||
-       (*(uint32_t *)&result->timer & 0x7f800000) == 0x7f800000 ||
-       !(result->timer >= *(float *)0x2533c0) ||
-       !(result->timer <= *(float *)0x266e90))) {
-    char *msg = csprintf((char *)0x5ab100,
-                         "Invalid camera command.\n"
-                         "F: (%f, %f, %f) U: (%f, %f, %f)\n"
-                         "P: (%f, %f, %f) O: (%f, %f, %f)\n"
-                         "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
-                         (double)result->forward.i, (double)result->forward.j,
-                         (double)result->forward.k, (double)result->up.i,
-                         (double)result->up.j, (double)result->up.k,
-                         (double)result->position.x, (double)result->position.y,
-                         (double)result->position.z, (double)result->offset.i,
-                         (double)result->offset.j, (double)result->offset.k,
-                         (double)result->depth, (double)result->velocity.i,
-                         (double)result->velocity.j, (double)result->velocity.k,
-                         (double)result->field_of_view, (double)result->timer,
-                         result->flags);
-    display_assert(msg, "c:\\halo\\SOURCE\\camera\\following_camera.c", 0xee,
+  if (!camera_command_valid(result)) {
+    display_assert(csprintf(error_string_buffer, CAMERA_COMMAND_INVALID_FORMAT,
+                            CAMERA_COMMAND_INVALID_ARGUMENTS(result)),
+                   "c:\\halo\\SOURCE\\camera\\following_camera.c", 0xee,
                    1);
     system_exit(-1);
   }
@@ -806,7 +765,7 @@ void observer_up_from_forward(float *forward, float *up)
   float j;
   float k;
 
-  /* PAL 2342 observer_up_from_forward; the cross product is the inlined
+  /* The cross product is the inlined
    * cross_product3d(&right, forward, up), which computes k, j, i into
    * temporaries before storing i, j, k. */
   right[0] = forward[1];
@@ -2120,15 +2079,18 @@ void orbiting_camera_update(void *camera_data, void *control_data,
   result->position = info.position;
   if (controls->active) {
     camera->facing.yaw -= controls->facing_delta.yaw;
-    camera->facing.pitch -= controls->facing_delta.pitch;
     camera->facing.pitch =
-      camera->facing.pitch < -1.2566371f ?
+      camera->facing.pitch - controls->facing_delta.pitch < -1.2566371f ?
         -1.2566371f :
-        (camera->facing.pitch > 1.2566371f ? 1.2566371f : camera->facing.pitch);
+        (camera->facing.pitch - controls->facing_delta.pitch > 1.2566371f ?
+           1.2566371f :
+           camera->facing.pitch - controls->facing_delta.pitch);
     director_set_local_player_context(controls->local_player_index);
   }
-  camera->distance -= controls->wheel_delta * 0.333333343f;
-  camera->distance = camera->distance > 0.6f ? camera->distance : 0.6f;
+  camera->distance =
+    camera->distance - controls->wheel_delta * 0.333333343f > 0.6f ?
+      camera->distance - controls->wheel_delta * 0.333333343f :
+      0.6f;
   if (info.unit_index != -1) {
     angles_to_vector((float *)&result->forward, (float *)&camera->facing);
     observer_up_from_forward((float *)&result->forward, (float *)&result->up);
@@ -2140,53 +2102,31 @@ void orbiting_camera_update(void *camera_data, void *control_data,
   result->depth = camera->distance;
   result->field_of_view = *(real *)0x26769c;
   result->timer = *(real *)0x2676a8;
-  if ((result->flags & 1) &&
-      (!valid_real_normal3d_perpendicular((float *)&result->forward,
-                                          (float *)&result->up) ||
-       (*(uint32_t *)&result->position.x & 0x7f800000) == 0x7f800000 ||
-       !(result->position.x >= *(float *)0x266e98) ||
-       !(result->position.x <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->position.y & 0x7f800000) == 0x7f800000 ||
-       !(result->position.y >= *(float *)0x266e98) ||
-       !(result->position.y <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->position.z & 0x7f800000) == 0x7f800000 ||
-       !(result->position.z >= *(float *)0x266e98) ||
-       !(result->position.z <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->offset.i & 0x7f800000) == 0x7f800000 ||
-       !(result->offset.i >= *(float *)0x266e98) ||
-       !(result->offset.i <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->offset.j & 0x7f800000) == 0x7f800000 ||
-       !(result->offset.j >= *(float *)0x266e98) ||
-       !(result->offset.j <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->offset.k & 0x7f800000) == 0x7f800000 ||
-       !(result->offset.k >= *(float *)0x266e98) ||
-       !(result->offset.k <= *(float *)0x266e94) ||
-       !real_vector3d_valid((float *)&result->velocity) ||
-       (*(uint32_t *)&result->depth & 0x7f800000) == 0x7f800000 ||
-       !(result->depth >= *(float *)0x2533c0) ||
-       !(result->depth <= *(float *)0x266e94) ||
-       (*(uint32_t *)&result->field_of_view & 0x7f800000) == 0x7f800000 ||
-       !(result->field_of_view >= *(float *)0x255ef8) ||
-       !(result->field_of_view <= *(float *)0x2568bc) ||
-       (*(uint32_t *)&result->timer & 0x7f800000) == 0x7f800000 ||
-       !(result->timer >= *(float *)0x2533c0) ||
-       !(result->timer <= *(float *)0x266e90))) {
-    char *msg = csprintf((char *)0x5ab100,
-                         "Invalid camera command.\n"
-                         "F: (%f, %f, %f) U: (%f, %f, %f)\n"
-                         "P: (%f, %f, %f) O: (%f, %f, %f)\n"
-                         "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
-                         (double)result->forward.i, (double)result->forward.j,
-                         (double)result->forward.k, (double)result->up.i,
-                         (double)result->up.j, (double)result->up.k,
-                         (double)result->position.x, (double)result->position.y,
-                         (double)result->position.z, (double)result->offset.i,
-                         (double)result->offset.j, (double)result->offset.k,
-                         (double)result->depth, (double)result->velocity.i,
-                         (double)result->velocity.j, (double)result->velocity.k,
-                         (double)result->field_of_view, (double)result->timer,
-                         result->flags);
-    display_assert(msg, "c:\\halo\\SOURCE\\camera\\orbiting_camera.c", 0x47, 1);
+  if (!(!(result->flags & FLAG(_observer_command_valid_bit)) ||
+        (valid_real_normal3d_perpendicular((float *)&result->forward,
+                                           (float *)&result->up) &&
+         valid_world_real(result->position.x) &&
+         valid_world_real(result->position.y) &&
+         valid_world_real(result->position.z) &&
+         valid_world_real(result->offset.i) &&
+         valid_world_real(result->offset.j) &&
+         valid_world_real(result->offset.k) &&
+         real_vector3d_valid((float *)&result->velocity) &&
+         valid_real(result->depth) && result->depth >= 0.0f &&
+         result->depth <= 5000.0f &&
+         valid_real(*(real *)0x26769c) && *(real *)0x26769c >= 0.001f &&
+         *(real *)0x26769c <= 1.57079637f /* pi/2 */ &&
+         valid_real(*(real *)0x2676a8) && *(real *)0x2676a8 >= 0.0f &&
+         *(real *)0x2676a8 <= 3600.0f))) {
+    display_assert(
+      csprintf(error_string_buffer, CAMERA_COMMAND_INVALID_FORMAT,
+               result->forward.i, result->forward.j, result->forward.k,
+               result->up.i, result->up.j, result->up.k, result->position.x,
+               result->position.y, result->position.z, result->offset.i,
+               result->offset.j, result->offset.k, result->depth,
+               result->velocity.i, result->velocity.j, result->velocity.k,
+               *(real *)0x26769c, *(real *)0x2676a8, result->flags),
+      "c:\\halo\\SOURCE\\camera\\orbiting_camera.c", 0x47, 1);
     system_exit(-1);
   }
 }
@@ -2196,7 +2136,7 @@ void orbiting_camera_update(void *camera_data, void *control_data,
  * 0x8d410 (static_camera.c), which copies this block into a camera-command
  * result and asserts ranges on it:
  *   +0x00 position       -> result+0x04 ("P:")
- *   +0x0c unknown dword  -- never read by 0x8d410; left as an explicit unknown
+ *   +0x0c location       -- never read by 0x8d410
  *   +0x10 forward        -> result+0x24 ("F:")
  *   +0x1c up             -> result+0x30 ("U:")
  *   +0x28 field of view  -> result+0x20, asserted in [0.001, 1.57079637]
@@ -2206,18 +2146,18 @@ void orbiting_camera_update(void *camera_data, void *control_data,
  * The three vectors are copied as whole 12-byte structs, matching the
  * reference's three dword MOV pairs per vector. */
 void static_camera_new(void *camera, const vector3_t *position,
-                       uint32_t field_0c, const vector3_t *forward,
+                       uint32_t location, const vector3_t *forward,
                        const vector3_t *up, float field_of_view,
                        int32_t duration_ticks, uint32_t flags)
 {
   char *block = (char *)camera;
 
   *(vector3_t *)(block + 0x00) = *position;
-  *(uint32_t *)(block + 0x0c) = field_0c;
+  *(uint32_t *)(block + 0x0c) = location;
   *(vector3_t *)(block + 0x10) = *forward;
   *(vector3_t *)(block + 0x1c) = *up;
   *(float *)(block + 0x28) = field_of_view;
   *(int32_t *)(block + 0x2c) = duration_ticks;
-  *(uint32_t *)(block + 0x30) = flags;
   *(uint8_t *)(block + 0x34) = 0;
+  *(uint32_t *)(block + 0x30) = flags;
 }

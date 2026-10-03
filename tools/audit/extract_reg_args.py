@@ -113,16 +113,8 @@ def _save_baseline(data: dict) -> None:
 # Annotation parsing
 # ---------------------------------------------------------------------------
 
-def _parse_reg_annotations(decl: str) -> list[tuple[int, str]]:
-    """Return list of (param_index, reg_name) for @<reg> annotations.
-
-    Both bare (``@<eax>``) and commented (``/* @<eax> */``) forms are treated
-    as active. This matches the build-time semantics in
-    ``analysis/knowledge.py`` (``reg_filter_re``), which generates thunks for
-    either form. C-source parameter syntax forces the comment form, while
-    hand-written kb.json entries often use the bare form — they are stylistic
-    variants of the same annotation, not "active" vs "inactive".
-    """
+def _split_params(decl: str) -> list[str]:
+    """Split a declaration's parameter list at top-level commas."""
     stripped = decl
 
     open_paren = stripped.find("(")
@@ -149,12 +141,36 @@ def _parse_reg_annotations(decl: str) -> list[tuple[int, str]]:
     if buf:
         params.append("".join(buf))
 
+    return params
+
+
+def _parse_reg_annotations(decl: str) -> list[tuple[int, str]]:
+    """Return list of (param_index, reg_name) for @<reg> annotations.
+
+    Both bare (``@<eax>``) and commented (``/* @<eax> */``) forms are treated
+    as active. This matches the build-time semantics in
+    ``analysis/knowledge.py`` (``reg_filter_re``), which generates thunks for
+    either form. C-source parameter syntax forces the comment form, while
+    hand-written kb.json entries often use the bare form — they are stylistic
+    variants of the same annotation, not "active" vs "inactive".
+    """
+    params = _split_params(decl)
     result: list[tuple[int, str]] = []
     for i, p in enumerate(params):
         m = _REG_ANNOTATION_RE.search(p)
         if m is not None:
             result.append((i, m.group(1).lower()))
     return result
+
+
+def reg_shape(decl: str) -> tuple[int, list[tuple[int, str]]]:
+    """Return (parameter count, @<reg> annotations) for a declaration.
+
+    Two declarations with the same shape pin the same parameters to the same
+    registers, so they differ only in names or types.
+    """
+    params = [p for p in _split_params(decl) if p.strip() not in ("", "void")]
+    return len(params), _parse_reg_annotations(decl)
 
 
 def _has_active_reg_args(decl: str) -> bool:

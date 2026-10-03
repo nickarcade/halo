@@ -61,7 +61,7 @@ ls -lt ~/actions-runner/_work/_diag/ | head -3
 ## Run checks locally (no push needed)
 
 ```bash
-# AgentPolicy — AGENTS.md/CLAUDE.md sync + line count
+# AgentPolicy — AGENTS.md line count + local CLAUDE.md symlink check
 python3 tools/audit/check_agent_docs.py
 
 # Regression tests — quick (5 seeds, ~40s)
@@ -92,7 +92,7 @@ python3 tools/audit/check_requirements.py
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `AGENTS.md and CLAUDE.md are out of sync` | Files diverged | `cp CLAUDE.md AGENTS.md` |
+| `Local CLAUDE.md differs from AGENTS.md` | Local copy diverged | `ln -sf AGENTS.md CLAUDE.md` |
 | `has N lines (limit: 250)` | File too long | Trim or raise `MAX_LINES` in `check_agent_docs.py` |
 | `ModuleNotFoundError: No module named 'pkg_resources'` | Old `check_requirements.py` on checkout | `check_requirements.py` now uses `importlib.metadata`; rebuild/reinstall |
 | `'FUN_XXXXXXXX' not found in kb.json` | Function renamed since batch_verify ran | `populate_regression_targets.py` bug fixed; re-run `--from-batch --apply` |
@@ -129,7 +129,7 @@ cat ~/actions-runner/.runner
 sudo systemctl restart actions.runner.stianeklund-halo.hermes-wsl2.service
 ```
 
-The runner uses `.venv/bin/python3` and symlinks `delinked/` and `build/` from the local machine at:
-- `VENV_PYTHON`: `/mnt/g/dev/halo/.venv/bin/python3`
-- `DELINKED_DIR`: `/mnt/g/dev/halo/delinked`
-- `BUILD_DIR`: `/mnt/g/dev/halo/build`
+The runner uses `.venv/bin/python3` and symlinks `delinked/` and `build/` from the local main checkout (`<repo>` = `$(git rev-parse --show-toplevel)`):
+- `VENV_PYTHON`: `<repo>/.venv/bin/python3`
+- `DELINKED_DIR`: `<repo>/delinked`
+- `BUILD_DIR`: `<repo>/build`

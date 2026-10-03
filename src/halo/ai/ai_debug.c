@@ -18,13 +18,11 @@ void ai_debug_initialize(void)
 
   if (*(void **)0x331f58 == NULL) {
     *(void **)0x331f58 =
-      debug_malloc(0x657c00, false, "c:\\halo\\SOURCE\\ai\\ai_debug.c",
-                   0x93);
+      debug_malloc(0x657c00, false, "c:\\halo\\SOURCE\\ai\\ai_debug.c", 0x93);
   }
   if (*(void **)0x331f5c == NULL) {
     *(void **)0x331f5c =
-      debug_malloc(0x394f80, false, "c:\\halo\\SOURCE\\ai\\ai_debug.c",
-                   0x94);
+      debug_malloc(0x394f80, false, "c:\\halo\\SOURCE\\ai\\ai_debug.c", 0x94);
   }
   if (*(void **)0x331f58 != NULL && *(void **)0x331f5c != NULL) {
     return;
@@ -805,6 +803,78 @@ char ai_debug_highlight_cluster(int16_t cluster_index, void *out)
   }
   *(void **)out = *(void **)0x2ee6c8;
   return 1;
+}
+
+/* ai_debug_lineofsight_findpoint (0x497c0): find or append a point in the
+ * 0x4000-entry debug point table and bump its hit count.
+ *
+ * Register ABI: EDI = point (3 floats, read at 0x497df/0x497e4/0x497e9),
+ * BX = tag compared against the int16 array at 0x5e4cb0 (0x497d2).
+ * Returns the index in AX (0x4988f MOV AX,SI), or -1 on overflow.
+ *
+ * Table: count at 0x5accac (int), 12-byte point records at 0x5accb0,
+ * int16 hit counts at 0x5dccb0, int16 tags at 0x5e4cb0.  A point matches
+ * when its squared distance is below the float at 0x25ac64.  Overflow
+ * reports once via the flag byte at 0x5acca8 and the ray count at
+ * 0x5eccb0. */
+unsigned short ai_debug_lineofsight_findpoint(int arg_edi /* @<edi> */,
+                                              int arg_ebx /* @<ebx> */)
+{
+  float *point;
+  float *entry;
+  float dx;
+  float dy;
+  float dz;
+  int count;
+  int index;
+
+  point = (float *)arg_edi;
+  count = *(int32_t *)0x5accac;
+  index = 0;
+  if (0 < count) {
+    entry = (float *)0x5accb8;
+    do {
+      if (((int16_t *)0x5e4cb0)[index] == (int16_t)arg_ebx) {
+        dx = entry[-2] - point[0];
+        dy = entry[-1] - point[1];
+        dz = entry[0] - point[2];
+        if (dx * dx + dy * dy + dz * dz < *(float *)0x25ac64) {
+          break;
+        }
+      }
+      index++;
+      entry += 3;
+    } while (index < count);
+  }
+  if (index >= count) {
+    if (count < 0x4000) {
+      index = count;
+      *(int32_t *)0x5accac = count + 1;
+      ((int32_t *)0x5accb0)[index * 3] = ((int32_t *)point)[0];
+      ((int32_t *)0x5accb0)[index * 3 + 1] = ((int32_t *)point)[1];
+      ((int32_t *)0x5accb0)[index * 3 + 2] = ((int32_t *)point)[2];
+      ((int16_t *)0x5dccb0)[index] = 0;
+      ((int16_t *)0x5e4cb0)[index] = (int16_t)arg_ebx;
+    } else {
+      index = -1;
+      if (*(char *)0x5acca8 == 0) {
+        error(2,
+              "ai_debug_lineofsight: overflowed point buffer (%d) with %d "
+              "rays and counting",
+              0x4000, *(int32_t *)0x5eccb0);
+        *(char *)0x5acca8 = 1;
+      }
+    }
+  }
+  if (index != -1) {
+    if (index > 0x7fff) {
+      display_assert("index <= SHORT_MAX", "c:\\halo\\SOURCE\\ai\\ai_debug.c",
+                     0x107f, 1);
+      system_exit(-1);
+    }
+    ((int16_t *)0x5dccb0)[index]++;
+  }
+  return (unsigned short)index;
 }
 
 /* ai_debug_lineofsight_storeray (0x498d0): find or append the (point_a,
@@ -3139,6 +3209,147 @@ void ai_debug_change_selected_actor(int param)
   }
 }
 
+/* ai_debug_render_path_storage (0x4c560): draw the debug overlay for one
+ * path-storage record (entry @<esi>; the assert strings call it `path`).
+ *
+ * Skipped unless entry is non-NULL, byte +0xc is set, and dword +0x8 differs
+ * from the global at 0x5acab4; on exit +0x8 is set to that global, so the
+ * record is drawn at most once per change of 0x5acab4.
+ *
+ * Asserts (ai_debug.c lines 0xf68/0xf69): int16 +0x10 is a path traverse
+ * result and int16 +0x12 a path build result, each in [0, 6).  Their names
+ * come from two 6-entry string tables built on the stack (EBP-0x34 and
+ * EBP-0x1c) before the global_structure_bsp_index_get call.
+ *
+ * Calls, traced from the disassembly:
+ *   0x4c695 FUN_00189cb0(1, ai_debug_drawstack(), csprintf(0x5ab100,
+ *           "%s / %s (%d)", traverse, build, game_time_get() - +0x4), color)
+ *           with color = [0x2ee6d4] when both results are 5 ("success"),
+ *           else [0x2ee6d0]; the color is pushed before game_time_get.
+ *   If byte 0x5acaa4: if byte +0x60, FUN_00189450 (+0x28 -> +0x64,
+ *           [0x2ee6e8], 0.1f), FUN_00189150(+0x64, 0.3f, [0x2ee6d4]),
+ *           FUN_00189540(+0x64, +0x74, [0x2ee6d4]) only when
+ *           [0x2533c0] < +0x74 (FCOMP + TEST AH,0x41 + JNZ skip), and
+ *           ai_debug_render_surface(+0x78 @<eax>, +0x70, 0.05f, [0x2ee6d4])
+ *           when +0x70 != -1 and the record's int16 +0xe equals the current
+ *           BSP index; else draws "undirected".
+ *   Bytes 0x5aca9d/9e/9f each gate one ai_debug_render_path_line with
+ *           point = +0x28 and (count, entries) = (+0x140fc, +0x14100),
+ *           (+0x14500, +0x14504), (+0x14544, +0x14548) and color
+ *           [0x2ee6d0]/[0x2ee6d4]/[0x2ee6d8].
+ *   int16 0x5acaa0 (re-read after the first call) selects an element when
+ *           0 <= it < int16 +0x1458a: byte 0x5acaa2 gates
+ *           path_obstacles_debug_render(+0x1458c + i*0xc08,
+ *           float +0x175ac + i*0x1534); byte 0x5acaa3 plus the same-BSP flag
+ *           gate FUN_000609e0(+0x175ac + i*0x1534).
+ *   Byte 0x5acaa5 gates ai_debug_render_path_nodes with args (+0x14, same-BSP flag,
+ *           byte 0x5acaa6, byte 0x5acaa8 @<al>, byte 0x5acaa7 @<cl>,
+ *           byte 0x5acaa9 @<dl>).
+ *
+ * Uncertain: the meaning of the 0x5aca9d..0x5acaa9 debug toggles and of the
+ * record fields beyond the two assert-named results is not proven. */
+void ai_debug_render_path_storage(void *entry /* @<esi> */)
+{
+  char *path;
+  char *traverse_names[6];
+  char *build_names[6];
+  char on_current_bsp;
+  void *color;
+
+  path = (char *)entry;
+  if (path == NULL || *(char *)(path + 0xc) == 0 ||
+      *(int32_t *)(path + 0x8) == *(int32_t *)0x5acab4) {
+    return;
+  }
+  traverse_names[0] = "none";
+  traverse_names[1] = "invalid start";
+  traverse_names[2] = "not close enough";
+  traverse_names[3] = "exhausted search";
+  traverse_names[4] = "overflowed nodes";
+  traverse_names[5] = "success";
+  build_names[0] = "none";
+  build_names[1] = "no destination";
+  build_names[2] = "cached node missing";
+  build_names[3] = "not close enough";
+  build_names[4] = "obstacles blocked";
+  build_names[5] = "success";
+  on_current_bsp = *(int16_t *)(path + 0xe) == global_structure_bsp_index_get();
+  if (*(int16_t *)(path + 0x10) < 0 || *(int16_t *)(path + 0x10) >= 6) {
+    display_assert("(path->path_traverse_result >= 0) && "
+                   "(path->path_traverse_result < "
+                   "NUMBER_OF_PATH_TRAVERSE_RESULTS)",
+                   "c:\\halo\\SOURCE\\ai\\ai_debug.c", 0xf68, true);
+    system_exit(-1);
+  }
+  if (*(int16_t *)(path + 0x12) < 0 || *(int16_t *)(path + 0x12) >= 6) {
+    display_assert("(path->path_build_result >= 0) && "
+                   "(path->path_build_result < NUMBER_OF_PATH_BUILD_RESULTS)",
+                   "c:\\halo\\SOURCE\\ai\\ai_debug.c", 0xf69, true);
+    system_exit(-1);
+  }
+  if (*(int16_t *)(path + 0x10) == 5 && *(int16_t *)(path + 0x12) == 5) {
+    color = *(void **)0x2ee6d4;
+  } else {
+    color = *(void **)0x2ee6d0;
+  }
+  FUN_00189cb0(1, ai_debug_drawstack(),
+               csprintf((char *)0x5ab100, "%s / %s (%d)",
+                        traverse_names[*(int16_t *)(path + 0x10)],
+                        build_names[*(int16_t *)(path + 0x12)],
+                        game_time_get() - *(int32_t *)(path + 0x4)),
+               (int)color);
+  if (*(char *)0x5acaa4 != 0) {
+    if (*(char *)(path + 0x60) != 0) {
+      FUN_00189450(1, (float *)(path + 0x28), (float *)(path + 0x64),
+                   *(void **)0x2ee6e8, 0.1f);
+      FUN_00189150(1, (float *)(path + 0x64), 0.3f, *(void **)0x2ee6d4);
+      if (*(float *)0x2533c0 < *(float *)(path + 0x74)) {
+        FUN_00189540(1, path + 0x64, *(float *)(path + 0x74),
+                     *(void **)0x2ee6d4);
+      }
+      if (*(int32_t *)(path + 0x70) != -1 && on_current_bsp) {
+        ai_debug_render_surface(*(void **)(path + 0x78),
+                                *(int32_t *)(path + 0x70), 0.05f,
+                                *(void **)0x2ee6d4);
+      }
+    } else {
+      FUN_00189cb0(1, ai_debug_drawstack(), "undirected", *(int *)0x2ee6d4);
+    }
+  }
+  if (*(char *)0x5aca9d != 0) {
+    ai_debug_render_path_line((float *)(path + 0x28), *(void **)0x2ee6d0,
+                              *(int16_t *)(path + 0x140fc),
+                              (float *)(path + 0x14100));
+  }
+  if (*(char *)0x5aca9e != 0) {
+    ai_debug_render_path_line((float *)(path + 0x28), *(void **)0x2ee6d4,
+                              *(int16_t *)(path + 0x14500),
+                              (float *)(path + 0x14504));
+  }
+  if (*(char *)0x5aca9f != 0) {
+    ai_debug_render_path_line((float *)(path + 0x28), *(void **)0x2ee6d8,
+                              *(int16_t *)(path + 0x14544),
+                              (float *)(path + 0x14548));
+  }
+  if (*(int16_t *)0x5acaa0 >= 0 &&
+      *(int16_t *)0x5acaa0 < *(int16_t *)(path + 0x1458a)) {
+    if (*(char *)0x5acaa2 != 0) {
+      path_obstacles_debug_render(
+        path + 0x1458c + *(int16_t *)0x5acaa0 * 0xc08,
+        *(float *)(path + 0x175ac + *(int16_t *)0x5acaa0 * 0x1534));
+    }
+    if (*(char *)0x5acaa3 != 0 && on_current_bsp) {
+      FUN_000609e0(path + 0x175ac + *(int16_t *)0x5acaa0 * 0x1534);
+    }
+  }
+  if (*(char *)0x5acaa5 != 0) {
+    ai_debug_render_path_nodes(path + 0x14, on_current_bsp,
+                               *(unsigned char *)0x5acaa6, *(char *)0x5acaa8,
+                               *(char *)0x5acaa7, *(char *)0x5acaa9);
+  }
+  *(int32_t *)(path + 0x8) = *(int32_t *)0x5acab4;
+}
+
 /* ai_debug_render_path: draw the camera-follow LOS-hit debug line, then
  * continue the queued path-follow build.
  *
@@ -3612,6 +3823,41 @@ void ai_profile_display(char *buf)
               *(int16_t *)0x5abc46, *(int16_t *)0x5abbbe, *(int16_t *)0x5abe66,
               *(int16_t *)0x5abdde, *(int16_t *)0x5abd56, *(int16_t *)0x5abeee,
               768);
+}
+
+/* ai profile text line drawer (0x53800): draw one tab-stopped text line at the
+ * current ai-profile screen cursor and advance the cursor.
+ *
+ * Confirmed (disassembly at 0x53800):
+ *   - EAX carries the color pointer; NULL falls back to *(void **)0x2ee6c4
+ *   - bounds = { *(int16_t *)0x5aba80, 0, 0x7fff, 0x7fff } on the stack
+ *   - calls in order: interface_set_bitmap_text_draw_mode(1,-1,0,0,5,0),
+ *     draw_string_set_color(color), draw_string_set_tab_stops(positions,
+ * count), rasterizer_text_draw(bounds, NULL, out, 0, text),
+ *     draw_string_set_tab_stops(NULL, 0)
+ *   - afterwards 0x5aba80 += (int16_t)(bounds[0] - out[1]) (16-bit store)
+ *
+ * Uncertain: the meaning of the out rectangle written by rasterizer_text_draw
+ * beyond its second short being read here. */
+void ai_profile_string(char *text, int column_count, short *column_positions,
+                       void *context /* @<eax> */)
+{
+  short bounds[4];
+  short out[4];
+
+  bounds[0] = *(int16_t *)0x5aba80;
+  bounds[1] = 0;
+  bounds[3] = 0x7fff;
+  bounds[2] = 0x7fff;
+  if (context == NULL) {
+    context = *(void **)0x2ee6c4;
+  }
+  interface_set_bitmap_text_draw_mode(1, -1, 0, 0, 5, 0);
+  draw_string_set_color(context);
+  draw_string_set_tab_stops(column_positions, (short)column_count);
+  rasterizer_text_draw(bounds, NULL, out, 0, text);
+  draw_string_set_tab_stops(NULL, 0);
+  *(int16_t *)0x5aba80 += (int16_t)(bounds[0] - out[1]);
 }
 
 /* ai line-spray mode cycler (0x53890): advance the AI debug line-spray mode

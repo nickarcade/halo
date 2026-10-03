@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Entry point for core.hooksPath=tools/hooks: git only runs hooks by exact name.
+# Opt-in: the script refreshes the local dashboard and the retrieval index in
+# the background, which is maintainer-local work. Enable with HALO_HEAVY_HOOKS=1.
+[ "${HALO_HEAVY_HOOKS:-}" = 1 ] || exit 0
+ROOT="$(git rev-parse --show-toplevel)"
+exec bash "$ROOT/tools/hooks/post-commit.sh" "$@"

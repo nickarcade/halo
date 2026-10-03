@@ -6,7 +6,7 @@
 # (systemd: `systemctl status cron`).
 set -euo pipefail
 
-RUNNER="/mnt/g/dev/halo/tools/equivalence/run_local_equiv.sh"
+RUNNER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/run_local_equiv.sh"
 MARK="# halo-equivalence (managed by install_local_cron.sh)"
 
 if [ "${1:-}" != "" ] && [ "${1:-}" != "--with-full" ]; then

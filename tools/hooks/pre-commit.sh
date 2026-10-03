@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Composite pre-commit hook — runs all checks in tools/hooks/pre-commit-*.sh
 #
-# This script is invoked via the symlink .git/hooks/pre-commit, so $0 (and
-# BASH_SOURCE) point at .git/hooks — NOT at this file's real location. Deriving
-# DIR from $0 therefore globbed .git/hooks/pre-commit-*.sh (zero matches) and
-# silently ran NONE of the gates. Resolve tools/hooks from the repo root instead.
+# It is reached through tools/hooks/pre-commit (core.hooksPath=tools/hooks).
+# Resolve tools/hooks from the repo root rather than from $0, so the gates are
+# found however the script is invoked. Gate scripts must be executable in git
+# (mode 100755): the dispatcher skips any pre-commit-*.sh that is not.
 #
 # STAGED LIST, ONCE. `git diff --cached --name-status` is asked a single time and
 # fanned out as four lists under $HALO_STAGED_DIR (all / acmr / acm / notd, the

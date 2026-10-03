@@ -48,10 +48,17 @@ TOOLS_DIR = REPO_ROOT / "tools"
 GHIDRA_LIVE_RPC_URL = "http://127.0.0.1:8091/rpc"
 GHIDRA_LIVE_SSE_URL = "http://127.0.0.1:8091/sse"
 
-# Headless defaults (inlined from deprecated export_delinked_object.py)
-DEFAULT_GHIDRA_ROOT = "/mnt/c/Users/stian/AppData/Roaming/ghidra/ghidra_12.0.3_PUBLIC"
-DEFAULT_PROJECT_DIR = "/mnt/c/Users/stian/AppData/Roaming/ghidra/ghidra_12.0.3_PUBLIC/projects"
-DEFAULT_SCRIPT_DIR = "/mnt/c/Users/stian/ghidra_scripts"
+# Headless defaults (inlined from deprecated export_delinked_object.py). The
+# machine-specific locations come from GHIDRA_INSTALL_DIR, GHIDRA_PROJECT_DIR and
+# GHIDRA_SCRIPT_DIR (see tools/local.env.example).
+if str(TOOLS_DIR) not in sys.path:
+    sys.path.insert(0, str(TOOLS_DIR))
+from internal.local_env import load_repo_env  # noqa: E402
+
+load_repo_env("local.env")
+DEFAULT_GHIDRA_ROOT = os.environ.get("GHIDRA_INSTALL_DIR", "")
+DEFAULT_PROJECT_DIR = os.environ.get("GHIDRA_PROJECT_DIR", "")
+DEFAULT_SCRIPT_DIR = os.environ.get("GHIDRA_SCRIPT_DIR", "")
 DEFAULT_SCRIPT_NAME = "DelinkProgram.java"
 DEFAULT_PROJECT_NAME = "cachebeta"
 DEFAULT_PROGRAM = "cachebeta.xbe"
@@ -358,6 +365,11 @@ def export_via_headless(
 ) -> None:
     output_path = os.path.abspath(export_path)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    if not (ghidra_root and project_dir and script_dir):
+        raise FileNotFoundError(
+            "headless export needs GHIDRA_INSTALL_DIR, GHIDRA_PROJECT_DIR and "
+            "GHIDRA_SCRIPT_DIR (tools/local.env) or --ghidra-root/--project-dir/--script-dir")
 
     analyze_headless = os.path.join(ghidra_root, "support", "analyzeHeadless")
     analyze_headless_bat = os.path.join(ghidra_root, "support", "analyzeHeadless.bat")

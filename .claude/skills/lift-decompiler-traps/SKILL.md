@@ -98,7 +98,7 @@ Never declare these in `kb.json` or call them as normal C functions:
 | `0x1dd680` | `_aullrem` | `(uint64_t)a % b` |
 | `0x1dd770` | `_aulldiv` | `(uint64_t)a / b` |
 
-## 5. Detail Moved From CLAUDE.md (2026-09-02)
+## 5. Detail Moved From AGENTS.md (2026-09-02)
 
 ### SEH wrappers (`__SEH_prolog` / `__SEH_epilog`)
 All 74 `__SEH_prolog` callers are LIBCMT/XAPILIB CRT helpers. Use

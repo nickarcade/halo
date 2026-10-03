@@ -43,16 +43,19 @@ it contained at least one inline function with an assert.
 
 | Original path | Our path |
 |---|---|
-| `c:\halo\source\ai\actor_type_definitions.h` | `src/halo/ai/actor_type_definitions.h` |
+| `c:\halo\source\ai\actor_type_definitions.h` | `src/halo/ai/actor_type_definitions.h` (planned) |
 | `c:\halo\source\ai\encounters.h` | `src/halo/ai/encounters.h` |
-| `c:\halo\source\ai\path.h` | `src/halo/ai/path.h` |
+| `c:\halo\source\ai\path.h` | `src/halo/ai/path.h` (planned) |
 | `c:\halo\source\hs\hs_library_internal_compile.h` | `src/halo/hs/…` |
 | `c:\halo\source\hs\hs_library_internal_runtime.h` | `src/halo/hs/…` |
 | `c:\halo\source\objects\objects.h` | `src/halo/objects/objects.h` |
 | `c:\halo\source\objects\widgets\widget_types.h` | `src/halo/objects/widgets/…` |
-| `c:\halo\source\sound\sound_classes.h` | `src/halo/sound/sound_classes.h` |
+| `c:\halo\source\sound\sound_classes.h` | `src/halo/sound/sound_classes.h` (planned) |
 | `c:\halo\source\sound\sound_definitions.h` | `src/halo/sound/…` |
-| `c:\halo\source\sound\sound_dsound.h` | `src/halo/sound/sound_dsound.h` |
+| `c:\halo\source\sound\sound_dsound.h` | `src/halo/sound/sound_dsound.h` (planned) |
+
+Paths marked (planned) and the `…` entries do not exist in the tree yet; only the
+other rows are created headers.
 
 Plus `bitmaps_inlines.h`, `real_math.h`, `reference_lists.h` (short-name hits;
 re-run the sweep to pin their directories before creating them).

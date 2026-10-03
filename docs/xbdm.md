@@ -694,8 +694,8 @@ xbdm_context_primer:
         output_dir: "xbdm/screenshots"
       examples:
         - "rtk python3 tools/xbox/xbdm_screenshot.py --host 127.0.0.1 --images 5 --png"
-        - "rtk python3 tools/xbox/xbdm_screenshot.py --host 192.168.0.10 --images 3 --png"
-        - "rtk python3 tools/xbox/xbdm_screenshot.py --host 192.168.0.10 --count 5 --interval 0.5 --png"
+        - "rtk python3 tools/xbox/xbdm_screenshot.py --host $XBDM_HOST --images 3 --png"
+        - "rtk python3 tools/xbox/xbdm_screenshot.py --host $XBDM_HOST --count 5 --interval 0.5 --png"
       notes:
         - "Use --host to target a specific Xbox or xemu instance reachable over XBDM."
         - "Use --images or --count to capture a numbered sequence; both flags write into the same count option."

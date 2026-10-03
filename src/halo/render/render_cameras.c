@@ -257,9 +257,10 @@ void render_camera_build_frustum_bounds(camera_t *camera,
  *   FDIVR [ECX+0x188] / FMUL [EBP+0x10] / FADD ST0,ST0
  *
  * The frustum has no recovered type at this decl, so the four matrix fields
- * and the pixel scale are dereferenced raw.  TEST AH,0x1 is C0 alone (strictly
- * less than), TEST AH,0x41 is C0|C3 (less than or equal); both senses are
- * written out as the binary tests them.
+ * and the pixel scale are dereferenced raw.  TEST AH,0x1 is C0 alone and
+ * TEST AH,0x41 is C0|C3; an unordered (NaN) compare sets both, so the two
+ * tests are !(depth >= 0) and !(depth > 0.1f): a NaN depth is negated and
+ * then clamped to 0.1f.
  */
 float render_frustum_sphere_diameter_in_pixels(void *frustum, float *center,
                                                float radius)
@@ -272,10 +273,10 @@ float render_frustum_sphere_diameter_in_pixels(void *frustum, float *center,
   depth = *(float *)(f + 0x34) * center[2] + *(float *)(f + 0x28) * center[1] +
           *(float *)(f + 0x1c) * center[0] + *(float *)(f + 0x40);
 
-  if (depth < *(float *)0x2533c0) {
+  if (!(depth >= *(float *)0x2533c0)) {
     depth = -depth;
   }
-  if (depth <= *(float *)0x25496c) {
+  if (!(depth > *(float *)0x25496c)) {
     depth = *(float *)0x25496c;
   }
 
@@ -648,7 +649,10 @@ bool render_camera_triangle_frontfacing(camera_t *camera, vector3_t *point0,
   edge1.z = point2->z - point1->z;
   cross_product3d_inline(&edge0, &edge1, &normal);
 
-  return dot_product3d_inline(&normal, &camera_to_point) > -0.0001f;
+  /* Summed z, y, then x: the order the x87 code accumulates the dot in. */
+  return normal.z * camera_to_point.z + normal.y * camera_to_point.y +
+           normal.x * camera_to_point.x >
+         -0.0001f;
 }
 
 /* render_frustum_build_point_flags - 0x186690
@@ -662,17 +666,31 @@ int16_t render_frustum_build_point_flags(void *plane_ctx, void *point)
 {
   const render_frustum_t *f = (const render_frustum_t *)plane_ctx;
   const vector3_t *p = (const vector3_t *)point;
-  int16_t flags = plane3d_distance_to_point_inline(&f->field_78[0], p) > 0.0f ?
-                    FLAG(_render_frustum_point_flags_left_bit) :
-                    0;
+  /* Hand-summed: the x87 code adds the y and z products first, x last. */
+  const real_plane3d *plane = f->field_78;
+  int16_t flags =
+    p->x * plane[0].normal[0] +
+          (p->y * plane[0].normal[1] + p->z * plane[0].normal[2]) - plane[0].d >
+        0.0f ?
+      FLAG(_render_frustum_point_flags_left_bit) :
+      0;
 
-  flags |= plane3d_distance_to_point_inline(&f->field_78[1], p) > 0.0f ?
+  flags |= p->x * plane[1].normal[0] +
+                 (p->y * plane[1].normal[1] + p->z * plane[1].normal[2]) -
+                 plane[1].d >
+               0.0f ?
              FLAG(_render_frustum_point_flags_right_bit) :
              0;
-  flags |= plane3d_distance_to_point_inline(&f->field_78[2], p) > 0.0f ?
+  flags |= p->x * plane[2].normal[0] +
+                 (p->y * plane[2].normal[1] + p->z * plane[2].normal[2]) -
+                 plane[2].d >
+               0.0f ?
              FLAG(_render_frustum_point_flags_bottom_bit) :
              0;
-  flags |= plane3d_distance_to_point_inline(&f->field_78[3], p) > 0.0f ?
+  flags |= p->x * plane[3].normal[0] +
+                 (p->y * plane[3].normal[1] + p->z * plane[3].normal[2]) -
+                 plane[3].d >
+               0.0f ?
              FLAG(_render_frustum_point_flags_top_bit) :
              0;
   return flags;
@@ -759,23 +777,30 @@ int16_t render_frustum_cube_visible(void *frustum, float *bounds,
 
     for (vertex_index = 0; vertex_index < 8; vertex_index++) {
       const vector3_t *vertex = &cube_vertices[vertex_index];
-      uint16_t flags =
-        plane3d_distance_to_point_inline(&f->field_78[0], vertex) > 0.0f ?
-          FLAG(_render_frustum_point_flags_left_bit) :
-          0;
+      /* Per-plane x87 sum order: x,y,z; x,z,y; z,y,x; z,y,x. */
+      const real_plane3d *plane = f->field_78;
+      uint16_t flags = vertex->x * plane[0].normal[0] +
+                             vertex->y * plane[0].normal[1] +
+                             plane[0].normal[2] * vertex->z - plane[0].d >
+                           0.0f ?
+                         FLAG(_render_frustum_point_flags_left_bit) :
+                         0;
 
-      flags |=
-        plane3d_distance_to_point_inline(&f->field_78[1], vertex) > 0.0f ?
-          FLAG(_render_frustum_point_flags_right_bit) :
-          0;
-      flags |=
-        plane3d_distance_to_point_inline(&f->field_78[2], vertex) > 0.0f ?
-          FLAG(_render_frustum_point_flags_bottom_bit) :
-          0;
-      flags |=
-        plane3d_distance_to_point_inline(&f->field_78[3], vertex) > 0.0f ?
-          FLAG(_render_frustum_point_flags_top_bit) :
-          0;
+      flags |= plane[1].normal[0] * vertex->x + plane[1].normal[2] * vertex->z +
+                     vertex->y * plane[1].normal[1] - plane[1].d >
+                   0.0f ?
+                 FLAG(_render_frustum_point_flags_right_bit) :
+                 0;
+      flags |= plane[2].normal[2] * vertex->z + vertex->y * plane[2].normal[1] +
+                     plane[2].normal[0] * vertex->x - plane[2].d >
+                   0.0f ?
+                 FLAG(_render_frustum_point_flags_bottom_bit) :
+                 0;
+      flags |= plane[3].normal[2] * vertex->z + vertex->y * plane[3].normal[1] +
+                     plane[3].normal[0] * vertex->x - plane[3].d >
+                   0.0f ?
+                 FLAG(_render_frustum_point_flags_top_bit) :
+                 0;
 
       intersection_flags &= flags;
       union_flags |= flags;
@@ -988,7 +1013,7 @@ void render_camera_mirror(camera_t *camera, render_mirror_t *mirror,
 
   if (mirror->index_of_refraction == 0.0f) {
     if (fabs(dot_product3d_inline((const vector3_t *)plane.normal,
-                                  &camera->field_0c)) < 0.0125) {
+                                  &camera->field_0c)) < 0.0125f) {
       vector3_t point_on_plane;
       const vector3_t *forward = &camera->field_0c;
       real distance_to_plane =
@@ -1445,8 +1470,12 @@ float contrail_fade(contrail_definition_t *definition, int16_t fade_mode,
     to_camera.x = unknown_global_camera.field_00.x - world_point->x;
     to_camera.y = unknown_global_camera.field_00.y - world_point->y;
     to_camera.z = unknown_global_camera.field_00.z - world_point->z;
-    result = (real)fabs(dot_product3d_inline(world_normal, &to_camera) /
-                        magnitude3d_inline(&to_camera));
+    /* x87 sum order: dot z,y,x; squared magnitude (z+x)+y. */
+    result = (real)fabs(
+      (to_camera.z * world_normal->z + to_camera.y * world_normal->y +
+       to_camera.x * world_normal->x) /
+      (real)x87_sqrtd(to_camera.y * to_camera.y +
+                      (to_camera.z * to_camera.z + to_camera.x * to_camera.x)));
 
     if (definition->flags & 0x40) {
       result = transition_function_evaluate(2, result);

@@ -51,8 +51,8 @@ coverage: 47/47 bytes (100.0%) — confidence: high
 
 Coverage and confidence are persisted to `tools/equivalence/leaf_cache.json`
 and consumed by:
-- `tools/lift_pipeline.py` — shown in equivalence stage details
-- `tools/llm_auto_lift.py` — `+3 eq_high_conf` scoring bonus
+- `tools/lift/lift_pipeline.py` — shown in equivalence stage details
+- `tools/lift/llm_auto_lift.py` — `+3 eq_high_conf` scoring bonus
 - `tools/equivalence/batch_verify.py` — included in batch reports
 
 **Historical caveat on entries recorded before 2026-07-28.** `run_diff` bound
@@ -1022,9 +1022,9 @@ change; `test_dat_spelling_is_required` pins that.
 
 | Consumer | What it uses | How |
 |----------|-------------|-----|
-| `tools/lift_pipeline.py` | `--output-json` | Gates equivalence stage; shows confidence in details |
+| `tools/lift/lift_pipeline.py` | `--output-json` | Gates equivalence stage; shows confidence in details |
 | `tools/equivalence/batch_verify.py` | CLI invocation | Passes `--mem-trace` by default |
-| `tools/llm_auto_lift.py` | `leaf_cache.json` | `+3 eq_high_conf` for high-confidence entries |
+| `tools/lift/llm_auto_lift.py` | `leaf_cache.json` | `+3 eq_high_conf` for high-confidence entries |
 | `/verify equivalence` skill | CLI invocation | Delegates to unicorn_diff |
 
 ### Who tests the harness (2026-07-29)

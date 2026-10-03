@@ -234,6 +234,8 @@ void bored_camera_update(bored_camera_t *camera, camera_control_t *controls,
   player_control_unit_camera_info_t camera_info;
   real_point3d camera_position;
   float angles[2];
+  float field_of_view;
+  int timer_milliseconds;
 
   now = (uint32_t)system_milliseconds();
   if (camera == NULL) {
@@ -246,9 +248,9 @@ void bored_camera_update(bored_camera_t *camera, camera_control_t *controls,
                    1);
     system_exit(-1);
   }
-  threshold = camera->boredom_count;
   camera->timer_milliseconds += camera->last_update_milliseconds - now;
   camera->last_update_milliseconds = now;
+  threshold = camera->boredom_count;
   if (3 < threshold) {
     threshold = 3;
   }
@@ -264,21 +266,17 @@ void bored_camera_update(bored_camera_t *camera, camera_control_t *controls,
       angles[0] = facing[0];
       angles[1] = facing[1];
       unit_get_camera_position(unit_index, &camera_position.x);
-      /* Random bored-camera angles. The original evaluates each
-       * random_real_range(min,max) by pushing min/max, then calling the
-       * 0-arg local-seed getter, then random_real_range(seed, min, max).
-       * angles[] is a contiguous pair so angles_to_vector can read
-       * {angles[0], angles[1]} through one pointer (matches the original
-       * EBP-8 / EBP-4 stack layout). */
+      /* angles[] is one {yaw, pitch} pair: angles_to_vector reads both. */
       angles[1] = random_real_range((int *)random_math_get_local_seed_address(),
                                     -1.0995574f, 0.39269909f);
-      angles[0] = random_real_range((int *)random_math_get_local_seed_address(),
-                                    -0.78539819f, 0.78539819f) +
-                  angles[0] + REAL_PI_POOL;
+      angles[0] += random_real_range((int *)random_math_get_local_seed_address(),
+                                     -0.78539819f, 0.78539819f) +
+                   3.14159265f;
       angles_to_vector(&result->forward.i, angles);
       observer_up_from_forward(&result->forward.i, &result->up.i);
-      result->field_of_view = random_real_range(
+      field_of_view = random_real_range(
         (int *)random_math_get_local_seed_address(), 0.52359879f, 1.3962634f);
+      result->field_of_view = field_of_view;
       result->depth = random_real_range(
         (int *)random_math_get_local_seed_address(), 1.0f, 6.0f);
       result->velocity = *(real_vector3d *)global_zero_vector_ptr;
@@ -286,9 +284,10 @@ void bored_camera_update(bored_camera_t *camera, camera_control_t *controls,
       if (3 < shots) {
         shots = 3;
       }
-      camera->timer_milliseconds = shots * 10000;
+      timer_milliseconds = shots * 10000;
+      camera->timer_milliseconds = timer_milliseconds;
       result->flags = 1;
-      result->timer = (float)camera->timer_milliseconds;
+      result->timer = (float)timer_milliseconds;
       camera->boredom_count++;
       if ((result->flags & 1) != 0 && !valid_camera_command(result, real_vector3d_valid)) {
         display_assert(
@@ -1607,12 +1606,12 @@ void light_volume_delete(int param_1)
 
 void *light_volume_interpolate_frames(int definition_ptr, int object_handle)
 {
-  int *count_ptr;
-  void *elem0;
-  void *elemA;
-  void *elemB;
-  float local_8;
-  float t;
+  int *frames;
+  void *result;
+  void *frame0;
+  void *frame1;
+  float function_value;
+  float inverse_function_value;
   bool ok;
 
   if (definition_ptr == 0) {
@@ -1622,59 +1621,59 @@ void *light_volume_interpolate_frames(int definition_ptr, int object_handle)
     system_exit(-1);
   }
 
-  count_ptr = (int *)(definition_ptr + 0x120);
-  elem0 = tag_block_get_element(count_ptr, 0, 0xb0);
+  frames = (int *)(definition_ptr + 0x120);
+  result = tag_block_get_element(frames, 0, 0xb0);
 
-  if (1 < *count_ptr) {
-    elemA = tag_block_get_element(count_ptr, 0, 0xb0);
-    elemB = tag_block_get_element(count_ptr, 0, 0xb0);
+  if (1 < *frames) {
+    frame0 = tag_block_get_element(frames, 0, 0xb0);
+    frame1 = tag_block_get_element(frames, 0, 0xb0);
     ok = object_get_function_value(
-      object_handle, (short)(*(short *)(definition_ptr + 0xb8) - 1), &local_8);
+      object_handle, (short)(*(short *)(definition_ptr + 0xb8) - 1), &function_value);
     if (ok) {
-      t = *(float *)0x002533c8 - local_8;
+      result = (void *)0x0046ef70;
+      inverse_function_value = *(float *)0x002533c8 - function_value;
+      *(float *)0x0046ef80 = function_value * *(float *)((char *)frame1 + 0x10) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x10);
+      *(float *)0x0046ef84 = function_value * *(float *)((char *)frame1 + 0x14) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x14);
+      *(float *)0x0046ef88 = function_value * *(float *)((char *)frame1 + 0x18) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x18);
 
-      *(float *)0x0046ef80 = local_8 * *(float *)((char *)elemB + 0x10) +
-                             t * *(float *)((char *)elemA + 0x10);
-      *(float *)0x0046ef84 = local_8 * *(float *)((char *)elemB + 0x14) +
-                             t * *(float *)((char *)elemA + 0x14);
-      *(float *)0x0046ef88 = local_8 * *(float *)((char *)elemB + 0x18) +
-                             t * *(float *)((char *)elemA + 0x18);
+      *(float *)0x0046efac = function_value * *(float *)((char *)frame1 + 0x3c) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x3c);
+      *(float *)0x0046efb0 = function_value * *(float *)((char *)frame1 + 0x40) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x40);
+      *(float *)0x0046efb4 = function_value * *(float *)((char *)frame1 + 0x44) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x44);
 
-      *(float *)0x0046efac = local_8 * *(float *)((char *)elemB + 0x3c) +
-                             t * *(float *)((char *)elemA + 0x3c);
-      *(float *)0x0046efb0 = local_8 * *(float *)((char *)elemB + 0x40) +
-                             t * *(float *)((char *)elemA + 0x40);
-      *(float *)0x0046efb4 = local_8 * *(float *)((char *)elemB + 0x44) +
-                             t * *(float *)((char *)elemA + 0x44);
+      *(float *)0x0046efd8 = function_value * *(float *)((char *)frame1 + 0x68) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x68);
+      *(float *)0x0046efdc = function_value * *(float *)((char *)frame1 + 0x6c) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x6c);
+      *(float *)0x0046efe0 = function_value * *(float *)((char *)frame1 + 0x70) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x70);
+      *(float *)0x0046efe4 = function_value * *(float *)((char *)frame1 + 0x74) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x74);
+      *(float *)0x0046efe8 = function_value * *(float *)((char *)frame1 + 0x78) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x78);
+      *(float *)0x0046efec = function_value * *(float *)((char *)frame1 + 0x7c) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x7c);
+      *(float *)0x0046eff0 = function_value * *(float *)((char *)frame1 + 0x80) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x80);
+      *(float *)0x0046eff4 = function_value * *(float *)((char *)frame1 + 0x84) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x84);
+      *(float *)0x0046eff8 = function_value * *(float *)((char *)frame1 + 0x88) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x88);
+      *(float *)0x0046effc = function_value * *(float *)((char *)frame1 + 0x8c) +
+                             inverse_function_value * *(float *)((char *)frame0 + 0x8c);
 
-      *(float *)0x0046efd8 = local_8 * *(float *)((char *)elemB + 0x68) +
-                             t * *(float *)((char *)elemA + 0x68);
-      *(float *)0x0046efdc = local_8 * *(float *)((char *)elemB + 0x6c) +
-                             t * *(float *)((char *)elemA + 0x6c);
-      *(float *)0x0046efe0 = local_8 * *(float *)((char *)elemB + 0x70) +
-                             t * *(float *)((char *)elemA + 0x70);
-      *(float *)0x0046efe4 = local_8 * *(float *)((char *)elemB + 0x74) +
-                             t * *(float *)((char *)elemA + 0x74);
-      *(float *)0x0046efe8 = local_8 * *(float *)((char *)elemB + 0x78) +
-                             t * *(float *)((char *)elemA + 0x78);
-      *(float *)0x0046efec = local_8 * *(float *)((char *)elemB + 0x7c) +
-                             t * *(float *)((char *)elemA + 0x7c);
-      *(float *)0x0046eff0 = local_8 * *(float *)((char *)elemB + 0x80) +
-                             t * *(float *)((char *)elemA + 0x80);
-      *(float *)0x0046eff4 = local_8 * *(float *)((char *)elemB + 0x84) +
-                             t * *(float *)((char *)elemA + 0x84);
-      *(float *)0x0046eff8 = local_8 * *(float *)((char *)elemB + 0x88) +
-                             t * *(float *)((char *)elemA + 0x88);
-      *(float *)0x0046effc = local_8 * *(float *)((char *)elemB + 0x8c) +
-                             t * *(float *)((char *)elemA + 0x8c);
 
-      return (void *)0x0046ef70;
     }
-    return elem0;
+  } else {
+    result = tag_block_get_element(frames, 0, 0xb0);
   }
 
-  elem0 = tag_block_get_element(count_ptr, 0, 0xb0);
-  return elem0;
+  return result;
 }
 
 /*
@@ -2634,14 +2633,13 @@ void find_point_lights_for_object_in_cluster(
   float attenuation;
   int light_index;
   light_datum_t *light;
-  int16_t i;
   int16_t slot;
   int16_t dimmest_index;
   int16_t cur_count;
-  float dx, dy, dz, dist, radius;
-  float brightness, minimum_intensity, intensity;
-  float *wp;
+  float dx, dy, dz, distance, radius;
+  float minimum_intensity, intensity;
   int slot_offset;
+  int marker;
 
   if (!lights_globals.marker_initialized) {
     display_assert("lights_globals.marker_initialized",
@@ -2667,12 +2665,13 @@ void find_point_lights_for_object_in_cluster(
         dx = center[0] - light->position.x;
         dy = center[1] - light->position.y;
         dz = center[2] - light->position.z;
-        dist = sqrtf(dx * dx + dy * dy + dz * dz);
-        radius = light->radius;
-        if (dist < bias + light->radius) {
-          attenuation = 1.0f - (dist * dist) / (radius * radius);
-          brightness = real_rgb_color_brightness(&light->color.red);
-          intensity = brightness * attenuation;
+        /* Keep this sum order; it is the original's x87 order. */
+        distance = sqrtf(dy * dy + (dx * dx + dz * dz));
+        if (distance < bias + light->radius) {
+          radius = light->radius;
+          attenuation = 1.0f - (distance * distance) / (radius * radius);
+          intensity =
+            real_rgb_color_brightness(&light->color.red) * attenuation;
 
           cur_count = *light_count;
           if (cur_count < maximum_light_count) {
@@ -2682,19 +2681,12 @@ void find_point_lights_for_object_in_cluster(
           } else {
             minimum_intensity = REAL_MAX_POOL;
             dimmest_index = -1;
-            slot = 0;
-            if (cur_count > 0) {
-              i = 0;
-              wp = light_intensities;
-              do {
-                if (*wp < minimum_intensity) {
-                  minimum_intensity = *wp;
-                  dimmest_index = i;
-                }
-                i++;
-                wp++;
-              } while (i < *light_count);
-              slot = i; /* slot ends at *light_count after the search loop */
+            /* slot ends at *light_count unless a dimmer light wins. */
+            for (slot = 0; slot < *light_count; slot++) {
+              if (minimum_intensity > light_intensities[slot]) {
+                minimum_intensity = light_intensities[slot];
+                dimmest_index = slot;
+              }
             }
             if (minimum_intensity < intensity)
               slot = dimmest_index;
@@ -2714,8 +2706,9 @@ void find_point_lights_for_object_in_cluster(
                        "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x67f, 1);
         system_exit(-1);
       }
-      if (light->marker != lights_globals.marker)
-        light->marker = lights_globals.marker;
+      marker = lights_globals.marker;
+      if (light->marker != marker)
+        light->marker = marker;
     }
     light_index = cluster_partition_iter_next(light_cluster_partition,
                                               &reference_index);
@@ -3112,133 +3105,111 @@ done:
   FUN_0017cd90();
 }
 
+/* 0x13a740 */
 void lights_illumination_at_point(int point, int location, float *color)
 {
   float value;
-  char *black;
-  float *color_out;
-  char hit;
-  int iVar5;
-  short *lightmap;
-  int bitmap;
-  int iVar8;
-  unsigned int remaining;
-  union {
-    float point[3];
-    int light_indices[2];
-  } slot;
-  float local_28;
-  unsigned short *surface;
-  int local_20;
-  float s;
-  float local_18;
-  float t;
-  void *material;
-  int surface_index;
-  short material_index[2];
-  /* slot: point is dead before the gather writes light_indices into it. */
-  /* color's stack home is reused as the short light count. */
-  float light_weights[2];
-  float light_attenuations[2];
-  light_datum_t *light;
 
-  color_out = color;
-  black = *(char **)0x2ee710;
-  *(real_vector3d *)color_out = *(real_vector3d *)black;
-  hit = structure_test_vector((float *)point, (float *)0x29b204, slot.point,
-                            (int16_t *)((int)&color + 2), material_index, &surface_index,
-                            &s, &t);
-  if (hit != '\0') {
-    iVar5 = (int)scenario_get();
-    lightmap = (short *)tag_block_get_element(
-      (void *)(iVar5 + 0x104), (int)*(short *)((int)&color + 2), 0x20);
-    material = tag_block_get_element(lightmap + 10, (int)material_index[0], 0x100);
-    if (*(int *)(iVar5 + 0xc) != -1 && *lightmap != -1) {
-      bitmap = (int)FUN_00076ff0(*(int *)(iVar5 + 0xc), *lightmap);
-      surface = (unsigned short *)tag_block_get_element((void *)(iVar5 + 0xf8),
-                                                         surface_index, 6);
-      iVar5 = (int)material;
-      if (*(short *)((char *)material + 0xc4) != 2 &&
-          *(short *)((char *)material + 0xc4) != 3) {
-        display_assert("material->lightmap_vertices.type==_rasterizer_vertex_"
-                       "type_environment_lightmap_uncompressed || "
-                       "material->lightmap_vertices.type==_rasterizer_vertex_"
-                       "type_environment_lightmap_compressed",
-                       "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x356, 1);
-        system_exit(-1);
-      }
-      iVar8 = (int)xbox_texture_cache_get_hardware_format((void *)bitmap, 0, 0);
-      if (iVar8 != 0) {
-        FUN_00138fd0(iVar5, bitmap, surface, s, t, color_out);
+  *(real_vector3d *)color = **(real_vector3d **)0x2ee710;
+  {
+    short lightmap_index;
+    short material_index;
+    int surface_index;
+    float s;
+    float t;
+    float collision_point[3];
+
+    if (structure_test_vector((float *)point, (float *)0x29b204, collision_point,
+                              &lightmap_index, &material_index, &surface_index,
+                              &s, &t)) {
+      char *structure = (char *)scenario_get();
+      short *lightmap = (short *)tag_block_get_element(
+        structure + 0x104, lightmap_index, 0x20);
+      char *material = (char *)tag_block_get_element(lightmap + 10,
+                                                     material_index, 0x100);
+
+      if (*(int *)(structure + 0xc) != -1 && *lightmap != -1) {
+        void *bitmap = FUN_00076ff0(*(int *)(structure + 0xc), *lightmap);
+        unsigned short *surface = (unsigned short *)tag_block_get_element(
+          structure + 0xf8, surface_index, 6);
+
+        if (*(short *)(material + 0xc4) != 2 &&
+            *(short *)(material + 0xc4) != 3) {
+          display_assert("material->lightmap_vertices.type==_rasterizer_vertex_"
+                         "type_environment_lightmap_uncompressed || "
+                         "material->lightmap_vertices.type==_rasterizer_vertex_"
+                         "type_environment_lightmap_compressed",
+                         "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x356, 1);
+          system_exit(-1);
+        }
+        if (xbox_texture_cache_get_hardware_format(bitmap, 0, 0)) {
+          FUN_00138fd0((int)material, (int)bitmap, surface, s, t, color);
+        }
       }
     }
   }
+
   if (*(short *)(location + 4) != -1) {
-    color = (float *)0;
+    int light_indices[MAXIMUM_RENDERED_POINT_LIGHTS];
+    float light_intensities[MAXIMUM_RENDERED_POINT_LIGHTS];
+    float light_attenuations[MAXIMUM_RENDERED_POINT_LIGHTS];
+    short light_count = 0;
+    short light_index;
+
     if (lights_globals.marker_initialized != '\0') {
       display_assert("!lights_globals.marker_initialized",
                      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x664, 1);
       system_exit(-1);
     }
-    *(int *)0x5a8d64 = *(int *)0x5a8d64 + 1;
-    *(char *)0x5a8d60 = '\x01';
+    lights_globals.marker = lights_globals.marker + 1;
+    lights_globals.marker_initialized = '\x01';
     find_point_lights_for_object_in_cluster(
-      -1, (int16_t) * (unsigned short *)(location + 4), (float *)point, 0.0f,
-      (int)slot.light_indices, light_weights, (int)light_attenuations,
-      (int16_t *)&color, MAXIMUM_RENDERED_POINT_LIGHTS);
+      -1, (int16_t)*(unsigned short *)(location + 4), (float *)point, 0.0f,
+      (int)light_indices, light_intensities, (int)light_attenuations,
+      &light_count, MAXIMUM_RENDERED_POINT_LIGHTS);
     if (lights_globals.marker_initialized == '\0') {
       display_assert("lights_globals.marker_initialized",
                      "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x68e, 1);
       system_exit(-1);
     }
-    *(char *)0x5a8d60 = '\0';
-    if (0 < (short)(int)color) {
-      iVar5 = 0;
-      remaining = (unsigned short)(unsigned int)color;
-      do {
-        light = light_get(*(int *)((char *)slot.light_indices + iVar5));
-        if ((light->flags & POINT_LIGHT_FLAG_DYNAMIC) != 0) {
-          *color_out = light->color.red *
-                      *(float *)((char *)light_attenuations + iVar5) +
-                    *color_out;
-          color_out[1] = light->color.green *
-                        *(float *)((char *)light_attenuations + iVar5) +
-                      color_out[1];
-          color_out[2] = light->color.blue *
-                        *(float *)((char *)light_attenuations + iVar5) +
-                      color_out[2];
-        }
-        iVar5 = iVar5 + 4;
-        remaining = remaining - 1;
-      } while (remaining != 0);
+    lights_globals.marker_initialized = '\0';
+    for (light_index = 0; light_index < light_count; light_index++) {
+      light_datum_t *light = light_get(light_indices[light_index]);
+
+      if ((light->flags & POINT_LIGHT_FLAG_DYNAMIC) != 0) {
+        color[0] += light->color.red * light_attenuations[light_index];
+        color[1] += light->color.green * light_attenuations[light_index];
+        color[2] += light->color.blue * light_attenuations[light_index];
+      }
     }
   }
-  if (*color_out < REAL_ZERO_POOL) {
+
+  if (color[0] < REAL_ZERO_POOL) {
     value = REAL_ZERO_POOL;
-  } else if (*color_out > REAL_ONE_POOL) {
+  } else if (color[0] > REAL_ONE_POOL) {
     value = REAL_ONE_POOL;
   } else {
-    value = *color_out;
+    value = color[0];
   }
-  *color_out = value;
+  color[0] = value;
 
-  if (color_out[1] < REAL_ZERO_POOL) {
+  if (color[1] < REAL_ZERO_POOL) {
     value = REAL_ZERO_POOL;
-  } else if (color_out[1] > REAL_ONE_POOL) {
+  } else if (color[1] > REAL_ONE_POOL) {
     value = REAL_ONE_POOL;
   } else {
-    value = color_out[1];
+    value = color[1];
   }
-  color_out[1] = value;
+  color[1] = value;
 
-  if (color_out[2] < REAL_ZERO_POOL) {
+  if (color[2] < REAL_ZERO_POOL) {
     value = 0.0f;
-  } else if (color_out[2] > REAL_ONE_POOL) {
+  } else if (color[2] > REAL_ONE_POOL) {
     value = 1.0f;
   } else {
-    value = color_out[2];
+    value = color[2];
   }
-  color_out[2] = value;
+  color[2] = value;
 }
 
 void lights_prepare_for_object_dynamic(int object_index, int lighting)
@@ -3449,47 +3420,37 @@ void light_reconnect_to_map(int object_handle)
   void *node_matrix;
   char marker_buf[0x6c]; /* output from object_get_marker_by_name */
   char location[8]; /* scenario location (cluster_index etc.) */
-  float local_pos[3]; /* computed light position */
-  float local_range; /* committed effective range */
+  real_point3d position; /* computed light position */
+  float radius; /* committed effective range */
   float range; /* pre-clamp range temp (stays ST0-resident like the ref) */
   uint8_t tag_flags;
   float offset;
-  int16_t marker_index;
 
   light = light_get(object_handle);
   light_definition_get(light->definition_index);
 
   if (light->field_58 == -1) {
     /* nested call: the outer call pushes its trailing args first. */
-    marker_index = light->attachment_marker_index;
     object_get_marker_by_name(light->object_index,
                                     (char *)object_get_attachment_marker_name(
-                                      light->object_index, marker_index),
+                                      light->object_index,
+                                      light->attachment_marker_index),
                                     marker_buf, 1);
 
     /* position, forward and up copy as dword moves, not x87 loads. */
-    {
-      int *dst;
-      dst = (int *)&light->position; /* position <- marker_buf+0x60 */
-      dst[0] = *(int *)(marker_buf + 0x60);
-      dst[1] = *(int *)(marker_buf + 0x64);
-      dst[2] = *(int *)(marker_buf + 0x68);
-      dst = (int *)&light->forward; /* forward  <- marker_buf+0x3c */
-      dst[0] = *(int *)(marker_buf + 0x3c);
-      dst[1] = *(int *)(marker_buf + 0x40);
-      dst[2] = *(int *)(marker_buf + 0x44);
-      dst = (int *)&light->up; /* up       <- marker_buf+0x54 */
-      dst[0] = *(int *)(marker_buf + 0x54);
-      dst[1] = *(int *)(marker_buf + 0x58);
-      dst[2] = *(int *)(marker_buf + 0x5c);
-    }
+    /* position <- marker_buf+0x60 */
+    light->position = *(real_point3d *)(marker_buf + 0x60);
+    /* forward  <- marker_buf+0x3c */
+    light->forward = *(real_vector3d *)(marker_buf + 0x3c);
+    /* up       <- marker_buf+0x54 */
+    light->up = *(real_vector3d *)(marker_buf + 0x54);
   } else {
     parent_obj =
       (char *)object_try_and_get_and_verify_type(light->object_index, -1);
     if (parent_obj != 0) {
-      marker_index = light->attachment_marker_index;
       node_matrix =
-        object_get_node_matrix(light->object_index, marker_index);
+        object_get_node_matrix(light->object_index,
+                               light->attachment_marker_index);
       matrix_transform_point((float *)node_matrix, &light->attachment.relative_position.x,
                              &light->position.x);
       matrix_transform_vector((float *)node_matrix, &light->relative_forward.i,
@@ -3514,40 +3475,34 @@ void light_reconnect_to_map(int object_handle)
       range = range * definition->specular_radius_multiplier;
 
     if (range < definition->lens_flare_only_radius) {
-      /* the computed range is discarded; position and cutoff copy as dwords. */
-      int *ps = (int *)&light2->position;
-      *(int *)&local_pos[0] = ps[0];
-      *(int *)&local_pos[1] = ps[1];
-      *(int *)&local_pos[2] = ps[2];
-      *(int *)&local_range = *(int *)&definition->lens_flare_only_radius;
+      /* The computed range is discarded; the radius is copied as raw bits. */
+      position = light2->position;
+      *(int *)&radius = *(int *)&definition->lens_flare_only_radius;
     } else {
       /* the angle is reloaded for each compare; NaN takes the outer else. */
       if (definition->cutoff_angle < REAL_HALF_PI_POOL) {
         if (definition->cutoff_angle < REAL_QUARTER_PI_POOL) {
-          local_range = range / definition->cosine_cutoff_angle;
-          local_pos[0] =
-            local_range * light2->forward.i + light2->position.x;
-          local_pos[1] =
-            local_range * light2->forward.j + light2->position.y;
-          local_pos[2] =
-            local_range * light2->forward.k + light2->position.z;
+          radius = range / definition->cosine_cutoff_angle;
+          position.x =
+            radius * light2->forward.i + light2->position.x;
+          position.y =
+            radius * light2->forward.j + light2->position.y;
+          position.z =
+            radius * light2->forward.k + light2->position.z;
         } else {
           /* offset stays in ST0 across the three components. */
-          local_range = range * definition->sine_cutoff_angle;
+          radius = range * definition->sine_cutoff_angle;
           offset = range * definition->cosine_cutoff_angle;
-          local_pos[0] =
+          position.x =
             offset * light2->forward.i + light2->position.x;
-          local_pos[1] =
+          position.y =
             offset * light2->forward.j + light2->position.y;
-          local_pos[2] =
+          position.z =
             offset * light2->forward.k + light2->position.z;
         }
       } else {
-        int *ps = (int *)&light2->position;
-        local_range = range;
-        *(int *)&local_pos[0] = ps[0];
-        *(int *)&local_pos[1] = ps[1];
-        *(int *)&local_pos[2] = ps[2];
+        radius = range;
+        position = light2->position;
       }
     }
 
@@ -3560,21 +3515,17 @@ void light_reconnect_to_map(int object_handle)
 
     if (light->object_index == -1 ||
         object_try_and_get_and_verify_type(light->object_index, -1) == 0) {
-      scenario_location_from_point((void *)location, (void *)local_pos);
+      scenario_location_from_point((void *)location, (void *)&position);
     } else {
       object_get_location(light->object_index, (void *)location);
     }
 
-    {
-      union {
-        float f;
-        uint32_t u;
-      } range_bits;
-      range_bits.f = local_range;
-      cluster_partition_add_object(light_cluster_partition, object_handle,
-                                   (void *)&light->cluster_reference, (void *)local_pos,
-                                   range_bits.u, (void *)location);
-    }
+    /* cluster_partition_add_object takes the radius as raw float bits. */
+    cluster_partition_add_object(light_cluster_partition, object_handle,
+                                 (void *)&light->cluster_reference,
+                                 (void *)&position,
+                                 *(uint32_t *)&radius,
+                                 (void *)location);
 
     light->flags |= POINT_LIGHT_FLAG_CONNECTED_TO_MAP;
   }
@@ -6197,18 +6148,16 @@ void object_predict(int object_handle)
   }
 }
 
-void object_beautify(int param_1, char param_2)
+void object_beautify(int object_handle, char beautiful)
 {
-  int iVar1;
-
-  if (param_1 != -1) {
-    if (param_2 != '\0') {
-      iVar1 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-      *(unsigned int *)(iVar1 + 4) = *(unsigned int *)(iVar1 + 4) | 0x400000;
+  if (object_handle != -1) {
+    if (beautiful != '\0') {
+      ((object_data_t *)object_get_and_verify_type(object_handle, 0xffffffff))->flags |=
+        0x400000;
       return;
     }
-    iVar1 = (int)object_get_and_verify_type(param_1, 0xffffffff);
-    *(unsigned int *)(iVar1 + 4) = *(unsigned int *)(iVar1 + 4) & 0xffbfffff;
+    ((object_data_t *)object_get_and_verify_type(object_handle, 0xffffffff))->flags &=
+      ~0x400000;
   }
 }
 
@@ -6791,11 +6740,11 @@ void object_compute_function_values(int object_handle /* @<eax> */)
               REAL_ONE_THIRTIETH_POOL;
 
   func_count = *(int *)(obj_tag + 0x158);
-  i = 0;
   counter = 0;
   if (func_count <= 0) {
     return;
   }
+  i = 0;
   do {
     char *elem =
       (char *)tag_block_get_element((void *)(obj_tag + 0x158), i, 0x168);
@@ -6882,7 +6831,7 @@ void object_compute_function_values(int object_handle /* @<eax> */)
         value;
       value = HALO_NARROW(value_wide);
       HALO_FLT_ROUNDTRIP(value);
-      if (value_wide > 1.0f) {
+      if (value_wide > REAL_ONE_POOL) {
         value = 1.0f;
       }
     }
@@ -7920,23 +7869,23 @@ void objects_dispose_from_old_map(void)
   obj_data = *(data_t **)0x5a8d50;
 
   /* Only walk the table if it has been made valid */
-  if (*(uint8_t *)((uint8_t *)obj_data + 0x24) != 0) {
+  if (obj_data->valid) {
     int idx = data_next_index(obj_data, -1);
     while (idx != -1) {
-      /* datum_get returns a pointer; field at +8 is the object data ptr */
-      uint8_t *elem = (uint8_t *)datum_get(obj_data, idx);
-      void **field_8_ptr = (void **)(elem + 0x8);
+      object_header_data_t *header;
+      data_t *data = *(data_t **)0x5a8d50;
+      header = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, idx);
 
-      if (*field_8_ptr != 0) {
+      if (header->object != 0) {
         /* Free this object's memory pool allocation */
-        memory_pool_block_free(*(void **)0x46f080, field_8_ptr);
+        memory_pool_block_free(*(void **)0x46f080, (void **)&header->object);
       }
 
-      datum_delete(obj_data, idx);
+      datum_delete(data, idx);
 
-      /* Zero out field_8 and field_2 unconditionally after delete */
-      *field_8_ptr = 0;
-      *(uint8_t *)(elem + 0x2) = 0;
+      /* Zero out the object pointer and flags unconditionally after delete */
+      header->object = 0;
+      header->unk_2 = 0;
 
       idx = data_next_index(*(data_t **)0x5a8d50, idx);
     }
@@ -10193,15 +10142,15 @@ void objects_paparazzi(void)
   object_data_t *obj;
 
   data_verify(*(data_t **)0x5a8d50);
-
-  it.last_handle = (it.type_mask = -1);
+  it.cookie = 0x86868686;
+  it.type_mask = -1;
   it.flags = 0;
   it.current_index = 0;
-  it.cookie = 0x86868686;
+  it.last_handle = NONE;
 
   obj = (object_data_t *)object_iterator_next(&it);
   while (obj != (object_data_t *)0) {
-    if ((*(unsigned int *)((char *)obj + 4) & 0x400000) != 0) {
+    if ((obj->flags & 0x400000) != 0) {
       object_delete_internal(it.last_handle, 0);
     }
     obj = (object_data_t *)object_iterator_next(&it);
@@ -10240,26 +10189,25 @@ void objects_paparazzi(void)
  * ESP,8 cleans both. Decompiler dropped param_2. Confirmed: jump table at
  * 0x141b38 / index map at 0x141b58 (code-1 keyed).
  */
-void object_export_function_values(int param_1)
+void object_export_function_values(int object_handle)
 {
   int *obj;
-  int obj_tag;
+  int object_definition;
   short *codes;
   float *values;
-  int n;
+  short i;
   short code;
   short region;
   float value;
   int marker;
   float angle;
 
-  obj = (int *)object_get_and_verify_type(param_1, -1);
-  obj_tag = (int)tag_get(0x6f626a65, *obj);
-  codes = (short *)(obj_tag + 0x108);
+  obj = (int *)object_get_and_verify_type(object_handle, -1);
+  object_definition = (int)tag_get(0x6f626a65, *obj);
+  codes = (short *)(object_definition + 0x108);
   values = (float *)(obj + 0x35); /* object+0xd4 */
-  n = 4;
-  do {
-    code = *codes;
+  for (i = 0; i < 4; i++) {
+    code = codes[i];
     if (code != 0) {
       value = REAL_ZERO_POOL; /* default 0.0 */
       switch (code) {
@@ -10279,7 +10227,7 @@ void object_export_function_values(int param_1)
         }
         break;
       case 5:
-        if (*values == 1.0f) {
+        if (values[i] == 1.0f) {
           value =
             random_math_real((unsigned int *)get_global_random_seed_address());
         }
@@ -10292,7 +10240,7 @@ void object_export_function_values(int param_1)
         }
         break;
       case 0x13:
-        marker = (int)object_get_node_matrix(param_1, 0);
+        marker = (int)object_get_node_matrix(object_handle, 0);
         if (fabs(*(float *)(marker + 0xc)) < DOUBLE_0_995_POOL) {
 #if defined(_MSC_VER) && !defined(__clang__)
 #undef atan2
@@ -10315,7 +10263,7 @@ void object_export_function_values(int param_1)
             }
           }
         } else {
-          value = *values;
+          value = values[i];
         }
         break;
       default:
@@ -10330,13 +10278,13 @@ void object_export_function_values(int param_1)
                 REAL_ONE_OVER_255_POOL;
         break;
       }
-      *values = value;
+      values[i] = value;
     }
-    codes = codes + 1;
-    values = values + 1;
-    n = n - 1;
-  } while (n != 0);
+  }
 }
+
+
+
 
 /* Type-cast helpers for object_compute_node_matrices — kept at file scope for
  * C89 compliance */

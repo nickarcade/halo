@@ -38,13 +38,13 @@ Before anything else, run these checks. Stop if any fail.
 ls third_party/decomp-permuter/permuter.py || echo "MISSING — clone per docs/permuter-adapter.md"
 
 # 2. VC71 CL.Exe is accessible
-test -f "/mnt/c/Program Files (x86)/RXDK/xbox/bin/vc71/CL.Exe" || echo "MISSING VC71"
+test -f "$VC71_CL_WSL" || echo "MISSING VC71 (set VC71_CL_WSL to the RXDK vc71 CL.Exe; default in tools/permuter/compile.sh)"
 
 # 3. Build is clean
 rtk python3 tools/build/build.py -q --target halo 2>&1 | tail -5
 
 # 4. Sync decl.h (stale headers cause pycparser failures; always sync before batch runs)
-rtk python3 tools/build/knowledge.py --decl-only -q 2>&1 | tail -3
+rtk python3 tools/analysis/knowledge.py --gen-header build/generated/decl.h 2>&1 | tail -3
 ```
 
 Kill any orphaned permuter workers from prior runs before starting:
@@ -105,7 +105,7 @@ A high mnemonic score against a low operand score is *also* the signature of a
 or a whole-object section-0 comparison). Discriminate with the instruction
 counts before blaming the lift: a wild `n_c`/`n_r` ratio in
 `tools/verify/vc71_current.json` means the reference is wrong, not the source —
-re-export it per the delinked-reference precondition in CLAUDE.md rather than
+re-export it per the delinked-reference precondition in AGENTS.md rather than
 permuting against it.
 
 ### 1a. Build the candidate list
@@ -135,7 +135,7 @@ Collect into a manifest at `artifacts/permuter_campaign/targets.json`:
   {
     "name": "FUN_0003ac20",
     "addr": "0x3ac20",
-    "source_file": "src/halo/game_engine/game_engine.c",
+    "source_file": "src/halo/game/game_engine.c",
     "delinked_ref": "delinked/game_engine.obj",
     "baseline_pct": 91.2,
     "tu_functions": ["FUN_0003ac20", "other_func_in_same_file"]
@@ -540,7 +540,7 @@ and move on. Do NOT retry — it will fail the same way.
 
 **decl.h out of sync:** Build fails with `call to undeclared function`. Run:
 ```bash
-rtk python3 tools/build/knowledge.py --decl-only -q
+rtk python3 tools/analysis/knowledge.py --gen-header build/generated/decl.h
 ```
 Then retry the build.
 

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Entry point for core.hooksPath=tools/hooks: git only runs hooks by exact name.
+ROOT="$(git rev-parse --show-toplevel)"
+exec bash "$ROOT/tools/hooks/post-checkout.sh" "$@"

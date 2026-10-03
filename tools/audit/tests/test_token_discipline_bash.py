@@ -197,7 +197,7 @@ class StateIntegrationTest(unittest.TestCase):
         msgs = tdh._record_bash(state, "cat build/generated/decl.h")
         self.assertEqual(state["noisy_reads"], 0)  # relative path, no /build/
         state = tdh._load_state("s3")
-        msgs = tdh._record_bash(state, "cat /mnt/g/dev/halo/build/x.log")
+        msgs = tdh._record_bash(state, "cat /work/halo/build/x.log")
         self.assertEqual(state["noisy_reads"], 1)
         self.assertTrue(msgs)
 

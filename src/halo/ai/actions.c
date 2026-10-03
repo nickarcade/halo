@@ -127,7 +127,7 @@ int action_vehicle_find_best_seat(int actor_handle, int vehicle_handle, float *o
  * Confirmed: the return byte lives at EBP-1 and is loaded into AL before the
  * single RET at 0x1be8c — Ghidra rendered this function as void(void). */
 char action_vehicle_setup_impromptu(int actor_handle, int vehicle_handle,
-                                    float radius_a, float radius_b, /* name: PAL 2342 action_vehicle.c:1039 */
+                                    float radius_a, float radius_b,
                                     void *out_action_data)
 {
   char *actor;
@@ -140,9 +140,9 @@ char action_vehicle_setup_impromptu(int actor_handle, int vehicle_handle,
   float attach0[3];
   float attach1[3];
   float delta[3];
-
-  result = 0;
+  float dx, dy, dz;
   actor = (char *)datum_get(actor_data, actor_handle);
+  result = 0;
   if (out_action_data == NULL) {
     display_assert("state_data", "c:\\halo\\SOURCE\\ai\\action_vehicle.c", 0x38,
                    1);
@@ -152,49 +152,47 @@ char action_vehicle_setup_impromptu(int actor_handle, int vehicle_handle,
   csmemset(state, 0, 0x4c);
   *(float *)(state + 0x20) = radius_a;
   *(float *)(state + 0x24) = radius_b;
-  if (((actor_t *)actor)->field_158 != -1 ||
-      ((actor_t *)actor)->field_006 != '\0' ||
-      ((actor_t *)actor)->state_action == _actor_action_vehicle) {
-    return result;
-  }
-
-  actor_pos = (char *)datum_get(actor_data, actor_handle);
-  object = (char *)object_get_and_verify_type(vehicle_handle, 3);
-  if ((*(unsigned char *)(object + 0xb6) & 4) == 0) {
-    object_get_world_position(vehicle_handle, (vector3_t *)delta);
-    delta[0] = delta[0] - *(float *)(actor_pos + 0x12c);
-    delta[1] = delta[1] - *(float *)(actor_pos + 0x130);
-    delta[2] = delta[2] - *(float *)(actor_pos + 0x134);
-    if (delta[0] * delta[0] + delta[1] * delta[1] + delta[2] * delta[2] <=
-        radius_b * radius_b) {
-      qualified = 1;
-      if (FUN_00012170((float *)(object + 0x18)) <= *(const float *)0x253f2c) {
-        goto qualified_resolved;
+  if (((actor_t *)actor)->field_158 == -1 &&
+      ((actor_t *)actor)->field_006 == '\0' &&
+      ((actor_t *)actor)->state_action != _actor_action_vehicle) {
+    actor_pos = (char *)datum_get(actor_data, actor_handle);
+    object = (char *)object_get_and_verify_type(vehicle_handle, 3);
+    qualified = 0;
+    if ((*(unsigned char *)(object + 0xb6) & 4) != 0) {
+      qualified = 0;
+    } else {
+      object_get_world_position(vehicle_handle, (vector3_t *)delta);
+      dx = delta[0] - ((actor_t *)actor_pos)->field_12c;
+      dy = delta[1] - ((actor_t *)actor_pos)->field_130;
+      dz = delta[2] - ((actor_t *)actor_pos)->field_134;
+      if (dx * dx + dy * dy + dz * dz < radius_b * radius_b) {
+        qualified = 1;
+        if (FUN_00012170((float *)(object + 0x18)) > *(const float *)0x253f2c) {
+          qualified = 0;
+        }
       }
     }
-  }
-  /* Single shared XOR BL,BL join in the original, reached from the flag-set
-   * else, the out-of-range test, and the fall-through when the scalar exceeds
-   * *0x253f2c. */
-  qualified = 0;
-qualified_resolved:
-  if (*(float *)(object + 0x38) >= *(const float *)0x253398 &&
-      qualified != '\0') {
-    *(int *)state = vehicle_handle;
-    seat = (short)action_vehicle_find_best_seat(actor_handle, vehicle_handle, &attach0[0],
-                               &attach1[0], delta);
-    *(short *)(state + 0x4) = seat;
-    if (seat != -1) {
-      *(unsigned char *)(state + 0x6) = 1;
-      if (unit_has_animation_to_enter_seat(((actor_t *)actor)->field_018,
-                                           vehicle_handle, seat) != '\0') {
-        if (action_vehicle_find_destination(actor_handle, vehicle_handle, &attach0[0], &attach1[0],
-                         delta, NULL, (float *)(state + 0x30),
-                         (int *)(state + 0x48)) != '\0') {
-          if (actor_move_to_point(actor_handle, (float *)(state + 0x30),
-                                  *(int *)(state + 0x48),
-                                  vehicle_handle) != '\0') {
-            result = 1;
+    if (*(float *)(object + 0x38) < *(const float *)0x253398) {
+      qualified = 0;
+    }
+
+    if (qualified != '\0') {
+      *(int *)state = vehicle_handle;
+      seat = (short)action_vehicle_find_best_seat(actor_handle, vehicle_handle, &attach0[0],
+                                 &attach1[0], delta);
+      *(short *)(state + 0x4) = seat;
+      if (seat != -1) {
+        *(unsigned char *)(state + 0x6) = 1;
+        if (unit_has_animation_to_enter_seat(((actor_t *)actor)->field_018,
+                                             vehicle_handle, seat) != '\0') {
+          if (action_vehicle_find_destination(actor_handle, vehicle_handle, &attach0[0], &attach1[0],
+                           delta, NULL, (float *)(state + 0x30),
+                           (int *)(state + 0x48)) != '\0') {
+            if (actor_move_to_point(actor_handle, (float *)(state + 0x30),
+                                    *(int *)(state + 0x48),
+                                    vehicle_handle) != '\0') {
+              result = 1;
+            }
           }
         }
       }
@@ -268,8 +266,8 @@ char action_wait_perform(int actor_handle)
         }
       }
     }
-    /* shape: PAL 2342 source/ai/action_wait.c:57-115 (structured, single
-     * return; 2276 keeps the 0x253f78/0x253f30 rdata constants). */
+    /* Structured, single return; 2276 keeps the 0x253f78/0x253f30 rdata
+     * constants. */
     if (*(char *)(actor + 6) == '\0') {
       if (((actor_t *)actor)->field_09f != '\0') {
         if (actor_move_to_prop(actor_handle, ((actor_t *)actor)->field_1d0,
@@ -340,8 +338,8 @@ char action_wait_setup(int actor_handle, char param_2, int state_data)
   char result;
 
   actor = (char *)datum_get(actor_data, actor_handle);
-  assert_halt(state_data != 0);
   result = 0;
+  assert_halt_msg_at("state_data", "c:\\halo\\SOURCE\\ai\\action_wait.c", 0x21, state_data != 0);
   csmemset((void *)state_data, 0, 0x18);
   if (((actor_t *)actor)->field_160 == '\0') {
     *(char *)(state_data + 1) = ((actor_t *)actor)->field_1cc;
@@ -457,7 +455,7 @@ int32_t actor_action_perform(int actor_handle)
   actor = (char *)datum_get(actor_data, actor_handle);
   action = ((actor_t *)actor)->state_action;
 
-  assert_halt(action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
+  assert_halt_msg_at("(actor->state.action >= 0) && (actor->state.action < NUMBER_OF_ACTOR_ACTIONS)", "c:\\halo\\SOURCE\\ai\\actions.c", 0x8f, action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
 
   handler = *(action_execute_fn_t *)(0x253fb8 + action * 0x38);
   if (handler != NULL) {
@@ -491,7 +489,7 @@ void actor_action_update(int actor_handle)
   actor = (char *)datum_get(actor_data, actor_handle);
   action = ((actor_t *)actor)->state_action;
 
-  assert_halt(action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
+  assert_halt_msg_at("(actor->state.action >= 0) && (actor->state.action < NUMBER_OF_ACTOR_ACTIONS)", "c:\\halo\\SOURCE\\ai\\actions.c", 0x9e, action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
 
   handler = *(action_update_fn_t *)(0x253fbc + action * 0x38);
   if (handler != NULL) {
@@ -526,7 +524,7 @@ void actor_action_control(int actor_handle)
   actor = (char *)datum_get(actor_data, actor_handle);
   action = ((actor_t *)actor)->state_action;
 
-  assert_halt(action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
+  assert_halt_msg_at("(actor->state.action >= 0) && (actor->state.action < NUMBER_OF_ACTOR_ACTIONS)", "c:\\halo\\SOURCE\\ai\\actions.c", 0xad, action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
 
   handler = *(action_notify_fn_t *)(0x253fc0 + action * 0x38);
   if (handler != NULL) {
@@ -559,7 +557,7 @@ void actor_action_replace_prop(int actor_handle, int old_prop, int new_prop)
   actor = (char *)datum_get(actor_data, actor_handle);
   action = ((actor_t *)actor)->state_action;
 
-  assert_halt(action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
+  assert_halt_msg_at("(actor->state.action >= 0) && (actor->state.action < NUMBER_OF_ACTOR_ACTIONS)", "c:\\halo\\SOURCE\\ai\\actions.c", 0xbe, action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
 
   handler = *(action_prop_replace_fn_t *)(0x253fcc + action * 0x38);
   if (handler != NULL) {
@@ -592,7 +590,7 @@ void actor_action_flush_position_indices(int actor_handle)
   actor = (char *)datum_get(actor_data, actor_handle);
   action = ((actor_t *)actor)->state_action;
 
-  assert_halt(action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
+  assert_halt_msg_at("(actor->state.action >= 0) && (actor->state.action < NUMBER_OF_ACTOR_ACTIONS)", "c:\\halo\\SOURCE\\ai\\actions.c", 0xcd, action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
 
   handler = *(action_slot30_fn_t *)(0x253fd0 + action * 0x38);
   if (handler != NULL) {
@@ -625,7 +623,7 @@ void actor_action_flush_structure_indices(int actor_handle)
   actor = (char *)datum_get(actor_data, actor_handle);
   action = ((actor_t *)actor)->state_action;
 
-  assert_halt(action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
+  assert_halt_msg_at("(actor->state.action >= 0) && (actor->state.action < NUMBER_OF_ACTOR_ACTIONS)", "c:\\halo\\SOURCE\\ai\\actions.c", 0xdc, action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
 
   handler = *(action_slot34_fn_t *)(0x253fd4 + action * 0x38);
   if (handler != NULL) {
@@ -673,8 +671,8 @@ int actor_action_handle_panic_from_surprise(int actor_handle)
     ((actor_t *)actor)->field_2f0 = 0;
     result = 1;
   }
-  assert_halt(((actor_t *)actor)->stimuli_panic_type == 0 ||
-              ((actor_t *)actor)->stimuli_panic_prop_index != 0);
+  assert_halt_msg_at("(actor->stimuli.panic_type == 0) || (actor->stimuli.panic_prop_index != 0x00000000)", "c:\\halo\\SOURCE\\ai\\actions.c", 0x210,
+    ((actor_t *)actor)->stimuli_panic_type == 0 || ((actor_t *)actor)->stimuli_panic_prop_index != 0);
   return result;
 }
 
@@ -722,8 +720,8 @@ char actor_action_handle_panic_from_damage(int actor_handle)
       result = 1;
     }
   }
-  assert_halt(actor->stimuli_panic_type == 0 ||
-              actor->stimuli_panic_prop_index != 0);
+  assert_halt_msg_at("(actor->stimuli.panic_type == 0) || (actor->stimuli.panic_prop_index != 0x00000000)", "c:\\halo\\SOURCE\\ai\\actions.c", 0x228,
+                     actor->stimuli_panic_type == 0 || actor->stimuli_panic_prop_index != 0);
   return result;
 }
 
@@ -868,7 +866,7 @@ char actor_action_handle_berserking_from_attacking_mode(int actor_handle)
 {
   char *actor;
   int *actr_tag;
-  short berserk_type; /* name: PAL 2342 actions.c:1538 */
+  short berserk_type;
   char result;
 
   actor = (char *)datum_get(actor_data, actor_handle);
@@ -917,7 +915,7 @@ char actor_action_handle_berserking_from_proximity(int actor_handle)
     prop = (char *)datum_get(*(data_t **)0x5ab23c,
                              ((actor_t *)actor)->target_target_prop_index);
     prop_handle = ((actor_t *)actor)->target_target_prop_index;
-    assert_halt(prop_handle != -1);
+    assert_halt_msg_at("actor->target.target_prop_index != NONE", "c:\\halo\\SOURCE\\ai\\actions.c", 0x2e1, prop_handle != -1);
     dist = *(float *)(prop + 0x11c);
     threshold = *(float *)(actr_tag + 0x3a0);
     if (dist < threshold) {
@@ -941,7 +939,7 @@ char actor_action_handle_berserking_from_damage(int actor_handle)
 {
   char *actor;
   int actr_tag;
-  short berserk_type; /* name: PAL 2342 actions.c:1558 */
+  short berserk_type;
   char result;
 
   actor = (char *)datum_get(actor_data, actor_handle);
@@ -1030,8 +1028,8 @@ char actor_action_vehicle_entry_allowed(int record_index, int datum_handle /* @<
 char actor_action_handle_vehicle_exit(int actor_handle)
 {
   char *actor;
-  char want_exit; /* name: PAL 2342 actions.c:4459 */
-  char forced_exit; /* name: PAL 2342 actions.c:4460 */
+  char want_exit;
+  char forced_exit;
   int iter[2];
   int prop;
   char exit_ok;
@@ -1149,13 +1147,13 @@ char actor_action_allow_cover_seeking(int actor_handle, char param_2)
 char actor_action_can_stop_guarding(int actor_handle, short guard_investigate_threshold,
                                     short cower_investigate_threshold)
 {
-  char *actor;
-
+  char *actor, result;
   actor = (char *)datum_get(actor_data, actor_handle);
-  assert_halt(((actor_t *)actor)->state_action == _actor_action_guard);
-  if (*(char *)(actor + 0xa4) != '\0') {
-    return ((actor_t *)actor)->field_06e >= cower_investigate_threshold;
-  } /* name: PAL 2342 actions.c:1748 */
+  assert_halt_msg_at("actor->state.action == _actor_action_guard", "c:\\halo\\SOURCE\\ai\\actions.c", 0xa89, ((actor_t *)actor)->state_action == _actor_action_guard);
+  if (((actor_t *)actor)->field_0a4 != '\0') {
+    result = ((actor_t *)actor)->field_06e >= cower_investigate_threshold;
+    return result;
+  }
   if (((0 < *(short *)(actor + 0x9c)) &&
        (((actor_t *)actor)->field_06e < guard_investigate_threshold)) &&
       ((((actor_t *)actor)->field_1e4 <= 0 ||
@@ -1175,15 +1173,13 @@ char actor_action_can_stop_guarding(int actor_handle, short guard_investigate_th
  * adjacent sibling actor_action_can_stop_guarding (0x1cf10) has the same
  * shape and is likewise declared char; both feed an `int` local at the call
  * sites in actors.c, which widens the value implicitly. */
-char actor_action_can_stop_conversing(int actor_handle, int flag)
+char actor_action_can_stop_conversing(int actor_handle)
 {
   char *actor;
   char *conv;
   char *elem;
   int16_t flags;
   char can_stop;
-
-  (void)flag;
 
   /* The `if (1)` is a codegen-shaping construct, not RE speculation, and it
    * is what takes this function from 87.8% to an exact 100% byte match. MSVC
@@ -1684,7 +1680,7 @@ int16_t actor_get_action_priority_flag(int actor_handle)
   actor = (char *)datum_get(actor_data, actor_handle);
   action = ((actor_t *)actor)->state_action;
 
-  assert_halt(action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
+  assert_halt_msg_at("(actor->state.action >= 0) && (actor->state.action < NUMBER_OF_ACTOR_ACTIONS)", "c:\\halo\\SOURCE\\ai\\actions.c", 0xe98, action >= 0 && action < NUMBER_OF_ACTOR_ACTIONS);
 
   return *(int16_t *)(0x253fb0 + action * 0x38);
 }
@@ -1971,7 +1967,7 @@ char actor_action_handle_surprise(int actor_handle, short type)
   int weapon_trigger_index;
   int weapon_state;
   int prop_handle;
-  char result; /* name: PAL 2342 actions.c:1845 */
+  char result;
 
   actor = (char *)datum_get(actor_data, actor_handle);
   actv_tag = (char *)tag_get(0x61637476, ((actor_t *)actor)->field_05c);
@@ -2212,7 +2208,7 @@ char actor_action_handle_vehicle_entry(int actor_handle)
 
   /* Source 1: allied actors already heading for / owning a vehicle. */
   if ((*actr_tag & 0x1000) != 0) {
-    int iter[2]; /* name: PAL 2342 actions.c:4094 */
+    int iter[2];
     prop_iterator_new(iter, actor_handle);
     ally = prop_iterator_next(iter);
     if (ally != 0) {
@@ -3066,7 +3062,8 @@ char actor_action_handle_done_fleeing(int actor_handle)
  * action was started against). Prop fields 0xb9 / 0xba are int8 flags.
  *
  * Returns the sub-handler's result, or 0 when no transition happened. */
-char actor_action_handle_combat_status(int actor_handle, int param2, int param3)
+char actor_action_handle_combat_status(int actor_handle, unsigned char param2,
+                                       unsigned char param3)
 {
   char *actor;
   char *prop;
@@ -3691,21 +3688,21 @@ int actor_pursuit_find_nearby_actors(int actor_handle, char flag)
   int count;
   int best_index;
   float best_dist;
-  int desired_actor_count; /* name: PAL 2342 actions.c:2174 */
-  int threshold_raw;
+  short desired_actor_count;
   int mapped;
   float dx;
   float dy;
   float dz;
   float dist;
-  int iter1[2];
   int iter2[3];
 
   actor = (int)datum_get(actor_data, actor_handle);
   count = 0;
   best_index = -1;
+  desired_actor_count = (flag != '\0') + 1;
   best_dist = 3.4028235e+38f;
-  threshold_raw = (flag != '\0') + 1;
+  {
+  int iter1[2];
   prop_iterator_new(iter1, actor_handle);
   rec = prop_iterator_next(iter1);
   while (rec != 0) {
@@ -3716,29 +3713,29 @@ int actor_pursuit_find_nearby_actors(int actor_handle, char flag)
         actor_pursuit_consider_nearby_actor(actor_handle, flag, *(int *)(rec + 0x1c)) != '\0') {
       count++;
       if (*(float *)(rec + 0x11c) < best_dist) {
-        best_dist = *(float *)(rec + 0x11c);
         best_index = iter1[0];
+        best_dist = *(float *)(rec + 0x11c);
       }
     }
     rec = prop_iterator_next(iter1);
   }
-  desired_actor_count = (short)threshold_raw;
-  if (count < desired_actor_count && *(int *)(actor + 0x34) != -1) {
-    encounter_actor_iterator_new(iter2, *(int *)(actor + 0x34));
+  }
+  if (count < desired_actor_count && ((actor_t *)actor)->field_034 != -1) {
+    encounter_actor_iterator_new(iter2, ((actor_t *)actor)->field_034);
     rec = encounter_actor_iterator_next(iter2);
     while (rec != 0) {
-      if (*(int *)(rec + 0x18) != -1 &&
+      if (((actor_t *)rec)->field_018 != -1 &&
           actor_pursuit_consider_nearby_actor(actor_handle, flag, iter2[1]) != '\0') {
         mapped =
-          prop_get_active_by_unit_index(actor_handle, *(int *)(rec + 0x18));
+          prop_get_active_by_unit_index(actor_handle, ((actor_t *)rec)->field_018);
         if (mapped == -1) {
-          mapped = prop_get_base_by_unit_index(actor_handle, *(int *)(rec + 0x18), 1, 0);
+          mapped = prop_get_base_by_unit_index(actor_handle, ((actor_t *)rec)->field_018, 1, 0);
         }
         if (mapped != -1) {
           count++;
-          dx = *(float *)(rec + 0x12c) - ((actor_t *)actor)->field_12c;
-          dy = *(float *)(rec + 0x130) - ((actor_t *)actor)->field_130;
-          dz = *(float *)(rec + 0x134) - ((actor_t *)actor)->field_134;
+          dx = ((actor_t *)rec)->field_12c - ((actor_t *)actor)->field_12c;
+          dy = ((actor_t *)rec)->field_130 - ((actor_t *)actor)->field_130;
+          dz = ((actor_t *)rec)->field_134 - ((actor_t *)actor)->field_134;
           dist = sqrtf(dx * dx + dy * dy + dz * dz);
           if (dist < best_dist) {
             best_index = mapped;

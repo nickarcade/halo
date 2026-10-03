@@ -2797,6 +2797,127 @@ bool extract_adjust_bounds(short *bounds, short *adjusted_bounds_reference)
   return found;
 }
 
+/* 0x73fd0 -- pick a bitmap format for the a8r8g8b8 bitmap in EAX (MOV
+ * ESI,EAX 0x73fd9). Scans every pixel against the first pixel (0x74040-
+ * 0x740cc): DI classifies the alpha byte (0 none, 1 only 0/0xff opposite the
+ * first pixel, 8 intermediate), BX does the same for byte 2, and byte
+ * [EBP-1] is set when the two bytes ever differ. The int16 at
+ * (*(void **)0x33414c)+2 selects the format through the 6-entry jump table
+ * at 0x741f0 (bitmap_extract.c 0x466 error on others). Word +0 == 4 remaps
+ * format 8->9 and 10->0xb; word +4 of 2 or 5 with bit 1 of byte +6 clear
+ * returns 0x11. The format word is returned in AX (0x741e8). */
+int FUN_00073fd0(void *bitmap)
+{
+  uint32_t *pixels;
+  uint32_t first_pixel;
+  uint32_t pixel;
+  int pixel_count;
+  int i;
+  uint32_t alpha;
+  uint32_t red;
+  short alpha_type;
+  short red_type;
+  bool channels_differ;
+  short format;
+
+  format = -1;
+  alpha_type = 0;
+  red_type = 0;
+  channels_differ = 0;
+  assert_halt_msg_at("bitmap_verify(bitmap, TRUE)",
+                     "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x429,
+                     bitmap_verify(bitmap, 1));
+  pixels = (uint32_t *)bitmap_mipmap_address(bitmap, 0);
+  first_pixel = *pixels;
+  pixel_count = bitmap_get_pixel_count(bitmap);
+  for (i = 0; i < pixel_count; i++) {
+    pixel = pixels[i];
+    alpha = pixel >> 24;
+    switch (alpha) {
+    case 0:
+      if ((first_pixel & 0xff000000) == 0xff000000 && alpha_type <= 1) {
+        alpha_type = 1;
+      }
+      break;
+    case 0xff:
+      if ((first_pixel & 0xff000000) == 0 && alpha_type <= 1) {
+        alpha_type = 1;
+      }
+      break;
+    default:
+      alpha_type = 8;
+    }
+    red = (uint8_t)(pixel >> 16);
+    switch (red) {
+    case 0:
+      if ((first_pixel & 0xff0000) == 0xff0000 && red_type <= 1) {
+        red_type = 1;
+      }
+      break;
+    case 0xff:
+      if ((first_pixel & 0xff0000) == 0 && red_type <= 1) {
+        red_type = 1;
+      }
+      break;
+    default:
+      red_type = 8;
+    }
+    if (alpha != red) {
+      channels_differ = 1;
+    }
+  }
+  switch (*(short *)((char *)unknown_33414c + 2)) {
+  case 0:
+    format = 0xe;
+    break;
+  case 1:
+    format = (alpha_type > 0) + 0xe;
+    break;
+  case 2:
+    format = (alpha_type > 0) * 2 + 0xe;
+    break;
+  case 3:
+    if (alpha_type == 0) {
+      format = 6;
+    } else {
+      format = (alpha_type != 1) + 8;
+    }
+    break;
+  case 4:
+    format = (alpha_type != 0) + 10;
+    break;
+  case 5:
+    if (alpha_type == 0) {
+      format = 1;
+    } else if (red_type == 0) {
+      format = 0;
+    } else {
+      format = (channels_differ != 0) + 2;
+    }
+    break;
+  default:
+    display_assert("### ERROR extract: unsupported bitmap group format",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x466, 1);
+    system_exit(-1);
+  }
+  if (*(short *)unknown_33414c == 4) {
+    switch (format) {
+    case 8:
+      format = 9;
+      break;
+    case 10:
+      format = 0xb;
+      break;
+    }
+  }
+  if ((*(short *)((char *)unknown_33414c + 4) == 2 ||
+       *(short *)((char *)unknown_33414c + 4) == 5) &&
+      (*((unsigned char *)unknown_33414c + 6) & 2) == 0) {
+    return 0x11;
+  }
+  return format;
+}
+
 /* 0x74210 extract_pixels_to_mipmap -- inverse of extract_pixels_from_mipmap:
  * convert the a8r8g8b8 dwords of source_bitmap into mipmap
  * destination_mipmap_index of destination_bitmap. ABI read off the entry

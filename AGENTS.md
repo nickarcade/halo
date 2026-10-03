@@ -1,7 +1,7 @@
 # Agent Instructions
 
 These rules apply to every coding agent in this repository, including Claude,
-OpenCode, and subagents. `AGENTS.md` and `CLAUDE.md` must remain identical.
+OpenCode, and subagents. A local, untracked `CLAUDE.md` may symlink to this file.
 
 ## Mission
 

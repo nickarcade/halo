@@ -42,7 +42,7 @@ def main():
     print()
     
     # Run against the checkout this script lives in, NOT a hardcoded worktree.
-    # Hardcoding /mnt/g/dev/halo made a verify run from any secondary worktree
+    # Hardcoding the main checkout path made a verify run from any secondary worktree
     # regenerate the MAIN worktree's README.md, leaving it dirty and parking
     # auto-session reintegration (park_reason=main_worktree_dirty).
     os.chdir(os.path.dirname(os.path.dirname(os.path.dirname(

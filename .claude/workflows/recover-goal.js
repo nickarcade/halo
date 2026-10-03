@@ -40,10 +40,8 @@ const DRY_RUN      = !!(args && args.dryRun)
 
 // Mechanical agents run fixed commands and parse their output — no judgement, so
 // no reasoning budget. All the cost belongs to the category agents, which do the
-// actual source edits and must apply a skill's gate table; they get the same
-// model policy goal-lift.js gives its lift agents (M.reason = sonnet/high,
-// policy 2026-08-22 — escalate to opus by hand only if sonnet demonstrably
-// stalls on a category).
+// actual source edits and must apply a skill's gate table; they use RECOVER
+// below (sonnet/high). Escalate to opus by hand if a category stalls.
 const MECH    = { model: 'haiku', effort: 'high'  }
 const RECOVER = { model: 'sonnet', effort: 'high' }
 

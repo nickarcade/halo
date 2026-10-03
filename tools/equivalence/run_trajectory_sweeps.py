@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Run multi-frame trajectory equivalence sweeps across unpatched .halorec recordings.
 
-Iterates unpatched recordings in /mnt/g/dev/halo-memory-viewer/recordings/unpatched,
+Iterates unpatched recordings in $HALO_HALOREC_DIR (the directory holding the unpatched
+.halorec files, e.g. <halo-memory-viewer>/recordings/unpatched),
 executes multi-frame sweeps across target functions using halorec_frame_sweep.py,
 and records grand coverage unions and divergence findings into artifacts/trajectory_sweeps.
 """
@@ -14,7 +15,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
-UNPATCHED_DIR = Path("/mnt/g/dev/halo-memory-viewer/recordings/unpatched")
+sys.path.insert(0, str(HERE.parent))  # for internal.local_env
+from internal.local_env import load_repo_env  # noqa: E402
+
+load_repo_env("local.env")
+UNPATCHED_DIR = Path(os.environ.get("HALO_HALOREC_DIR", "../halo-memory-viewer/recordings/unpatched"))
 
 DEFAULT_TARGETS = [
     "actor_action_perform",

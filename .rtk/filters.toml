@@ -73,7 +73,7 @@ on_empty = "cmake build: ok"
 
 [filters.lift-pipeline]
 description = "Strip Python INFO logging from lift_pipeline.py output"
-match_command = "^python3 tools/lift_pipeline\\.py"
+match_command = "^python3 tools/lift/lift_pipeline\\.py"
 filter_stderr = true
 strip_ansi = true
 strip_lines_matching = [

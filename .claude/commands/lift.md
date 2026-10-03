@@ -12,7 +12,7 @@ Ghidra MCP preflight (required):
   `rtk python3 tools/audit/check_ghidra_mcp.py`.
 - If the preflight fails, or any `ghidra`/`ghidra-live` MCP tool call fails due
   to connection/timeout/unavailable errors, stop immediately and tell the user
-  exactly: `You might have forgotten to start tools/mcp-servers.sh or ghidra
+  exactly: `You might have forgotten to start tools/shell/mcp-servers.sh or ghidra
   may not be running?`
 
 Scope/read-budget guardrails:
@@ -143,7 +143,7 @@ After Phase 1 completes:
    - Get the function body range: `mcp__ghidra__get_function_by_address` at target address
    - **Verify end > start before exporting.** Also check `ls delinked/ | grep <ADDR>` — skip if a file already exists.
    - Export: `mcp__ghidra-live__export_delinked_object` to
-     `G:\dev\halo\delinked\<obj>_FUN_<ADDR>.obj` with `selection_mode=range`
+     `<repo>\delinked\<obj>_FUN_<ADDR>.obj` (Windows form of the main checkout's `delinked/`) with `selection_mode=range`
    - Add entry to `objdiff.json` under `.units`:
      ```json
      {
@@ -156,7 +156,7 @@ After Phase 1 completes:
    - `rtk git add delinked/<obj>_FUN_<ADDR>.obj objdiff.json`
 4. Run:
     ```
-    rtk python3 tools/lift_pipeline.py --target <name> --no-metadata-update --verify-policy auto \
+    rtk python3 tools/lift/lift_pipeline.py --target <name> --no-metadata-update --verify-policy auto \
       --abi-caller-disasm-file artifacts/lift/caller_disasm_<target>.txt
     ```
     If no caller disassembly was retrieved, omit `--abi-caller-disasm-file`.

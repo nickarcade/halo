@@ -16,7 +16,7 @@ Usage:
   rflag.py                       # list every flag and its live value
   rflag.py shadows 0             # substring-match one flag name, set it
   rflag.py --all 1               # restore every flag to 1
-  rflag.py --host 10.0.0.21 ...  # target a bridged Xbox instead of localhost
+  rflag.py --host "$XEMU_CLIENT_HOST" ...  # target a bridged Xbox instead of localhost
 """
 import argparse
 import os

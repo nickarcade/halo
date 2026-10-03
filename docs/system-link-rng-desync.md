@@ -18,8 +18,8 @@ pristine. Distinguish original gameplay bodies from an entirely unmodified XBE.
 This file is the authoritative resume reference. Detailed older notes are
 preserved, with their superseded claims and procedures explicitly marked:
 
-- [Earlier investigation log](archive/system-link-rng-desync-investigation-log.md).
-- [Archived ds72-ds110 working notes](archive/system-link-rng-desync-ds72-ds110-working-notes.md).
+- [Earlier investigation log](history/system-link-rng-desync-investigation-log.md).
+- [Archived ds72-ds110 working notes](history/system-link-rng-desync-ds72-ds110-working-notes.md).
 
 ## Historical operational state (through 2026-09-11)
 
@@ -47,10 +47,10 @@ gameplay test was performed for this documentation update.
 
 Saved topology, last successfully used in this session:
 
-| Role | Guest XBDM IP | Emulator HMP endpoint |
+| Role | Guest XBDM address | Emulator HMP endpoint |
 | --- | --- | --- |
-| Patched client | `10.0.0.21` | `127.0.0.1:4444` |
-| Original-body probe host | `10.0.0.25` | `127.0.0.1:4446` |
+| Patched client | xemu-client box (`$XEMU_CLIENT_HOST`) | `127.0.0.1:4444` |
+| Original-body probe host | pristine host box (`$XEMU_HOST_HOST`) | `127.0.0.1:4446` |
 
 Both guests use bridged networking and the title path
 `E:\GAMES\halo-patched\default.xbe`. XBDM works from WSL with

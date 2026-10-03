@@ -11,7 +11,7 @@ equivalence, runtime checks, or deployment.
   `rtk cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=toolchains/llvm.cmake`.
 - Normal build: `rtk python3 tools/build/build.py -q --target halo`.
 - Post-lift pipeline:
-  `rtk python3 tools/lift_pipeline.py --target <name_or_addr> --no-metadata-update --verify-policy auto`.
+  `rtk python3 tools/lift/lift_pipeline.py --target <name_or_addr> --no-metadata-update --verify-policy auto`.
 - `/lift` and `/auto-lift` trigger `/build` automatically through
   `.claude/settings.json` hooks.
 - xemu must use 128 MiB system memory for debug build 2276.

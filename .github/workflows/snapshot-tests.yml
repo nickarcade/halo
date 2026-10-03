@@ -6,7 +6,7 @@ name: Snapshot Verification
 #   delinked/game_state.obj  - COFF slice exported from the original binary
 #   ci/snapshot.json         - converted from a live RAM capture
 #
-# See docs/repository-artifact-cleanup.md. On a GitHub-hosted runner neither
+# See docs/history/repository-artifact-cleanup.md. On a GitHub-hosted runner neither
 # file exists after checkout, so the job could only ever fail -- which is what
 # it did for its last 8 runs before this was fixed. They are COPIED in from the
 # host by .github/actions/stage-local-assets; that action's header explains why
@@ -27,10 +27,10 @@ on:
   workflow_dispatch:
 
 env:
-  VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
+  VENV_PYTHON: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/.venv/bin/python3
   # Host directory the never-committed assets (halo-patched/, delinked/, and
   # the ci/ RAM capture) are copied out of.
-  SOURCE_ROOT: /mnt/g/dev/halo
+  SOURCE_ROOT: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}
 
 jobs:
   verify:

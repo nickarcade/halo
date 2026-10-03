@@ -725,35 +725,35 @@ void *FUN_001c0ee0(uint32_t *param_1, int param_2)
  * immediates), mirrored here by one block per byte. Byte meaning is
  * unproven beyond this bit test.
  */
-#define PLAYER_PROFILE_LEVEL_CHECK(n)               \
-  flags = *((unsigned char *)profile + 0x1c + (n)); \
-  if (flags != 0) {                                 \
-    if ((flags & 8) != 0) {                         \
-      *out_last_level = (n);                        \
-      *out_last_level_unused = 3;                   \
-    } else if ((flags & 4) != 0) {                  \
-      *out_last_level = (n);                        \
-      *out_last_level_unused = 2;                   \
-    } else if ((flags & 2) != 0) {                  \
-      *out_last_level = (n);                        \
-      *out_last_level_unused = 1;                   \
-    } else if ((flags & 1) != 0) {                  \
-      *out_last_level = (n);                        \
-      *out_last_level_unused = 0;                   \
-    }                                               \
+#define PLAYER_PROFILE_LEVEL_CHECK(n)              \
+  flags = *((unsigned char *)profile + 0x1c + (n));\
+  if (flags != 0) {                                \
+    if ((flags & 8) != 0) {                        \
+      *level = (n);                                \
+      *difficulty = 3;                             \
+    } else if ((flags & 4) != 0) {                 \
+      *level = (n);                                \
+      *difficulty = 2;                             \
+    } else if ((flags & 2) != 0) {                 \
+      *level = (n);                                \
+      *difficulty = 1;                             \
+    } else if ((flags & 1) != 0) {                 \
+      *level = (n);                                \
+      *difficulty = 0;                             \
+    }                                              \
   }
 
-void player_profile_save_last_level_played(void *profile, short *out_last_level,
-                                           short *out_last_level_unused)
+void player_profile_get_highest_completed_solo_level(void *profile, short *level,
+                                                  short *difficulty)
 {
   unsigned char flags;
 
   assert_halt_msg_at("profile && level && difficulty",
                      "c:\\halo\\SOURCE\\saved games\\player_profile.c", 0x1b8,
-                     profile != NULL && out_last_level != NULL &&
-                       out_last_level_unused != NULL);
-  *out_last_level = -1;
-  *out_last_level_unused = 1;
+                     profile != NULL && level != NULL &&
+                       difficulty != NULL);
+  *level = -1;
+  *difficulty = 1;
   PLAYER_PROFILE_LEVEL_CHECK(0)
   PLAYER_PROFILE_LEVEL_CHECK(1)
   PLAYER_PROFILE_LEVEL_CHECK(2)
@@ -772,8 +772,8 @@ void player_profile_save_last_level_played(void *profile, short *out_last_level,
  * Nine-byte forwarder: PUSH EBP / MOV EBP,ESP / POP EBP / JMP 0x1c4da0.  The
  * two stack arguments are left in place and the JMP hands them straight to
  * saved_game_file_get_path_to_enclosing_directory, whose AL result becomes
- * this function's return.  PAL 2342 player_profile.c has the identical body
- * (T2).  Callers (0xe0c13, 0xe0c4b) PUSH a path buffer and a profile index
+ * this function's return.
+ * Callers (0xe0c13, 0xe0c4b) PUSH a path buffer and a profile index
  * and ADD ESP,8 afterwards, so the frame is two cdecl dwords. */
 bool player_profile_get_enclosing_directory_path(int profile_index,
                                                  char *full_path)
@@ -790,7 +790,7 @@ bool player_profile_get_enclosing_directory_path(int profile_index,
  * profile record and stamps default fields, selected by index i in
  * [0, NUMBER_OF_DEFAULT_PROFILES). Renamed and re-signatured to match;
  * "profile" and "i" are taken verbatim from the assert condition string.
- * Immediate caller (FUN_001c19e0, unlifted) and sibling player_profile_new
+ * Immediate caller (FUN_001c19e0, unlifted) and sibling player_profile_get
  * (0x1c18f0, unlifted) are consistent with this being a profile bootstrap
  * helper. Field offsets (0x18, 0x1a, 0x26, 0x28-0x2f within the 0x30-byte
  * record) are raw/unproven — no player_profile struct exists yet, so they
@@ -831,13 +831,14 @@ void player_profile_set_to_default(void *profile /* @<esi> */, int i)
   *(uint8_t *)((char *)profile + 0x29) = 0;
 }
 
-/* The 0x30-byte player profile record (PAL 2342 struct player_profile, T2
- * names).  Every offset below is a store player_profile_read (0x1c1340) makes
+/* The 0x30-byte player profile record (inferred struct
+ * and field names).  Every offset below is a store player_profile_read (0x1c1340) makes
  * into its sanitized copy at [EBP-0x34]: player_name +0x00 (ustrncpy of 0xb
  * chars, terminator word at +0x16), primary_color_index +0x18 (0xffff),
  * flags +0x1a, last_single_player_map_played +0x26, and the eight controller
  * bytes +0x28..+0x2f.  single_player_map_flags (+0x1c, ten bytes) is the run
- * player_profile_save_last_level_played and FUN_001c1720 walk.  The controller
+ * player_profile_get_highest_completed_solo_level and player_profile_new
+ * walk.  The controller
  * block repeats the player_profile_controller_settings layout player_ui.c
  * already asserts (co() there); it is file-local here because that typedef is
  * file-local to player_ui.c. */
@@ -869,19 +870,19 @@ co(player_profile, last_single_player_map_played, 0x26);
 co(player_profile, controller_settings, 0x28);
 
 /* Bit 31 of a saved-game file index.  build_saved_game_file_index (0x1c3710)
- * sets it; PAL 2342 names it _saved_game_file_index_valid_bit (T2).  The
+ * sets it (inferred name _saved_game_file_index_valid_bit).  The
  * binary tests it as the sign bit (TEST EDI,EDI / JNS at 0x1c13b7). */
 #define SAVED_GAME_FILE_INDEX_VALID_FLAG 0x80000000
 
-/* 0x1c1340 -- player_profile_read (PAL 2342 player_profile.c, T2).
+/* 0x1c1340 -- player_profile_read (inferred name).
  * Formerly kb player_profile_setup_default_gamespy_settings (a CEA PDB
  * line-containment guess).  Renamed on our own binary's evidence: the assert
  * "profile" at c:\halo\SOURCE\saved games\player_profile.c line 0x261 (PUSH
- * 0x261 at 0x1c1355) is the exact PAL player_profile_read assert, and the
+ * 0x261 at 0x1c1355) is this function's assert, and the
  * five error strings (0x2ba0f8, 0x2ba0a8, 0x2ba080, 0x2b9eec, 0x2ba030) are
- * PAL player_profile_read's, in the same order.
+ * this function's, in that order.
  *
- * Register arguments: its only caller player_profile_new (0x1c18f0) CALLs with
+ * Register arguments: its only caller player_profile_get (0x1c18f0) CALLs with
  * no pushes, EDI = profile_index and ESI = profile.  ESI is the asserted
  * pointer (CMP ESI,EBX at 0x1c134c) and EDI is the file index (TEST EDI,EDI,
  * PUSH EDI to saved_game_file_open / saved_game_file_close /
@@ -891,8 +892,8 @@ co(player_profile, controller_settings, 0x28);
  * [EBP-0x154], 0x14 checksum [EBP-0x48], 0x30 sanitized profile [EBP-0x34],
  * result byte [EBP-0x1].
  *
- * Flow: drain the async profile-io thread at 0x4eaa2c (PAL
- * player_profile_globals.thread; the same slot player_profile_write fills).
+ * Flow: drain the async profile-io thread at 0x4eaa2c
+ * (the same slot player_profile_write fills).
  * A file index without the valid bit gets a sanitized default copy and
  * returns true.  Otherwise take the saved-game mutex, open, read 0x200 bytes,
  * checksum the first 0x30 and compare against block + 0x30.  A match copies
@@ -1090,7 +1091,7 @@ int __stdcall FUN_001c15c0(void *input)
  *     0x1c1732-0x1c173e proves three cdecl args, and CMP EDI,-1 on the EAX
  *     result proves an int return; its decl was void(void).
  */
-int FUN_001c1720(int a1, wchar_t *name)
+int player_profile_new(int a1, wchar_t *name)
 {
   file_ref_t file_info;
   int saved_game_file_index;
@@ -1148,11 +1149,9 @@ int FUN_001c1720(int a1, wchar_t *name)
   return saved_game_file_index;
 }
 
-/* 0x1c18f0 -- kb name player_profile_new.
- * Behaviour matches PAL 2342 player_profile_get (T2), not player_profile_new:
- * it fills a caller-owned 0x30-byte profile record, and FUN_001c1720 above
- * is the real create-profile routine.  The kb name is kept because ported
- * callers in other TUs already bind to it.
+/* 0x1c18f0 -- player_profile_get.
+ * Fills a caller-owned 0x30-byte profile record; player_profile_new above is
+ * the create-profile routine.
  *   - assert "profile" at c:\halo\SOURCE\saved games\player_profile.c
  *     line 0xc2 (PUSH 0xc2 at 0x1c1901).
  *   - profile_index == -1 (NONE): csmemcpy(profile, 0x4ea9c8, 0x30) copies
@@ -1163,7 +1162,7 @@ int FUN_001c1720(int a1, wchar_t *name)
  *     ESI = profile are still live, and 0x1c1340 asserts "profile" on ESI
  *     and tests EDI with JNS, so both are register arguments.  Its AL result
  *     is returned unchanged. */
-bool player_profile_new(int profile_index, void *profile)
+bool player_profile_get(int profile_index, void *profile)
 {
   bool success = false;
 
@@ -1204,7 +1203,7 @@ void *FUN_001c1950(void *param_1, int param_2)
 }
 
 /* 0x1c19a0
- * PAL player_profile_get_random_good_color.  The 2276 body passes the local
+ * Picks a random good color (inferred).  The 2276 body passes the local
  * random seed and inclusive bounds [0, 3] to seed_random_range.
  */
 int FUN_001c19a0(void)

@@ -2,8 +2,8 @@
 name: input-fixture
 tier: user
 description: >-
-  Interactive wizard to capture (record) or replay a deterministic
-  controller-input fixture for a Halo CE Xbox level. Invoke when the user wants
+  Interactive wizard to record or replay a controller-input fixture for a Halo CE level.
+  Captures or replays a deterministic fixture. Invoke when the user wants
   to record gameplay, capture a scenario / playthrough, build an input fixture,
   replay an existing one, loop, or diff patched vs unpatched — without
   remembering the capture_scenario.py flags. Wraps tools/xbox/capture_scenario.py;

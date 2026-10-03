@@ -804,6 +804,128 @@ char FUN_00076300(void)
 }
 
 /*
+ * FUN_00076410 -- bitmap extract: split one plate row band into bitmaps.
+ *
+ * Scans the source plate (*(char**)0x334150, +0x04 width, +0x06 height)
+ * column by column between rows top..bottom.  A pixel whose low 24 bits
+ * equal *(unsigned*)0x334140 marks the column as touched; any pixel that
+ * is neither that nor the background colour *(unsigned*)0x33413c extends
+ * the current extent.  A column with no such pixel closes the extent
+ * (state 1 -> 2).  Each closed extent is made exclusive, optionally trimmed
+ * of empty top/bottom rows when group flag bit 3 (+0x06 & 8) is set, and
+ * handed to FUN_00075e70 as {top, left, bottom, right} shorts in EAX.
+ * The trim of the bottom edge starts one row above the last extent row
+ * (EDI = bottom - 2 at 0x76662); that is preserved as found.
+ * Returns the AL result of the last FUN_00075e70 call (1 if none).
+ */
+char FUN_00076410(int top, short bottom)
+{
+  struct {
+    short top;
+    short left;
+    short bottom;
+    short right;
+  } extent, bounds;
+  short x;
+  short y;
+  short column;
+  short state;
+  char found_other;
+  char found_marker;
+  char success;
+  unsigned int color;
+
+  success = 1;
+  if ((short)top < 0) {
+    display_assert("top>=0", "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c",
+                   0x234, 1);
+    system_exit(-1);
+  }
+  if (bottom < (short)top) {
+    display_assert("bottom>=top", "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c",
+                   0x235, 1);
+    system_exit(-1);
+  }
+  if (bottom > *(short *)(*(char **)0x334150 + 6)) {
+    display_assert("bottom<=extract_data.plate->height",
+                   "c:\\halo\\SOURCE\\bitmaps\\bitmap_extract.c", 0x236, 1);
+    system_exit(-1);
+  }
+
+  x = 0;
+  while (success && x < *(short *)(*(char **)0x334150 + 4)) {
+    state = 0;
+    extent.left = 0x7fff;
+    extent.top = (short)top;
+    extent.right = (short)0x8000;
+    extent.bottom = bottom;
+    for (; x < *(short *)(*(char **)0x334150 + 4); x++) {
+      if (state == 2)
+        break;
+      found_other = 0;
+      found_marker = 0;
+      for (y = (short)top; y < bottom; y++) {
+        color =
+          *(unsigned int *)bitmap_2d_address(*(void **)0x334150, x, y, 0) &
+          0xffffff;
+        if (color == *(unsigned int *)0x334140) {
+          found_marker = 1;
+        } else if (color != *(unsigned int *)0x33413c) {
+          found_other = 1;
+          switch (state) {
+          case 0:
+            state = 1;
+            extent.left = x;
+            /* fall through */
+          case 1:
+            extent.top = (y > extent.top) ? extent.top : y;
+            extent.bottom = (y > extent.bottom) ? y : extent.bottom;
+            extent.right = x;
+            break;
+          }
+        }
+      }
+      if (((found_marker || *(char *)0x334149) && !found_other &&
+           state == 1) ||
+          (state == 1 && !found_other))
+        state = 2;
+    }
+    if (state != 0) {
+      extent.right++;
+      extent.bottom++;
+      bounds = extent;
+      if (*(unsigned char *)(*(char **)0x33414c + 6) & 8) {
+        for (y = extent.top; y < extent.bottom; y++) {
+          for (column = extent.left; column < extent.right; column++) {
+            if ((*(unsigned int *)bitmap_2d_address(*(void **)0x334150, column,
+                                                    y, 0) &
+                 0xffffff) != *(unsigned int *)0x33413c)
+              break;
+          }
+          if (column < extent.right)
+            break;
+        }
+        bounds.top = y;
+        y = bounds.bottom - 1;
+        while (--y >= bounds.top) {
+          for (column = bounds.left; column < bounds.right; column++) {
+            if ((*(unsigned int *)bitmap_2d_address(*(void **)0x334150, column,
+                                                    y, 0) &
+                 0xffffff) != *(unsigned int *)0x33413c)
+              break;
+          }
+          if (column < bounds.right)
+            break;
+        }
+        bounds.bottom = y + 1;
+      }
+      success = FUN_00075e70(&bounds.top);
+    }
+  }
+  return success;
+}
+
+/*
  * FUN_000766e0 -- bitmap extract: allocate and process all sequences.
  *
  * Iterates source bitmap rows (up to *(short*)(*(char**)0x334150+6) count),
@@ -3141,7 +3263,7 @@ void FUN_000798e0(void *source_bitmap, void *destination_bitmap,
       bitmap_3d_slice_extract(source_bitmap, 0, slice, temp_source);
       FUN_000796e0(temp_source, temp_destination, 0, param_4);
       bitmap_3d_slice_insert(temp_destination, destination_bitmap,
-                                   destination_mipmap_index, slice);
+                             destination_mipmap_index, slice);
     }
   } else {
     error(2, "### ERROR failed to allocate temporary bitmap");
@@ -3582,10 +3704,9 @@ void FUN_0007a1e0(void *source_bitmap, void *destination_bitmap,
       temp_destination != 0 && *(int *)((char *)temp_destination + 0x2c) != 0) {
     for (slice = 0; slice < *(short *)((char *)source_bitmap + 8); slice++) {
       bitmap_3d_slice_extract(source_bitmap, source_mipmap_index, slice,
-                             temp_source);
+                              temp_source);
       FUN_00079e70(temp_source, temp_destination, 0);
-      bitmap_3d_slice_insert(temp_destination, destination_bitmap, 0,
-                                   slice);
+      bitmap_3d_slice_insert(temp_destination, destination_bitmap, 0, slice);
     }
   } else {
     error(2, "### ERROR failed to allocate temporary bitmap");
@@ -3736,7 +3857,8 @@ float real_rgb_color_brightness(float *color)
   float brightness;
 
   brightness = color[2] * *(float *)0x2647c8 + color[1] * *(float *)0x2647c4;
-  /* Preserve the reference's final color load before its coefficient multiply. */
+  /* Preserve the reference's final color load before its coefficient multiply.
+   */
   return brightness + *(volatile float *)color * *(float *)0x2647c0;
 #else
   return color[0] * *(float *)0x2647c0 + color[1] * *(float *)0x2647c4 +
@@ -4143,7 +4265,7 @@ float *real_hsv_color_to_real_rgb_color(float *hsv, float *rgb_out)
  * Each component is zero-extended from ushort to int, then converted to float
  * and multiplied by the scale factor at 0x264154.
  */
-float * argb_color_to_real_argb_color(unsigned short *src, float *dst)
+float *argb_color_to_real_argb_color(unsigned short *src, float *dst)
 {
   int val;
 
@@ -4155,7 +4277,8 @@ float * argb_color_to_real_argb_color(unsigned short *src, float *dst)
   dst[2] = (float)val * *(float *)0x264154;
   val = src[3];
   dst[3] = (float)val * *(float *)0x264154;
-return dst; }
+  return dst;
+}
 
 /*
  * rgb_color_to_real_rgb_color -- rgb_color_to_real_rgb_color: convert 3
@@ -4163,7 +4286,7 @@ return dst; }
  *
  * Same pattern as argb_color_to_real_argb_color but only 3 components.
  */
-float * rgb_color_to_real_rgb_color(unsigned short *src, float *dst)
+float *rgb_color_to_real_rgb_color(unsigned short *src, float *dst)
 {
   int val;
 
@@ -4173,7 +4296,8 @@ float * rgb_color_to_real_rgb_color(unsigned short *src, float *dst)
   dst[1] = (float)val * *(float *)0x264154;
   val = src[2];
   dst[2] = (float)val * *(float *)0x264154;
-return dst; }
+  return dst;
+}
 
 /*
  * pixel32_to_real_argb_color -- pixel32_to_real_argb_color: extract ARGB from a
@@ -4182,7 +4306,7 @@ return dst; }
  * Byte layout: bits 31-24 = A, 23-16 = R, 15-8 = G, 7-0 = B.
  * Uses MSVC's unsigned-to-float pattern (FILD + TEST/JGE/FADD fixup).
  */
-float * pixel32_to_real_argb_color(unsigned int color, float *dst)
+float *pixel32_to_real_argb_color(unsigned int color, float *dst)
 {
   unsigned int a, r, g, b;
 
@@ -4194,7 +4318,8 @@ float * pixel32_to_real_argb_color(unsigned int color, float *dst)
   dst[2] = (float)g * *(float *)0x261518;
   b = color & 0xff;
   dst[3] = (float)b * *(float *)0x261518;
-return dst; }
+  return dst;
+}
 
 /*
  * pixel32_to_real_rgb_color -- pixel32_to_real_rgb_color: extract RGB from a
@@ -4203,7 +4328,7 @@ return dst; }
  * Byte layout: bits 23-16 = R, 15-8 = G, 7-0 = B (alpha ignored).
  * Uses MSVC's unsigned-to-float pattern (FILD + TEST/JGE/FADD fixup).
  */
-float * pixel32_to_real_rgb_color(unsigned int color, float *dst)
+float *pixel32_to_real_rgb_color(unsigned int color, float *dst)
 {
   unsigned int r, g, b;
 
@@ -4213,7 +4338,8 @@ float * pixel32_to_real_rgb_color(unsigned int color, float *dst)
   dst[1] = (float)g * *(float *)0x261518;
   b = color & 0xff;
   dst[2] = (float)b * *(float *)0x261518;
-return dst; }
+  return dst;
+}
 
 bool valid_real_rgb_color(float *rgb)
 {

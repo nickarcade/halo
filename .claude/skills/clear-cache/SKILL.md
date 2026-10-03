@@ -1,5 +1,5 @@
 ---
-name: halo-clear-cache
+name: clear-cache
 tier: user
 description: Clear Halo CE cache files from Xbox devkit cache partitions
 ---
@@ -48,7 +48,9 @@ Report:
 ## Important notes
 
 - Requires a reachable Xbox devkit with XBDM running.
-- Use `-x <host>` to target a specific Xbox IP.
+- Use `-x <host>` to target a specific Xbox; the default is `$XBDM_HOST`, and the named boxes
+  are `$XEMU_CLIENT_HOST` (xemu-client, patched build) and `$XEMU_HOST_HOST` (xemu-host,
+  pristine build), all set in the gitignored `tools/xbox.env` (see `tools/xbox.env.example`).
 - The tool is surgical by design; it does **not** wipe entire partitions.
 - If no Halo cache files are found, it reports "already clean".
 - Deploy leftovers in the title directory (`cachebeta.map`, `init.txt`) are a

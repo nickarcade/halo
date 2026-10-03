@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 env:
-  XBE_DIR: /mnt/g/dev/halo/halo-patched
-  VENV_PYTHON: /mnt/g/dev/halo/.venv/bin/python3
+  XBE_DIR: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/halo-patched
+  VENV_PYTHON: ${{ vars.HALO_HOST_TREE || '/mnt/g/dev/halo' }}/.venv/bin/python3
 
 jobs:
   calibrate:

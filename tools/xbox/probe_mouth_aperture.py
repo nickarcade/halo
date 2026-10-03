@@ -36,7 +36,7 @@ MOUTH_APERTURE_OFF = 0x298
 OBJECT_TYPE_OFF = 0x64          # int16 type, cross-checks the header byte
 WINDOW_GAP = 0x10000            # merge unit objects closer than this
 MAX_WINDOW = 0x40000            # never allocate more than 256 KB at a time
-OUT_DIR = Path("/mnt/g/dev/halo/artifacts/mouth_probe")
+OUT_DIR = Path(__file__).resolve().parents[2] / "artifacts" / "mouth_probe"
 
 
 def win_path(p: Path) -> str:

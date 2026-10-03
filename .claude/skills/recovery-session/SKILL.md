@@ -17,6 +17,10 @@ offset-to-field conversion, and optional risky cleanup. `score-campaign` owns
 byte-shape changes. `auto_reintegrate.py` owns branch-to-main integration. This
 skill only sequences those existing owners and stops on ambiguous state.
 
+Execute the phases as a real bounded workflow; do not only explain the procedure. Keep
+source/type recovery, byte-score work, and integration as separate lanes with separate
+commits and their existing gates, one object at a time.
+
 ## Ownership And Non-Overlap
 
 - `recover-goal`: selects objects and owns every source/type recovery category.

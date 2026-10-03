@@ -206,7 +206,7 @@ class MatchingTracker:
                     return cached
 
         if not self.objdiff_path.exists():
-            print(f"Warning: objdiff CLI not found at {self.objdiff_path}")
+            print(f"Warning: objdiff CLI not found at {self.objdiff_path}; run tools/fetch_objdiff.sh")
             return None
 
         config = self._get_unit_config(unit_name)

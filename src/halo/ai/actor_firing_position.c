@@ -783,6 +783,50 @@ int post_evaluator_attack(int actor_handle, char *eval_state,
   return *(unsigned char *)(firing_position + 0x30);
 }
 
+/* firing_position_pre_evaluate (0x24850) — run every pre-evaluator whose
+ * mask admits the byte at actor+4 over the candidate set.
+ *
+ * Confirmed from the listing:
+ *   0x24853  MOV EAX,[0x254bf8] / TEST / JZ — an empty table skips the loop.
+ *   0x2485d  MOV ESI,0x254bf8 — cursor at the first entry's function pointer;
+ *            mask is the MOVSX word at [ESI-4]; stride ADD ESI,8.
+ *   0x24862  MOV CL,[EDI+4] / SHL EDX,CL — gate on 1 << byte at actor+4
+ *            (meaning unproven), re-read every iteration.
+ *   0x2487a  PUSH EBX / PUSH [EBP+0xC] / PUSH EDI / PUSH [EBP+8] /
+ *            CALL [ESI] / ADD ESP,0x10 — hooks are called as
+ *            (actor_handle, actor, flag, state); the return value is unused.
+ *   0x24883  loop continues while the next entry's function pointer != NULL.
+ *
+ * Table at 0x254bf4 (pristine XBE), 8-byte entries {int16 mask, pad, fn},
+ * NULL-terminated. The original table is read in place. */
+typedef void (*firing_position_pre_evaluator_fn)(int actor_handle, char *actor,
+                                                 int flag, void *state);
+
+typedef struct firing_position_pre_evaluator_entry {
+  short mask;
+  short pad_02;
+  firing_position_pre_evaluator_fn evaluate;
+} firing_position_pre_evaluator_entry;
+
+#define firing_position_pre_evaluators \
+  ((firing_position_pre_evaluator_entry *)0x254bf4)
+
+void firing_position_pre_evaluate(int actor_handle, int flag,
+                                  char *actor /* @<edi> */,
+                                  void *state /* @<ebx> */)
+{
+  firing_position_pre_evaluator_entry *entry;
+
+  if (firing_position_pre_evaluators->evaluate != 0) {
+    entry = firing_position_pre_evaluators;
+    do {
+      if ((entry->mask & (1 << *(char *)(actor + 4))) != 0)
+        entry->evaluate(actor_handle, actor, flag, state);
+      entry++;
+    } while (entry->evaluate != 0);
+  }
+}
+
 /* firing_position_post_evaluate (0x24890) — run the post-evaluator dispatch
  * table over one candidate firing position, stopping at the first evaluator
  * that returns 0, then assert the candidate's valid flag agrees.

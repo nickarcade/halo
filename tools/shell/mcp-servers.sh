@@ -12,7 +12,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-BRIDGE_PY="$REPO_DIR/tools/ghidra/ghidra_mcp_bridge.py"
+# Machine-local settings (PYTHON_WIN, XEMU_PATH, XEMU_SCREENSHOT_DIR, ...) come
+# from the gitignored tools/local.env; see tools/local.env.example.
+if [ -f "$REPO_DIR/tools/local.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$REPO_DIR/tools/local.env"
+    set +a
+fi
+
+BRIDGE_PY="$REPO_DIR/tools/ghidra_live_mcp/ghidra_mcp_bridge.py"
 LIVE_PY="$REPO_DIR/tools/ghidra_live_mcp/server.py"
 RETRIEVAL_PY="$REPO_DIR/tools/retrieval/server.py"
 XEMU_PY="$REPO_DIR/tools/xemu_mcp/server.py"
@@ -22,7 +31,7 @@ if command -v wslpath >/dev/null 2>&1; then
     BRIDGE_PY_WIN="$(wslpath -w "$BRIDGE_PY")"
 fi
 
-PYTHON_WIN="/mnt/c/Users/stian/scoop/shims/python3.exe"
+PYTHON_WIN="${PYTHON_WIN:-python3.exe}"
 PYTHON_VENV="$REPO_DIR/.venv/bin/python3"
 
 PID_DIR="/tmp/mcp-servers"
@@ -135,11 +144,11 @@ start_xemu() {
 
     # Sibling-module imports resolve because running the script by path puts its
     # directory on sys.path[0] (same convention as the live/retrieval servers).
-    # xemu-facing env is overridable; defaults match this machine's layout. The
-    # daemon now owns these (it spawns xemu), since Claude no longer spawns the MCP.
+    # xemu-facing env is overridable (tools/local.env). The daemon owns these (it
+    # spawns xemu), since Claude no longer spawns the MCP.
     XEMU_MCP_HTTP_PORT="$XEMU_PORT" \
-    XEMU_PATH="${XEMU_PATH:-/mnt/g/dev/xemu/dist/xemu.exe}" \
-    XEMU_SCREENSHOT_DIR="${XEMU_SCREENSHOT_DIR:-/mnt/g/dev/halo/screenshots}" \
+    XEMU_PATH="${XEMU_PATH:-xemu.exe}" \
+    XEMU_SCREENSHOT_DIR="${XEMU_SCREENSHOT_DIR:-$REPO_DIR/screenshots}" \
         nohup "$PYTHON_VENV" "$XEMU_PY" > /tmp/mcp-xemu.log 2>&1 &
     write_pid xemu $!
     echo "[mcp] xemu MCP started (pid=$!, log=/tmp/mcp-xemu.log)"

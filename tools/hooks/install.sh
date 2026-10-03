@@ -1,63 +1,48 @@
 #!/usr/bin/env bash
 # Idempotent git-hook installer for this repo.
 #
-# Keeps core.hooksPath = .git/hooks (the current, working setup). Git only
-# auto-populates .sample hooks, so the tracked hooks under tools/hooks/ have to
-# be wired in explicitly — in particular `prepare-commit-msg`, which git never
-# installs on its own, so the auto-lift commit-message hook silently never fires.
+# Git hooks live in tools/hooks/ and are activated with
+#   git config core.hooksPath tools/hooks
+# Git runs hooks only by exact name (pre-commit, commit-msg, post-checkout, ...),
+# so each hook has a thin entry point of that name next to its implementation
+# script (<name>.sh). Nothing is written to .git/hooks.
 #
-# It also reconciles the rtk-trust post-checkout logic with codegraph's managed
-# post-checkout/post-merge files: codegraph owns those as regular files, so
-# rather than clobber them we append a guarded rtk-trust block. Both run.
+# Besides setting core.hooksPath this runs post-checkout once, which trusts the
+# RTK project filters (`rtk trust`) and creates the CLAUDE.md -> AGENTS.md
+# symlink if it is missing.
+#
+# The post-commit and pre-push hooks are opt-in (maintainer-local, heavy work):
+#   export HALO_HEAVY_HOOKS=1
 #
 # Usage:
-#   tools/hooks/install.sh          install/repair (idempotent; backs up first)
+#   tools/hooks/install.sh          install/repair (idempotent)
 #   tools/hooks/install.sh --check  report drift only; exit 1 on drift; no mutation
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-HOOKS_DIR="$(git rev-parse --git-path hooks)"
-case "$HOOKS_DIR" in
-    /*) : ;;
-    *)  HOOKS_DIR="$REPO_ROOT/$HOOKS_DIR" ;;
-esac
-
 CHECK_ONLY=0
 [ "${1:-}" = "--check" ] && CHECK_ONLY=1
 
-# Hook name -> target basename under tools/hooks/. The symlink value is relative
-# (../../tools/hooks/<file>) so it resolves correctly from .git/hooks/.
-SYMLINK_NAMES="pre-commit pre-push post-commit prepare-commit-msg commit-msg"
-symlink_target() {
-    case "$1" in
-        pre-commit)         echo "../../tools/hooks/pre-commit.sh" ;;
-        pre-push)           echo "../../tools/hooks/pre-push.sh" ;;
-        post-commit)        echo "../../tools/hooks/post-commit.sh" ;;
-        prepare-commit-msg) echo "../../tools/hooks/prepare-commit-msg-hook.sh" ;;
-        commit-msg)         echo "../../tools/hooks/commit-msg.sh" ;;
-    esac
-}
-
-RTK_MARKER_BEGIN="# >>> rtk-trust hook (managed by tools/hooks/install.sh) >>>"
-RTK_MARKER_END="# <<< rtk-trust hook <<<"
+HOOK_NAMES="pre-commit commit-msg prepare-commit-msg post-checkout post-commit pre-push"
 
 report() { echo "  [hooks] $*"; }
 
 # ------------------------------------------------------------------ drift scan
 drift=0
-for name in $SYMLINK_NAMES; do
-    want="$(symlink_target "$name")"
-    path="$HOOKS_DIR/$name"
-    if [ -L "$path" ] && [ "$(readlink "$path")" = "$want" ]; then
-        continue
-    fi
+current="$(git config --get core.hooksPath || true)"
+if [ "$current" != "tools/hooks" ]; then
     drift=1
-    [ "$CHECK_ONLY" = 1 ] && report "DRIFT: $name is not a symlink -> $want"
-done
-if [ ! -f "$HOOKS_DIR/post-checkout" ] || ! grep -qF "$RTK_MARKER_BEGIN" "$HOOKS_DIR/post-checkout"; then
-    drift=1
-    [ "$CHECK_ONLY" = 1 ] && report "DRIFT: post-checkout missing rtk-trust block"
+    [ "$CHECK_ONLY" = 1 ] && report "DRIFT: core.hooksPath is '${current:-<unset>}', want tools/hooks"
 fi
+for name in $HOOK_NAMES; do
+    if [ ! -f "$REPO_ROOT/tools/hooks/$name" ]; then
+        drift=1
+        [ "$CHECK_ONLY" = 1 ] && report "DRIFT: tools/hooks/$name is missing"
+    elif [ ! -x "$REPO_ROOT/tools/hooks/$name" ]; then
+        drift=1
+        [ "$CHECK_ONLY" = 1 ] && report "DRIFT: tools/hooks/$name is not executable"
+    fi
+done
 
 if [ "$CHECK_ONLY" = 1 ]; then
     if [ "$drift" = 1 ]; then
@@ -68,49 +53,16 @@ if [ "$CHECK_ONLY" = 1 ]; then
 fi
 
 # ------------------------------------------------------------------ install
-# Back up whatever is currently installed, once, before touching anything.
-BACKUP_DIR="$HOOKS_DIR/.backup-$(date +%Y%m%d-%H%M%S)"
-backed_up=0
-for name in pre-commit pre-push post-commit post-checkout post-merge prepare-commit-msg commit-msg; do
-    src="$HOOKS_DIR/$name"
-    if [ -e "$src" ] || [ -L "$src" ]; then
-        [ "$backed_up" = 0 ] && mkdir -p "$BACKUP_DIR" && backed_up=1
-        cp -Pp "$src" "$BACKUP_DIR/$name"
-    fi
-done
-[ "$backed_up" = 1 ] && report "backed up existing hooks -> ${BACKUP_DIR#"$REPO_ROOT"/}"
-
-# Ensure the three symlinks.
-for name in $SYMLINK_NAMES; do
-    want="$(symlink_target "$name")"
-    path="$HOOKS_DIR/$name"
-    if [ -L "$path" ] && [ "$(readlink "$path")" = "$want" ]; then
-        continue
-    fi
-    rm -f "$path"
-    ln -s "$want" "$path"
-    report "linked $name -> $want"
+if [ "$current" != "tools/hooks" ]; then
+    git config core.hooksPath tools/hooks
+    report "set core.hooksPath = tools/hooks"
+fi
+for name in $HOOK_NAMES; do
+    [ -f "$REPO_ROOT/tools/hooks/$name" ] && chmod +x "$REPO_ROOT/tools/hooks/$name"
 done
 
-# Reconcile post-checkout: keep codegraph's managed block, append rtk-trust once.
-PCO="$HOOKS_DIR/post-checkout"
-if [ ! -f "$PCO" ]; then
-    printf '#!/bin/sh\n' > "$PCO"
-    chmod +x "$PCO"
-fi
-if ! grep -qF "$RTK_MARKER_BEGIN" "$PCO"; then
-    {
-        echo ""
-        echo "$RTK_MARKER_BEGIN"
-        echo '# Auto-trust RTK project filters so generated commit messages are clean.'
-        echo 'RTK_REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"'
-        echo 'if [ -n "$RTK_REPO_ROOT" ] && [ -f "$RTK_REPO_ROOT/.rtk/filters.toml" ] && command -v rtk >/dev/null 2>&1; then'
-        echo '    rtk trust >/dev/null 2>&1 || true'
-        echo 'fi'
-        echo "$RTK_MARKER_END"
-    } >> "$PCO"
-    report "appended rtk-trust block to post-checkout (codegraph block preserved)"
-fi
+# Run post-checkout once: rtk trust + CLAUDE.md symlink.
+bash "$REPO_ROOT/tools/hooks/post-checkout.sh" || true
 
 report "install complete"
 exit 0

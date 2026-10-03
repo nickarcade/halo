@@ -162,6 +162,219 @@ void FUN_0005e0d0(void *param_1, float *param_2, int param_3, int param_4)
   *(int *)((char *)param_1 + 0x60) = param_4;
 }
 
+#define PATH_NODE_LIST_SIZE 0x400
+
+/* 0x005e150 — path_heap_bubble_up
+ * Restores min-heap order after heap[heap_index] was written: moves the
+ * entry toward the root while its quantized cost estimate is strictly lower
+ * than its parent's, updating each moved node's heap_location (+0xb4 in the
+ * 0x44-byte node record, base folded into the displacement as in
+ * path_heap_pop_cheapest_node below).
+ *
+ * Register args: state in EDI (never loaded by this function), heap_index
+ * in EAX (MOV EBX,EAX at 0x5e157).
+ *
+ * Disassembly-confirmed asserts (display_assert + system_exit(-1)):
+ *   0x4ea, 0x4ef, 0x4f0, 0x4ff, 0x500, 0x501.
+ */
+void path_heap_bubble_up(void *state, short heap_index)
+{
+  short node_index;
+  short node_cost;
+  short parent_location;
+  short parent_node_index;
+  short parent_cost_estimate;
+  char *node;
+  char *parent_node;
+
+  if (!(heap_index >= 1 && heap_index <= PATH_NODE_LIST_SIZE)) {
+    display_assert(
+      "(heap_location >= 1) && (heap_location <= PATH_NODE_LIST_SIZE)",
+      "c:\\halo\\SOURCE\\ai\\path.c", 0x4ea, 1);
+    system_exit(-1);
+  }
+
+  node_index = *(short *)((char *)state + (int)heap_index * 4 + 0x11086);
+  node_cost = *(short *)((char *)state + (int)heap_index * 4 + 0x11088);
+
+  if (!(node_index >= 0 && node_index < PATH_NODE_LIST_SIZE)) {
+    display_assert("(node_index >= 0) && (node_index < PATH_NODE_LIST_SIZE)",
+                   "c:\\halo\\SOURCE\\ai\\path.c", 0x4ef, 1);
+    system_exit(-1);
+  }
+
+  node = (char *)state + (int)node_index * 0x44;
+
+  if (*(short *)(node + 0xb0) != node_cost) {
+    display_assert(
+      "state->node_list[node_index].quantized_cost_estimate == node_cost",
+      "c:\\halo\\SOURCE\\ai\\path.c", 0x4f0, 1);
+    system_exit(-1);
+  }
+
+  while (heap_index > 1) {
+    parent_location = heap_index >> 1;
+    parent_node_index =
+      *(short *)((char *)state + (int)parent_location * 4 + 0x11086);
+    parent_cost_estimate =
+      *(short *)((char *)state + (int)parent_location * 4 + 0x11088);
+
+    if (!(parent_node_index >= 0 && parent_node_index < PATH_NODE_LIST_SIZE)) {
+      display_assert("(parent_node_index >= 0) && "
+                     "(parent_node_index < PATH_NODE_LIST_SIZE)",
+                     "c:\\halo\\SOURCE\\ai\\path.c", 0x4ff, 1);
+      system_exit(-1);
+    }
+
+    parent_node = (char *)state + (int)parent_node_index * 0x44;
+
+    if (*(short *)(parent_node + 0xb4) != parent_location) {
+      display_assert("state->node_list[parent_node_index].heap_location == "
+                     "parent_location",
+                     "c:\\halo\\SOURCE\\ai\\path.c", 0x500, 1);
+      system_exit(-1);
+    }
+
+    if (*(short *)(parent_node + 0xb0) != parent_cost_estimate) {
+      display_assert("state->node_list[parent_node_index]."
+                     "quantized_cost_estimate == parent_cost_estimate",
+                     "c:\\halo\\SOURCE\\ai\\path.c", 0x501, 1);
+      system_exit(-1);
+    }
+
+    if (node_cost >= parent_cost_estimate) {
+      break;
+    }
+
+    *(short *)((char *)state + (int)heap_index * 4 + 0x11086) =
+      parent_node_index;
+    *(short *)((char *)state + (int)heap_index * 4 + 0x11088) =
+      parent_cost_estimate;
+    *(short *)(parent_node + 0xb4) = heap_index;
+    heap_index = parent_location;
+  }
+
+  *(short *)((char *)state + (int)heap_index * 4 + 0x11086) = node_index;
+  *(short *)((char *)state + (int)heap_index * 4 + 0x11088) = node_cost;
+  *(short *)(node + 0xb4) = heap_index;
+}
+
+/* 0x005e330 — path_heap_bubble_down
+ * Restores min-heap order after heap[heap_index] was written: repeatedly
+ * swaps the entry with its cheaper child (children at 2*heap_index and
+ * 2*heap_index+1, bounded by state->heap_count at +0x11084) while a child's
+ * quantized cost estimate is strictly lower, updating each moved node's
+ * heap_location (+0xb4 in the 0x44-byte node record, base folded into the
+ * displacement as in path_heap_bubble_up).
+ *
+ * Register arg: state in EBX (never loaded by this function); heap_index
+ * on the stack ([EBP+8], rewritten in place at 0x5e520).
+ *
+ * Disassembly-confirmed asserts (display_assert + system_exit(-1)):
+ *   0x524, 0x529, 0x52a, 0x53e, 0x53f, 0x540.
+ */
+void path_heap_bubble_down(void *state, short heap_index)
+{
+  short node_index;
+  short node_cost;
+  short smallest_location;
+  short smallest_node_index;
+  short smallest_cost;
+  short child_count;
+  short child_location;
+  short child_node_index;
+  short child_cost;
+  char *node;
+  char *child_node;
+
+  if (!(heap_index >= 1 && heap_index <= PATH_NODE_LIST_SIZE)) {
+    display_assert(
+      "(heap_location >= 1) && (heap_location <= PATH_NODE_LIST_SIZE)",
+      "c:\\halo\\SOURCE\\ai\\path.c", 0x524, 1);
+    system_exit(-1);
+  }
+
+  node_index = *(short *)((char *)state + (int)heap_index * 4 + 0x11086);
+  node_cost = *(short *)((char *)state + (int)heap_index * 4 + 0x11088);
+
+  if (!(node_index >= 0 && node_index < PATH_NODE_LIST_SIZE)) {
+    display_assert("(node_index >= 0) && (node_index < PATH_NODE_LIST_SIZE)",
+                   "c:\\halo\\SOURCE\\ai\\path.c", 0x529, 1);
+    system_exit(-1);
+  }
+
+  node = (char *)state + (int)node_index * 0x44;
+
+  if (*(short *)(node + 0xb0) != node_cost) {
+    display_assert(
+      "state->node_list[node_index].quantized_cost_estimate == node_cost",
+      "c:\\halo\\SOURCE\\ai\\path.c", 0x52a, 1);
+    system_exit(-1);
+  }
+
+  for (;;) {
+    smallest_node_index = node_index;
+    smallest_location = heap_index;
+    smallest_cost = node_cost;
+
+    for (child_count = 0, child_location = heap_index * 2; child_count < 2;
+         child_count++, child_location++) {
+      if (child_location >= *(short *)((char *)state + 0x11084)) {
+        break;
+      }
+
+      child_node_index =
+        *(short *)((char *)state + (int)child_location * 4 + 0x11086);
+      child_cost =
+        *(short *)((char *)state + (int)child_location * 4 + 0x11088);
+
+      if (!(child_node_index >= 0 && child_node_index < PATH_NODE_LIST_SIZE)) {
+        display_assert("(child_node_index >= 0) && "
+                       "(child_node_index < PATH_NODE_LIST_SIZE)",
+                       "c:\\halo\\SOURCE\\ai\\path.c", 0x53e, 1);
+        system_exit(-1);
+      }
+
+      child_node = (char *)state + (int)child_node_index * 0x44;
+
+      if (*(short *)(child_node + 0xb4) != child_location) {
+        display_assert("state->node_list[child_node_index].heap_location == "
+                       "child_heap_location",
+                       "c:\\halo\\SOURCE\\ai\\path.c", 0x53f, 1);
+        system_exit(-1);
+      }
+
+      if (*(short *)(child_node + 0xb0) != child_cost) {
+        display_assert("state->node_list[child_node_index]."
+                       "quantized_cost_estimate == child_cost",
+                       "c:\\halo\\SOURCE\\ai\\path.c", 0x540, 1);
+        system_exit(-1);
+      }
+
+      if (child_cost < smallest_cost) {
+        smallest_location = child_location;
+        smallest_node_index = child_node_index;
+        smallest_cost = child_cost;
+      }
+    }
+
+    if (smallest_location == heap_index) {
+      break;
+    }
+
+    *(short *)((char *)state + (int)heap_index * 4 + 0x11088) = smallest_cost;
+    *(short *)((char *)state + (int)heap_index * 4 + 0x11086) =
+      smallest_node_index;
+    *(short *)((char *)state + (int)smallest_node_index * 0x44 + 0xb4) =
+      heap_index;
+    heap_index = smallest_location;
+  }
+
+  *(short *)((char *)state + (int)heap_index * 4 + 0x11086) = node_index;
+  *(short *)((char *)state + (int)heap_index * 4 + 0x11088) = node_cost;
+  *(short *)(node + 0xb4) = heap_index;
+}
+
 /* 0x005e560 — path_heap_pop_cheapest_node
  * Pops the cheapest node (heap[1]) off the binary min-heap embedded in a path
  * state and returns its node index, or NONE (-1) if the heap is empty.
@@ -211,8 +424,6 @@ void FUN_0005e0d0(void *param_1, float *param_2, int param_3, int param_4)
  * carries the implicit state pointer explicitly as an ebx register arg, and
  * this call site passes it.)
  */
-#define PATH_NODE_LIST_SIZE 0x400
-
 short path_heap_pop_cheapest_node(void *state)
 {
   short node_index;

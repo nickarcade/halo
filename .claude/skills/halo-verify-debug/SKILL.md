@@ -7,7 +7,7 @@ description: "/verify, VC71, delink, objdiff, lift_pipeline, equivalence, golden
 
 # Halo Verify And Debug
 
-Use this skill for lift verification, XDK/delink comparison, Option 3 fallback,
+Use this skill for lift verification, XDK/delink comparison,
 or regression investigation. Doctrine and evidence rules live in
 `halo-lift`; this skill covers the operational verification and debugging
 procedures.
@@ -45,14 +45,13 @@ The user-facing command surface is consolidated under `/verify`:
   `tools/verify/run_golden_tests.py`.
 - `/verify dual-oracle <target>` for same-process original-vs-candidate
   runtime comparison once a target has a dual-oracle harness case.
-- `/verify option3 <target>` for legacy runtime/xemu fallback.
 - `/verify failure <artifact_dir>` for failed artifact triage.
 
 ### Normal post-lift validation
 
 Run:
 
-`rtk python3 tools/lift_pipeline.py --target <target> --no-metadata-update --verify-policy auto <extra_flags>`
+`rtk python3 tools/lift/lift_pipeline.py --target <target> --no-metadata-update --verify-policy auto <extra_flags>`
 
 Report:
 
@@ -87,7 +86,7 @@ choose the next binary-backed lever from the score-context pack.
 
 Use this when the lifted function address in the patched XBE is known:
 
-`rtk python3 tools/lift_pipeline.py --target <target> --verify-auto --verify-new-address <new_address> --no-metadata-update <extra_flags>`
+`rtk python3 tools/lift/lift_pipeline.py --target <target> --verify-auto --verify-new-address <new_address> --no-metadata-update <extra_flags>`
 
 Report the verify payload path, `verify_lift` stage result, and summary path.
 
@@ -147,30 +146,6 @@ Report:
 - oracle/candidate or dual-oracle pass/fail summary
 - first structured mismatch, memory mismatch, crash, or assertion
 - whether real Xbox XBDM confirmation is still required
-
-### Option 3 fallback ladder
-
-Use Option 3 for runtime/xemu fallback only. Prefer the lift pipeline and XDK
-verify for structural proof.
-
-Run:
-
-`rtk python3 tools/verify/verify_option3.py --target <target> <extra_flags>`
-
-Report:
-
-- stage results for `build`, `build_iso`, `objdiff`, `xemu_load_reset`,
-  and `assert_tripwire`
-- PASS or FAIL verdict
-- summary path under `artifacts/verify_option3/.../summary.json`
-
-Notes:
-
-- Add `--objdiff-reference <path>` and `--objdiff-candidate <path>` when a
-  delinked reference object exists.
-- Add `--load-into-xemu` to hot-load and reset via `tools/xbox/xemu_qmp.py`.
-- Use `--skip-build` or `--skip-iso` for quick reruns when artifacts already
-  exist.
 
 ### Failure classification
 
@@ -254,7 +229,7 @@ Report:
 - validation performed
 - remaining risk or follow-up
 
-## Lane Detail Moved From CLAUDE.md (2026-09-02)
+## Lane Detail Moved From AGENTS.md (2026-09-02)
 
 ### VC71 verify — warnings and reference derivation
 After lifting FPU-heavy functions (geometry, math, projections), run
@@ -405,7 +380,7 @@ verify their side-effects/return values against the exact Xbox ASM output.
 - *Use cases:* FPU math functions, struct/object initializers, and complex
   isolated state transitions.
 
-### Dual-oracle runtime harness — procedure (moved from CLAUDE.md, 2026-09-02)
+### Dual-oracle runtime harness — procedure (moved from AGENTS.md, 2026-09-02)
 For high-value stateful targets, prefer a same-process harness case over two
 separate emulator runs. Clone inputs, call the original implementation, restore
 inputs, call the candidate implementation, then compare return values, mutated

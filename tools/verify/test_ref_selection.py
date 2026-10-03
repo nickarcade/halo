@@ -254,7 +254,7 @@ def test_refmeta_and_score_lines_agree_on_a_real_tu():
         capture_output=True, text=True, cwd=v.REPO_ROOT).stdout
     meta = {m.group(1): int(m.group(5))
             for m in (_REFMETA_RE.match(l) for l in out.splitlines()) if m}
-    scores = re.findall(r"(?:PASS|FAIL) (\S+): [\d.]+% match \((\d+)/(\d+) insns\)",
+    scores = re.findall(r"(?:PASS|FAIL) (\S+): [\d.]+% (?:mnemonic )?match \((\d+)/(\d+) insns\)",
                         out)
     assert scores, "no score lines produced"
     for fn, _n_c, n_r in scores:

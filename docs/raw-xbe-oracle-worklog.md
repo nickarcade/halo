@@ -373,7 +373,8 @@ symbol, but it belongs to the real ai_profile.c near `0x536xx`. So
 
 All 16 rows name a function with `ported: true`.
 
-`tools/equivalence/test_allowlist_names.py` is the gate. It holds 6 tests. Each
+`tools/equivalence/test_allowlist_names.py` was the gate (since removed when test
+targets were keyed by address). It held 6 tests. Each
 row must name a kb.json function. No row may use a `FUN_` name whose address
 carries a real name. Every row needs a written reason of more than 20
 characters. An `oracle` scope must read `xbe` or `delinked`. A mutation check

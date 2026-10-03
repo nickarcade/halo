@@ -1200,6 +1200,78 @@ int FUN_00068f60(void *tif_ /* @<edi> */)
   }
 }
 
+/**
+ * Decode one 1D-coded fax row into `buf` (`npels` pixels).
+ *
+ * Shape-identified as upstream libtiff 3.x tif_fax3.c `Fax3Decode1DRow`: the
+ * module string "Fax3Decode1D" (0x2ec384) and the three formats pushed here
+ * (0x2600bc EOF, 0x2600e4 EOL, 0x26010c bad code word) are upstream's.
+ *
+ * ABI: the handle arrives in EAX (`mov edi,eax` at 0x69029) and `buf`/`npels`
+ * are cdecl stack arguments at [ebp+8]/[ebp+0xc]. The run decoders get the
+ * handle in EDI; fillspan (0x68e20) gets buf in EAX, x in ECX, count in EDX.
+ *
+ * Run results are tested in binary order: -4 (EOF, error, return 0), -3 (EOL,
+ * warning, return 1, no resync call unlike the 2D decoder), -1 (bad code word,
+ * error, fall to the row cleanup). Cleanup tests field_09 bits 1/2/3; bit 3
+ * plus an odd tif_rawcp decrements tif_rawcc then increments tif_rawcp
+ * (0x69104-0x6910c store order). Returns `x == npels` (SETZ at 0x69116).
+ */
+int FUN_00069020(void *tif_ /* @<eax> */, unsigned char *buf, int npels)
+{
+  static const char module[] = "Fax3Decode1D";
+  tiff_t *tif;
+  tiff_codec_bits_t *sp;
+  unsigned short color;
+  int x;
+  int runlen;
+
+  tif = (tiff_t *)tif_;
+  sp = tif->tif_data;
+  color = sp->fill_white;
+  x = 0;
+  for (;;) {
+    if (color == sp->fill_white)
+      runlen = FUN_00068eb0(tif);
+    else
+      runlen = FUN_00068f60(tif);
+    switch (runlen) {
+    case -1:
+      FUN_00068a30(module, "%s: Bad code word at scanline %d (x %d)",
+                   tif->tif_name, tif->tif_row, x);
+      goto done;
+    case -3:
+      FUN_0006f9d0(module, "%s: Premature EOL at scanline %d (x %d)",
+                   tif->tif_name, tif->tif_row, x);
+      return 1;
+    case -4:
+      FUN_00068a30(module, "%s: Premature EOF at scanline %d (x %d)",
+                   tif->tif_name, tif->tif_row, x);
+      return 0;
+    }
+    if (x + runlen > npels)
+      runlen = npels - x;
+    if (runlen > 0) {
+      if (color != 0)
+        fillspan((char *)buf, x, runlen);
+      x += runlen;
+      if (x >= npels)
+        goto done;
+    }
+    color = (unsigned short)(color == 0);
+  }
+done:
+  if ((tif->field_09 & 2) == 0)
+    FUN_00068a70(0, tif);
+  if ((tif->field_09 & 4) != 0)
+    sp->bit = 0;
+  if ((tif->field_09 & 8) != 0 && ((unsigned long)tif->tif_rawcp & 1) != 0) {
+    tif->tif_rawcc--;
+    tif->tif_rawcp++;
+  }
+  return x == npels;
+}
+
 /*
  * Decode one buffered fax byte and update the codec state machine.
  *
@@ -1228,6 +1300,55 @@ __declspec(noinline) int FUN_00069180(void *tif_ /* @<edx> */)
     sp->bit = ((const unsigned char *)0x2ce370)[index];
   } while (nonzero == 0);
   return (int)nonzero;
+}
+
+/*
+ * Append `value` bits of `param_2` to the fax bit accumulator, flushing each
+ * completed byte through sp->bitmap into the raw output buffer.
+ *
+ * Shape matches upstream libtiff tif_fax3.c `_PutBits` (+ `_FlushBits`).
+ * ABI (0x69200): bit count in EAX (`mov ebx,eax` at 0x6920b), the code word
+ * as the only stack argument ([ebp+8]), the TIFF handle in EDI (read as
+ * [edi+0x120..0x138] and pushed to TIFFFlushData1). The count compare is
+ * UNSIGNED (`cmp ebx,eax / jbe` at 0x69211) and the code shift is logical
+ * (`shr eax,cl` at 0x69220). The dword table at 0x2ec3a4 is indexed
+ * `[ebx*4+0x2ec3a4]`; upstream's `_msbmask[9]`.
+ */
+void FUN_00069200(int value /* @<eax> */, int param_2, void *tif_ /* @<edi> */)
+{
+  tiff_t *tif;
+  tiff_codec_bits_t *sp;
+  unsigned long length;
+
+  tif = (tiff_t *)tif_;
+  sp = tif->tif_data;
+  length = (unsigned long)value;
+  while (length > (unsigned long)(int)sp->bit) {
+    length -= (int)sp->bit;
+    sp->data |= (short)((unsigned long)param_2 >> length);
+    /* 0x69227-0x6923b: signed `jl`, TIFFFlushData1 result discarded. */
+    if (tif->tif_rawcc >= tif->tif_rawdatasize) {
+      (void)TIFFFlushData1(tif);
+    }
+    *tif->tif_rawcp++ = sp->bitmap[sp->data];
+    tif->tif_rawcc++;
+    sp->data = 0;
+    sp->bit = 8;
+  }
+  sp->data |=
+    (short)((((const unsigned long *)0x2ec3a4)[length] & (unsigned long)param_2)
+            << (sp->bit - length));
+  sp->bit -= (short)length;
+  if (sp->bit == 0) {
+    /* 0x692a5-0x692ec: the same flush as the loop body. */
+    if (tif->tif_rawcc >= tif->tif_rawdatasize) {
+      (void)TIFFFlushData1(tif);
+    }
+    *tif->tif_rawcp++ = sp->bitmap[sp->data];
+    tif->tif_rawcc++;
+    sp->data = 0;
+    sp->bit = 8;
+  }
 }
 
 /* One 6-byte run-length code table entry as putspan reads it: +0 goes to
@@ -4257,6 +4378,78 @@ void FUN_0006b2d0(unsigned long *cp, unsigned short *r, unsigned short *g,
       g += fromskew;
       b += fromskew;
     }
+  }
+}
+
+/*
+ * FUN_0006b610 -- 0x6b610, the packed YCbCr contig writer (upstream
+ * putcontig8bitYCbCrtile shape). Selected by FUN_0006b780 at 0x6b858+.
+ *
+ * Both sampling factors are WORD statics: 0x3340d8 is the clump width (it is
+ * the `cw` push and the inner-loop step) and 0x3340d4 the clump height (it is
+ * the EDX `ch` argument and the outer-loop step). Their horiz/vert roles are
+ * read off those uses only.
+ *
+ * Frame: [ebp-4] = width*height computed once at 0x6b616-0x6b62b (a local,
+ * never re-read from the globals); [ebp-8] = w + toskew (first loop) and later
+ * clump_area + 2 (remainder loop). Every guard is jc/jnc/jbe, so w, h and x
+ * are unsigned. The third stack slot is never read.
+ *
+ * Callee 0x6b440 takes pp @<eax>, the Y-sample count @<ecx> and ch @<edx>
+ * (proven by its own body: 0x6b44b `mov edi,eax`, 0x6b44d `[edi+ecx]` Cb,
+ * 0x6b446 `test edx,edx` row counter) plus five cdecl slots
+ * (cp, cw, w, fromskew, toskew; `add esp,0x14`).
+ */
+#define ycbcr_vert_sampling (*(unsigned short *)0x3340d4)
+#define ycbcr_horiz_sampling (*(unsigned short *)0x3340d8)
+
+void FUN_0006b610(unsigned long *cp, unsigned char *pp,
+                  unsigned long unused_arg, unsigned long w, unsigned long h,
+                  long fromskew, long toskew)
+{
+  unsigned short horiz;
+  unsigned short vert;
+  int clump_area;
+  unsigned long *tp;
+  unsigned long x;
+
+  /* Each sampling word is read once per span between calls (0x6b616 /
+   * 0x6b61d, 0x6b679, 0x6b6bf, 0x6b6d0) and that one value feeds every
+   * compare, step and push until the next call. */
+  horiz = ycbcr_horiz_sampling;
+  vert = ycbcr_vert_sampling;
+  clump_area = horiz * vert;
+
+  while (h >= vert) {
+    tp = cp;
+    for (x = w; x >= horiz; x -= horiz) {
+      putRGBContigYCbCrClump(pp, clump_area, ycbcr_vert_sampling, tp, horiz, w,
+                             0, toskew);
+      horiz = ycbcr_horiz_sampling;
+      pp += clump_area + 2;
+      tp += horiz;
+    }
+    if (x > 0) {
+      putRGBContigYCbCrClump(pp, clump_area, ycbcr_vert_sampling, tp, x, w,
+                             horiz - x, toskew);
+      horiz = ycbcr_horiz_sampling;
+      pp += clump_area + 2;
+    }
+    vert = ycbcr_vert_sampling;
+    cp += (w + toskew) * vert;
+    pp += fromskew;
+    h -= vert;
+  }
+  if (h > 0) {
+    tp = cp;
+    for (x = w; x >= horiz; x -= horiz) {
+      putRGBContigYCbCrClump(pp, clump_area, h, tp, horiz, w, 0, toskew);
+      horiz = ycbcr_horiz_sampling;
+      pp += clump_area + 2;
+      tp += horiz;
+    }
+    if (x > 0)
+      putRGBContigYCbCrClump(pp, clump_area, h, tp, x, w, horiz - x, toskew);
   }
 }
 

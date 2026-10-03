@@ -205,6 +205,6 @@ implicit GPRs. FPU-only instructions do not clobber GPRs.
 
 ## Auto-Lift Ownership
 
-`tools/llm_auto_lift.py` owns selection, liftability scoring, and Ghidra context
+`tools/lift/llm_auto_lift.py` owns selection, liftability scoring, and Ghidra context
 caching. `/lift` owns code generation. Legacy `review` and `promote` subcommands
 exist only for old artifacts.

@@ -58,9 +58,13 @@ _DEFAULT_OPT = "/O2"
 # repo-wide `artifacts` gitignore entry.
 SCORE_CONTEXT_DIR = REPO_ROOT / "artifacts" / "score_context"
 
-VC71_CL = r"C:\Program Files (x86)\RXDK\xbox\bin\vc71\CL.Exe"
-VC71_CL_WSL = "/mnt/c/Program Files (x86)/RXDK/xbox/bin/vc71/CL.Exe"
-RXDK_INC = r"C:\Program Files (x86)\RXDK\xbox\include"
+# Xbox SDK location: RXDK_ROOT (environment or tools/local.env), default is the
+# standard Windows install directory.
+from internal.local_env import rxdk_paths  # noqa: E402
+_RXDK_WSL, _RXDK_WIN = rxdk_paths()
+VC71_CL = _RXDK_WIN + "\\xbox\\bin\\vc71\\CL.Exe"
+VC71_CL_WSL = _RXDK_WSL + "/xbox/bin/vc71/CL.Exe"
+RXDK_INC = _RXDK_WIN + "\\xbox\\include"
 
 COMPARE_SCRIPT = REPO_ROOT / "tools" / "verify" / "compare_obj.py"
 
@@ -85,7 +89,7 @@ def wsl_to_win(path: Path) -> str:
     """Convert a WSL path to a Windows path."""
     s = str(path.resolve())
     if s.startswith("/mnt/"):
-        # /mnt/g/dev/halo/... -> G:\dev\halo\...
+        # /mnt/<drive>/... -> <DRIVE>:\...
         drive = s[5].upper()
         remainder = s[7:]  # skip "/mnt/X/"
         return f"{drive}:\\{remainder}".replace("/", "\\") if remainder else f"{drive}:\\"
@@ -1550,6 +1554,30 @@ _PER_FUNCTION_OPT: dict[str, dict[str, str]] = {
 }
 
 
+# TU-wide /O2 /Ob1: the original game code was built without auto-inlining, so
+# the binary CALLs small same-TU helpers.  The mnemonic lane picks this in
+# main(); the raw-byte lane reaches it through tu_opt() so both measure the
+# same object.
+_OB1_TUS = (
+    "game/game_engine.c",
+    "objects/objects.c",
+    "units/units.c",
+    "game/player_queues_new.c",
+    # hs_compile_initialize (0xc5730, custom @<edi>, single caller in
+    # hs_compile_source 0xc92b0) is a real CALL in the original; /Ob2
+    # would inline it into the same-TU caller.
+    "hs/hs_compile.c",
+)
+
+
+def tu_opt(source: Path, default: str = "/O2") -> str:
+    """TU-wide optimization flags: /O2 /Ob1 for the merged game TUs."""
+    key = str(source).replace("\\", "/")
+    if default == "/O2" and any(key.endswith(t) for t in _OB1_TUS):
+        return "/O2 /Ob1"
+    return default
+
+
 def _per_function_opt_for(source: Path) -> dict[str, str]:
     """Per-function optimization overrides for a mixed-optimization TU."""
     key = str(source).replace("\\", "/")
@@ -2214,16 +2242,6 @@ def main():
     # game TUs.  Verified: FUN_0013c030 56.1% (/Ob2) -> 100.0% (/Ob1);
     # game_engine.c mean 84.9 -> 86.4 with 22 functions gaining >5pp vs
     # 4 dropping <7pp.
-    _OB1_TUS = (
-        "game/game_engine.c",
-        "objects/objects.c",
-        "units/units.c",
-        "game/player_queues_new.c",
-        # hs_compile_initialize (0xc5730, custom @<edi>, single caller in
-        # hs_compile_source 0xc92b0) is a real CALL in the original; /Ob2
-        # would inline it into the same-TU caller.
-        "hs/hs_compile.c",
-    )
     if args.opt == "/O2" and any(str(source).replace("\\", "/").endswith(t) for t in _OB1_TUS):
         args.opt = "/O2 /Ob1"
         if not args.quiet:

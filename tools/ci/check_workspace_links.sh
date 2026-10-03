@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Assert the one rule that keeps a self-hosted job from eating the dev tree.
 #
-# RULE: a runner-workspace path may be a symlink into /mnt/g/dev/halo only if
+# RULE: a runner-workspace path may be a symlink into the host dev tree ($HALO_HOST_TREE) only if
 #       .gitignore ignores that path AS A WHOLE DIRECTORY.
 #
 # `actions/checkout` cleans the workspace on every run (`git clean -ffdx`).

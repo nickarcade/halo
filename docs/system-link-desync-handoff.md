@@ -24,7 +24,7 @@ paired capture, offline analysis, then one evidence-directed test.
   dirty; that unrelated edit must be preserved. Recheck status on resume.
 - Read [the historical evidence](system-link-rng-desync.md) selectively.
   [Architecture](system-link-architecture.md) maps the current network layers.
-  `networking_system_link_bug.md` predates the transport lift; its old revert
+  `history/networking_system_link_bug.md` predates the transport lift; its old revert
   list and pregame theory are not current root-cause findings.
 
 ## Confirmed observations
@@ -32,9 +32,9 @@ paired capture, offline analysis, then one evidence-directed test.
 Logs supplied by the user (mutable files; preserve a copy before a new run):
 
 - Client: `G:/dev/halo/xbdm/debug_client.txt`
-  (`/mnt/g/dev/halo/xbdm/debug_client.txt` in WSL).
+  (`<repo>/xbdm/debug_client.txt` in WSL).
 - Matching host log found at `G:/dev/halo/xbdm/debug_host.txt`.
-  The supplied `/mnt/g/dev/xbdm/debug_host.txt` path was absent.
+  The supplied `<repo>/../xbdm/debug_host.txt` path was absent.
   The discovered file contains older sessions too; select September 22.
 
 | Client log time | First reported mismatch in that match |
@@ -127,7 +127,7 @@ join at 14:48:36 successfully precached Carousel, then desynced during gameplay.
 1. **Freeze provenance and announce scope.** Save baseline XBE, matching PE,
    source revision/dirty diff and build configuration; hash exact files. Confirm
    current guest roles/endpoints without restarting play. Historical addresses
-   were client `10.0.0.21`, host `10.0.0.25`, HMP ports 4444/4446; recheck them.
+   were the xemu-client box as client and a pristine host box, HMP ports 4444/4446; recheck them.
    Explain diagnostic edits before making them. Preserve unrelated work.
 2. **Prepare matched low-volume tracing.** Retain global RNG draws/reseeds and
    a bounded, explicitly listed set of existing state probes on both peers.

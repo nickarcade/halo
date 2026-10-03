@@ -139,7 +139,7 @@ def main():
         """Export a delinked COFF object from Ghidra.
 
         Args:
-            export_path: Windows path for the output .o file (e.g. G:\\dev\\halo\\artifacts\\delinker\\foo.o)
+            export_path: Windows path for the output .o file (e.g. <drive>:\\<repo>\\artifacts\\delinker\\foo.o)
             exporter_name: Exporter name, usually "COFF relocatable object"
             selection_mode: "range", "symbol", or "current_selection"
             range: Address range as "START-END" (hex, no 0x prefix)

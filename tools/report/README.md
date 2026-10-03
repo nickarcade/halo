@@ -171,7 +171,7 @@ verification.
 **Prerequisites:**
 - Built object files in `build/` directory
 - Delinked reference objects in `delinked/` directory
-- objdiff CLI at `tools/objdiff-cli-linux-x86_64`
+- objdiff CLI at `tools/objdiff-cli-linux-x86_64` (run `tools/fetch_objdiff.sh`)
 
 **Usage:**
 ```bash
@@ -506,8 +506,8 @@ rm artifacts/progress/history.json
 ### Matching checks fail
 
 ```bash
-# Verify objdiff CLI exists
-ls -la tools/objdiff-cli-linux-x86_64
+# Fetch or verify the pinned objdiff CLI
+./tools/fetch_objdiff.sh
 
 # Check that objects are built
 ls -la build/CMakeFiles/halo.dir/src/halo/

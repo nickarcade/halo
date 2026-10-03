@@ -39,8 +39,8 @@ that score.
 
 ## Protocol — follow the source-recovery skill, don't reinvent it
 
-Load `.claude/skills/source-recovery/SKILL.md` (the `/recover-source` /
-`/cleanup` doctrine) before touching anything and follow its manifest
+Load `.claude/skills/source-recovery/SKILL.md` (the `/source-recovery`
+doctrine) before touching anything and follow its manifest
 lifecycle exactly:
 
 ```
@@ -167,7 +167,7 @@ name is worse than no name. If you can't cite the one-line evidence, the name
 is T3 or T4 — never guess up a tier.
 
 **No PDB mining, anywhere, for any reason.** There is no PDB for this build
-(cachebeta.xbe). The only PDB in this repo's orbit belongs to a PAL debug
+(cachebeta.xbe). Any PDB that exists elsewhere belongs to a different
 build — a different binary — and is not evidence for this one. Do not invoke
 `punpckhdq_import.py`, `apply_punpckhdq_renames.py`, or any PDB-corpus-match
 path that `naming-confidence` otherwise documents as T1 evidence; treat that
@@ -247,6 +247,6 @@ Report, in this order:
 
 Store durable recovery findings (naming conventions that recur, evidence
 patterns worth reusing, category-specific gate gotchas) at
-`/mnt/g/dev/halo/.claude/agent-memory/halo-source-recovery/`. Do not save
-ephemeral task state or anything already in `CLAUDE.md` or the
+`.claude/agent-memory/halo-source-recovery/` (relative to the repo root). Do not save
+ephemeral task state or anything already in `AGENTS.md` or the
 `source-recovery` skill family.

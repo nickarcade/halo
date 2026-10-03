@@ -12,6 +12,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -300,9 +301,14 @@ def load_byte_scores(root=ROOT):
     return scores
 
 
-def compare(base, candidate):
-    """Per-address ratchet; improvements elsewhere cannot conceal a loss."""
-    errors, gaps, checked, added = [], [], 0, 0
+def compare(base, candidate, header_noise=None):
+    """Per-address ratchet; improvements elsewhere cannot conceal a loss.
+
+    ``header_noise(before, after)`` may move a byte or counter regression to
+    ``header_noise``: it must return True only when nothing the function uses
+    changed (see ``header_noise_filter``).
+    """
+    errors, gaps, noise, checked, added = [], [], [], 0, 0
     for addr in sorted(base.keys() | candidate.keys()):
         before, after = base.get(addr), candidate.get(addr)
         label = "0x%08x %s" % (addr, (after or before)["function"])
@@ -333,19 +339,97 @@ def compare(base, candidate):
         if new is None:
             errors.append(label + ": lost byte measurement")
             continue
+        losses = []
         if new[0] < old[0] or new[0] * old[1] < old[0] * new[1]:
-            errors.append(label + ": bytes %d/%d -> %d/%d" % (*old, *new))
+            losses.append(label + ": bytes %d/%d -> %d/%d" % (*old, *new))
         for key in ("uncertain_relocation_bytes", "mismatched_relocations", "unpaired_relocations",
                     "alignment_ambiguous_steps"):
             # A measured function can still carry null counters; treat them as 0.
             if (after["aligned_byte_match"].get(key) or 0) > (before["aligned_byte_match"].get(key) or 0):
-                errors.append(label + ": increased " + key)
+                losses.append(label + ": increased " + key)
         if before.get("literal_byte_match") == "exact" and after.get("literal_byte_match") != "exact":
-            errors.append(label + ": lost literal byte identity")
+            losses.append(label + ": lost literal byte identity")
+        if losses and header_noise is not None and header_noise(before, after):
+            noise += losses
+        else:
+            errors += losses
     if not checked and not any(counts(record) for record in candidate.values()):
         errors.append("No comparable functions measured; cannot establish a byte regression result")
-    return {"errors": errors, "existing_gaps": gaps, "checked_functions": checked,
+    return {"errors": errors, "existing_gaps": gaps, "header_noise": noise, "checked_functions": checked,
             "new_functions": added, "base_functions": len(base), "candidate_functions": len(candidate)}
+
+
+_IDENTIFIER_RE = re.compile(r"[A-Za-z_]\w*")
+
+
+def changed_kb_names(root, base, head):
+    """Every identifier in a kb.json entry that differs between two revisions.
+
+    Over-collects on purpose (types and parameter names too): a larger set only
+    makes ``header_noise_filter`` classify fewer losses as noise. Returns None
+    when a change cannot be pinned to individual entries.
+    """
+    def load(commit):
+        return json.loads(subprocess.check_output(
+            ["git", "-C", str(root), "show", commit + ":kb.json"]))
+
+    def entries(kb):
+        objects = kb.get("objects") or []
+        shape = [{key: value for key, value in obj.items() if not isinstance(value, list)}
+                 for obj in objects]
+        found = {key: value for key, value in kb.items() if key not in ("objects", "md5")}
+        for index, obj in enumerate(objects):
+            for key, value in obj.items():
+                if isinstance(value, list):
+                    for item in value:
+                        addr = item.get("addr") if isinstance(item, dict) else None
+                        found[(index, key, addr if addr is not None else json.dumps(item))] = item
+        return kb.get("md5"), shape, found
+
+    before, after = entries(load(base)), entries(load(head))
+    if before[:2] != after[:2]:
+        return None
+    names = set()
+    for key in before[2].keys() | after[2].keys():
+        old, new = before[2].get(key), after[2].get(key)
+        if old != new:
+            names.update(_IDENTIFIER_RE.findall(json.dumps([old, new])))
+    return names
+
+
+def header_noise_filter(root, base, head):
+    """Classifier for losses that only the length of decl.h can explain.
+
+    VC71 numbers its internal labels across the whole TU, so adding parameters
+    to unrelated prototypes in the generated decl.h can reshuffle registers and
+    scheduling in functions that use none of them. A loss counts as that noise
+    only when the base-to-head input change is kb.json plus .c files, the
+    function's own source is unchanged, and neither the function nor any symbol
+    its candidate object relocates against changed in kb.json. Anything that
+    cannot be proven stays a regression. Returns None when classification is
+    not possible for this revision pair.
+    """
+    changed = git(root, "diff", "--name-only", base, head, "--", *INPUT_PATHS).splitlines()
+    if any(path != "kb.json" and not (path.startswith("src/") and path.endswith(".c"))
+           for path in changed):
+        return None
+    names = changed_kb_names(root, base, head) if "kb.json" in changed else set()
+    if names is None:
+        return None
+    import raw_xbe_structural as raw
+
+    def is_noise(before, after):
+        if before.get("source") != after.get("source") or after["function"] in names:
+            return False
+        candidate = after.get("candidate") or {}
+        try:
+            _code, relocs, _provenance = raw._parse_coff(candidate["path"], after["function"])
+        except Exception:
+            return False
+        used = {raw._c_name(r["symbol"]["name"]) for r in relocs if r.get("symbol")}
+        return not used & names
+
+    return is_noise
 
 
 def scope(root, base, head):
@@ -399,7 +483,8 @@ def check(args):
             raise ValueError("base and candidate used different measurement tools")
         base = indexed(before, args.base_commit, run_id, base_root, plan, allow_empty=True)
         candidate = indexed(after, args.head_commit, run_id, ROOT, plan)
-        result = compare(base, candidate)
+        result = compare(base, candidate,
+                         header_noise_filter(ROOT, args.base_commit, args.head_commit))
         result.update({"run_id": run_id, "base_commit": args.base_commit,
                        "head_commit": args.head_commit, "scope": plan})
     write_json(args.output / "result.json", result)
@@ -412,6 +497,11 @@ def check(args):
     if result.get("skipped"):
         lines.append(result["skipped"])
     lines += ["", *["- " + error for error in result["errors"][:100]]]
+    if result.get("header_noise"):
+        lines += ["", "### Header-length noise (not counted)", "",
+                  "These functions and everything they reference are unchanged; only the",
+                  "longer generated decl.h moved their VC71 code.", "",
+                  *["- " + item for item in result["header_noise"][:100]]]
     report = "\n".join(lines) + "\n"
     print(report)
     if os.environ.get("GITHUB_STEP_SUMMARY"):
@@ -484,7 +574,10 @@ def local(args):
             cwd=ROOT, env=env, text=True).strip()
     # A pre-commit hook inherits GIT_INDEX_FILE=.git/index (relative); inside
     # a new worktree .git is a file, so worktree add/remove must not see it.
-    worktree_env = {k: v for k, v in os.environ.items() if k != "GIT_INDEX_FILE"}
+    # A hook run from a linked worktree can also export GIT_DIR/GIT_WORK_TREE,
+    # which would make `git -C <new worktree>` resolve to this checkout.
+    worktree_env = {k: v for k, v in os.environ.items()
+                    if k not in ("GIT_INDEX_FILE", "GIT_DIR", "GIT_WORK_TREE")}
     # Equal-length names: __FILE__ embeds the checkout path in assert
     # strings, and a longer candidate path alone shifted measured bytes.
     labels = (("base-tree", base), ("head-tree", head))

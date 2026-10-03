@@ -2,7 +2,7 @@
 name: naming-confidence
 tier: agent
 description: Evidence rules for naming functions, types, fields, parameters, locals, constants, and enums in the Halo Xbox target reconstruction.
-triggers: ["rename", "naming", "field name", "enum name", "struct name", "PDB", "PAL", "CEA"]
+triggers: ["rename", "naming", "field name", "enum name", "struct name", "PDB", "CEA"]
 ---
 
 # Naming confidence
@@ -17,7 +17,7 @@ Names are claims. Use the most specific name independently supported by the
 | T3 | Width/offset/access is proven but semantics are incomplete | Mechanical or deliberately broad name: `field_<offset>`, `unknown_<role>`, `FUN_<address>` |
 | T4 | Guess, single ambiguous use, or external cross-build suggestion without target proof | Keep unknown; record the hypothesis outside authoritative source |
 
-External PAL/CEA/HCEA/PDB-derived projects are `EXT-HYP` under
+External or cross-build material (other builds, PDB-derived projects) is `EXT-HYP` under
 `PROVENANCE.md`. They may suggest a search target, but they do not raise a name
 above T4. A name becomes T1/T2 only when 2276 evidence independently proves
 that same fact. Record both the historical suggestion and the independent
