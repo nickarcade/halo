@@ -185,6 +185,7 @@ tmp/
 .dcg/
 tools/verify/vc71_cache.db
 
+.rtk/*
 .serena
 recovery/*
 !recovery/evidence/
