@@ -7561,7 +7561,8 @@
     },
     {
      "addr": "0x864b0",
-     "decl": "int16_t director_desired_perspective(int unit_handle, int16_t *perspective);"
+     "decl": "int16_t director_desired_perspective(int unit_handle, int16_t *perspective);",
+     "ported": true
     },
     {
      "addr": "0x865a0",
@@ -7605,7 +7606,8 @@
     },
     {
      "addr": "0x86cb0",
-     "decl": "void director_script_camera(unsigned char value);"
+     "decl": "void director_script_camera(unsigned char value);",
+     "ported": true
     },
     {
      "addr": "0x86de0",
@@ -7667,7 +7669,8 @@
     },
     {
      "addr": "0x879d0",
-     "decl": "void editor_camera_set_position(const uint32_t *point, const uint32_t *angles);"
+     "decl": "void editor_camera_set_position(const uint32_t *point, const uint32_t *angles);",
+     "ported": true
     },
     {
      "addr": "0x87ac0",
@@ -7676,7 +7679,8 @@
     },
     {
      "addr": "0x87b00",
-     "decl": "void editor_camera_set_mode(int16_t mode);"
+     "decl": "void editor_camera_set_mode(int16_t mode);",
+     "ported": true
     },
     {
      "addr": "0x87c00",
@@ -7741,7 +7745,7 @@
     {
      "addr": "0x88d50",
      "decl": "void first_person_camera_for_unit_and_vector(float *vector @<eax>, int32_t unit_index @<ecx>, void *result @<esi>);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x89240",
@@ -11124,7 +11128,8 @@
     },
     {
      "addr": "0x1c0ac0",
-     "decl": "void game_state_write_to_persistent_storage(int buffer, uint32_t *checksum, int header_size, int buffer_size);"
+     "decl": "void game_state_write_to_persistent_storage(int buffer, uint32_t *checksum, int header_size, int buffer_size);",
+     "ported": true
     },
     {
      "addr": "0x1c0c20",
@@ -11188,7 +11193,7 @@
     {
      "addr": "0x1c1340",
      "decl": "bool player_profile_read(int profile_index@<edi>, void *profile@<esi>);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1c15c0",
@@ -18926,7 +18931,7 @@
     {
      "addr": "0x8aa80",
      "decl": "void observer_up_from_forward(float *forward, float *up);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x8ab10",
@@ -18947,7 +18952,7 @@
     {
      "addr": "0x8acb0",
      "decl": "void observer_set_camera(int16_t local_player_index, void *camera_command);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x8b060",
@@ -20132,7 +20137,7 @@
      "addr": "0xe10c0",
      "decl": "void set_local_player_controls_from_player_profile(short local_player_index@<edi>);",
      "name": "set_local_player_controls_from_player_profile",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0xe13f0",
@@ -24303,7 +24308,7 @@
     {
      "addr": "0x28250",
      "decl": "int FUN_00028250(float *look_vectors, char is_secondary, int actor_handle @<esi>, int look_type @<edi>);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x283b0",
@@ -26014,7 +26019,8 @@
     {
      "addr": "0x1c22e0",
      "decl": "boolean playlist_profile_read(game_variant_t *variant@<ebx>, int unknown);",
-     "comment": "[param variant@<ebx> proven by TEST EBX,EBX at 0x1c22e9 before any write plus the \"variant\" assert condition string; one stack arg [EBP+0x8] tested signed (JNS 0x1c2362); byte return via MOV AL,[EBP-0x1] at every epilog]"
+     "comment": "[param variant@<ebx> proven by TEST EBX,EBX at 0x1c22e9 before any write plus the \"variant\" assert condition string; one stack arg [EBP+0x8] tested signed (JNS 0x1c2362); byte return via MOV AL,[EBP-0x1] at every epilog]",
+     "ported": true
     },
     {
      "addr": "0x1c2550",
@@ -26232,7 +26238,7 @@
      "addr": "0x1c46c0",
      "decl": "bool delete_enumerated_saved_game_file(int32_t saved_game_file_index);",
      "comment": "[NAME: delete_enumerated_saved_game_file - own error strings at 0x2bb450/0x2bb4a8 (T1)]",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1c4850",
@@ -29948,7 +29954,7 @@
     {
      "addr": "0xe6ab0",
      "decl": "bool widget_event_function_list_widget_goto_next_item(void *widget, void *event_data, char *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "widget_event_function_list_widget_goto_next_item"
     },
     {
@@ -30524,7 +30530,7 @@
     {
      "addr": "0xefa80",
      "decl": "bool delete_playlist_profile_request(void *widget, void *event_data, bool *widget_deleted);",
-     "ported": false,
+     "ported": true,
      "name": "delete_playlist_profile_request",
      "comment": "[NAME: delete_playlist_profile_request \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14] UI event handler table index 75; dormant lift 2026-09-29."
     },
@@ -30956,7 +30962,8 @@
     {
      "addr": "0xf3c80",
      "decl": "void mutliplayer_settings_select_list_update_displayed_items(widget_instance_t *list_widget);",
-     "name": "mutliplayer_settings_select_list_update_displayed_items"
+     "name": "mutliplayer_settings_select_list_update_displayed_items",
+     "ported": true
     },
     {
      "addr": "0xf4210",
@@ -31434,7 +31441,7 @@
     {
      "addr": "0x1a0b30",
      "decl": "char FUN_001a0b30(int unit_handle@<edi>);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1a0be0",
@@ -32968,7 +32975,7 @@
     {
      "addr": "0x1b79c0",
      "decl": "void vehicle_export_function_values(int vehicle_handle);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1b7ee0",
@@ -38193,7 +38200,7 @@
     {
      "addr": "0x441c0",
      "decl": "float ai_communication_get_player_rating(int unit_handle, char test_line_of_sight, int *out_unit_handle, float *out_distance);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x44500",
@@ -38220,12 +38227,12 @@
     {
      "addr": "0x44fd0",
      "decl": "void ai_communication_started(int unit_handle, uint16_t priority, uint16_t type, void *comm_data);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x45290",
      "decl": "void ai_communication_notify(int unit_handle, uint16_t priority, uint16_t type, void *comm_data);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x454a0",
@@ -43727,7 +43734,7 @@
     {
      "addr": "0x148eb0",
      "decl": "char FUN_00148eb0(void *data, int node_index, float param_3, float max_t);",
-     "ported": false
+     "ported": true
     },
     {
      "addr": "0x1491d0",

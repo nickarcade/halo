@@ -54799,7 +54799,7 @@
       "ref": "synth",
       "ref_sha": "48d94920b3d01927",
       "score": 98.6,
-      "source": "src/halo/camera/observer.c"
+      "source": "src/halo/camera/first_person_camera.c"
     },
     "first_person_camera_new": {
       "abi_model": "raw",

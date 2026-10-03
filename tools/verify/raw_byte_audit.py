@@ -60,7 +60,8 @@ def _coff_name(raw, string_table):
 
 def _same_symbol(left, right):
     def undecorate(name):
-        name = name[1:] if name.startswith("_") else name
+        # __fastcall (register-argument) symbols are "@name@N".
+        name = name[1:] if name.startswith(("_", "@")) else name
         if "@" in name and name.rsplit("@", 1)[1].isdigit():
             name = name.rsplit("@", 1)[0]
         return name
