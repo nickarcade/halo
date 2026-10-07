@@ -252,7 +252,7 @@ void action_alert_update(int actor_handle)
  *   is stored to *param_4 when non-NULL. Returns the first index whose flag
  *   bit is clear.
  * Unknown: field meanings of actor+0x160/0x68, pos+0x1e, prop+0x24/0xbc. */
-short action_alert_next_position(int actor_handle, short param_2, short param_3,
+short action_alert_next_position(int actor_handle, int param_2, int param_3,
                                  void *param_4)
 {
   char *actor;
