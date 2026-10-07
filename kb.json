@@ -9136,7 +9136,7 @@
         },
         {
           "addr": "0xb4300",
-          "decl": "int race_engine_update(int player_handle);",
+          "decl": "int race_engine_did_player_win(int player_handle);",
           "ported": true,
           "name": "race_engine_did_player_win"
         },
@@ -44870,12 +44870,12 @@
         },
         {
           "addr": "0x1b98c0",
-          "decl": "void tag_files_close(void);",
+          "decl": "void tag_files_open(void);",
           "name": "tag_files_open"
         },
         {
           "addr": "0x1b98d0",
-          "decl": "void tag_groups_checksum(void);",
+          "decl": "void tag_files_close(void);",
           "name": "tag_files_close"
         },
         {
