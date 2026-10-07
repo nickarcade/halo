@@ -67,35 +67,6 @@ typedef struct {
   char unk_1150[2];         ///< offset=0x47E
 } biped_data_t;
 
-// OBJE -> UNIT -> VEHI
-/// size=0x47C
-typedef struct {
-  unit_data_t unit;       ///< offset=0x000
-  uint16_t unk_1060;      ///< offset=0x424 .text:001B578E                 mov     [esi+424h], bx
-  uint16_t unk_1062;      ///< offset=0x426 .text:001B9819                 cmp     word ptr [ebx+426h], 0
-  uint8_t unk_1064;       ///< offset=0x428 .text:001A2020                 cmp     byte ptr [ebx+428h], 1Eh
-  uint8_t unk_1065;       ///< offset=0x429 .text:001B57A2                 mov     [esi+429h], bl
-  uint8_t unk_1066;       ///< offset=0x42A .text:001B57A8                 mov     [esi+42Ah], bl
-  uint8_t unk_1067;       ///< offset=0x42B .text:001B572C                 mov     al, [esi+42Bh]
-  float unk_1068;         ///< offset=0x42C .text:001B6025                 fld     dword ptr [esi+42Ch]
-  float unk_1072;         ///< offset=0x430 .text:001B7B31                 fld     dword ptr [esi+430h]
-  float unk_1076;         ///< offset=0x434 .text:001B602B                 fsub    dword ptr [esi+434h]
-  float unk_1080;         ///< offset=0x438 .text:001B5BA9                 fld     dword ptr [esi+438h]
-  float unk_1084;         ///< offset=0x43C .text:001B604C                 fadd    dword ptr [esi+43Ch]
-  float unk_1088;         ///< offset=0x440 .text:001B608F                 fadd    dword ptr [esi+440h]
-  float unk_1092;         ///< offset=0x444 .text:0002EAA8                 fld     dword ptr [edi+444h]
-  float unk_1096;         ///< offset=0x448 .text:001B6860                 fcomp   dword ptr [edi+448h]
-  uint8_t unk_1100[8];    ///< offset=0x44C .text:001B5786                 lea     ecx, [esi+44Ch] & .text:001B5C28                 mov     cl, [edi+esi+44Ch]
-  vector3_t unk_1108;     ///< offset=0x454 .text:001B5631                 lea     eax, [esi+454h]
-  float unk_1120;         ///< offset=0x460 .text:0015225F                 fadd    dword ptr [edi+460h]
-  float unk_1124;         ///< offset=0x464 .text:0015226E                 fadd    dword ptr [edi+464h]
-  float unk_1128;         ///< offset=0x468 .text:0015227D                 fadd    dword ptr [edi+468h]
-  float unk_1132;         ///< offset=0x46C .text:0015228C                 fadd    dword ptr [edi+46Ch]
-  float unk_1136;         ///< offset=0x470 .text:0015229B                 fadd    dword ptr [edi+470h]
-  float unk_1140;         ///< offset=0x474 .text:001522AA                 fadd    dword ptr [edi+474h]
-  uint32_t unk_1144;      ///< offset=0x478 .text:001B80DA                 test    [ebx+478h], edx
-} vehicle_data_t;
-
 // OBJE -> ITEM -> EQUI
 /// size=0x1F4
 typedef struct {
@@ -222,16 +193,6 @@ typedef struct {
 #define MAXIMUM_LENS_FLARES_PER_LIGHT 8
 #define MAXIMUM_RENDERED_POINT_LIGHTS 2
 #define MAXIMUM_CLUSTERS_PER_LIGHT 0x200
-
-/// size=0xc.
-typedef struct {
-  real red;   ///< offset=0x00
-  real green; ///< offset=0x04
-  real blue;  ///< offset=0x08
-} real_rgb_color;
-cs(real_rgb_color, 0xc);
-co(real_rgb_color, green, 0x04);
-co(real_rgb_color, blue, 0x08);
 
 /// Prefix of the 'ligh' tag definition; the full size is not yet proven.
 typedef struct {

@@ -46,6 +46,18 @@ double __cdecl fabs(double);
 #define FUN_00157940 __rasterizer_frame_begin
 #define FUN_0017d9d0 rasterizer_script_screen_effect_get_value
 #define FUN_001806e0 environment_lightmap_vertex_compressed_get_texcoord
+#define cluster_partition_add_object cluster_partition_reconnect
+#define cluster_partition_remove_object cluster_partition_disconnect
+#define cluster_partition_iter_first cluster_partition_get_first_datum
+#define cluster_partition_iter_next cluster_partition_get_next_datum
+#define rasterizer_environment_diffuse_lights_end rasterizer_environment_diffuse_light_end
+#define FUN_00076ff0 bitmap_group_try_and_get_bitmap
+#define FUN_0007c270 rgb_colors_interpolate
+#define FUN_0007c490 rgb_colors_interpolate_and_scale
+#define FUN_00180570 environment_vertex_compressed_get_normal
+#define FUN_00180660 environment_lightmap_vertex_compressed_get_incident_radiosity
+#define FUN_00180770 compress_real_to_int8
+#define FUN_00189540 render_debug_sphere
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert.
  * assert_halt stamps OUR __FILE__/__LINE__, so the emitted .rdata path string
