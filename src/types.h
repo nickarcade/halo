@@ -4354,12 +4354,26 @@ co(triangle_buffer, hardware_format, 0x0c);
 /// to matrix4x3_transform_vector (via lightning_offset_marker_position) and
 /// copies matrix.position from +0x60; glow reads forward (+0x3c) and up (+0x54).
 typedef struct object_marker {
-    uint8_t pad_00[0x38];  ///< offset=0x00  node_index / node_matrix: not accessed by recovered code
-    real_matrix4x3 matrix; ///< offset=0x38  name: T2
+    union {
+        struct {
+            uint8_t pad_00[0x38];  ///< offset=0x00  node_index / node_matrix: not accessed by recovered code
+            real_matrix4x3 matrix; ///< offset=0x38  name: T2
+        };
+        struct {
+            uint8_t _pad_00[60];
+            float matrix_forward[3];
+            uint8_t _pad_48[12];
+            float matrix_up[3];
+            float matrix_position[3];
+        };
+    };
 } object_marker;
 cs(object_marker, 0x6C);
 co(object_marker, pad_00, 0x00);
 co(object_marker, matrix, 0x38);
+co(object_marker, matrix_forward, 0x3C);
+co(object_marker, matrix_up, 0x54);
+co(object_marker, matrix_position, 0x60);
 
 /// size=0x64  (data_new("glow particles", 0x200, 0x64) @0x13377f in glow_initialize (0x133750))
 /// Recovered layout - evidence artifact: recovery/evidence/glow_particle.json
