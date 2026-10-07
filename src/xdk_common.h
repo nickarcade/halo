@@ -48,6 +48,8 @@ extern "C" {
 #define FUN_0017d060 rasterizer_hud_motion_sensor_blip_draw
 #define FUN_0017d070 rasterizer_hud_motion_sensor_blip_end
 #define FUN_000a57b0(v, len) limit3d((real_vector3d *)(v), (len))
+#define FUN_00190240 scenario_get_current_from_weather_palette
+#define FUN_00190550 scenario_get_current
 
 #define CLAMP(x, low, high) \
   ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))
