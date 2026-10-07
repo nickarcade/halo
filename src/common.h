@@ -31,6 +31,7 @@ double __cdecl fabs(double);
 
 #define FUN_00189150 render_debug_point
 #define FUN_00189270 render_debug_line
+#define FUN_00077040 bitmap_group_get_bitmap_from_sequence
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert.
  * assert_halt stamps OUR __FILE__/__LINE__, so the emitted .rdata path string
