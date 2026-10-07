@@ -38,6 +38,8 @@ double __cdecl fabs(double);
 #define FUN_00188a90 render_debug_polygon
 #define FUN_00189ba0 render_debug_polygon_edges
 #define FUN_00189cb0 render_debug_string_at_point
+#define FUN_0017d060 rasterizer_hud_motion_sensor_blip_draw
+#define FUN_0017d070 rasterizer_hud_motion_sensor_blip_end
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert.
  * assert_halt stamps OUR __FILE__/__LINE__, so the emitted .rdata path string
