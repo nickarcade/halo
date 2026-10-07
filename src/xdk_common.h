@@ -39,6 +39,9 @@ extern "C" {
 #define FUN_00189150 render_debug_point
 #define FUN_00189270 render_debug_line
 #define FUN_00077040 bitmap_group_get_bitmap_from_sequence
+#define director_choose_game_perspective FUN_00086be0
+#define unit_get_camera_position unit_set_seat_state
+#define object_get_marker_by_name object_get_markers_by_string_id
 
 #define CLAMP(x, low, high) \
   ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))
@@ -98,6 +101,7 @@ static const int _scenario_type_main_menu = 2;
 #define TAG_GROUP_SHDR 0x73686472 /* 'shdr' */
 #define TAG_GROUP_SND  0x736e6421 /* 'snd!' */
 #define TAG_GROUP_WEAP 0x77656170 /* 'weap' */
+#define TAG_GROUP_VEHI 0x76656869 /* 'vehi' */
 
 /* The original source's FLAG(bit) macro, quoted verbatim by binary assert
  * strings ("server_connection->flags&FLAG(_connection_create_server_bit)"). */
