@@ -43,6 +43,7 @@ double __cdecl fabs(double);
 #define FUN_000a57b0(v, len) limit3d((real_vector3d *)(v), (len))
 #define FUN_00190240 scenario_get_current_from_weather_palette
 #define FUN_00190550 scenario_get_current
+#define FUN_00157940 __rasterizer_frame_begin
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert.
  * assert_halt stamps OUR __FILE__/__LINE__, so the emitted .rdata path string
