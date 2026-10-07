@@ -25198,6 +25198,34 @@
       "kind": "data",
       "status": "ported"
     },
+    "0x130c0": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x53800": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xb1160": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaf10": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaf40": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0xcaf60": {
+      "kind": "function",
+      "status": "ported"
+    },
+    "0x108060": {
+      "kind": "function",
+      "status": "ported"
+    },
     "0x61ca0": {
       "kind": "function",
       "status": "ported"
@@ -25367,10 +25395,6 @@
       "status": "ported"
     },
     "0xc97f0": {
-      "kind": "function",
-      "status": "ported"
-    },
-    "0xcaf60": {
       "kind": "function",
       "status": "ported"
     },

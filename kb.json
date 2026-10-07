@@ -10868,9 +10868,9 @@
         },
         {
           "addr": "0xb1160",
-          "decl": "void point3d_to_point2d(uint32_t a0, int32_t a1, uint32_t *a2);",
-          "ported": false,
-          "name": "point3d_to_point2d"
+          "decl": "void point3d_to_point2d(const float *points3d@<ecx>, float *points2d@<edx>, int count@<esi>);",
+          "name": "point3d_to_point2d",
+          "ported": true
         },
         {
           "addr": "0xb14d0",
@@ -26247,7 +26247,7 @@
         },
         {
           "addr": "0x12350",
-          "decl": "short action_alert_next_position(int actor_handle, short param_2, short param_3, void *param_4);",
+          "decl": "short action_alert_next_position(int actor_handle, int param_2, int param_3, void *param_4);",
           "ported": true
         },
         {
@@ -26412,9 +26412,9 @@
         },
         {
           "addr": "0x130c0",
-          "decl": "void real_random(void);",
-          "ported": false,
-          "name": "real_random"
+          "decl": "float real_random(void);",
+          "name": "real_random",
+          "ported": true
         },
         {
           "addr": "0x213f0",
@@ -37255,10 +37255,6 @@
           "decl": "void get_edge_vertex(void);"
         },
         {
-          "addr": "0x108060",
-          "decl": "short FUN_00108060(int16_t count, void *records, int a3, uint16_t *scratch, int max_count, uint16_t *out_list, uint32_t seed);"
-        },
-        {
           "addr": "0x108270",
           "decl": "void get_face_vertex(void);"
         },
@@ -37291,12 +37287,14 @@
         {
           "addr": "0x108a10",
           "decl": "int rect2d_width(const int16_t *rect);",
-          "ported": true
+          "ported": true,
+          "name": "rect2d_width"
         },
         {
           "addr": "0x108a30",
           "decl": "int rect2d_height(const int16_t *rect);",
-          "ported": true
+          "ported": true,
+          "name": "rect2d_height"
         },
         {
           "addr": "0x108a50",
@@ -41116,7 +41114,8 @@
         {
           "addr": "0x53800",
           "decl": "void ai_profile_string(char *text, int column_count, short *column_positions, void *context @<eax>);",
-          "name": "ai_profile_string"
+          "name": "ai_profile_string",
+          "ported": true
         },
         {
           "addr": "0x53890",
@@ -45061,6 +45060,12 @@
         {
           "addr": "0x106f50",
           "decl": "bool FUN_00106f50(int16_t point_count, float *points, int16_t vertices_capacity, char *vertices, int16_t edges_capacity, char *edges, int16_t surfaces_capacity, char *surfaces);",
+          "ported": true
+        },
+        {
+          "addr": "0x108060",
+          "decl": "short convex_hull2d_intersect(int16_t p_count, const float *p, int16_t q_count, const float *q, int16_t maximum_count, float *result, float epsilon);",
+          "name": "convex_hull2d_intersect",
           "ported": true
         }
       ],
