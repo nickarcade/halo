@@ -29,6 +29,9 @@ double __cdecl fabs(double);
 #include "inlines.h"
 #include "decl.h"
 
+#define FUN_00189150 render_debug_point
+#define FUN_00189270 render_debug_line
+
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert.
  * assert_halt stamps OUR __FILE__/__LINE__, so the emitted .rdata path string
  * and the `push <line>` immediate never match the original binary (an

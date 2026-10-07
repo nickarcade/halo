@@ -36,6 +36,9 @@ extern "C" {
 #define NULL 0
 #endif
 
+#define FUN_00189150 render_debug_point
+#define FUN_00189270 render_debug_line
+
 #define CLAMP(x, low, high) \
   ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))
 
