@@ -38,18 +38,18 @@ Select a badge to open that workflow's run history.
 Game Code Progress
 ------------------
 <!-- GAME_CODE_PROGRESS_START -->
-[![Decompilation Progress](https://img.shields.io/badge/decompilation-86.47%25-green.svg)](https://nickarcade.github.io/nickarcade/main2revised/)
-[![Ported Functions](https://img.shields.io/badge/functions-6,548%2F7,573-blue.svg)](https://nickarcade.github.io/nickarcade/main2revised/)
+[![Decompilation Progress](https://img.shields.io/badge/decompilation-86.50%25-green.svg)](https://nickarcade.github.io/nickarcade/main2revised/)
+[![Ported Functions](https://img.shields.io/badge/functions-6,551%2F7,573-blue.svg)](https://nickarcade.github.io/nickarcade/main2revised/)
 
 Progress breakdown from the [Decompilation Progress Dashboard](https://nickarcade.github.io/nickarcade/main2revised/):
 
-* **Ported Functions:** `6,548 / 7,573` (`86.47%`)
-  `[███████████████████████████████████░░░░░] 86.47%`
-* **Ported Code Bytes:** `7,984,574 / 9,722,332` (`82.13%`)
+* **Ported Functions:** `6,551 / 7,573` (`86.50%`)
+  `[███████████████████████████████████░░░░░] 86.50%`
+* **Ported Code Bytes:** `7,984,094 / 9,720,860` (`82.13%`)
   `[█████████████████████████████████░░░░░░░] 82.13%`
-* **Average VC71 Mnemonic Match:** `94.80%` (`6,479` scored functions, size-weighted: `91.20%`; structural signal, not raw-byte accuracy)
+* **Average VC71 Mnemonic Match:** `94.90%` (`6,478` scored functions, size-weighted: `91.20%`; structural signal, not raw-byte accuracy)
 * **Equivalence Tests:** `513` functions tested (`170` high confidence)
-* **Translation Units:** `190` source units (`39` platform/SDK buckets tracked separately)
+* **Translation Units:** `192` source units (`39` platform/SDK buckets tracked separately)
 
 > Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://nickarcade.github.io/nickarcade/main2revised/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
 <!-- GAME_CODE_PROGRESS_END -->
