@@ -2567,7 +2567,10 @@ typedef struct {
   char pad_282[0x2];
   int16_t field_284;                                 /* +0x284  accessed 1x, meaning unproven */
   char field_286;                                    /* +0x286  accessed 1x, meaning unproven */
-  char danger_zone_noticed_danger;                    /* +0x287  assert text 0x254e08 @0x24d86 */
+  union {
+    char danger_zone_noticed_danger;                  /* +0x287  assert text 0x254e08 @0x24d86 */
+    char field_287;
+  };
   char field_288;                                    /* +0x288  accessed 5x, meaning unproven */
   char pad_289[0x1];
   char field_28a;                                    /* +0x28a  accessed 1x, meaning unproven */
