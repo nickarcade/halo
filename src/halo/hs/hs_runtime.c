@@ -4450,7 +4450,7 @@ void render_debug_scripting(void)
     }
     buffer[0x400] = 0;
     draw_string_set_tab_stops(tab_stops, 2);
-    FUN_00189c40(1, buffer);
+    render_debug_string(1, buffer);
     draw_string_set_tab_stops(tab_stops, 0);
   }
 }

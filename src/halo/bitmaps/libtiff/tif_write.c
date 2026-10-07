@@ -2920,8 +2920,8 @@ void extract_pixels_from_mipmap(short source_mipmap_index,
                        source_mipmap_index <=
                          *(short *)((char *)source_bitmap + 0x14));
   if ((*((unsigned char *)source_bitmap + 0xe) & 2) != 0) {
-    bitmap_3d_compress_to_mipmap(source_bitmap, destination_bitmap,
-                                 source_mipmap_index);
+    bitmap_uncompress_from_mipmap(source_bitmap, destination_bitmap,
+                                  source_mipmap_index);
     return;
   }
   source_address = bitmap_mipmap_address(source_bitmap, source_mipmap_index);
