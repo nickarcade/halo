@@ -38,25 +38,34 @@ Select a badge to open that workflow's run history.
 Game Code Progress
 ------------------
 <!-- GAME_CODE_PROGRESS_START -->
-[![Decompilation Progress](https://img.shields.io/badge/decompilation-93.10%25-brightgreen.svg)](https://stianeklund.github.io/halo/)
-[![Ported Functions](https://img.shields.io/badge/functions-6,341%2F6,811-blue.svg)](https://stianeklund.github.io/halo/)
+[![Decompilation Progress](https://img.shields.io/badge/decompilation-86.47%25-green.svg)](https://nickarcade.github.io/nickarcade/main2revised/)
+[![Ported Functions](https://img.shields.io/badge/functions-6,548%2F7,573-blue.svg)](https://nickarcade.github.io/nickarcade/main2revised/)
 
-Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklund.github.io/halo/):
+Progress breakdown from the [Decompilation Progress Dashboard](https://nickarcade.github.io/nickarcade/main2revised/):
 
-* **Ported Functions:** `6,341 / 6,811` (`93.10%`)
-  `[█████████████████████████████████████░░░] 93.10%`
-* **Ported Code Bytes:** `1,416,821 / 1,738,043` (`81.52%`)
-  `[█████████████████████████████████░░░░░░░] 81.52%`
-* **Average VC71 Mnemonic Match:** `95.40%` (`6,366` scored functions, size-weighted: `91.80%`; structural signal, not raw-byte accuracy)
-* **Equivalence Tests:** `5,690` functions tested (`2,052` high confidence)
+* **Ported Functions:** `6,548 / 7,573` (`86.47%`)
+  `[███████████████████████████████████░░░░░] 86.47%`
+* **Ported Code Bytes:** `7,984,574 / 9,722,332` (`82.13%`)
+  `[█████████████████████████████████░░░░░░░] 82.13%`
+* **Average VC71 Mnemonic Match:** `94.80%` (`6,479` scored functions, size-weighted: `91.20%`; structural signal, not raw-byte accuracy)
+* **Equivalence Tests:** `513` functions tested (`170` high confidence)
 * **Translation Units:** `190` source units (`39` platform/SDK buckets tracked separately)
 
-> Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://stianeklund.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
+> Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://nickarcade.github.io/nickarcade/main2revised/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
 <!-- GAME_CODE_PROGRESS_END -->
+
+### MSVC 7.1 Byte-Matching & Verification Status (`mainrevised2`)
+* **Target Binary:** Xbox Debug Build 2276 (`halo-patched/cachebeta.xbe`, MD5: `c7869590a1c64ad034e49a5ee0c02465`)
+* **Compiler:** Microsoft Visual C++ Toolkit 2003 (`CL.Exe` v13.10.3077 / MSVC 7.1) under Wine32
+* **Verification Smoke Test:** [`FUN_000dc000`](src/halo/interface/event_manager.c) — **100.0% instruction & operand match** (27/27 insns)
+* **Raw-XBE Structural Coverage (`event_manager.c`):** 12/36 exact functions (33.33%), 44.04% aligned bytes
+* **Byte-Matching Queue:** `FUN_000dc800` (97.20%), `FUN_000dbfb0` (89.09%), `event_manager_tab_process` (88.24%)
+* **Interactive Dashboard:** [Decompilation & Verification Dashboard](https://nickarcade.github.io/nickarcade/main2revised/) (or locally at [`docs/index.html`](docs/index.html))
+* **Full Verification Report:** [`docs/msvc71-bytematch-test-results.md`](docs/msvc71-bytematch-test-results.md)
 
 Community
 ---------
-The homepage for this project is: https://stianeklund.github.io/halo/
+The homepage for this project is: https://nickarcade.github.io/nickarcade/main2revised/
 
 Current State
 -------------
@@ -65,7 +74,7 @@ Current State
 * Several more functions are implemented
 * Long way to go...
 
-The [Progress Report](https://stianeklund.github.io/halo/) details what functionality has been re-implemented.
+The [Progress Report](https://nickarcade.github.io/nickarcade/main2revised/) details what functionality has been re-implemented.
 
 Build
 -----
@@ -134,7 +143,7 @@ The process of adding re-implemented functions is mostly automated and relativel
 * The build system will compile and patch the XBE with redirects from the original implementations to the re-implementations.
 * Naturally, your new code will call some function in the original binary that has not yet been re-implemented. These functions will also be automatically linked correctly, provided the definitions of data and called functions are in `kb.json`.
 
-See the [Progress Report](https://stianeklund.github.io/halo/) to interactively explore the call graph, familiarize yourself with the code base, and examine the project frontier.
+See the [Progress Report](https://nickarcade.github.io/nickarcade/main2revised/) to interactively explore the call graph, familiarize yourself with the code base, and examine the project frontier.
 
 Low-risk reverse engineering workflow metadata can be stored in `kb_meta.json`.
 Unlike `kb.json`, it does not affect code generation or linking. Use
