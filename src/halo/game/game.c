@@ -1634,7 +1634,7 @@ bool FUN_000b5040(unsigned int player_handle, int event_type, int target_handle,
  *   the target handle before the man-out test.
  * Confirmed 0xb538b: JMP 0xa8b00 — tail call to game_engine_start_over.
  */
-void slayer_player_update(int player_index)
+void slayer_engine_display_score(int player_index)
 {
   player_data_t *player;
   player_data_t *target;

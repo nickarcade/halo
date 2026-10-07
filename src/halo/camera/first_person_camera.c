@@ -185,6 +185,17 @@ void first_person_camera_for_unit_and_vector(float *vector, int32_t unit_index,
   }
 }
 
+/* Fake first-person camera update from unit facing direction (0x89240).
+ * [TU: c:\halo\SOURCE\camera\first_person_camera.c -- __FILE__ assert xref] */
+void first_person_camera_fake(int32_t unit_index, void *result)
+{
+  void *unit;
+
+  unit = object_get_and_verify_type(unit_index, 3);
+  first_person_camera_for_unit_and_vector(
+    (float *)((char *)unit + 0x1ec), unit_index, result);
+}
+
 
 
 
