@@ -58,6 +58,7 @@ double __cdecl fabs(double);
 #define FUN_00180660 environment_lightmap_vertex_compressed_get_incident_radiosity
 #define FUN_00180770 compress_real_to_int8
 #define FUN_00189540 render_debug_sphere
+#define FUN_00181670 rasterizer_lens_flare_submit
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert.
  * assert_halt stamps OUR __FILE__/__LINE__, so the emitted .rdata path string

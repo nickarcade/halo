@@ -65,6 +65,7 @@ extern "C" {
 #define FUN_00180660 environment_lightmap_vertex_compressed_get_incident_radiosity
 #define FUN_00180770 compress_real_to_int8
 #define FUN_00189540 render_debug_sphere
+#define FUN_00181670 rasterizer_lens_flare_submit
 
 #define CLAMP(x, low, high) \
   ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))
