@@ -42,6 +42,9 @@ extern "C" {
 #define director_choose_game_perspective FUN_00086be0
 #define unit_get_camera_position unit_set_seat_state
 #define object_get_marker_by_name object_get_markers_by_string_id
+#define FUN_00188a90 render_debug_polygon
+#define FUN_00189ba0 render_debug_polygon_edges
+#define FUN_00189cb0 render_debug_string_at_point
 
 #define CLAMP(x, low, high) \
   ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))
