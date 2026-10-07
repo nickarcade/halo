@@ -220,7 +220,7 @@ char process_3d_bitmaps(void)
           *(void **)(*(char **)0x334134 + ((short)outer + i) * 0x10),
           new_bitmap, 0, i);
       }
-      *(short *)0x33415c = mip_count;
+      *(short *)0x33415c = sequence_index;
       handle = extract_bitmap_to_group(new_bitmap);
       if (handle != (short)-1) {
         tag_element = tag_block_get_element(*(char **)0x33414c + 0x54,

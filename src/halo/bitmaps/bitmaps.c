@@ -582,6 +582,8 @@ const char *bitmap_format_get_string(short format)
  * The format must be in range [0, 18) and the table entry must be non-zero
  * (i.e. the format must be a supported/known type).
  * Table at 0x26491c: {8,8,8,16,0,0,16,0,16,16,32,32,0,0,4,8,8,8} */
+#define bitmap_format_bits_per_pixel bitmap_format_get_bits_per_pixel
+
 short bitmap_format_get_bits_per_pixel(short format)
 {
   static const char bitmap_format_bits_per_pixel_table[18] = {
