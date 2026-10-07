@@ -3617,7 +3617,7 @@ void ai_profile_string(char *text, int column_count, short *column_positions, vo
   interface_set_bitmap_text_draw_mode(1, -1, 0, 0, 5, 0);
   draw_string_set_color(context);
   draw_string_set_tab_stops(column_positions, (short)column_count);
-  rasterizer_text_draw(bounds, NULL, pen, 0, text);
+  rasterizer_draw_string(bounds, NULL, pen, 0, text);
   draw_string_set_tab_stops(NULL, 0);
 
   *(int16_t *)0x5aba80 = (int16_t)(*(int16_t *)0x5aba80 + (bounds[0] - pen[1]));
