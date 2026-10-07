@@ -319,6 +319,17 @@ co(light_datum_t, attachment, 0x60);
 co(light_datum_t, relative_forward, 0x6c);
 co(light_datum_t, scale, 0x78);
 
+/// size=0x08 (element size passed to game_state_data_new @0x134b50).
+typedef struct {
+  int16_t datum_salt;  ///< offset=0x00  standard data_t element prefix
+  uint8_t pad_02[2];   ///< offset=0x02
+  int32_t field_04;    ///< offset=0x04  MOV dword [EAX+0x4],EDX @0x134c0c (light_volume_new param)
+} light_volume_datum_t;
+cs(light_volume_datum_t, 0x08);
+co(light_volume_datum_t, field_04, 0x04);
+
+#define MAXIMUM_LIGHT_VOLUMES 256 /* game_state_data_new count @0x134b52 */
+
 /// size=0x28 (the lens flare queue stride).
 typedef struct {
   void *definition;                ///< offset=0x00  'lens' tag
@@ -391,6 +402,7 @@ co(lights_globals_t, queued_lens_flare_count, 0x34c);
 #define REAL_HALF_PI_POOL (*(float *)0x2568bc) /* 1.5707964f */
 #define REAL_MAX_POOL (*(float *)0x2548fc) /* 3.4028235e38f */
 #define DOUBLE_0_25_POOL (*(double *)0x28c8d8) /* 0.25 */
+#define light_volume_data (*(data_t **)0x46f020) /* "light volumes" data_new name */
 
 #define light_get(index) ((light_datum_t *)datum_get(light_data, (index)))
 #define light_definition_get(index) \

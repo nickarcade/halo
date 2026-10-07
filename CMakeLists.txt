@@ -142,8 +142,21 @@ if(ENABLE_XDK_HYBRID AND NOT MSVC)
 		set(${OUT_VAR} "${_result}" PARENT_SCOPE)
 	endfunction()
 
-	set(XDK_CL "/mnt/c/Program Files (x86)/RXDK/xbox/bin/vc71/CL.Exe")
-	set(XDK_INC "C:/Program Files (x86)/RXDK/xbox/include")
+	# Xbox SDK install: RXDK_ROOT from the environment (WSL-style /mnt/<drive>/...
+	# path), defaulting to the standard Windows install directory.
+	if(DEFINED ENV{RXDK_ROOT} AND NOT "$ENV{RXDK_ROOT}" STREQUAL "")
+		set(RXDK_ROOT "$ENV{RXDK_ROOT}")
+	else()
+		set(RXDK_ROOT "/mnt/c/Program Files (x86)/RXDK")
+	endif()
+	set(XDK_CL "${RXDK_ROOT}/xbox/bin/vc71/CL.Exe")
+	string(REGEX MATCH "^/mnt/([a-zA-Z])/(.*)$" _rxdk_match "${RXDK_ROOT}")
+	if(_rxdk_match)
+		string(TOUPPER "${CMAKE_MATCH_1}" _rxdk_drive)
+		set(XDK_INC "${_rxdk_drive}:/${CMAKE_MATCH_2}/xbox/include")
+	else()
+		set(XDK_INC "${RXDK_ROOT}/xbox/include")
+	endif()
 
 	# TUs compiled with XDK MSVC 7.1 instead of clang.
 	# Requirements: no inline asm (or asm guarded by #ifdef XDK_BUILD), C89 only.

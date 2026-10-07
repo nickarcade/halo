@@ -39,6 +39,7 @@ halo/ai/actor_firing_position.c
 	halo/camera/bored_camera.c
 	halo/camera/static_camera.c
 	halo/camera/director.c
+	halo/camera/first_person_camera.c
 	halo/camera/observer.c
 	halo/common.c
 	halo/cseries/cseries.c
@@ -65,6 +66,7 @@ halo/ai/actor_firing_position.c
 	halo/hs/hs.c
 	halo/hs/hs_compile.c
 	halo/hs/hs_runtime.c
+	halo/game/aim_assist.c
 	halo/game/cheats.c
 	halo/game/editor_stubs.c
 	halo/game/game.c
@@ -182,11 +184,13 @@ halo/rasterizer/rasterizer_text.c
 	halo/objects/object_lights.c
 	halo/objects/widgets/widgets.c
 	halo/objects/widgets/glow.c
+	halo/objects/widgets/light_volumes.c
 	halo/objects/widgets/lightning.c
 	halo/text/draw_string.c
 	halo/text/international_strings.c
 	halo/text/unicode.c
 	halo/tag_files/files.c
+	halo/tag_files/files_windows.c
 	halo/tag_files/tag_groups.c
 	halo/shell.c
 	halo/shell_xbox.c
