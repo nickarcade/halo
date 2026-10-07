@@ -829,7 +829,56 @@
           "decl": "void *unknown_334150;"
         }
       ],
-      "functions": [],
+      "functions": [
+        {
+          "addr": "0x160470",
+          "decl": "void D3DDevice_SetRenderState_10(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_10"
+        },
+        {
+          "addr": "0x160620",
+          "decl": "void D3DDevice_SetTextureStageState_10(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_10"
+        },
+        {
+          "addr": "0x160670",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_10(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_10"
+        },
+        {
+          "addr": "0x160890",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTexture(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTexture"
+        },
+        {
+          "addr": "0x1608a0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_10(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_10"
+        },
+        {
+          "addr": "0x160900",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_10(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_10"
+        },
+        {
+          "addr": "0x160910",
+          "decl": "void __rasterizer_environment_lightmap_end(void);",
+          "ported": false,
+          "name": "__rasterizer_environment_lightmap_end"
+        },
+        {
+          "addr": "0x160990",
+          "decl": "void __rasterizer_environment_specular_lightmap_end(void);",
+          "ported": false,
+          "name": "__rasterizer_environment_specular_lightmap_end"
+        }
+      ],
       "name": "<common>"
     },
     {
@@ -2755,6 +2804,12 @@
           "decl": "char *actor_get_weapon_definition(int actor_handle);",
           "ported": true,
           "comment": "[NAME: actor_get_weapon_definition \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+        },
+        {
+          "addr": "0x1bea0",
+          "decl": "void action_wait_begin(void);",
+          "ported": false,
+          "name": "action_wait_begin"
         }
       ],
       "name": "actions.obj",
@@ -3508,6 +3563,24 @@
           "decl": "int actor_place(int actv_tag_index, int encounter_index, int squad_index, void *starting_location, char use_major_variant, int16_t team);",
           "ported": true,
           "name": "actor_place"
+        },
+        {
+          "addr": "0x3bb10",
+          "decl": "void actor_debug_preupdate(void);",
+          "ported": false,
+          "name": "actor_debug_preupdate"
+        },
+        {
+          "addr": "0x3bb40",
+          "decl": "void actor_debug_postupdate(void);",
+          "ported": false,
+          "name": "actor_debug_postupdate"
+        },
+        {
+          "addr": "0x3be50",
+          "decl": "void actor_clear_orders(uint32_t a0);",
+          "ported": false,
+          "name": "actor_clear_orders"
         }
       ],
       "name": "actors.obj",
@@ -4356,6 +4429,30 @@
           "ported": true,
           "comment": "[NAME: actor_path_get_destination_firing_position_index \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "name": "actor_path_get_destination_firing_position_index"
+        },
+        {
+          "addr": "0x14350",
+          "decl": "void action_converse_begin(void);",
+          "ported": false,
+          "name": "action_converse_begin"
+        },
+        {
+          "addr": "0x14660",
+          "decl": "void action_fight_begin(void);",
+          "ported": false,
+          "name": "action_fight_begin"
+        },
+        {
+          "addr": "0x14670",
+          "decl": "void action_fight_end(void);",
+          "ported": false,
+          "name": "action_fight_end"
+        },
+        {
+          "addr": "0x1abc0",
+          "decl": "void action_vehicle_update(void);",
+          "ported": false,
+          "name": "action_vehicle_update"
         }
       ],
       "name": "actor_looking.obj",
@@ -4738,6 +4835,30 @@
           "addr": "0x1c6c00",
           "decl": "bool FUN_001c6c00(void *info, file_ref_t *file);",
           "ported": true
+        },
+        {
+          "addr": "0x1c5d60",
+          "decl": "void bink_decompress_audio_frame(void);",
+          "ported": false,
+          "name": "bink_decompress_audio_frame"
+        },
+        {
+          "addr": "0x1c6150",
+          "decl": "void IDirect3DBaseTexture8_Register(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "IDirect3DBaseTexture8_Register"
+        },
+        {
+          "addr": "0x1c6160",
+          "decl": "void __stdcall D3DTexture_UnlockRect(int param_1, int param_2);",
+          "ported": false,
+          "name": "D3DTexture_UnlockRect"
+        },
+        {
+          "addr": "0x1c6190",
+          "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect(int param_1, int param_2);",
+          "ported": false,
+          "name": "IDirect3DTexture8_UnlockRect"
         }
       ],
       "name": "bink_playback.obj",
@@ -4961,6 +5082,30 @@
           "addr": "0x7f150",
           "decl": "void bitmap_quantitize(void *bitmap, short *bits_per_channel);",
           "ported": true
+        },
+        {
+          "addr": "0x7d2f0",
+          "decl": "void bitmap_byte_swap_pixels(void);",
+          "ported": false,
+          "name": "bitmap_byte_swap_pixels"
+        },
+        {
+          "addr": "0x7d400",
+          "decl": "uint32_t bitmap_format_type_valid_width(int16_t a0);",
+          "ported": false,
+          "name": "bitmap_format_type_valid_width"
+        },
+        {
+          "addr": "0x7d420",
+          "decl": "uint32_t bitmap_format_type_valid_height(int16_t a0);",
+          "ported": false,
+          "name": "bitmap_format_type_valid_height"
+        },
+        {
+          "addr": "0x7ef60",
+          "decl": "void row_copy(int16_t a0, char *a1, uint16_t *a2);",
+          "ported": false,
+          "name": "row_copy"
         }
       ],
       "name": "bitmaps.obj",
@@ -5065,6 +5210,48 @@
           "decl": "char breakable_surface_extant(short breakable_surface_index);",
           "ported": true,
           "status": "ported"
+        },
+        {
+          "addr": "0x145500",
+          "decl": "char placeholder_new(void);",
+          "ported": false,
+          "name": "placeholder_new"
+        },
+        {
+          "addr": "0x145510",
+          "decl": "void placeholder_delete(void);",
+          "ported": false,
+          "name": "placeholder_delete"
+        },
+        {
+          "addr": "0x145520",
+          "decl": "void scenery_initialize(void);",
+          "ported": false,
+          "name": "scenery_initialize"
+        },
+        {
+          "addr": "0x145530",
+          "decl": "void scenery_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "scenery_initialize_for_new_map"
+        },
+        {
+          "addr": "0x145540",
+          "decl": "void scenery_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "scenery_dispose_from_old_map"
+        },
+        {
+          "addr": "0x145550",
+          "decl": "void scenery_dispose(void);",
+          "ported": false,
+          "name": "scenery_dispose"
+        },
+        {
+          "addr": "0x145600",
+          "decl": "void scenery_delete(void);",
+          "ported": false,
+          "name": "scenery_delete"
         }
       ],
       "name": "breakable_surfaces.obj",
@@ -5352,6 +5539,78 @@
           "addr": "0x1bfee0",
           "decl": "void cache_files_precache(void);",
           "ported": true
+        },
+        {
+          "addr": "0x1bb410",
+          "decl": "void cache_copy_issue_read_raw(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "cache_copy_issue_read_raw"
+        },
+        {
+          "addr": "0x1bb420",
+          "decl": "void cache_copy_issue_write_raw(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "cache_copy_issue_write_raw"
+        },
+        {
+          "addr": "0x1bb530",
+          "decl": "void cache_copy_issue_read_request(int32_t a0, uint32_t a1, int32_t a2);",
+          "ported": false,
+          "name": "cache_copy_issue_read_request"
+        },
+        {
+          "addr": "0x1bb550",
+          "decl": "void cache_copy_issue_read(void);",
+          "ported": false,
+          "name": "cache_copy_issue_read"
+        },
+        {
+          "addr": "0x1bc550",
+          "decl": "int32_t cached_map_block_on_async_request(int32_t a0);",
+          "ported": false,
+          "name": "cached_map_block_on_async_request"
+        },
+        {
+          "addr": "0x1bc580",
+          "decl": "int32_t cache_request_get(void);",
+          "ported": false,
+          "name": "cache_request_get"
+        },
+        {
+          "addr": "0x1bc960",
+          "decl": "void scenario_name_to_cache_file_path(uint32_t a0, uint32_t a1, char *a2);",
+          "ported": false,
+          "name": "scenario_name_to_cache_file_path"
+        },
+        {
+          "addr": "0x1bc970",
+          "decl": "void IDirect3DVertexBuffer8_IsBusy(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_IsBusy"
+        },
+        {
+          "addr": "0x1bc980",
+          "decl": "void IDirect3DVertexBuffer8_BlockUntilNotBusy(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_BlockUntilNotBusy"
+        },
+        {
+          "addr": "0x1bc990",
+          "decl": "void IDirect3DVertexBuffer8_Register(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Register"
+        },
+        {
+          "addr": "0x1bc9a0",
+          "decl": "void IDirect3DIndexBuffer8_IsBusy(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DIndexBuffer8_IsBusy"
+        },
+        {
+          "addr": "0x1bc9b0",
+          "decl": "void IDirect3DIndexBuffer8_BlockUntilNotBusy(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DIndexBuffer8_BlockUntilNotBusy"
         }
       ],
       "name": "cache_files_windows.obj",
@@ -5875,6 +6134,18 @@
         {
           "addr": "0x150ac0",
           "decl": "char FUN_00150ac0(int *data, int *point);"
+        },
+        {
+          "addr": "0x14ee30",
+          "decl": "void clip_position_to_plane(real *a0, real *a1, real *a2);",
+          "ported": false,
+          "name": "clip_position_to_plane"
+        },
+        {
+          "addr": "0x14ee70",
+          "decl": "void clip_velocity_to_plane(real *a0, real *a1, real *a2);",
+          "ported": false,
+          "name": "clip_velocity_to_plane"
         }
       ],
       "name": "collision_usage.obj",
@@ -6311,6 +6582,30 @@
           "decl": "const char *system_exception_name(uint32_t code@<ecx>);",
           "name": "system_exception_name",
           "ported": true
+        },
+        {
+          "addr": "0x8e300",
+          "decl": "void system_unique_identifier_get(void);",
+          "ported": false,
+          "name": "system_unique_identifier_get"
+        },
+        {
+          "addr": "0x8e4d0",
+          "decl": "void system_show_wait_cursor(void);",
+          "ported": false,
+          "name": "system_show_wait_cursor"
+        },
+        {
+          "addr": "0x8e4e0",
+          "decl": "void system_alert(void);",
+          "ported": false,
+          "name": "system_alert"
+        },
+        {
+          "addr": "0x8e4f0",
+          "decl": "void system_kill_screen_saver(void);",
+          "ported": false,
+          "name": "system_kill_screen_saver"
         }
       ],
       "name": "cseries_windows.obj",
@@ -6609,6 +6904,30 @@
         {
           "addr": "0x11ff70",
           "decl": "bool FUN_0011ff70(void *page);"
+        },
+        {
+          "addr": "0x11ed90",
+          "decl": "void memory_block_lock(void);",
+          "ported": false,
+          "name": "memory_block_lock"
+        },
+        {
+          "addr": "0x11edd0",
+          "decl": "void memory_block_unlock(void);",
+          "ported": false,
+          "name": "memory_block_unlock"
+        },
+        {
+          "addr": "0x11ee10",
+          "decl": "uint32_t memory_block_is_locked(void);",
+          "ported": false,
+          "name": "memory_block_is_locked"
+        },
+        {
+          "addr": "0x11f6f0",
+          "decl": "int32_t stack_memory_pool_new_block_clear(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "stack_memory_pool_new_block_clear"
         }
       ]
     },
@@ -6645,6 +6964,18 @@
         {
           "addr": "0x1cf9eb",
           "decl": "void GetThreadPriority(void);"
+        },
+        {
+          "addr": "0x1cf870",
+          "decl": "void sound_scenery_delete(void);",
+          "ported": false,
+          "name": "sound_scenery_delete"
+        },
+        {
+          "addr": "0x1cf91e",
+          "decl": "bool __stdcall DuplicateHandle(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7);",
+          "ported": false,
+          "name": "DuplicateHandle"
         }
       ],
       "name": "d3d_intimacy.obj",
@@ -7217,6 +7548,18 @@
           "addr": "0x17cd50",
           "decl": "void FUN_0017cd50(void);",
           "ported": false
+        },
+        {
+          "addr": "0x17ca90",
+          "decl": "void rasterizer_decals_update_function_pointers(void);",
+          "ported": false,
+          "name": "rasterizer_decals_update_function_pointers"
+        },
+        {
+          "addr": "0x17cc30",
+          "decl": "void rasterizer_environment_lightmap_end(void);",
+          "ported": false,
+          "name": "rasterizer_environment_lightmap_end"
         }
       ],
       "name": "decals.obj",
@@ -7442,6 +7785,54 @@
           "addr": "0x88c80",
           "decl": "void FUN_00088c80(int unit_handle, float *out_position, float *out_forward);",
           "ported": true
+        },
+        {
+          "addr": "0x86160",
+          "decl": "int32_t director_get(void);",
+          "ported": false,
+          "name": "director_get"
+        },
+        {
+          "addr": "0x877e0",
+          "decl": "void director_initialize_for_saved_game(void);",
+          "ported": false,
+          "name": "director_initialize_for_saved_game"
+        },
+        {
+          "addr": "0x87a70",
+          "decl": "void editor_camera_bump_speed(void);",
+          "ported": false,
+          "name": "editor_camera_bump_speed"
+        },
+        {
+          "addr": "0x87ab0",
+          "decl": "void editor_camera_get_speed(void);",
+          "ported": false,
+          "name": "editor_camera_get_speed"
+        },
+        {
+          "addr": "0x87af0",
+          "decl": "uint32_t editor_camera_get_unit_focus(void);",
+          "ported": false,
+          "name": "editor_camera_get_unit_focus"
+        },
+        {
+          "addr": "0x87be0",
+          "decl": "uint16_t editor_camera_get_mode(void);",
+          "ported": false,
+          "name": "editor_camera_get_mode"
+        },
+        {
+          "addr": "0x87bf0",
+          "decl": "char editor_camera_get_scripted(void);",
+          "ported": false,
+          "name": "editor_camera_get_scripted"
+        },
+        {
+          "addr": "0x87c70",
+          "decl": "float editor_camera_get_field_of_view(void);",
+          "ported": false,
+          "name": "editor_camera_get_field_of_view"
         }
       ],
       "name": "director.obj",
@@ -7718,6 +8109,30 @@
           "decl": "void material_effect_new(int param_1, short param_2, short param_3, void *param_4, void *param_5, void *param_6, float param_7);",
           "ported": true,
           "name": "material_effect_new"
+        },
+        {
+          "addr": "0x9c990",
+          "decl": "void effects_disconnect_from_structure_bsp(void);",
+          "ported": false,
+          "name": "effects_disconnect_from_structure_bsp"
+        },
+        {
+          "addr": "0x9c9d0",
+          "decl": "void effect_get_random_seed(uint32_t a0);",
+          "ported": false,
+          "name": "effect_get_random_seed"
+        },
+        {
+          "addr": "0x9cb70",
+          "decl": "uint16_t effect_part_allowed_by_disposition(int16_t a0, uint32_t a1, char a2);",
+          "ported": false,
+          "name": "effect_part_allowed_by_disposition"
+        },
+        {
+          "addr": "0x9cd80",
+          "decl": "void effect_get_node_matrix(uint32_t a0, uint32_t a1, int32_t a2);",
+          "ported": false,
+          "name": "effect_get_node_matrix"
         }
       ],
       "name": "effects.obj",
@@ -7882,6 +8297,24 @@
           "decl": "void FUN_0008f810(float seconds, int64_t ticks);",
           "ported": true,
           "source_path": "halo/cseries/errors.c"
+        },
+        {
+          "addr": "0x8f360",
+          "decl": "void reset_error_state(void);",
+          "ported": false,
+          "name": "reset_error_state"
+        },
+        {
+          "addr": "0x8f620",
+          "decl": "void errors_clear(void);",
+          "ported": false,
+          "name": "errors_clear"
+        },
+        {
+          "addr": "0x8f830",
+          "decl": "void profile_timesection_inherit(void);",
+          "ported": false,
+          "name": "profile_timesection_inherit"
         }
       ],
       "name": "errors.obj",
@@ -8704,7 +9137,8 @@
         {
           "addr": "0xb4300",
           "decl": "int race_engine_update(int player_handle);",
-          "ported": true
+          "ported": true,
+          "name": "race_engine_did_player_win"
         },
         {
           "addr": "0xb43b0",
@@ -8826,6 +9260,12 @@
           "addr": "0xb55b0",
           "decl": "float FUN_000b55b0(short value_type, int team);",
           "ported": true
+        },
+        {
+          "addr": "0xb4150",
+          "decl": "int32_t count_bits_32(uint32_t a0, uint32_t a1);",
+          "ported": false,
+          "name": "count_bits_32"
         }
       ],
       "name": "game.obj",
@@ -10257,6 +10697,606 @@
           "ported": true,
           "src": "src/halo/game/game_engine.c",
           "comment": "[NAME: race_engine_display_score \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+        },
+        {
+          "addr": "0xa81e0",
+          "decl": "void initialize_player_multiplayer_data(uint32_t a0);",
+          "ported": false,
+          "name": "initialize_player_multiplayer_data"
+        },
+        {
+          "addr": "0xa8360",
+          "decl": "void game_engine_game_ending(void);",
+          "ported": false,
+          "name": "game_engine_game_ending"
+        },
+        {
+          "addr": "0xa84c0",
+          "decl": "uint32_t is_place_tied(int32_t a0);",
+          "ported": false,
+          "name": "is_place_tied"
+        },
+        {
+          "addr": "0xa84d0",
+          "decl": "uint32_t place_get_position(int32_t a0);",
+          "ported": false,
+          "name": "place_get_position"
+        },
+        {
+          "addr": "0xa84e0",
+          "decl": "uint32_t get_place_string(int32_t a0);",
+          "ported": false,
+          "name": "get_place_string"
+        },
+        {
+          "addr": "0xa8560",
+          "decl": "void get_selected_color(uint32_t *a0);",
+          "ported": false,
+          "name": "get_selected_color"
+        },
+        {
+          "addr": "0xa8650",
+          "decl": "uint32_t can_delete_item(void);",
+          "ported": false,
+          "name": "can_delete_item"
+        },
+        {
+          "addr": "0xa8eb0",
+          "decl": "void game_engine_press_start_to_begin(void);",
+          "ported": false,
+          "name": "game_engine_press_start_to_begin"
+        },
+        {
+          "addr": "0xacaf0",
+          "decl": "uint32_t game_engine_get_type(void);",
+          "ported": false,
+          "name": "game_engine_get_type"
+        },
+        {
+          "addr": "0xacf80",
+          "decl": "void game_show_score_one_player(uint32_t a0, int32_t a1);",
+          "ported": false,
+          "name": "game_show_score_one_player"
+        },
+        {
+          "addr": "0xafeb0",
+          "decl": "void ctf_engine_dispose(void);",
+          "ported": false,
+          "name": "ctf_engine_dispose"
+        },
+        {
+          "addr": "0xafec0",
+          "decl": "void create_the_flag(void);",
+          "ported": false,
+          "name": "create_the_flag"
+        },
+        {
+          "addr": "0xaff60",
+          "decl": "void ctf_engine_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "ctf_engine_dispose_from_old_map"
+        },
+        {
+          "addr": "0xaff90",
+          "decl": "void ctf_engine_game_ending(void);",
+          "ported": false,
+          "name": "ctf_engine_game_ending"
+        },
+        {
+          "addr": "0xaffa0",
+          "decl": "void ctf_engine_game_starting(void);",
+          "ported": false,
+          "name": "ctf_engine_game_starting"
+        },
+        {
+          "addr": "0xaffb0",
+          "decl": "void ctf_engine_statistics_append(void);",
+          "ported": false,
+          "name": "ctf_engine_statistics_append"
+        },
+        {
+          "addr": "0xaffc0",
+          "decl": "void ctf_engine_handle_client_message(void);",
+          "ported": false,
+          "name": "ctf_engine_handle_client_message"
+        },
+        {
+          "addr": "0xaffd0",
+          "decl": "void ctf_engine_handle_server_message(void);",
+          "ported": false,
+          "name": "ctf_engine_handle_server_message"
+        },
+        {
+          "addr": "0xaffe0",
+          "decl": "void ctf_engine_pregame_post_rasterize(void);",
+          "ported": false,
+          "name": "ctf_engine_pregame_post_rasterize"
+        },
+        {
+          "addr": "0xafff0",
+          "decl": "void ctf_engine_post_rasterize(void);",
+          "ported": false,
+          "name": "ctf_engine_post_rasterize"
+        },
+        {
+          "addr": "0xb01f0",
+          "decl": "void ctf_engine_player_damaged_player(void);",
+          "ported": false,
+          "name": "ctf_engine_player_damaged_player"
+        },
+        {
+          "addr": "0xb0200",
+          "decl": "void ctf_engine_player_killed_player(void);",
+          "ported": false,
+          "name": "ctf_engine_player_killed_player"
+        },
+        {
+          "addr": "0xb0420",
+          "decl": "void ctf_engine_prespawn_player_update(void);",
+          "ported": false,
+          "name": "ctf_engine_prespawn_player_update"
+        },
+        {
+          "addr": "0xb0430",
+          "decl": "void ctf_state_message_update_warning(void);",
+          "ported": false,
+          "name": "ctf_state_message_update_warning"
+        },
+        {
+          "addr": "0xb0440",
+          "decl": "void ctf_sound_update_warning(void);",
+          "ported": false,
+          "name": "ctf_sound_update_warning"
+        },
+        {
+          "addr": "0xb0480",
+          "decl": "void ctf_set_flag_warning(int32_t a0, uint32_t a1, char a2);",
+          "ported": false,
+          "name": "ctf_set_flag_warning"
+        },
+        {
+          "addr": "0xb0e50",
+          "decl": "void ctf_engine_update(void);",
+          "ported": false,
+          "name": "ctf_engine_update"
+        },
+        {
+          "addr": "0xb1150",
+          "decl": "void king_engine_dispose(void);",
+          "ported": false,
+          "name": "king_engine_dispose"
+        },
+        {
+          "addr": "0xb1160",
+          "decl": "void point3d_to_point2d(uint32_t a0, int32_t a1, uint32_t *a2);",
+          "ported": false,
+          "name": "point3d_to_point2d"
+        },
+        {
+          "addr": "0xb14d0",
+          "decl": "void king_engine_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "king_engine_dispose_from_old_map"
+        },
+        {
+          "addr": "0xb1500",
+          "decl": "void king_engine_game_ending(void);",
+          "ported": false,
+          "name": "king_engine_game_ending"
+        },
+        {
+          "addr": "0xb1510",
+          "decl": "void king_engine_game_starting(void);",
+          "ported": false,
+          "name": "king_engine_game_starting"
+        },
+        {
+          "addr": "0xb1530",
+          "decl": "void king_engine_statistics_append(void);",
+          "ported": false,
+          "name": "king_engine_statistics_append"
+        },
+        {
+          "addr": "0xb1540",
+          "decl": "void king_engine_handle_client_message(void);",
+          "ported": false,
+          "name": "king_engine_handle_client_message"
+        },
+        {
+          "addr": "0xb1550",
+          "decl": "void king_engine_handle_server_message(void);",
+          "ported": false,
+          "name": "king_engine_handle_server_message"
+        },
+        {
+          "addr": "0xb1560",
+          "decl": "void king_engine_pregame_post_rasterize(void);",
+          "ported": false,
+          "name": "king_engine_pregame_post_rasterize"
+        },
+        {
+          "addr": "0xb1920",
+          "decl": "void king_engine_player_damaged_player(void);",
+          "ported": false,
+          "name": "king_engine_player_damaged_player"
+        },
+        {
+          "addr": "0xb1930",
+          "decl": "void king_engine_player_killed_player(void);",
+          "ported": false,
+          "name": "king_engine_player_killed_player"
+        },
+        {
+          "addr": "0xb1a50",
+          "decl": "void king_engine_prespawn_player_update(void);",
+          "ported": false,
+          "name": "king_engine_prespawn_player_update"
+        },
+        {
+          "addr": "0xb2520",
+          "decl": "void push_queued_sound(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "push_queued_sound"
+        },
+        {
+          "addr": "0xb2690",
+          "decl": "void oddball_engine_dispose(void);",
+          "ported": false,
+          "name": "oddball_engine_dispose"
+        },
+        {
+          "addr": "0xb26a0",
+          "decl": "void oddball_engine_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "oddball_engine_dispose_from_old_map"
+        },
+        {
+          "addr": "0xb26d0",
+          "decl": "void oddball_engine_game_ending(void);",
+          "ported": false,
+          "name": "oddball_engine_game_ending"
+        },
+        {
+          "addr": "0xb26e0",
+          "decl": "void oddball_engine_game_starting(void);",
+          "ported": false,
+          "name": "oddball_engine_game_starting"
+        },
+        {
+          "addr": "0xb26f0",
+          "decl": "void oddball_engine_statistics_append(void);",
+          "ported": false,
+          "name": "oddball_engine_statistics_append"
+        },
+        {
+          "addr": "0xb2700",
+          "decl": "void oddball_engine_handle_client_message(void);",
+          "ported": false,
+          "name": "oddball_engine_handle_client_message"
+        },
+        {
+          "addr": "0xb2710",
+          "decl": "void oddball_engine_handle_server_message(void);",
+          "ported": false,
+          "name": "oddball_engine_handle_server_message"
+        },
+        {
+          "addr": "0xb2720",
+          "decl": "void oddball_engine_pregame_post_rasterize(void);",
+          "ported": false,
+          "name": "oddball_engine_pregame_post_rasterize"
+        },
+        {
+          "addr": "0xb2730",
+          "decl": "void oddball_engine_post_rasterize(void);",
+          "ported": false,
+          "name": "oddball_engine_post_rasterize"
+        },
+        {
+          "addr": "0xb2810",
+          "decl": "void oddball_add_time_with_ball(void);",
+          "ported": false,
+          "name": "oddball_add_time_with_ball"
+        },
+        {
+          "addr": "0xb2850",
+          "decl": "int32_t player_ball_count(void);",
+          "ported": false,
+          "name": "player_ball_count"
+        },
+        {
+          "addr": "0xb2880",
+          "decl": "void oddball_engine_player_damaged_player(void);",
+          "ported": false,
+          "name": "oddball_engine_player_damaged_player"
+        },
+        {
+          "addr": "0xb2af0",
+          "decl": "void oddball_engine_prespawn_player_update(void);",
+          "ported": false,
+          "name": "oddball_engine_prespawn_player_update"
+        },
+        {
+          "addr": "0xb2b80",
+          "decl": "int32_t oddball_ball_transfer_by_killing(void);",
+          "ported": false,
+          "name": "oddball_ball_transfer_by_killing"
+        },
+        {
+          "addr": "0xb2ba0",
+          "decl": "uint32_t accumulate_score_by_time(void);",
+          "ported": false,
+          "name": "accumulate_score_by_time"
+        },
+        {
+          "addr": "0xb2f00",
+          "decl": "bool oddball_engine_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "oddball_engine_initialize_for_new_map"
+        },
+        {
+          "addr": "0xb33a0",
+          "decl": "void oddball_engine_update(void);",
+          "ported": false,
+          "name": "oddball_engine_update"
+        },
+        {
+          "addr": "0xb36e0",
+          "decl": "void race_engine_dispose(void);",
+          "ported": false,
+          "name": "race_engine_dispose"
+        },
+        {
+          "addr": "0xb38f0",
+          "decl": "void race_engine_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "race_engine_dispose_from_old_map"
+        },
+        {
+          "addr": "0xb3930",
+          "decl": "void race_engine_game_ending(void);",
+          "ported": false,
+          "name": "race_engine_game_ending"
+        },
+        {
+          "addr": "0xb3940",
+          "decl": "void race_engine_game_starting(void);",
+          "ported": false,
+          "name": "race_engine_game_starting"
+        },
+        {
+          "addr": "0xb3950",
+          "decl": "void race_engine_statistics_append(void);",
+          "ported": false,
+          "name": "race_engine_statistics_append"
+        },
+        {
+          "addr": "0xb3960",
+          "decl": "void race_engine_handle_client_message(void);",
+          "ported": false,
+          "name": "race_engine_handle_client_message"
+        },
+        {
+          "addr": "0xb3970",
+          "decl": "void race_engine_handle_server_message(void);",
+          "ported": false,
+          "name": "race_engine_handle_server_message"
+        },
+        {
+          "addr": "0xb3980",
+          "decl": "void race_engine_pregame_post_rasterize(void);",
+          "ported": false,
+          "name": "race_engine_pregame_post_rasterize"
+        },
+        {
+          "addr": "0xb3990",
+          "decl": "void race_engine_post_rasterize(void);",
+          "ported": false,
+          "name": "race_engine_post_rasterize"
+        },
+        {
+          "addr": "0xb3c50",
+          "decl": "void race_engine_weapon_update(void);",
+          "ported": false,
+          "name": "race_engine_weapon_update"
+        },
+        {
+          "addr": "0xb3dd0",
+          "decl": "void race_engine_player_damaged_player(void);",
+          "ported": false,
+          "name": "race_engine_player_damaged_player"
+        },
+        {
+          "addr": "0xb3de0",
+          "decl": "void race_engine_player_killed_player(void);",
+          "ported": false,
+          "name": "race_engine_player_killed_player"
+        },
+        {
+          "addr": "0xb40e0",
+          "decl": "void race_engine_prespawn_player_update(void);",
+          "ported": false,
+          "name": "race_engine_prespawn_player_update"
+        },
+        {
+          "addr": "0xb48a0",
+          "decl": "void race_engine_update(void);",
+          "ported": false,
+          "name": "race_engine_update"
+        },
+        {
+          "addr": "0xb4ac0",
+          "decl": "void slayer_engine_dispose(void);",
+          "ported": false,
+          "name": "slayer_engine_dispose"
+        },
+        {
+          "addr": "0xb4ad0",
+          "decl": "bool slayer_engine_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "slayer_engine_initialize_for_new_map"
+        },
+        {
+          "addr": "0xb4b00",
+          "decl": "void slayer_engine_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "slayer_engine_dispose_from_old_map"
+        },
+        {
+          "addr": "0xb4b40",
+          "decl": "void slayer_engine_game_ending(void);",
+          "ported": false,
+          "name": "slayer_engine_game_ending"
+        },
+        {
+          "addr": "0xb4b50",
+          "decl": "void slayer_engine_game_starting(void);",
+          "ported": false,
+          "name": "slayer_engine_game_starting"
+        },
+        {
+          "addr": "0xb4b70",
+          "decl": "void slayer_engine_statistics_append(void);",
+          "ported": false,
+          "name": "slayer_engine_statistics_append"
+        },
+        {
+          "addr": "0xb4b80",
+          "decl": "void slayer_engine_handle_client_message(void);",
+          "ported": false,
+          "name": "slayer_engine_handle_client_message"
+        },
+        {
+          "addr": "0xb4b90",
+          "decl": "void slayer_engine_handle_server_message(void);",
+          "ported": false,
+          "name": "slayer_engine_handle_server_message"
+        },
+        {
+          "addr": "0xb4ba0",
+          "decl": "void slayer_engine_pregame_post_rasterize(void);",
+          "ported": false,
+          "name": "slayer_engine_pregame_post_rasterize"
+        },
+        {
+          "addr": "0xb4bb0",
+          "decl": "void slayer_engine_post_rasterize(void);",
+          "ported": false,
+          "name": "slayer_engine_post_rasterize"
+        },
+        {
+          "addr": "0xb4bc0",
+          "decl": "void slayer_engine_update(void);",
+          "ported": false,
+          "name": "slayer_engine_update"
+        },
+        {
+          "addr": "0xb4bd0",
+          "decl": "bool slayer_engine_allow_pick_up(void);",
+          "ported": false,
+          "name": "slayer_engine_allow_pick_up"
+        },
+        {
+          "addr": "0xb4be0",
+          "decl": "void slayer_engine_player_damaged_player(void);",
+          "ported": false,
+          "name": "slayer_engine_player_damaged_player"
+        },
+        {
+          "addr": "0xb4d40",
+          "decl": "void slayer_engine_prespawn_player_update(void);",
+          "ported": false,
+          "name": "slayer_engine_prespawn_player_update"
+        },
+        {
+          "addr": "0xb53a0",
+          "decl": "void stub_engine_dispose(void);",
+          "ported": false,
+          "name": "stub_engine_dispose"
+        },
+        {
+          "addr": "0xb53b0",
+          "decl": "bool stub_engine_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "stub_engine_initialize_for_new_map"
+        },
+        {
+          "addr": "0xb53c0",
+          "decl": "void stub_engine_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "stub_engine_dispose_from_old_map"
+        },
+        {
+          "addr": "0xb53d0",
+          "decl": "void stub_engine_player_added(void);",
+          "ported": false,
+          "name": "stub_engine_player_added"
+        },
+        {
+          "addr": "0xb53e0",
+          "decl": "void stub_engine_game_ending(void);",
+          "ported": false,
+          "name": "stub_engine_game_ending"
+        },
+        {
+          "addr": "0xb53f0",
+          "decl": "void stub_engine_game_starting(void);",
+          "ported": false,
+          "name": "stub_engine_game_starting"
+        },
+        {
+          "addr": "0xb5400",
+          "decl": "void stub_engine_statistics_append(void);",
+          "ported": false,
+          "name": "stub_engine_statistics_append"
+        },
+        {
+          "addr": "0xb5410",
+          "decl": "void stub_engine_handle_client_message(void);",
+          "ported": false,
+          "name": "stub_engine_handle_client_message"
+        },
+        {
+          "addr": "0xb5420",
+          "decl": "void stub_engine_handle_server_message(void);",
+          "ported": false,
+          "name": "stub_engine_handle_server_message"
+        },
+        {
+          "addr": "0xb5430",
+          "decl": "void stub_engine_pregame_post_rasterize(void);",
+          "ported": false,
+          "name": "stub_engine_pregame_post_rasterize"
+        },
+        {
+          "addr": "0xb5440",
+          "decl": "void stub_engine_post_rasterize(void);",
+          "ported": false,
+          "name": "stub_engine_post_rasterize"
+        },
+        {
+          "addr": "0xb5450",
+          "decl": "void stub_engine_update(void);",
+          "ported": false,
+          "name": "stub_engine_update"
+        },
+        {
+          "addr": "0xb5460",
+          "decl": "bool stub_engine_allow_pick_up(void);",
+          "ported": false,
+          "name": "stub_engine_allow_pick_up"
+        },
+        {
+          "addr": "0xb5470",
+          "decl": "void stub_engine_player_damaged_player(void);",
+          "ported": false,
+          "name": "stub_engine_player_damaged_player"
+        },
+        {
+          "addr": "0xb5480",
+          "decl": "void stub_engine_player_killed_player(void);",
+          "ported": false,
+          "name": "stub_engine_player_killed_player"
         }
       ],
       "name": "game_engine.obj",
@@ -10552,6 +11592,24 @@
           "decl": "void *FUN_001c00c0(void *address, uint32_t cpu_size, uint32_t gpu_size);",
           "ported": true,
           "src": "src/halo/saved_games/game_state.c"
+        },
+        {
+          "addr": "0x1bf770",
+          "decl": "void game_state_call_before_save_procs(void);",
+          "ported": false,
+          "name": "game_state_call_before_save_procs"
+        },
+        {
+          "addr": "0x1bf780",
+          "decl": "void game_state_call_before_load_procs(void);",
+          "ported": false,
+          "name": "game_state_call_before_load_procs"
+        },
+        {
+          "addr": "0x1bfbd0",
+          "decl": "void game_state_set_revert_time(void);",
+          "ported": false,
+          "name": "game_state_set_revert_time"
         }
       ],
       "name": "game_state.obj",
@@ -10729,6 +11787,12 @@
           "addr": "0x1c19e0",
           "decl": "void FUN_001c19e0(void);",
           "ported": true
+        },
+        {
+          "addr": "0x1c0730",
+          "decl": "uint32_t game_state_get_persistent_storage_path(uint32_t a0);",
+          "ported": false,
+          "name": "game_state_get_persistent_storage_path"
         }
       ],
       "name": "game_state_xbox.obj",
@@ -14450,6 +15514,12 @@
           "addr": "0xce8c0",
           "decl": "char input_abstraction_print_config_control(int local_player_index@<eax>);",
           "ported": true
+        },
+        {
+          "addr": "0xce9a0",
+          "decl": "void input_abstraction_initialize_player_controller_settings_to_default(uint32_t *a0);",
+          "ported": false,
+          "name": "input_abstraction_initialize_player_controller_settings_to_default"
         }
       ],
       "name": "input_abstraction.obj",
@@ -14598,6 +15668,48 @@
           "decl": "void input_get_raw_data_string(char *buffer, int16_t size);",
           "name": "input_get_raw_data_string",
           "ported": true
+        },
+        {
+          "addr": "0xcf460",
+          "decl": "void update_threshold(char a0, char a1, char *a2);",
+          "ported": false,
+          "name": "update_threshold"
+        },
+        {
+          "addr": "0xcf4e0",
+          "decl": "void input_activate(void);",
+          "ported": false,
+          "name": "input_activate"
+        },
+        {
+          "addr": "0xcf4f0",
+          "decl": "void input_deactivate(void);",
+          "ported": false,
+          "name": "input_deactivate"
+        },
+        {
+          "addr": "0xcf6a0",
+          "decl": "void input_suppress(void);",
+          "ported": false,
+          "name": "input_suppress"
+        },
+        {
+          "addr": "0xcf6b0",
+          "decl": "char input_mouse_button_is_down(void);",
+          "ported": false,
+          "name": "input_mouse_button_is_down"
+        },
+        {
+          "addr": "0xcf810",
+          "decl": "void acquire_input_mutex(void);",
+          "ported": false,
+          "name": "acquire_input_mutex"
+        },
+        {
+          "addr": "0xcf820",
+          "decl": "void release_input_mutex(void);",
+          "ported": false,
+          "name": "release_input_mutex"
         }
       ],
       "name": "input_xbox.obj",
@@ -14955,6 +16067,60 @@
           "addr": "0xf7340",
           "decl": "bool item_update(int item_handle);",
           "ported": true
+        },
+        {
+          "addr": "0xf52e0",
+          "decl": "uint32_t widget_replace_function_null(void);",
+          "ported": false,
+          "name": "widget_replace_function_null"
+        },
+        {
+          "addr": "0xf54a0",
+          "decl": "void virtual_keyboard_dispose(void);",
+          "ported": false,
+          "name": "virtual_keyboard_dispose"
+        },
+        {
+          "addr": "0xf58d0",
+          "decl": "void virtual_keyboard_get_current_character(void);",
+          "ported": false,
+          "name": "virtual_keyboard_get_current_character"
+        },
+        {
+          "addr": "0xf68d0",
+          "decl": "void items_initialize(void);",
+          "ported": false,
+          "name": "items_initialize"
+        },
+        {
+          "addr": "0xf68e0",
+          "decl": "void items_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "items_initialize_for_new_map"
+        },
+        {
+          "addr": "0xf68f0",
+          "decl": "void items_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "items_dispose_from_old_map"
+        },
+        {
+          "addr": "0xf6900",
+          "decl": "void items_dispose(void);",
+          "ported": false,
+          "name": "items_dispose"
+        },
+        {
+          "addr": "0xf6950",
+          "decl": "void item_delete(void);",
+          "ported": false,
+          "name": "item_delete"
+        },
+        {
+          "addr": "0xf6960",
+          "decl": "void verify_item_location(void);",
+          "ported": false,
+          "name": "verify_item_location"
         }
       ],
       "name": "items.obj",
@@ -15525,6 +16691,114 @@
           "addr": "0x104950",
           "decl": "void FUN_00104950(const char *format, ...);",
           "ported": true
+        },
+        {
+          "addr": "0xffed0",
+          "decl": "void debug_key_play_animation(void);",
+          "ported": false,
+          "name": "debug_key_play_animation"
+        },
+        {
+          "addr": "0xffee0",
+          "decl": "float main_get_seconds_elapsed(void);",
+          "ported": false,
+          "name": "main_get_seconds_elapsed"
+        },
+        {
+          "addr": "0x100d90",
+          "decl": "void main_revert_map_private(void);",
+          "ported": false,
+          "name": "main_revert_map_private"
+        },
+        {
+          "addr": "0x100db0",
+          "decl": "void main_skip_cinematic_private(void);",
+          "ported": false,
+          "name": "main_skip_cinematic_private"
+        },
+        {
+          "addr": "0x100e90",
+          "decl": "void main_saving_map_private(void);",
+          "ported": false,
+          "name": "main_saving_map_private"
+        },
+        {
+          "addr": "0x100f90",
+          "decl": "void main_switch_to_structure_bsp_private(void);",
+          "ported": false,
+          "name": "main_switch_to_structure_bsp_private"
+        },
+        {
+          "addr": "0x100fc0",
+          "decl": "void main_lost_map_private(void);",
+          "ported": false,
+          "name": "main_lost_map_private"
+        },
+        {
+          "addr": "0x101000",
+          "decl": "void main_respawn_private(void);",
+          "ported": false,
+          "name": "main_respawn_private"
+        },
+        {
+          "addr": "0x1010a0",
+          "decl": "void main_load_core_private(void);",
+          "ported": false,
+          "name": "main_load_core_private"
+        },
+        {
+          "addr": "0x1010c0",
+          "decl": "void main_save_core_private(void);",
+          "ported": false,
+          "name": "main_save_core_private"
+        },
+        {
+          "addr": "0x1010e0",
+          "decl": "void main_reset_map_private(void);",
+          "ported": false,
+          "name": "main_reset_map_private"
+        },
+        {
+          "addr": "0x101120",
+          "decl": "void main_run_demos_private(void);",
+          "ported": false,
+          "name": "main_run_demos_private"
+        },
+        {
+          "addr": "0x101350",
+          "decl": "void main_exit(void);",
+          "ported": false,
+          "name": "main_exit"
+        },
+        {
+          "addr": "0x1013a0",
+          "decl": "void main_reset_time(void);",
+          "ported": false,
+          "name": "main_reset_time"
+        },
+        {
+          "addr": "0x101b80",
+          "decl": "void screenshot_record(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "screenshot_record"
+        },
+        {
+          "addr": "0x101ba0",
+          "decl": "uint32_t main_taking_screenshot(void);",
+          "ported": false,
+          "name": "main_taking_screenshot"
+        },
+        {
+          "addr": "0x101c70",
+          "decl": "void main_movie_stop(void);",
+          "ported": false,
+          "name": "main_movie_stop"
+        },
+        {
+          "addr": "0x103dc0",
+          "decl": "void error_geometry_dispose(void);",
+          "ported": false,
+          "name": "error_geometry_dispose"
         }
       ],
       "name": "main.obj",
@@ -16407,6 +17681,18 @@
           "decl": "void *create_network_game_message(int type, void *data, int16_t message_struct_size);",
           "ported": true,
           "name": "create_network_game_message"
+        },
+        {
+          "addr": "0x11aa00",
+          "decl": "int32_t data_packet_groups_get_error(void);",
+          "ported": false,
+          "name": "data_packet_groups_get_error"
+        },
+        {
+          "addr": "0x11c1f0",
+          "decl": "void lra_purge_block(void);",
+          "ported": false,
+          "name": "lra_purge_block"
         }
       ],
       "name": "network_messages.obj",
@@ -16881,6 +18167,12 @@
           "decl": "char network_game_server_handle_message_client_join_game_request(int server, void *machine @<esi>, void *message, int message_size);",
           "ported": true,
           "name": "network_game_server_handle_message_client_join_game_request"
+        },
+        {
+          "addr": "0x12dcf0",
+          "decl": "int32_t network_game_server_number_of_machines_connected(void);",
+          "ported": false,
+          "name": "network_game_server_number_of_machines_connected"
         }
       ],
       "name": "network_server_manager.obj",
@@ -18362,6 +19654,204 @@
           "decl": "void unit_get_center_of_mass(int object_handle, float *out_position);",
           "ported": true,
           "name": "unit_get_center_of_mass"
+        },
+        {
+          "addr": "0x85380",
+          "decl": "uint16_t scripted_camera_next_camera_point(void);",
+          "ported": false,
+          "name": "scripted_camera_next_camera_point"
+        },
+        {
+          "addr": "0x85390",
+          "decl": "uint32_t scripted_camera_object_relative_to(void);",
+          "ported": false,
+          "name": "scripted_camera_object_relative_to"
+        },
+        {
+          "addr": "0x132f40",
+          "decl": "void glow_dispose(void);",
+          "ported": false,
+          "name": "glow_dispose"
+        },
+        {
+          "addr": "0x132f50",
+          "decl": "void glow_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "glow_initialize_for_new_map"
+        },
+        {
+          "addr": "0x132f80",
+          "decl": "void glow_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "glow_dispose_from_old_map"
+        },
+        {
+          "addr": "0x133750",
+          "decl": "void glow_initialize(void);",
+          "ported": false,
+          "name": "glow_initialize"
+        },
+        {
+          "addr": "0x134b50",
+          "decl": "void light_volumes_initialize(void);",
+          "ported": false,
+          "name": "light_volumes_initialize"
+        },
+        {
+          "addr": "0x134b90",
+          "decl": "void light_volumes_dispose(void);",
+          "ported": false,
+          "name": "light_volumes_dispose"
+        },
+        {
+          "addr": "0x134ba0",
+          "decl": "void light_volumes_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "light_volumes_initialize_for_new_map"
+        },
+        {
+          "addr": "0x134bc0",
+          "decl": "void light_volumes_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "light_volumes_dispose_from_old_map"
+        },
+        {
+          "addr": "0x135320",
+          "decl": "void lightnings_initialize(void);",
+          "ported": false,
+          "name": "lightnings_initialize"
+        },
+        {
+          "addr": "0x135360",
+          "decl": "void lightnings_dispose(void);",
+          "ported": false,
+          "name": "lightnings_dispose"
+        },
+        {
+          "addr": "0x135370",
+          "decl": "void lightnings_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "lightnings_initialize_for_new_map"
+        },
+        {
+          "addr": "0x135390",
+          "decl": "void lightnings_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "lightnings_dispose_from_old_map"
+        },
+        {
+          "addr": "0x135410",
+          "decl": "void lightning_render(void);",
+          "ported": false,
+          "name": "lightning_render"
+        },
+        {
+          "addr": "0x135f50",
+          "decl": "int32_t widget_type_definition_get(void);",
+          "ported": false,
+          "name": "widget_type_definition_get"
+        },
+        {
+          "addr": "0x139740",
+          "decl": "void lights_disconnect_from_structure_bsp(void);",
+          "ported": false,
+          "name": "lights_disconnect_from_structure_bsp"
+        },
+        {
+          "addr": "0x1398f0",
+          "decl": "void light_marker_begin(void);",
+          "ported": false,
+          "name": "light_marker_begin"
+        },
+        {
+          "addr": "0x1399f0",
+          "decl": "void light_marker_end(void);",
+          "ported": false,
+          "name": "light_marker_end"
+        },
+        {
+          "addr": "0x13c020",
+          "decl": "void build_collision_model_shadow(uint32_t a0);",
+          "ported": false,
+          "name": "build_collision_model_shadow"
+        },
+        {
+          "addr": "0x13cf30",
+          "decl": "void object_types_reconnect_to_structure_bsp(void);",
+          "ported": false,
+          "name": "object_types_reconnect_to_structure_bsp"
+        },
+        {
+          "addr": "0x13e4f0",
+          "decl": "void object_add_to_list(void);",
+          "ported": false,
+          "name": "object_add_to_list"
+        },
+        {
+          "addr": "0x13ef00",
+          "decl": "void object_name_list_allocate(void);",
+          "ported": false,
+          "name": "object_name_list_allocate"
+        },
+        {
+          "addr": "0x13ef40",
+          "decl": "void object_name_list_free(void);",
+          "ported": false,
+          "name": "object_name_list_free"
+        },
+        {
+          "addr": "0x13ef50",
+          "decl": "void object_name_list_clear(void);",
+          "ported": false,
+          "name": "object_name_list_clear"
+        },
+        {
+          "addr": "0x13f040",
+          "decl": "uint32_t object_name_list_lookup(int16_t a0);",
+          "ported": false,
+          "name": "object_name_list_lookup"
+        },
+        {
+          "addr": "0x140b50",
+          "decl": "void object_create_attachments(void);",
+          "ported": false,
+          "name": "object_create_attachments"
+        },
+        {
+          "addr": "0x144730",
+          "decl": "void object_delete_attachments(void);",
+          "ported": false,
+          "name": "object_delete_attachments"
+        },
+        {
+          "addr": "0x1454b0",
+          "decl": "void placeholder_initialize(void);",
+          "ported": false,
+          "name": "placeholder_initialize"
+        },
+        {
+          "addr": "0x1454c0",
+          "decl": "void placeholder_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "placeholder_initialize_for_new_map"
+        },
+        {
+          "addr": "0x1454d0",
+          "decl": "void placeholder_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "placeholder_dispose_from_old_map"
+        },
+        {
+          "addr": "0x1454e0",
+          "decl": "void placeholder_dispose(void);",
+          "ported": false,
+          "name": "placeholder_dispose"
+        },
+        {
+          "addr": "0x1454f0",
+          "decl": "void placeholder_place(void);",
+          "ported": false,
+          "name": "placeholder_place"
         }
       ],
       "name": "objects.obj",
@@ -18588,6 +20078,12 @@
           "decl": "void static_camera_new(void *camera, const vector3_t *position, uint32_t field_0c, const vector3_t *forward, const vector3_t *up, float field_of_view, int32_t duration_ticks, uint32_t flags);",
           "comment": "[NAME: static_camera_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "ported": true
+        },
+        {
+          "addr": "0x8a300",
+          "decl": "int32_t observer_get(void);",
+          "ported": false,
+          "name": "observer_get"
         }
       ],
       "name": "observer.obj",
@@ -18841,6 +20337,18 @@
           "decl": "void particles_reconnect_to_structure_bsp(void);",
           "ported": true,
           "name": "particles_reconnect_to_structure_bsp"
+        },
+        {
+          "addr": "0xa1580",
+          "decl": "void particles_disconnect_from_structure_bsp(void);",
+          "ported": false,
+          "name": "particles_disconnect_from_structure_bsp"
+        },
+        {
+          "addr": "0xa1660",
+          "decl": "uint32_t new_particle_is_visible(uint32_t a0);",
+          "ported": false,
+          "name": "new_particle_is_visible"
         }
       ],
       "name": "particles.obj",
@@ -21834,6 +23342,42 @@
         {
           "addr": "0x922a0",
           "decl": "void FUN_000922a0(int skip@<ecx>, int32_t *frames@<edx>, uint32_t max, uint32_t *count);"
+        },
+        {
+          "addr": "0x90750",
+          "decl": "void profile_dump_frame_stop(void);",
+          "ported": false,
+          "name": "profile_dump_frame_stop"
+        },
+        {
+          "addr": "0x90790",
+          "decl": "char * string_has_prefix(char *a0, char *a1);",
+          "ported": false,
+          "name": "string_has_prefix"
+        },
+        {
+          "addr": "0x92030",
+          "decl": "uint32_t stack_walk_global_function_offset(void);",
+          "ported": false,
+          "name": "stack_walk_global_function_offset"
+        },
+        {
+          "addr": "0x92220",
+          "decl": "uint32_t is_valid_ebp(void);",
+          "ported": false,
+          "name": "is_valid_ebp"
+        },
+        {
+          "addr": "0x92240",
+          "decl": "uint32_t walk_up(void);",
+          "ported": false,
+          "name": "walk_up"
+        },
+        {
+          "addr": "0x92280",
+          "decl": "void initialize_stack_walk(int32_t a0);",
+          "ported": false,
+          "name": "initialize_stack_walk"
         }
       ],
       "name": "profile.obj",
@@ -21993,6 +23537,48 @@
           "decl": "int16_t animation_choose_random_permutation(int animation_graph_tag_index, int16_t animation_index);",
           "ported": true,
           "name": "animation_choose_random_permutation"
+        },
+        {
+          "addr": "0xf7c70",
+          "decl": "void projectiles_initialize(void);",
+          "ported": false,
+          "name": "projectiles_initialize"
+        },
+        {
+          "addr": "0xf7c80",
+          "decl": "void projectiles_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "projectiles_initialize_for_new_map"
+        },
+        {
+          "addr": "0xf7c90",
+          "decl": "void projectiles_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "projectiles_dispose_from_old_map"
+        },
+        {
+          "addr": "0xf7ca0",
+          "decl": "void projectiles_dispose(void);",
+          "ported": false,
+          "name": "projectiles_dispose"
+        },
+        {
+          "addr": "0xf7d20",
+          "decl": "void projectile_delete(void);",
+          "ported": false,
+          "name": "projectile_delete"
+        },
+        {
+          "addr": "0xfad20",
+          "decl": "void weapons_initialize(void);",
+          "ported": false,
+          "name": "weapons_initialize"
+        },
+        {
+          "addr": "0xfad30",
+          "decl": "void weapons_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "weapons_initialize_for_new_map"
         }
       ],
       "name": "projectiles.obj",
@@ -22257,6 +23843,36 @@
           "decl": "int IDirect3DDevice8_End_11(unsigned int dev);",
           "ported": true,
           "name": "IDirect3DDevice8_End_11"
+        },
+        {
+          "addr": "0xe1f70",
+          "decl": "void this_is_awful(uint32_t *a0, uint32_t a1, int32_t a2);",
+          "ported": false,
+          "name": "this_is_awful"
+        },
+        {
+          "addr": "0xe2180",
+          "decl": "void __stdcall D3DTexture_UnlockRect_2(int param_1, int param_2);",
+          "ported": false,
+          "name": "D3DTexture_UnlockRect_2"
+        },
+        {
+          "addr": "0xe2190",
+          "decl": "void IDirect3DTexture8_Release(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DTexture8_Release"
+        },
+        {
+          "addr": "0xe21a0",
+          "decl": "uint32_t IDirect3DTexture8_GetLevelDesc(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "IDirect3DTexture8_GetLevelDesc"
+        },
+        {
+          "addr": "0xe21d0",
+          "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect_2(int param_1, int param_2);",
+          "ported": false,
+          "name": "IDirect3DTexture8_UnlockRect_2"
         }
       ],
       "name": "progress_bar.obj",
@@ -22475,6 +24091,18 @@
           "decl": "void FUN_0010c920(float *v1, float *v2, float t, float *out);",
           "ported": true,
           "src": "src/halo/math/random_math.c"
+        },
+        {
+          "addr": "0x10b140",
+          "decl": "uint32_t get_number_suitable_for_initializing_random_seed(void);",
+          "ported": false,
+          "name": "get_number_suitable_for_initializing_random_seed"
+        },
+        {
+          "addr": "0x10c280",
+          "decl": "char pill_intersects_rectangle3d(void);",
+          "ported": false,
+          "name": "pill_intersects_rectangle3d"
         }
       ],
       "name": "random_math.obj",
@@ -22934,6 +24562,432 @@
           "addr": "0x17ca40",
           "decl": "void rasterizer_debug_immediate_begin_screenspace(void);",
           "ported": true
+        },
+        {
+          "addr": "0x16d9d0",
+          "decl": "void D3DDevice_SetRenderState_6(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_6"
+        },
+        {
+          "addr": "0x16db80",
+          "decl": "void D3DDevice_SetTextureStageState_6(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_6"
+        },
+        {
+          "addr": "0x16dbd0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_6(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_6"
+        },
+        {
+          "addr": "0x16ddf0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_6(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_6"
+        },
+        {
+          "addr": "0x16de50",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_6(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_6"
+        },
+        {
+          "addr": "0x16deb0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_3(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s_3"
+        },
+        {
+          "addr": "0x16dec0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_4(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_4"
+        },
+        {
+          "addr": "0x16ded0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_4(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_4"
+        },
+        {
+          "addr": "0x16ea60",
+          "decl": "void D3DDevice_SetRenderState_5(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_5"
+        },
+        {
+          "addr": "0x16ec10",
+          "decl": "void D3DDevice_SetTextureStageState_5(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_5"
+        },
+        {
+          "addr": "0x16ec60",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_5(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_5"
+        },
+        {
+          "addr": "0x16ee80",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_5(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_5"
+        },
+        {
+          "addr": "0x16eee0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_5(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_5"
+        },
+        {
+          "addr": "0x16f6a0",
+          "decl": "uint32_t rasterizer_profile_enabled(void);",
+          "ported": false,
+          "name": "rasterizer_profile_enabled"
+        },
+        {
+          "addr": "0x16fed0",
+          "decl": "void D3DDevice_SetRenderState_4(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_4"
+        },
+        {
+          "addr": "0x170380",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_4(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_4"
+        },
+        {
+          "addr": "0x1703e0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_4(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_4"
+        },
+        {
+          "addr": "0x170410",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_2(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s_2"
+        },
+        {
+          "addr": "0x170420",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_3(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_3"
+        },
+        {
+          "addr": "0x170430",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_3(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_3"
+        },
+        {
+          "addr": "0x172100",
+          "decl": "void D3DDevice_SetRenderState_3(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_3"
+        },
+        {
+          "addr": "0x1722b0",
+          "decl": "void D3DDevice_SetTextureStageState_3(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_3"
+        },
+        {
+          "addr": "0x172300",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_3(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_3"
+        },
+        {
+          "addr": "0x172530",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_3(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_3"
+        },
+        {
+          "addr": "0x172630",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_3(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_3"
+        },
+        {
+          "addr": "0x172670",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_1(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s_1"
+        },
+        {
+          "addr": "0x172680",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_2(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_2"
+        },
+        {
+          "addr": "0x172690",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_2(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_2"
+        },
+        {
+          "addr": "0x173650",
+          "decl": "void D3DDevice_SetRenderState_2(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_2"
+        },
+        {
+          "addr": "0x173800",
+          "decl": "void D3DDevice_SetTextureStageState_2(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_2"
+        },
+        {
+          "addr": "0x173850",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_2(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_2"
+        },
+        {
+          "addr": "0x173a70",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_2(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_2"
+        },
+        {
+          "addr": "0x173ad0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_2(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_2"
+        },
+        {
+          "addr": "0x173b10",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexDataColor_0"
+        },
+        {
+          "addr": "0x173b20",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_1(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_1"
+        },
+        {
+          "addr": "0x173b30",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_1(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_1"
+        },
+        {
+          "addr": "0x1742f0",
+          "decl": "void D3DDevice_SetRenderState_1(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_1"
+        },
+        {
+          "addr": "0x1744a0",
+          "decl": "void D3DDevice_SetTextureStageState_1(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_1"
+        },
+        {
+          "addr": "0x174690",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_1(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_1"
+        },
+        {
+          "addr": "0x1748b0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_1(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_1"
+        },
+        {
+          "addr": "0x174910",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_1(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_1"
+        },
+        {
+          "addr": "0x174920",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetStreamSource"
+        },
+        {
+          "addr": "0x174930",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_BeginVisibilityTest_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_BeginVisibilityTest_0"
+        },
+        {
+          "addr": "0x174940",
+          "decl": "void __stdcall IDirect3DDevice8_EndVisibilityTest_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_EndVisibilityTest_0"
+        },
+        {
+          "addr": "0x174950",
+          "decl": "void __stdcall IDirect3DDevice8_GetVisibilityTestResult_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_GetVisibilityTestResult_0"
+        },
+        {
+          "addr": "0x174960",
+          "decl": "void __stdcall D3DVertexBuffer_Unlock(int param_1);",
+          "ported": false,
+          "name": "D3DVertexBuffer_Unlock"
+        },
+        {
+          "addr": "0x174970",
+          "decl": "void IDirect3DVertexBuffer8_Release(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Release"
+        },
+        {
+          "addr": "0x1749a0",
+          "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock(int param_1);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Unlock"
+        },
+        {
+          "addr": "0x1790a0",
+          "decl": "void D3DDevice_SetRenderState_0(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_0"
+        },
+        {
+          "addr": "0x179250",
+          "decl": "void D3DDevice_SetTextureStageState_0(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_0"
+        },
+        {
+          "addr": "0x1792e0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_0"
+        },
+        {
+          "addr": "0x179500",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_0"
+        },
+        {
+          "addr": "0x179560",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_0"
+        },
+        {
+          "addr": "0x179590",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s_0"
+        },
+        {
+          "addr": "0x1795a0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_0"
+        },
+        {
+          "addr": "0x1795b0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_0"
+        },
+        {
+          "addr": "0x17a6a0",
+          "decl": "void D3DDevice_SetRenderState_17a6a0(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_17a6a0"
+        },
+        {
+          "addr": "0x17a850",
+          "decl": "void D3DDevice_SetTextureStageState_17a850(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_17a850"
+        },
+        {
+          "addr": "0x17aa60",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState"
+        },
+        {
+          "addr": "0x17ac80",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState"
+        },
+        {
+          "addr": "0x17ace0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant"
+        },
+        {
+          "addr": "0x17acf0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_BeginVisibilityTest(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_BeginVisibilityTest"
+        },
+        {
+          "addr": "0x17ad00",
+          "decl": "void __stdcall IDirect3DDevice8_EndVisibilityTest(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_EndVisibilityTest"
+        },
+        {
+          "addr": "0x17ad10",
+          "decl": "void __stdcall IDirect3DDevice8_GetVisibilityTestResult(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_GetVisibilityTestResult"
+        },
+        {
+          "addr": "0x17ad70",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s"
+        },
+        {
+          "addr": "0x17ad80",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexDataColor"
+        },
+        {
+          "addr": "0x17ada0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin"
+        },
+        {
+          "addr": "0x17bc90",
+          "decl": "char shader_map_verify_0(void);",
+          "ported": false,
+          "name": "shader_map_verify_0"
+        },
+        {
+          "addr": "0x17bed0",
+          "decl": "uint32_t shader_stage_color_output(void);",
+          "ported": false,
+          "name": "shader_stage_color_output"
+        },
+        {
+          "addr": "0x17c080",
+          "decl": "uint32_t shader_stage_alpha_output(void);",
+          "ported": false,
+          "name": "shader_stage_alpha_output"
+        },
+        {
+          "addr": "0x17c0d0",
+          "decl": "uint32_t shader_stage_alpha_output_flags(void);",
+          "ported": false,
+          "name": "shader_stage_alpha_output_flags"
         }
       ],
       "name": "rasterizer.obj",
@@ -22966,6 +25020,30 @@
           "addr": "0x178b40",
           "decl": "void rasterizer_set_vertex_shader_permutation(int vertex_shader_index, int vertex_type, int permutation_index);",
           "ported": true
+        },
+        {
+          "addr": "0x178b00",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShader(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShader"
+        },
+        {
+          "addr": "0x178b10",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_LoadVertexShader(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_LoadVertexShader"
+        },
+        {
+          "addr": "0x178b20",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SelectVertexShader(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SelectVertexShader"
+        },
+        {
+          "addr": "0x178b30",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_GetVertexShaderSize(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_GetVertexShaderSize"
         }
       ],
       "name": "rasterizer_xbox_vertex_shaders_runtime.obj",
@@ -22997,6 +25075,42 @@
           "addr": "0x155110",
           "decl": "void D3DDevice_GetTextureStageState(int stage@<eax>, int sub_index@<ecx>, unsigned int *result);",
           "ported": true
+        },
+        {
+          "addr": "0x1550a0",
+          "decl": "uint32_t Direct3D_Release(void);",
+          "ported": false,
+          "name": "Direct3D_Release"
+        },
+        {
+          "addr": "0x1550b0",
+          "decl": "uint32_t __stdcall IDirect3D8_Release(int param_1);",
+          "ported": false,
+          "name": "IDirect3D8_Release"
+        },
+        {
+          "addr": "0x1550e0",
+          "decl": "void D3DDevice_BeginScene(void);",
+          "ported": false,
+          "name": "D3DDevice_BeginScene"
+        },
+        {
+          "addr": "0x1550f0",
+          "decl": "void D3DDevice_EndScene(void);",
+          "ported": false,
+          "name": "D3DDevice_EndScene"
+        },
+        {
+          "addr": "0x155100",
+          "decl": "void D3DDevice_GetRenderState(int32_t a0, uint32_t *a1);",
+          "ported": false,
+          "name": "D3DDevice_GetRenderState"
+        },
+        {
+          "addr": "0x155130",
+          "decl": "void D3DDevice_SetRenderState_16(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_16"
         }
       ],
       "name": "rasterizer_common.obj",
@@ -23366,6 +25480,228 @@
           "addr": "0x15b450",
           "decl": "void rasterizer_decal_vertices_end_update(void);",
           "comment": "[NAME: rasterizer_decal_vertices_end_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+        },
+        {
+          "addr": "0x1590e0",
+          "decl": "void D3DDevice_SetRenderState_15(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_15"
+        },
+        {
+          "addr": "0x159290",
+          "decl": "void D3DDevice_SetTextureStageState_14(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_14"
+        },
+        {
+          "addr": "0x159300",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_15(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_15"
+        },
+        {
+          "addr": "0x159520",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_14(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_14"
+        },
+        {
+          "addr": "0x159580",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_14(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_14"
+        },
+        {
+          "addr": "0x159590",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_7(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s_7"
+        },
+        {
+          "addr": "0x1595a0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_9(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_9"
+        },
+        {
+          "addr": "0x1595b0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_9(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_9"
+        },
+        {
+          "addr": "0x15a0e0",
+          "decl": "void D3DDevice_SetRenderState_14(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_14"
+        },
+        {
+          "addr": "0x15a2a0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_14(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_14"
+        },
+        {
+          "addr": "0x15a4d0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_13(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_13"
+        },
+        {
+          "addr": "0x15a520",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_6(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s_6"
+        },
+        {
+          "addr": "0x15a530",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor_2(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexDataColor_2"
+        },
+        {
+          "addr": "0x15a540",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_8(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_8"
+        },
+        {
+          "addr": "0x15a550",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_8(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_8"
+        },
+        {
+          "addr": "0x15ada0",
+          "decl": "void D3DDevice_SetRenderState_13(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_13"
+        },
+        {
+          "addr": "0x15af50",
+          "decl": "void D3DDevice_SetTextureStageState_13(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_13"
+        },
+        {
+          "addr": "0x15b230",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_13(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_13"
+        },
+        {
+          "addr": "0x15b4d0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_13(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_13"
+        },
+        {
+          "addr": "0x15b5d0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource_2(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetStreamSource_2"
+        },
+        {
+          "addr": "0x15b670",
+          "decl": "void __stdcall D3DVertexBuffer_Unlock_3(int param_1);",
+          "ported": false,
+          "name": "D3DVertexBuffer_Unlock_3"
+        },
+        {
+          "addr": "0x15b680",
+          "decl": "void IDirect3DVertexBuffer8_Release_3(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Release_3"
+        },
+        {
+          "addr": "0x15b690",
+          "decl": "void IDirect3DVertexBuffer8_Register_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Register_0"
+        },
+        {
+          "addr": "0x15b6c0",
+          "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_3(int param_1);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Unlock_3"
+        },
+        {
+          "addr": "0x15bf90",
+          "decl": "void D3DDevice_SetRenderState_12(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_12"
+        },
+        {
+          "addr": "0x15c140",
+          "decl": "void D3DDevice_SetTextureStageState_12(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_12"
+        },
+        {
+          "addr": "0x15c340",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_12(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_12"
+        },
+        {
+          "addr": "0x15c560",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_12(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_12"
+        },
+        {
+          "addr": "0x15c5c0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_DrawVertices(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_DrawVertices"
+        },
+        {
+          "addr": "0x15c5d0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_12(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_12"
+        },
+        {
+          "addr": "0x15c5e0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource_1(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetStreamSource_1"
+        },
+        {
+          "addr": "0x15c630",
+          "decl": "void __stdcall D3DVertexBuffer_Unlock_2(int param_1);",
+          "ported": false,
+          "name": "D3DVertexBuffer_Unlock_2"
+        },
+        {
+          "addr": "0x15c640",
+          "decl": "void IDirect3DVertexBuffer8_Release_2(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Release_2"
+        },
+        {
+          "addr": "0x15c670",
+          "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_2(int param_1);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Unlock_2"
+        },
+        {
+          "addr": "0x15d530",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetStreamSource_0"
+        },
+        {
+          "addr": "0x15d540",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetIndices(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetIndices"
+        },
+        {
+          "addr": "0x15d550",
+          "decl": "uint32_t rasterizer_dynamic_vertices_get_buffer(void);",
+          "ported": false,
+          "name": "rasterizer_dynamic_vertices_get_buffer"
         }
       ],
       "name": "rasterizer_decals.obj",
@@ -23601,6 +25937,216 @@
         {
           "addr": "0x1579d0",
           "decl": "void __rasterizer_window_set_fog(unsigned char *screen_fog);"
+        },
+        {
+          "addr": "0x1552e0",
+          "decl": "void D3DDevice_SetTextureStageState_15(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_15"
+        },
+        {
+          "addr": "0x155330",
+          "decl": "void __stdcall IDirect3DDevice8_Release(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Release"
+        },
+        {
+          "addr": "0x155340",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_GetDeviceCaps(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_GetDeviceCaps"
+        },
+        {
+          "addr": "0x155370",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_GetBackBuffer(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_GetBackBuffer"
+        },
+        {
+          "addr": "0x155510",
+          "decl": "void __stdcall IDirect3DDevice8_CreatePalette(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_CreatePalette"
+        },
+        {
+          "addr": "0x155520",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderTarget(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderTarget"
+        },
+        {
+          "addr": "0x155530",
+          "decl": "void __stdcall IDirect3DDevice8_GetDepthStencilSurface(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_GetDepthStencilSurface"
+        },
+        {
+          "addr": "0x155540",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_BeginScene(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_BeginScene"
+        },
+        {
+          "addr": "0x155550",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_EndScene(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_EndScene"
+        },
+        {
+          "addr": "0x1558a0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_15(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_15"
+        },
+        {
+          "addr": "0x155900",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShader_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShader_0"
+        },
+        {
+          "addr": "0x155910",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_15(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_15"
+        },
+        {
+          "addr": "0x155920",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetShaderConstantMode(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetShaderConstantMode"
+        },
+        {
+          "addr": "0x155930",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetStreamSource_3(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetStreamSource_3"
+        },
+        {
+          "addr": "0x155940",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetIndices_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetIndices_0"
+        },
+        {
+          "addr": "0x155950",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetPixelShaderProgram(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetPixelShaderProgram"
+        },
+        {
+          "addr": "0x155960",
+          "decl": "void __stdcall IDirect3DDevice8_SetVerticalBlankCallback(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVerticalBlankCallback"
+        },
+        {
+          "addr": "0x155970",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_8(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s_8"
+        },
+        {
+          "addr": "0x155980",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_10(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_10"
+        },
+        {
+          "addr": "0x155990",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_10(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_10"
+        },
+        {
+          "addr": "0x155b40",
+          "decl": "void __stdcall D3DTexture_UnlockRect_1(int param_1, int param_2);",
+          "ported": false,
+          "name": "D3DTexture_UnlockRect_1"
+        },
+        {
+          "addr": "0x155b50",
+          "decl": "void IDirect3DTexture8_GetSurfaceLevel(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "IDirect3DTexture8_GetSurfaceLevel"
+        },
+        {
+          "addr": "0x155b80",
+          "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect_1(int param_1, int param_2);",
+          "ported": false,
+          "name": "IDirect3DTexture8_UnlockRect_1"
+        },
+        {
+          "addr": "0x155c00",
+          "decl": "void __stdcall D3DVolumeTexture_UnlockBox_0(int param_1, int param_2);",
+          "ported": false,
+          "name": "D3DVolumeTexture_UnlockBox_0"
+        },
+        {
+          "addr": "0x155ce0",
+          "decl": "uint32_t __stdcall IDirect3DVolumeTexture8_UnlockBox_0(int param_1, int param_2);",
+          "ported": false,
+          "name": "IDirect3DVolumeTexture8_UnlockBox_0"
+        },
+        {
+          "addr": "0x155e70",
+          "decl": "void __stdcall D3DCubeTexture_UnlockRect_0(int param_1, int param_2, int param_3);",
+          "ported": false,
+          "name": "D3DCubeTexture_UnlockRect_0"
+        },
+        {
+          "addr": "0x156090",
+          "decl": "uint32_t __stdcall IDirect3DCubeTexture8_UnlockRect_0(int param_1, int param_2, int param_3);",
+          "ported": false,
+          "name": "IDirect3DCubeTexture8_UnlockRect_0"
+        },
+        {
+          "addr": "0x156410",
+          "decl": "void __stdcall D3DPalette_Unlock(int param_1);",
+          "ported": false,
+          "name": "D3DPalette_Unlock"
+        },
+        {
+          "addr": "0x156420",
+          "decl": "uint32_t IDirect3DPalette8_Lock(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "IDirect3DPalette8_Lock"
+        },
+        {
+          "addr": "0x156430",
+          "decl": "uint32_t __stdcall IDirect3DPalette8_Unlock(int param_1);",
+          "ported": false,
+          "name": "IDirect3DPalette8_Unlock"
+        },
+        {
+          "addr": "0x1569d0",
+          "decl": "void __stdcall D3DSurface_UnlockRect(int param_1);",
+          "ported": false,
+          "name": "D3DSurface_UnlockRect"
+        },
+        {
+          "addr": "0x1569e0",
+          "decl": "void IDirect3DSurface8_Release(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DSurface8_Release"
+        },
+        {
+          "addr": "0x156a80",
+          "decl": "uint32_t IDirect3DSurface8_GetDesc(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "IDirect3DSurface8_GetDesc"
+        },
+        {
+          "addr": "0x156c20",
+          "decl": "uint32_t __stdcall IDirect3DSurface8_UnlockRect(int param_1);",
+          "ported": false,
+          "name": "IDirect3DSurface8_UnlockRect"
+        },
+        {
+          "addr": "0x156d70",
+          "decl": "uint16_t rasterizer_get_stencil_mode(void);",
+          "ported": false,
+          "name": "rasterizer_get_stencil_mode"
         }
       ],
       "name": "rasterizer_xbox.obj",
@@ -23839,6 +26385,42 @@
         {
           "addr": "0x283b0",
           "decl": "char FUN_000283b0(float *actor_facing, char is_aim, float az_min, float az_max, float el_min, float el_max, float *out_vec3, float *current_dir @<eax>);"
+        },
+        {
+          "addr": "0x12080",
+          "decl": "void action_alert_begin(void);",
+          "ported": false,
+          "name": "action_alert_begin"
+        },
+        {
+          "addr": "0x12900",
+          "decl": "void action_avoid_begin(void);",
+          "ported": false,
+          "name": "action_avoid_begin"
+        },
+        {
+          "addr": "0x12910",
+          "decl": "void action_avoid_end(void);",
+          "ported": false,
+          "name": "action_avoid_end"
+        },
+        {
+          "addr": "0x129e0",
+          "decl": "void action_avoid_update(void);",
+          "ported": false,
+          "name": "action_avoid_update"
+        },
+        {
+          "addr": "0x130c0",
+          "decl": "void real_random(void);",
+          "ported": false,
+          "name": "real_random"
+        },
+        {
+          "addr": "0x213f0",
+          "decl": "bool random_boolean(void);",
+          "ported": false,
+          "name": "random_boolean"
         }
       ],
       "name": "vector_math.obj",
@@ -24690,6 +27272,18 @@
           "addr": "0x113a90",
           "decl": "int inflate_blocks(int s, int *z, int r);",
           "ported": true
+        },
+        {
+          "addr": "0x110860",
+          "decl": "void vector_tree_add_node(int32_t a0);",
+          "ported": false,
+          "name": "vector_tree_add_node"
+        },
+        {
+          "addr": "0x110c00",
+          "decl": "uint32_t get_crc_table(void);",
+          "ported": false,
+          "name": "get_crc_table"
         }
       ],
       "name": "real_math.obj",
@@ -24926,6 +27520,96 @@
         {
           "addr": "0x95c60",
           "decl": "void FUN_00095c60(void);"
+        },
+        {
+          "addr": "0x956a0",
+          "decl": "void controls_initialize(void);",
+          "ported": false,
+          "name": "controls_initialize"
+        },
+        {
+          "addr": "0x956b0",
+          "decl": "void controls_dispose(void);",
+          "ported": false,
+          "name": "controls_dispose"
+        },
+        {
+          "addr": "0x956c0",
+          "decl": "void controls_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "controls_initialize_for_new_map"
+        },
+        {
+          "addr": "0x956d0",
+          "decl": "void controls_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "controls_dispose_from_old_map"
+        },
+        {
+          "addr": "0x95780",
+          "decl": "void control_delete(void);",
+          "ported": false,
+          "name": "control_delete"
+        },
+        {
+          "addr": "0x95970",
+          "decl": "void light_fixtures_initialize(void);",
+          "ported": false,
+          "name": "light_fixtures_initialize"
+        },
+        {
+          "addr": "0x95980",
+          "decl": "void light_fixtures_dispose(void);",
+          "ported": false,
+          "name": "light_fixtures_dispose"
+        },
+        {
+          "addr": "0x95990",
+          "decl": "void light_fixtures_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "light_fixtures_initialize_for_new_map"
+        },
+        {
+          "addr": "0x959a0",
+          "decl": "void light_fixtures_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "light_fixtures_dispose_from_old_map"
+        },
+        {
+          "addr": "0x95a50",
+          "decl": "void light_fixture_delete(void);",
+          "ported": false,
+          "name": "light_fixture_delete"
+        },
+        {
+          "addr": "0x95a90",
+          "decl": "void machines_initialize(void);",
+          "ported": false,
+          "name": "machines_initialize"
+        },
+        {
+          "addr": "0x95aa0",
+          "decl": "void machines_dispose(void);",
+          "ported": false,
+          "name": "machines_dispose"
+        },
+        {
+          "addr": "0x95ab0",
+          "decl": "void machines_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "machines_initialize_for_new_map"
+        },
+        {
+          "addr": "0x95ac0",
+          "decl": "void machines_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "machines_dispose_from_old_map"
+        },
+        {
+          "addr": "0x95bd0",
+          "decl": "void machine_delete(void);",
+          "ported": false,
+          "name": "machine_delete"
         }
       ],
       "name": "recorded_animations.obj",
@@ -25014,7 +27698,8 @@
         {
           "addr": "0x1848d0",
           "decl": "void rasterizer_sort_external(void);",
-          "ported": true
+          "ported": true,
+          "name": "rasterizer_sort_internal"
         },
         {
           "addr": "0x184980",
@@ -25039,6 +27724,12 @@
           "addr": "0x184ea0",
           "decl": "void render_window(int16_t player_index@<ebx>, void *render_cam, void *render_frustum, void *rasterizer_cam, void *rasterizer_frustum, int16_t pass_type, char reflected);",
           "name": "render_scene"
+        },
+        {
+          "addr": "0x184720",
+          "decl": "void FUN_00184720(int32_t a0);",
+          "ported": false,
+          "name": "FUN_00184720"
         }
       ],
       "name": "render.obj",
@@ -25173,6 +27864,18 @@
           "decl": "void render_contrails_normal(void);",
           "comment": "[NAME: render_contrails_normal \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "ported": true
+        },
+        {
+          "addr": "0x188860",
+          "decl": "void render_contrails_ground_mapped(void);",
+          "ported": false,
+          "name": "render_contrails_ground_mapped"
+        },
+        {
+          "addr": "0x188870",
+          "decl": "void render_contrails_media_mapped(void);",
+          "ported": false,
+          "name": "render_contrails_media_mapped"
         }
       ],
       "name": "render_cameras.obj",
@@ -25702,6 +28405,24 @@
           "addr": "0x1c58f0",
           "decl": "void FUN_001c58f0(void);",
           "ported": true
+        },
+        {
+          "addr": "0x1c36e0",
+          "decl": "void saved_game_files_take_mapfile_mutex(void);",
+          "ported": false,
+          "name": "saved_game_files_take_mapfile_mutex"
+        },
+        {
+          "addr": "0x1c3700",
+          "decl": "void saved_game_files_release_mapfile_mutex(void);",
+          "ported": false,
+          "name": "saved_game_files_release_mapfile_mutex"
+        },
+        {
+          "addr": "0x1c4f10",
+          "decl": "int32_t enumerate_default_profiles(void);",
+          "ported": false,
+          "name": "enumerate_default_profiles"
         }
       ],
       "name": "saved_game_files.obj",
@@ -25939,6 +28660,18 @@
         {
           "addr": "0x190e10",
           "decl": "void shader_texture_animation_evaluate(void *map_animation, void *external_animation, float u_scale, float v_scale, float u_offset, float v_offset, float rotation, float time, float *out_u, float *out_v);"
+        },
+        {
+          "addr": "0x190880",
+          "decl": "char shader_is_destructable(void);",
+          "ported": false,
+          "name": "shader_is_destructable"
+        },
+        {
+          "addr": "0x190890",
+          "decl": "char shader_is_double_sided(void);",
+          "ported": false,
+          "name": "shader_is_double_sided"
         }
       ],
       "name": "shaders.obj",
@@ -26335,6 +29068,60 @@
           "addr": "0x18fef0",
           "decl": "void FUN_0018fef0(void);",
           "ported": true
+        },
+        {
+          "addr": "0x18ae90",
+          "decl": "void render_detail_objects(void);",
+          "ported": false,
+          "name": "render_detail_objects"
+        },
+        {
+          "addr": "0x18aea0",
+          "decl": "void render_media_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "render_media_initialize_for_new_map"
+        },
+        {
+          "addr": "0x18aec0",
+          "decl": "void render_media_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "render_media_dispose_from_old_map"
+        },
+        {
+          "addr": "0x18aed0",
+          "decl": "char render_media_build_render_target(void);",
+          "ported": false,
+          "name": "render_media_build_render_target"
+        },
+        {
+          "addr": "0x18aee0",
+          "decl": "void render_media(void);",
+          "ported": false,
+          "name": "render_media"
+        },
+        {
+          "addr": "0x18e240",
+          "decl": "void scenario_call_disconnect_from_structure_bsp_procs(void);",
+          "ported": false,
+          "name": "scenario_call_disconnect_from_structure_bsp_procs"
+        },
+        {
+          "addr": "0x18e260",
+          "decl": "void scenario_call_reconnect_to_structure_bsp_procs(void);",
+          "ported": false,
+          "name": "scenario_call_reconnect_to_structure_bsp_procs"
+        },
+        {
+          "addr": "0x18e480",
+          "decl": "uint32_t global_structure_bsp_tag_index_get(void);",
+          "ported": false,
+          "name": "global_structure_bsp_tag_index_get"
+        },
+        {
+          "addr": "0x18e4e0",
+          "decl": "uint32_t default_material_definition_get(void);",
+          "ported": false,
+          "name": "default_material_definition_get"
         }
       ],
       "name": "scenario.obj",
@@ -26570,6 +29357,36 @@
           "addr": "0x1cb0c0",
           "decl": "void FUN_001cb0c0(short channel_index, void *sound@<edi>);",
           "ported": true
+        },
+        {
+          "addr": "0x1c93a0",
+          "decl": "uint16_t * dsound_initialize_virtual_channel(void);",
+          "ported": false,
+          "name": "dsound_initialize_virtual_channel"
+        },
+        {
+          "addr": "0x1c95d0",
+          "decl": "void dsound_channel_stop(void);",
+          "ported": false,
+          "name": "dsound_channel_stop"
+        },
+        {
+          "addr": "0x1c9660",
+          "decl": "uint32_t dsound_channel_get_state(void);",
+          "ported": false,
+          "name": "dsound_channel_get_state"
+        },
+        {
+          "addr": "0x1c9be0",
+          "decl": "void dsound_virtual_update(void);",
+          "ported": false,
+          "name": "dsound_virtual_update"
+        },
+        {
+          "addr": "0x1c9de0",
+          "decl": "void dsound_begin_scene(void);",
+          "ported": false,
+          "name": "dsound_begin_scene"
         }
       ],
       "name": "sound_dsound_xbox.obj",
@@ -26895,7 +29712,8 @@
         {
           "addr": "0x1c88a0",
           "decl": "void sound_is_active(void *data);",
-          "ported": true
+          "ported": true,
+          "name": "sound_is_active"
         },
         {
           "addr": "0x1c8ee0",
@@ -27086,6 +29904,36 @@
           "addr": "0x1cf820",
           "decl": "void FUN_001cf820(void **out_data);",
           "ported": true
+        },
+        {
+          "addr": "0x1cb800",
+          "decl": "uint32_t current_platform_definition(void);",
+          "ported": false,
+          "name": "current_platform_definition"
+        },
+        {
+          "addr": "0x1cb880",
+          "decl": "uint32_t FUN_001cb880(void);",
+          "ported": false,
+          "name": "FUN_001cb880"
+        },
+        {
+          "addr": "0x1cbba0",
+          "decl": "float sound_manager_master_gain(void);",
+          "ported": false,
+          "name": "sound_manager_master_gain"
+        },
+        {
+          "addr": "0x1cbbd0",
+          "decl": "void sound_delete(void);",
+          "ported": false,
+          "name": "sound_delete"
+        },
+        {
+          "addr": "0x1cf830",
+          "decl": "void write_sound_preferences(void);",
+          "ported": false,
+          "name": "write_sound_preferences"
         }
       ],
       "name": "sound_manager.obj",
@@ -27231,6 +30079,24 @@
           "addr": "0x1b9b80",
           "decl": "int FUN_001b9b80(int state);",
           "ported": true
+        },
+        {
+          "addr": "0x1b9a00",
+          "decl": "void cache_files_disable_writes(void);",
+          "ported": false,
+          "name": "cache_files_disable_writes"
+        },
+        {
+          "addr": "0x1b9af0",
+          "decl": "void tag_block_delete_element(void);",
+          "ported": false,
+          "name": "tag_block_delete_element"
+        },
+        {
+          "addr": "0x1b9b20",
+          "decl": "void tag_unload(void);",
+          "ported": false,
+          "name": "tag_unload"
         }
       ],
       "name": "tag_groups.obj",
@@ -27375,6 +30241,84 @@
           "reg_args": {
             "self": "edi"
           }
+        },
+        {
+          "addr": "0x1b99e0",
+          "decl": "void cache_files_enable_writes(void);",
+          "ported": false,
+          "name": "cache_files_enable_writes"
+        },
+        {
+          "addr": "0x1ba230",
+          "decl": "bool copy_should_stop(void);",
+          "ported": false,
+          "name": "copy_should_stop"
+        },
+        {
+          "addr": "0x1ba2d0",
+          "decl": "bool cache_copy_compressed_file_complete(void);",
+          "ported": false,
+          "name": "cache_copy_compressed_file_complete"
+        },
+        {
+          "addr": "0x1ba600",
+          "decl": "void cache_copy_initialize_zlib(int32_t a0);",
+          "ported": false,
+          "name": "cache_copy_initialize_zlib"
+        },
+        {
+          "addr": "0x1ba630",
+          "decl": "void cache_copy_dispose_zlib(void);",
+          "ported": false,
+          "name": "cache_copy_dispose_zlib"
+        },
+        {
+          "addr": "0x1baa40",
+          "decl": "uint32_t get_read_request_size(void);",
+          "ported": false,
+          "name": "get_read_request_size"
+        },
+        {
+          "addr": "0x1baaa0",
+          "decl": "uint32_t get_write_buffer(void);",
+          "ported": false,
+          "name": "get_write_buffer"
+        },
+        {
+          "addr": "0x1baaf0",
+          "decl": "uint32_t get_write_buffer_size_1baaf0(int16_t a0);",
+          "ported": false,
+          "name": "get_write_buffer_size_1baaf0"
+        },
+        {
+          "addr": "0x1bab30",
+          "decl": "void any_bit_vector_flag_set(void);",
+          "ported": false,
+          "name": "any_bit_vector_flag_set"
+        },
+        {
+          "addr": "0x1bac30",
+          "decl": "uint32_t get_copy_error_flags(void);",
+          "ported": false,
+          "name": "get_copy_error_flags"
+        },
+        {
+          "addr": "0x1bac40",
+          "decl": "void initialize_timing(void);",
+          "ported": false,
+          "name": "initialize_timing"
+        },
+        {
+          "addr": "0x1bac60",
+          "decl": "void begin_timing(int32_t a0);",
+          "ported": false,
+          "name": "begin_timing"
+        },
+        {
+          "addr": "0x1bada0",
+          "decl": "void give_up_time_if_necessary(void);",
+          "ported": false,
+          "name": "give_up_time_if_necessary"
         }
       ],
       "name": "tags.obj",
@@ -28187,6 +31131,24 @@
           "name": "set_file_location_volume_name",
           "ported": true,
           "source_path": "src/halo/structures/structures.c"
+        },
+        {
+          "addr": "0x99060",
+          "decl": "void decal_new_from_media_collision(void);",
+          "ported": false,
+          "name": "decal_new_from_media_collision"
+        },
+        {
+          "addr": "0x105790",
+          "decl": "char convex_hull3d_verify(void);",
+          "ported": false,
+          "name": "convex_hull3d_verify"
+        },
+        {
+          "addr": "0x196300",
+          "decl": "void structure_decals_reconnect_to_structure_bsp(void);",
+          "ported": false,
+          "name": "structure_decals_reconnect_to_structure_bsp"
         }
       ],
       "name": "structures.obj",
@@ -28244,6 +31206,30 @@
           "addr": "0x193c00",
           "decl": "void structure_render_detail_objects(void);",
           "ported": true
+        },
+        {
+          "addr": "0x193930",
+          "decl": "int32_t get_local_player_datum(void);",
+          "ported": false,
+          "name": "get_local_player_datum"
+        },
+        {
+          "addr": "0x1939e0",
+          "decl": "void structure_detail_objects_flush(void);",
+          "ported": false,
+          "name": "structure_detail_objects_flush"
+        },
+        {
+          "addr": "0x193a20",
+          "decl": "uint32_t key_compare_cells_lower_bound(uint32_t a0, int16_t *a1);",
+          "ported": false,
+          "name": "key_compare_cells_lower_bound"
+        },
+        {
+          "addr": "0x193a50",
+          "decl": "uint32_t key_compare_cells_upper_bound(uint32_t a0, int16_t *a1);",
+          "ported": false,
+          "name": "key_compare_cells_upper_bound"
         }
       ],
       "name": "structure_detail_objects.obj",
@@ -28935,6 +31921,42 @@
           "addr": "0x84970",
           "decl": "void FUN_00084970(int *ep);",
           "ported": true
+        },
+        {
+          "addr": "0x81db0",
+          "decl": "void net_startup_debug(void);",
+          "ported": false,
+          "name": "net_startup_debug"
+        },
+        {
+          "addr": "0x81dc0",
+          "decl": "int32_t get_next_available_set_array_index(void);",
+          "ported": false,
+          "name": "get_next_available_set_array_index"
+        },
+        {
+          "addr": "0x81e80",
+          "decl": "void transport_pop_key(void);",
+          "ported": false,
+          "name": "transport_pop_key"
+        },
+        {
+          "addr": "0x82010",
+          "decl": "void transport_client_stop(void);",
+          "ported": false,
+          "name": "transport_client_stop"
+        },
+        {
+          "addr": "0x84990",
+          "decl": "int32_t bored_camera_command_threshold(int32_t a0);",
+          "ported": false,
+          "name": "bored_camera_command_threshold"
+        },
+        {
+          "addr": "0x849b0",
+          "decl": "int32_t bored_camera_command_time(int32_t a0);",
+          "ported": false,
+          "name": "bored_camera_command_time"
         }
       ],
       "data": [
@@ -29652,6 +32674,168 @@
           "comment": "[NAME: playlist_profile_initialize_ctf_rules \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "name": "playlist_profile_initialize_ctf_rules",
           "ported": true
+        },
+        {
+          "addr": "0xe3b40",
+          "decl": "void pool_alloc(uint32_t a0);",
+          "ported": false,
+          "name": "pool_alloc"
+        },
+        {
+          "addr": "0xe3b60",
+          "decl": "void pool_free(uint32_t a0);",
+          "ported": false,
+          "name": "pool_free"
+        },
+        {
+          "addr": "0xe4490",
+          "decl": "uint16_t sub_E4490(uint16_t a0);",
+          "ported": false,
+          "name": "sub_E4490"
+        },
+        {
+          "addr": "0xe47d0",
+          "decl": "void dispose_widget_stack(void);",
+          "ported": false,
+          "name": "dispose_widget_stack"
+        },
+        {
+          "addr": "0xe4a00",
+          "decl": "int32_t widget_instance_can_handle_events(uint32_t *a0);",
+          "ported": false,
+          "name": "widget_instance_can_handle_events"
+        },
+        {
+          "addr": "0xe4ed0",
+          "decl": "void widget_instance_update_animation_parameters(int32_t a0);",
+          "ported": false,
+          "name": "widget_instance_update_animation_parameters"
+        },
+        {
+          "addr": "0xe4f00",
+          "decl": "void widget_instance_reload_recursive(void);",
+          "ported": false,
+          "name": "widget_instance_reload_recursive"
+        },
+        {
+          "addr": "0xe4f10",
+          "decl": "void ui_widget_reload_by_tag(void);",
+          "ported": false,
+          "name": "ui_widget_reload_by_tag"
+        },
+        {
+          "addr": "0xe5160",
+          "decl": "void play_sound_tag(int32_t a0);",
+          "ported": false,
+          "name": "play_sound_tag"
+        },
+        {
+          "addr": "0xe5350",
+          "decl": "void spinner_list_update(void);",
+          "ported": false,
+          "name": "spinner_list_update"
+        },
+        {
+          "addr": "0xe53c0",
+          "decl": "void widget_instance_get_tail_child_widget(int32_t a0);",
+          "ported": false,
+          "name": "widget_instance_get_tail_child_widget"
+        },
+        {
+          "addr": "0xe59a0",
+          "decl": "void ui_widgets_delete_history(void);",
+          "ported": false,
+          "name": "ui_widgets_delete_history"
+        },
+        {
+          "addr": "0xe5db0",
+          "decl": "void widget_instance_find_by_tag_index(void);",
+          "ported": false,
+          "name": "widget_instance_find_by_tag_index"
+        },
+        {
+          "addr": "0xe98a0",
+          "decl": "char widget_event_function_null(void);",
+          "ported": false,
+          "name": "widget_event_function_null"
+        },
+        {
+          "addr": "0xe9c30",
+          "decl": "uint32_t start_new_game(void);",
+          "ported": false,
+          "name": "start_new_game"
+        },
+        {
+          "addr": "0xe9c60",
+          "decl": "char pause_game_restart_at_checkpoint(void);",
+          "ported": false,
+          "name": "pause_game_restart_at_checkpoint"
+        },
+        {
+          "addr": "0xe9c70",
+          "decl": "char pause_game_restart_level(void);",
+          "ported": false,
+          "name": "pause_game_restart_level"
+        },
+        {
+          "addr": "0xe9c80",
+          "decl": "char pause_game_quit_to_main_menu(void);",
+          "ported": false,
+          "name": "pause_game_quit_to_main_menu"
+        },
+        {
+          "addr": "0xe9c90",
+          "decl": "char clear_multiplayer_player_joins(void);",
+          "ported": false,
+          "name": "clear_multiplayer_player_joins"
+        },
+        {
+          "addr": "0xe9d00",
+          "decl": "char network_game_server_list_initialize(void);",
+          "ported": false,
+          "name": "network_game_server_list_initialize"
+        },
+        {
+          "addr": "0xe9ff0",
+          "decl": "char network_game_cancel(void);",
+          "ported": false,
+          "name": "network_game_cancel"
+        },
+        {
+          "addr": "0xea080",
+          "decl": "char coop_game_initialize(void);",
+          "ported": false,
+          "name": "coop_game_initialize"
+        },
+        {
+          "addr": "0xea090",
+          "decl": "char main_menu_initialize(void);",
+          "ported": false,
+          "name": "main_menu_initialize"
+        },
+        {
+          "addr": "0xea0d0",
+          "decl": "void multiplayer_type_menu_initialize(void);",
+          "ported": false,
+          "name": "multiplayer_type_menu_initialize"
+        },
+        {
+          "addr": "0xea0e0",
+          "decl": "char multiplayer_pick_quick_start_play_stage(void);",
+          "ported": false,
+          "name": "multiplayer_pick_quick_start_play_stage"
+        },
+        {
+          "addr": "0xeb000",
+          "decl": "char playlist_profile_end_editing(void);",
+          "ported": false,
+          "name": "playlist_profile_end_editing"
+        },
+        {
+          "addr": "0xeb100",
+          "decl": "uint32_t playlist_profile_change_name(void);",
+          "ported": false,
+          "name": "playlist_profile_change_name"
         }
       ],
       "name": "ui_widget.obj",
@@ -30152,6 +33336,102 @@
           "decl": "void player_profile_1wide_list_update(int *widget);",
           "ported": true,
           "name": "player_profile_1wide_list_update"
+        },
+        {
+          "addr": "0xeee40",
+          "decl": "char player_profile_end_editing(void);",
+          "ported": false,
+          "name": "player_profile_end_editing"
+        },
+        {
+          "addr": "0xeee60",
+          "decl": "uint32_t player_profile_change_name(void);",
+          "ported": false,
+          "name": "player_profile_change_name"
+        },
+        {
+          "addr": "0xef950",
+          "decl": "char switch_from_main_menu_to_single_player(void);",
+          "ported": false,
+          "name": "switch_from_main_menu_to_single_player"
+        },
+        {
+          "addr": "0xefbc0",
+          "decl": "uint32_t delete_player_profile_final(void);",
+          "ported": false,
+          "name": "delete_player_profile_final"
+        },
+        {
+          "addr": "0xefc10",
+          "decl": "uint32_t delete_playlist_profile_final(void);",
+          "ported": false,
+          "name": "delete_playlist_profile_final"
+        },
+        {
+          "addr": "0xefc50",
+          "decl": "char cancel_profile_delete(void);",
+          "ported": false,
+          "name": "cancel_profile_delete"
+        },
+        {
+          "addr": "0xf0010",
+          "decl": "uint32_t network_game_server_accept_connections(void);",
+          "ported": false,
+          "name": "network_game_server_accept_connections"
+        },
+        {
+          "addr": "0xf0030",
+          "decl": "uint32_t network_game_server_defer_game_start(void);",
+          "ported": false,
+          "name": "network_game_server_defer_game_start"
+        },
+        {
+          "addr": "0xf0050",
+          "decl": "uint32_t network_game_server_allow_game_start(void);",
+          "ported": false,
+          "name": "network_game_server_allow_game_start"
+        },
+        {
+          "addr": "0xf0090",
+          "decl": "char run_xdemos(void);",
+          "ported": false,
+          "name": "run_xdemos"
+        },
+        {
+          "addr": "0xf00a0",
+          "decl": "char single_player_reset_controller_choices(void);",
+          "ported": false,
+          "name": "single_player_reset_controller_choices"
+        },
+        {
+          "addr": "0xf0420",
+          "decl": "char exit_to_xbox_dashboard(void);",
+          "ported": false,
+          "name": "exit_to_xbox_dashboard"
+        },
+        {
+          "addr": "0xf0720",
+          "decl": "char begin_music_fade_out(void);",
+          "ported": false,
+          "name": "begin_music_fade_out"
+        },
+        {
+          "addr": "0xf0a90",
+          "decl": "void widget_function_null(void);",
+          "ported": false,
+          "name": "widget_function_null"
+        },
+        {
+          "addr": "0xf33d0",
+          "decl": "void system_link_status_check(void);",
+          "ported": false,
+          "name": "system_link_status_check"
+        },
+        {
+          "addr": "0xf3990",
+          "decl": "void filter_invalid_list_indices(void);",
+          "ported": false,
+          "name": "filter_invalid_list_indices"
         }
       ],
       "name": "ui_widget_game_data_input_functions.obj",
@@ -30763,6 +34043,36 @@
           "addr": "0x1a5300",
           "decl": "void FUN_001a5300(int unit_handle, unsigned char *state);",
           "ported": true
+        },
+        {
+          "addr": "0x1a0780",
+          "decl": "void bipeds_initialize(void);",
+          "ported": false,
+          "name": "bipeds_initialize"
+        },
+        {
+          "addr": "0x1a0790",
+          "decl": "void bipeds_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "bipeds_initialize_for_new_map"
+        },
+        {
+          "addr": "0x1a07a0",
+          "decl": "void bipeds_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "bipeds_dispose_from_old_map"
+        },
+        {
+          "addr": "0x1a07b0",
+          "decl": "void bipeds_dispose(void);",
+          "ported": false,
+          "name": "bipeds_dispose"
+        },
+        {
+          "addr": "0x1a07f0",
+          "decl": "void biped_delete(void);",
+          "ported": false,
+          "name": "biped_delete"
         }
       ],
       "name": "bipeds.obj",
@@ -31012,7 +34322,8 @@
         {
           "addr": "0x1a7fc0",
           "decl": "void unit_delete(int datum_handle);",
-          "ported": true
+          "ported": true,
+          "name": "unit_delete"
         },
         {
           "addr": "0x1a7ff0",
@@ -31926,6 +35237,30 @@
           "decl": "int unit_animation_compute_interpolation_frame_count(int16_t anim_state@<ecx>, int16_t target_state@<edx>);",
           "ported": true,
           "name": "unit_animation_compute_interpolation_frame_count"
+        },
+        {
+          "addr": "0x1a7f00",
+          "decl": "void units_initialize(void);",
+          "ported": false,
+          "name": "units_initialize"
+        },
+        {
+          "addr": "0x1a7f40",
+          "decl": "void units_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "units_initialize_for_new_map"
+        },
+        {
+          "addr": "0x1a7f60",
+          "decl": "void units_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "units_dispose_from_old_map"
+        },
+        {
+          "addr": "0x1a7f70",
+          "decl": "void units_dispose(void);",
+          "ported": false,
+          "name": "units_dispose"
         }
       ],
       "name": "units.obj",
@@ -32110,6 +35445,54 @@
         {
           "addr": "0x1b8f80",
           "decl": "void FUN_001b8f80(void);"
+        },
+        {
+          "addr": "0x1b5540",
+          "decl": "void vehicles_initialize(void);",
+          "ported": false,
+          "name": "vehicles_initialize"
+        },
+        {
+          "addr": "0x1b5550",
+          "decl": "void vehicles_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "vehicles_initialize_for_new_map"
+        },
+        {
+          "addr": "0x1b5560",
+          "decl": "void vehicles_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "vehicles_dispose_from_old_map"
+        },
+        {
+          "addr": "0x1b5570",
+          "decl": "void vehicles_dispose(void);",
+          "ported": false,
+          "name": "vehicles_dispose"
+        },
+        {
+          "addr": "0x1b55b0",
+          "decl": "void vehicle_delete(void);",
+          "ported": false,
+          "name": "vehicle_delete"
+        },
+        {
+          "addr": "0x1b55f0",
+          "decl": "char vehicle_build_update(void);",
+          "ported": false,
+          "name": "vehicle_build_update"
+        },
+        {
+          "addr": "0x1b5600",
+          "decl": "char vehicle_parse_update(void);",
+          "ported": false,
+          "name": "vehicle_parse_update"
+        },
+        {
+          "addr": "0x1b5660",
+          "decl": "void update_turret_physics(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "update_turret_physics"
         }
       ],
       "name": "vehicles.obj",
@@ -32213,6 +35596,18 @@
           "addr": "0xa4e20",
           "decl": "void weather_particle_system_render(int16_t local_player_index@<eax>);",
           "ported": true
+        },
+        {
+          "addr": "0xa3fd0",
+          "decl": "void weather_particle_system_type_delete_particle(void);",
+          "ported": false,
+          "name": "weather_particle_system_type_delete_particle"
+        },
+        {
+          "addr": "0xa49c0",
+          "decl": "void weather_particle_system_transform_clip_planes_to_box(int32_t a0, real *a1, real *a2);",
+          "ported": false,
+          "name": "weather_particle_system_transform_clip_planes_to_box"
         }
       ],
       "name": "weather_particle_systems.obj",
@@ -32251,6 +35646,18 @@
           "ported": true,
           "source_path": "objects/widgets/widgets.c",
           "name": "damage_dispose_from_old_map"
+        },
+        {
+          "addr": "0x136590",
+          "decl": "void damage_dispose(void);",
+          "ported": false,
+          "name": "damage_dispose"
+        },
+        {
+          "addr": "0x1365c0",
+          "decl": "void damage_render_debug(void);",
+          "ported": false,
+          "name": "damage_render_debug"
         }
       ],
       "name": "widgets.obj",
@@ -32755,6 +36162,30 @@
         {
           "addr": "0x1bf260",
           "decl": "void texture_cache_debug_render(void);"
+        },
+        {
+          "addr": "0x1becf0",
+          "decl": "void __stdcall IDirect3DDevice8_IsBusy(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_IsBusy"
+        },
+        {
+          "addr": "0x1bed00",
+          "decl": "void __stdcall IDirect3DDevice8_KickPushBuffer(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_KickPushBuffer"
+        },
+        {
+          "addr": "0x1bed10",
+          "decl": "void IDirect3DBaseTexture8_IsBusy(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DBaseTexture8_IsBusy"
+        },
+        {
+          "addr": "0x1bed20",
+          "decl": "void IDirect3DBaseTexture8_Register_0(uint32_t a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "IDirect3DBaseTexture8_Register_0"
         }
       ],
       "name": "xbox_texture_cache.obj",
@@ -33181,6 +36612,48 @@
           "decl": "short rasterizer_transparent_geometry_get_group_presorted_index(unsigned int group);",
           "name": "rasterizer_transparent_geometry_group_to_presorted_index",
           "ported": true
+        },
+        {
+          "addr": "0x1800a0",
+          "decl": "void rasterizer_geometry_byte_swap_vertices(void);",
+          "ported": false,
+          "name": "rasterizer_geometry_byte_swap_vertices"
+        },
+        {
+          "addr": "0x1804f0",
+          "decl": "char rasterizer_geometry_stripify(void);",
+          "ported": false,
+          "name": "rasterizer_geometry_stripify"
+        },
+        {
+          "addr": "0x180ff0",
+          "decl": "uint32_t screenshot_in_progress(void);",
+          "ported": false,
+          "name": "screenshot_in_progress"
+        },
+        {
+          "addr": "0x183630",
+          "decl": "void lock_rasterizer_text_data(void);",
+          "ported": false,
+          "name": "lock_rasterizer_text_data"
+        },
+        {
+          "addr": "0x183640",
+          "decl": "void unlock_rasterizer_text_data(void);",
+          "ported": false,
+          "name": "unlock_rasterizer_text_data"
+        },
+        {
+          "addr": "0x183750",
+          "decl": "uint32_t hardware_character_cache_get_bitmap(void);",
+          "ported": false,
+          "name": "hardware_character_cache_get_bitmap"
+        },
+        {
+          "addr": "0x184450",
+          "decl": "uint32_t rasterizer_transparent_geometry_get_groups(void);",
+          "ported": false,
+          "name": "rasterizer_transparent_geometry_get_groups"
         }
       ],
       "name": "rasterizer_text.obj",
@@ -33730,6 +37203,24 @@
           "addr": "0x17ef00",
           "decl": "void rasterizer_frame_statistics_draw(void);",
           "ported": true
+        },
+        {
+          "addr": "0x17cdd0",
+          "decl": "void rasterizer_environment_specular_lightmap_end(void);",
+          "ported": false,
+          "name": "rasterizer_environment_specular_lightmap_end"
+        },
+        {
+          "addr": "0x17ce20",
+          "decl": "void rasterizer_environment_reflection_lightmap_mask_end(void);",
+          "ported": false,
+          "name": "rasterizer_environment_reflection_lightmap_mask_end"
+        },
+        {
+          "addr": "0x17e120",
+          "decl": "void rasterizer_debug_test(void);",
+          "ported": false,
+          "name": "rasterizer_debug_test"
         }
       ],
       "name": "rasterizer_sprites.obj",
@@ -34620,6 +38111,18 @@
           "addr": "0x1bfe90",
           "decl": "void *lruv_cache_new(const char *name, int capacity, int max_locked, int entry_size, void (*delete_cb)(int), int (*query_cb)(int));",
           "ported": true
+        },
+        {
+          "addr": "0x11cff0",
+          "decl": "int32_t get_lru_cache_block_offset(void);",
+          "ported": false,
+          "name": "get_lru_cache_block_offset"
+        },
+        {
+          "addr": "0x11d530",
+          "decl": "int32_t lruv_cache_bytes_to_pages(int32_t a0, uint32_t a1);",
+          "ported": false,
+          "name": "lruv_cache_bytes_to_pages"
         }
       ],
       "name": "lruv_cache.obj",
@@ -34928,6 +38431,12 @@
           "addr": "0x74fb0",
           "decl": "void extract_mipmaps_to_bitmap(void *pixel_data, void *bitmap_data);",
           "comment": "[NAME: extract_mipmaps_to_bitmap \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+        },
+        {
+          "addr": "0x76ba0",
+          "decl": "char postprocess_bitmap(void);",
+          "ported": false,
+          "name": "postprocess_bitmap"
         }
       ],
       "name": "bitmap_utilities.obj",
@@ -36444,6 +39953,12 @@
           "addr": "0x22ba0",
           "decl": "int actor_aim_grenade(int actor_handle, void *aim_params, float *out_aim_vector);",
           "ported": true
+        },
+        {
+          "addr": "0x21310",
+          "decl": "uint32_t actor_get_grenade_definition(int16_t a0);",
+          "ported": false,
+          "name": "actor_get_grenade_definition"
         }
       ],
       "name": "actor_combat.obj",
@@ -36881,6 +40396,12 @@
           "ported": true,
           "source_path": "src/halo/ai/actor_perception.c",
           "comment": "[NAME: actor_perception_update \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]"
+        },
+        {
+          "addr": "0x30ee0",
+          "decl": "char actor_emotion_assess_unopposable_danger(uint32_t a0);",
+          "ported": false,
+          "name": "actor_emotion_assess_unopposable_danger"
         }
       ],
       "name": "actor_perception.obj",
@@ -37165,6 +40686,12 @@
           "name": "ai_debug_initialize",
           "ported": true,
           "src": "src/halo/ai/ai_debug.c"
+        },
+        {
+          "addr": "0x43cb0",
+          "decl": "void ai_conversation_line_end(uint32_t a0);",
+          "ported": false,
+          "name": "ai_conversation_line_end"
         }
       ],
       "name": "ai_communication.obj",
@@ -37646,6 +41173,36 @@
           "name": "ai_profile_show_prop_types",
           "ported": true,
           "src": "src/halo/ai/ai_debug.c"
+        },
+        {
+          "addr": "0x497b0",
+          "decl": "void ai_debug_lineofsight_reset(void);",
+          "ported": false,
+          "name": "ai_debug_lineofsight_reset"
+        },
+        {
+          "addr": "0x538e0",
+          "decl": "uint32_t ai_meter_actor(void);",
+          "ported": false,
+          "name": "ai_meter_actor"
+        },
+        {
+          "addr": "0x53940",
+          "decl": "uint32_t ai_meter_prop(void);",
+          "ported": false,
+          "name": "ai_meter_prop"
+        },
+        {
+          "addr": "0x53950",
+          "decl": "uint32_t ai_meter_swarm_cache(void);",
+          "ported": false,
+          "name": "ai_meter_swarm_cache"
+        },
+        {
+          "addr": "0x539b0",
+          "decl": "uint32_t ai_meter_swarm_component(void);",
+          "ported": false,
+          "name": "ai_meter_swarm_component"
         }
       ],
       "name": "ai_debug.obj",
@@ -38773,6 +42330,12 @@
           "decl": "void paths_dispose_from_old_map(void);",
           "ported": true,
           "name": "paths_dispose_from_old_map"
+        },
+        {
+          "addr": "0x5a490",
+          "decl": "void encounterless_deactivate(void);",
+          "ported": false,
+          "name": "encounterless_deactivate"
         }
       ],
       "name": "encounters.obj",
@@ -38960,6 +42523,12 @@
           "decl": "int TIFFSetCompressionScheme(void *tif, int scheme);",
           "ported": true,
           "name": "TIFFSetCompressionScheme"
+        },
+        {
+          "addr": "0x64f80",
+          "decl": "uint32_t findScheme(void);",
+          "ported": false,
+          "name": "findScheme"
         }
       ],
       "name": "props.obj",
@@ -39139,6 +42708,36 @@
         {
           "addr": "0x66e70",
           "decl": "int FUN_00066e70(void *tif);"
+        },
+        {
+          "addr": "0x659c0",
+          "decl": "uint32_t OkToChangeTag(int32_t a0, uint32_t a1, int32_t a2);",
+          "ported": false,
+          "name": "OkToChangeTag"
+        },
+        {
+          "addr": "0x66520",
+          "decl": "void MissingRequired(uint32_t a0, uint32_t a1, uint32_t *a2);",
+          "ported": false,
+          "name": "MissingRequired"
+        },
+        {
+          "addr": "0x66540",
+          "decl": "bool CheckDirCount(uint32_t a0, int32_t a1, int32_t a2);",
+          "ported": false,
+          "name": "CheckDirCount"
+        },
+        {
+          "addr": "0x669e0",
+          "decl": "bool TIFFFetchFloatArray(uint32_t a0);",
+          "ported": false,
+          "name": "TIFFFetchFloatArray"
+        },
+        {
+          "addr": "0x66e40",
+          "decl": "uint32_t TIFFFetchExtraSamples(uint32_t *a0, uint32_t a1, int32_t a2);",
+          "ported": false,
+          "name": "TIFFFetchExtraSamples"
         }
       ],
       "name": "tif_dir.obj",
@@ -39474,6 +43073,18 @@
           "addr": "0x6c080",
           "decl": "int gt(void *tif, unsigned long rwidth, unsigned long height, unsigned long *raster);",
           "comment": "[NAME: gt \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+        },
+        {
+          "addr": "0x69300",
+          "decl": "void putcode(void);",
+          "ported": false,
+          "name": "putcode"
+        },
+        {
+          "addr": "0x6b8a0",
+          "decl": "void * pickTileSeparateCase(void);",
+          "ported": false,
+          "name": "pickTileSeparateCase"
         }
       ],
       "name": "tif_flush.obj",
@@ -39685,6 +43296,18 @@
           "addr": "0x6dda0",
           "decl": "void TIFFPrintDirectory(void *tif_, void *fd, long flags);",
           "ported": true
+        },
+        {
+          "addr": "0x6c5d0",
+          "decl": "uint32_t TIFFInitJPEG(void);",
+          "ported": false,
+          "name": "TIFFInitJPEG"
+        },
+        {
+          "addr": "0x6d540",
+          "decl": "uint32_t getMode(uint32_t a0, char *a1);",
+          "ported": false,
+          "name": "getMode"
         }
       ],
       "name": "tif_open.obj",
@@ -40142,6 +43765,18 @@
           "addr": "0x74a30",
           "decl": "void FUN_00074a30(void);",
           "comment": "[NAME: TIFFWriteTile \u2014 CEA PDB line-containment (high_confidence), cea-deferred 2026-09-03]"
+        },
+        {
+          "addr": "0x6ea00",
+          "decl": "uint32_t TIFFCheckRead(uint32_t *a0, uint32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "TIFFCheckRead"
+        },
+        {
+          "addr": "0x70520",
+          "decl": "void FcolorToColor(void);",
+          "ported": false,
+          "name": "FcolorToColor"
         }
       ],
       "name": "tif_write.obj",
@@ -40154,6 +43789,18 @@
           "addr": "0x849f0",
           "decl": "float FUN_000849f0(float min, float max);",
           "ported": true
+        },
+        {
+          "addr": "0x849d0",
+          "decl": "bool is_bored(void);",
+          "ported": false,
+          "name": "is_bored"
+        },
+        {
+          "addr": "0x849e0",
+          "decl": "bool is_still_bored(void);",
+          "ported": false,
+          "name": "is_still_bored"
         }
       ],
       "name": "bored_camera.obj",
@@ -40508,6 +44155,24 @@
           "addr": "0x118fb0",
           "decl": "bool circular_queue_try_read(int queue, void *data, int data_size, char advance);",
           "ported": true
+        },
+        {
+          "addr": "0x116450",
+          "decl": "void tr_static_init(void);",
+          "ported": false,
+          "name": "tr_static_init"
+        },
+        {
+          "addr": "0x117090",
+          "decl": "uint32_t bi_reverse(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "bi_reverse"
+        },
+        {
+          "addr": "0x117a70",
+          "decl": "uint32_t zlibVersion(void);",
+          "ported": false,
+          "name": "zlibVersion"
         }
       ],
       "name": "circular_queue.obj",
@@ -40725,6 +44390,12 @@
           "addr": "0x123ed0",
           "decl": "void render_model(int model_ref, float distance, void *node_matrices, void *arg4, void *node_transforms, void *node_matrices2, int lighting, void *position, int arg9, void *effect_record, int object_handle, int arg12, int render_flag);",
           "comment": "[NAME: render_model \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]"
+        },
+        {
+          "addr": "0x123ec0",
+          "decl": "void model_geometry_part_build_tangent_matrices(void);",
+          "ported": false,
+          "name": "model_geometry_part_build_tangent_matrices"
         }
       ],
       "name": "model_animations.obj",
@@ -41124,6 +44795,54 @@
           "addr": "0x15f8e0",
           "decl": "void __rasterizer_psuedo_dynamic_screen_quad_draw(void *parameters, void *vertices);",
           "ported": true
+        },
+        {
+          "addr": "0x15f1a0",
+          "decl": "void D3DDevice_SetTextureStageState_11(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_11"
+        },
+        {
+          "addr": "0x15f320",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_11(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_11"
+        },
+        {
+          "addr": "0x15f570",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_11(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_11"
+        },
+        {
+          "addr": "0x15f5d0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_11(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_11"
+        },
+        {
+          "addr": "0x15f600",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor_1(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexDataColor_1"
+        },
+        {
+          "addr": "0x15f610",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_7(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_7"
+        },
+        {
+          "addr": "0x15f620",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_7(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_7"
+        },
+        {
+          "addr": "0x15f8a0",
+          "decl": "void submit_screen_vertex(void);",
+          "ported": false,
+          "name": "submit_screen_vertex"
         }
       ]
     },
@@ -41152,11 +44871,13 @@
         },
         {
           "addr": "0x1b98c0",
-          "decl": "void tag_files_close(void);"
+          "decl": "void tag_files_close(void);",
+          "name": "tag_files_open"
         },
         {
           "addr": "0x1b98d0",
-          "decl": "void tag_groups_checksum(void);"
+          "decl": "void tag_groups_checksum(void);",
+          "name": "tag_files_close"
         },
         {
           "addr": "0x1b9ce0",
@@ -41167,6 +44888,12 @@
           "addr": "0x1b9e70",
           "decl": "int FUN_001b9e70(const char *map_name);",
           "ported": true
+        },
+        {
+          "addr": "0x1b98e0",
+          "decl": "uint32_t tag_groups_checksum(void);",
+          "ported": false,
+          "name": "tag_groups_checksum"
         }
       ],
       "name": "cache_files.obj",
@@ -41280,6 +45007,12 @@
           "ported": true,
           "comment": "[NAME: actor_discard_firing_position \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "name": "actor_discard_firing_position"
+        },
+        {
+          "addr": "0x24050",
+          "decl": "bool firing_position_reject_debug(int32_t a0, uint32_t a1, int32_t a2);",
+          "ported": false,
+          "name": "firing_position_reject_debug"
         }
       ],
       "name": "actor_firing_position.obj",
@@ -42105,6 +45838,18 @@
           "decl": "void FUN_00081110(uint32_t g, uint32_t x /* @<edi> */, uint32_t p /* @<esi> */);",
           "ported": true,
           "source_path": "src/halo/networking/message_header.c"
+        },
+        {
+          "addr": "0x80330",
+          "decl": "uint32_t get_key_agreement_packet_type(uint32_t a0);",
+          "ported": false,
+          "name": "get_key_agreement_packet_type"
+        },
+        {
+          "addr": "0x807c0",
+          "decl": "void initialize_key_agreement_packets(void);",
+          "ported": false,
+          "name": "initialize_key_agreement_packets"
         }
       ],
       "name": "message_header.obj",
@@ -42231,6 +45976,36 @@
           "addr": "0x96a90",
           "decl": "bool device_update(int object_index);",
           "ported": true
+        },
+        {
+          "addr": "0x96060",
+          "decl": "void devices_initialize(void);",
+          "ported": false,
+          "name": "devices_initialize"
+        },
+        {
+          "addr": "0x960a0",
+          "decl": "void devices_dispose(void);",
+          "ported": false,
+          "name": "devices_dispose"
+        },
+        {
+          "addr": "0x960b0",
+          "decl": "void devices_dispose_from_old_map(void);",
+          "ported": false,
+          "name": "devices_dispose_from_old_map"
+        },
+        {
+          "addr": "0x968c0",
+          "decl": "void device_group_delete(int16_t a0);",
+          "ported": false,
+          "name": "device_group_delete"
+        },
+        {
+          "addr": "0x969e0",
+          "decl": "void devices_initialize_for_new_map(void);",
+          "ported": false,
+          "name": "devices_initialize_for_new_map"
         }
       ],
       "name": "devices.obj",
@@ -42442,6 +46217,12 @@
           "addr": "0x14ea10",
           "decl": "void FUN_0014ea10(unsigned int type_mask, int first_handle, float *origin, float radius, float param_5, float param_6, int exclude_handle, int param_8);",
           "ported": true
+        },
+        {
+          "addr": "0x1474f0",
+          "decl": "void add_feature(void);",
+          "ported": false,
+          "name": "add_feature"
         }
       ],
       "name": "collision_bsp.obj",
@@ -42661,6 +46442,18 @@
           "addr": "0x609e0",
           "decl": "void FUN_000609e0(void *path);",
           "ported": true
+        },
+        {
+          "addr": "0x5e100",
+          "decl": "void path_state_reset(void);",
+          "ported": false,
+          "name": "path_state_reset"
+        },
+        {
+          "addr": "0x5e140",
+          "decl": "char path_heap_verify(void);",
+          "ported": false,
+          "name": "path_heap_verify"
         }
       ],
       "name": "path.obj",
@@ -42902,6 +46695,18 @@
           "addr": "0x171bc0",
           "decl": "void __rasterizer_screen_flash(void);",
           "ported": true
+        },
+        {
+          "addr": "0x170080",
+          "decl": "void D3DDevice_SetTextureStageState_4(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_4"
+        },
+        {
+          "addr": "0x170160",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_4(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_4"
         }
       ],
       "name": "rasterizer_xbox_screen_effect.obj",
@@ -49646,6 +53451,30 @@
           "addr": "0x238070",
           "decl": "void __stdcall FUN_00238070(void *plane_prev, void *plane_cur, void *aplane_prev, void *aplane_cur, unsigned char *mask, unsigned long width, unsigned long height, unsigned long mask_width, unsigned long mask_height, const unsigned char *input, unsigned long keyframe, void *field_3ac, unsigned long open_flags, unsigned long bink_type);",
           "comment": "bink frame-expand driver; RET 0x38, sole caller BinkDoFrame 0x22efd4"
+        },
+        {
+          "addr": "0x1cfb68",
+          "decl": "void __stdcall XapiDispatchAPC(int param_1, int param_2, int param_3);",
+          "ported": false,
+          "name": "XapiDispatchAPC"
+        },
+        {
+          "addr": "0x1cfc09",
+          "decl": "uint32_t __stdcall SetUnhandledExceptionFilter(int param_1);",
+          "ported": false,
+          "name": "SetUnhandledExceptionFilter"
+        },
+        {
+          "addr": "0x1cfced",
+          "decl": "uint32_t KeGetCurrentThread_0(void);",
+          "ported": false,
+          "name": "KeGetCurrentThread_0"
+        },
+        {
+          "addr": "0x1cffbf",
+          "decl": "bool __stdcall ReleaseSemaphore(int param_1, int param_2, int param_3);",
+          "ported": false,
+          "name": "ReleaseSemaphore"
         }
       ],
       "name": "<xdk_stubs>"
@@ -49752,6 +53581,12 @@
         {
           "addr": "0x17b7d0",
           "decl": "void __rasterizer_widget_draw_sprite3d(float *point, float radius, float *scale, float theta, unsigned int color);"
+        },
+        {
+          "addr": "0x17adb0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End"
         }
       ],
       "name": "rasterizer_xbox_widgets.obj",
@@ -49903,6 +53738,48 @@
           "decl": "void __rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index);",
           "ported": true,
           "comment": "[NAME: name_source=pal-2342 method=assert-line+shape tier=T2]"
+        },
+        {
+          "addr": "0x15e750",
+          "decl": "void __stdcall D3DVertexBuffer_Unlock_1(int param_1);",
+          "ported": false,
+          "name": "D3DVertexBuffer_Unlock_1"
+        },
+        {
+          "addr": "0x15e760",
+          "decl": "void IDirect3DVertexBuffer8_Release_1(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Release_1"
+        },
+        {
+          "addr": "0x15e790",
+          "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_1(int param_1);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Unlock_1"
+        },
+        {
+          "addr": "0x15e7b0",
+          "decl": "void __stdcall D3DIndexBuffer_Unlock_0(int param_1);",
+          "ported": false,
+          "name": "D3DIndexBuffer_Unlock_0"
+        },
+        {
+          "addr": "0x15e7c0",
+          "decl": "void IDirect3DIndexBuffer8_Release_0(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DIndexBuffer8_Release_0"
+        },
+        {
+          "addr": "0x15e7f0",
+          "decl": "uint32_t __stdcall IDirect3DIndexBuffer8_Unlock_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DIndexBuffer8_Unlock_0"
+        },
+        {
+          "addr": "0x15eff0",
+          "decl": "void D3DDevice_SetRenderState_11(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_11"
         }
       ]
     },
@@ -50079,6 +53956,12 @@
           "addr": "0x1609a0",
           "decl": "void __rasterizer_environment_specular_lightmaps_end(void);",
           "ported": true
+        },
+        {
+          "addr": "0x160bb0",
+          "decl": "void __rasterizer_environment_reflection_lightmap_mask_end(void);",
+          "ported": false,
+          "name": "__rasterizer_environment_reflection_lightmap_mask_end"
         }
       ]
     },
@@ -50203,6 +54086,60 @@
           "decl": "void rasterizer_error(int a1, const char *call_text);",
           "name": "rasterizer_error",
           "ported": true
+        },
+        {
+          "addr": "0x165780",
+          "decl": "void D3DDevice_SetRenderState_9(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_9"
+        },
+        {
+          "addr": "0x165930",
+          "decl": "void D3DDevice_SetTextureStageState_9(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_9"
+        },
+        {
+          "addr": "0x165a30",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_9(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_9"
+        },
+        {
+          "addr": "0x165c50",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_9(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_9"
+        },
+        {
+          "addr": "0x165dc0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_9(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_9"
+        },
+        {
+          "addr": "0x165e70",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_5(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s_5"
+        },
+        {
+          "addr": "0x165e80",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_6(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_6"
+        },
+        {
+          "addr": "0x165e90",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_6(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_6"
+        },
+        {
+          "addr": "0x165ff0",
+          "decl": "bool local_random_boolean(void);",
+          "ported": false,
+          "name": "local_random_boolean"
         }
       ]
     },
@@ -50296,6 +54233,90 @@
           "addr": "0x168ca0",
           "decl": "int IDirect3DIndexBuffer8_Lock(int base@<eax>, int *result@<edx>, int offset, int unused_1, int unused_2);",
           "ported": true
+        },
+        {
+          "addr": "0x1682a0",
+          "decl": "void IDirect3DBaseTexture8_Release(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DBaseTexture8_Release"
+        },
+        {
+          "addr": "0x1682b0",
+          "decl": "void __stdcall D3DTexture_UnlockRect_0(int param_1, int param_2);",
+          "ported": false,
+          "name": "D3DTexture_UnlockRect_0"
+        },
+        {
+          "addr": "0x1682e0",
+          "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect_0(int param_1, int param_2);",
+          "ported": false,
+          "name": "IDirect3DTexture8_UnlockRect_0"
+        },
+        {
+          "addr": "0x1682f0",
+          "decl": "void __stdcall D3DVolumeTexture_UnlockBox(int param_1, int param_2);",
+          "ported": false,
+          "name": "D3DVolumeTexture_UnlockBox"
+        },
+        {
+          "addr": "0x168320",
+          "decl": "uint32_t __stdcall IDirect3DVolumeTexture8_UnlockBox(int param_1, int param_2);",
+          "ported": false,
+          "name": "IDirect3DVolumeTexture8_UnlockBox"
+        },
+        {
+          "addr": "0x168330",
+          "decl": "void __stdcall D3DCubeTexture_UnlockRect(int param_1, int param_2, int param_3);",
+          "ported": false,
+          "name": "D3DCubeTexture_UnlockRect"
+        },
+        {
+          "addr": "0x168360",
+          "decl": "uint32_t __stdcall IDirect3DCubeTexture8_UnlockRect(int param_1, int param_2, int param_3);",
+          "ported": false,
+          "name": "IDirect3DCubeTexture8_UnlockRect"
+        },
+        {
+          "addr": "0x168c00",
+          "decl": "void __stdcall D3DResource_MoveResourceMemory(int param_1, int param_2);",
+          "ported": false,
+          "name": "D3DResource_MoveResourceMemory"
+        },
+        {
+          "addr": "0x168c10",
+          "decl": "void __stdcall D3DVertexBuffer_MoveResourceMemory(int param_1, int param_2);",
+          "ported": false,
+          "name": "D3DVertexBuffer_MoveResourceMemory"
+        },
+        {
+          "addr": "0x168c20",
+          "decl": "void __stdcall D3DVertexBuffer_Unlock_0(int param_1);",
+          "ported": false,
+          "name": "D3DVertexBuffer_Unlock_0"
+        },
+        {
+          "addr": "0x168c30",
+          "decl": "void IDirect3DVertexBuffer8_Release_0(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Release_0"
+        },
+        {
+          "addr": "0x168c60",
+          "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_0(int param_1);",
+          "ported": false,
+          "name": "IDirect3DVertexBuffer8_Unlock_0"
+        },
+        {
+          "addr": "0x168c80",
+          "decl": "void __stdcall D3DIndexBuffer_Unlock(int param_1);",
+          "ported": false,
+          "name": "D3DIndexBuffer_Unlock"
+        },
+        {
+          "addr": "0x168c90",
+          "decl": "void IDirect3DIndexBuffer8_Release(uint32_t a0);",
+          "ported": false,
+          "name": "IDirect3DIndexBuffer8_Release"
         }
       ]
     },
@@ -50330,6 +54351,30 @@
           "addr": "0x169200",
           "decl": "bool rasterizer_project_billboard(float *point, float radius, float *out_extent, float *out_screen @<ebx>);",
           "ported": true
+        },
+        {
+          "addr": "0x168cc0",
+          "decl": "uint32_t __stdcall IDirect3DIndexBuffer8_Unlock(int param_1);",
+          "ported": false,
+          "name": "IDirect3DIndexBuffer8_Unlock"
+        },
+        {
+          "addr": "0x169000",
+          "decl": "void D3DDevice_SetRenderState_8(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_8"
+        },
+        {
+          "addr": "0x1691b0",
+          "decl": "void D3DDevice_SetTextureStageState_8(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_8"
+        },
+        {
+          "addr": "0x1693c0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_8(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_8"
         }
       ]
     },
@@ -50363,6 +54408,36 @@
           "addr": "0x169fd0",
           "decl": "void rasterizer_sun_glow_draw(int *sun_entry);",
           "ported": true
+        },
+        {
+          "addr": "0x1695e0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_8(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_8"
+        },
+        {
+          "addr": "0x169640",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_8(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_8"
+        },
+        {
+          "addr": "0x1696a0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_4(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexData2s_4"
+        },
+        {
+          "addr": "0x1696b0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_5(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_Begin_5"
+        },
+        {
+          "addr": "0x1696c0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_End_5(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_End_5"
         }
       ]
     },
@@ -50414,6 +54489,36 @@
         {
           "addr": "0x16c5a0",
           "decl": "void __rasterizer_model_draw(int param_1, int param_2, int param_3, int param_4, int param_5, int param_6, int param_7);"
+        },
+        {
+          "addr": "0x16a900",
+          "decl": "void D3DDevice_SetRenderState_7(void);",
+          "ported": false,
+          "name": "D3DDevice_SetRenderState_7"
+        },
+        {
+          "addr": "0x16aab0",
+          "decl": "void D3DDevice_SetTextureStageState_7(uint32_t a0, int32_t a1, uint32_t a2);",
+          "ported": false,
+          "name": "D3DDevice_SetTextureStageState_7"
+        },
+        {
+          "addr": "0x16aef0",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_7(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetRenderState_7"
+        },
+        {
+          "addr": "0x16b110",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_7(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetTextureStageState_7"
+        },
+        {
+          "addr": "0x16b170",
+          "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_7(int param_1);",
+          "ported": false,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_7"
         }
       ]
     },

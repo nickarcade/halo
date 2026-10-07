@@ -10158,6 +10158,7 @@
     "0x22e360": "unsigned long high1secrate(unsigned long frames, unsigned long runtime_frames, unsigned long *highest_frame, unsigned long *all_keyframes, unsigned long *frameoffsets@<ebx>);",
     "0x22f180": "void endframe(BINK *bink@<eax>, unsigned long now@<ecx>);",
     "0x2302d0": "void GotoFrame(BINK *bink@<esi>, unsigned long frame@<eax>);",
+    "0xca4b0": "int hs_syntax_nth(int node_index@<eax>, int16_t count@<cx>);",
     "0x43a20": "bool ai_conversation_line_perform(int conversation_handle@<eax>);",
     "0x447d0": "char ai_conversation_find_participant(int16_t participant_index, char *param_2, char *param_3, char *param_4, float *param_5, int conversation_handle@<eax>);",
     "0x69b90": "int Fax3Encode1DRow(void *tif, unsigned char *bp, int bits@<edi>);",
@@ -10168,7 +10169,6 @@
     "0x1cb210": "boolean dsound_initialize_channel(short type_flags@<ax>, short channel_index);",
     "0x1cadd0": "void dsound_channel_set_location(short channel_index, char flag_0c, float *location@<ebx>, float value_10, float value_14, char flag_18);",
     "0x5f1d0": "float closest_available_point_on_surface(void *structure_bsp@<eax>, float *point@<edi>, float *out_point@<esi>, int surface_index);",
-    "0xca4b0": "int hs_syntax_nth(int node_index@<eax>, int16_t count@<cx>);",
     "0xfcc90": "void weapon_magazine_finish_chamber(int16_t magazine_index@<eax>, int weapon_handle);",
     "0xc5820": "boolean character_in_list(char c@<dl>, const char *list@<esi>, int16_t count@<cx>);",
     "0xb90a0": "void *update_client_get_update(int sequence_index@<eax>);"
