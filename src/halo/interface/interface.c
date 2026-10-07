@@ -519,7 +519,7 @@ void interface_draw_bitmap(int sprite_handle, short *offset_xy, void *uv_bounds,
   *(float *)&quad_desc[0x7c / 4] = 1.0f;
   *(uint16_t *)((char *)quad_desc + 0x6c) = 7;
   *(int *)((char *)quad_desc + 0x70) = sprite_handle;
-  rasterizer_psuedo_dynamic_screen_quad_draw(0);
+  rasterizer_psuedo_dynamic_screen_quad_draw(quad_desc, quad_vertices);
 }
 
 /* 0xe0110 */
@@ -586,6 +586,6 @@ void interface_draw_bitmap_modulated(int sprite_handle, short *offset_xy, void *
   *(float *)&quad_desc[0x7c / 4] = 1.0f;
   *(uint16_t *)((char *)quad_desc + 0x70) = render_mode;
   *(int *)((char *)quad_desc + 0x74) = sprite_handle;
-  rasterizer_psuedo_dynamic_screen_quad_draw(0);
+  rasterizer_psuedo_dynamic_screen_quad_draw(quad_desc, quad_vertices);
 }
 

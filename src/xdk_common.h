@@ -51,6 +51,7 @@ extern "C" {
 #define FUN_00190240 scenario_get_current_from_weather_palette
 #define FUN_00190550 scenario_get_current
 #define FUN_00157940 __rasterizer_frame_begin
+#define FUN_0017d9d0 rasterizer_script_screen_effect_get_value
 
 #define CLAMP(x, low, high) \
   ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))
