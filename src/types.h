@@ -412,11 +412,26 @@ typedef struct {
   uint32_t tag_index;       ///< offset=0x00
   uint32_t flags;           ///< offset=0x04  .text:00095B7B                 mov     [esi+4], ecx
   uint32_t marker_generation; ///< offset=0x08  .text:0013EC41 compared against global object_marker_generation
-  vector3_t position;       ///< offset=0x0C
-  vector3_t translational_velocity; ///< offset=0x18
-  vector3_t forward;        ///< offset=0x24
-  vector3_t up;             ///< offset=0x30
-  vector3_t angular_velocity; ///< offset=0x3C
+  union {
+    vector3_t position;       ///< offset=0x0C
+    vector3_t unk_12;
+  };
+  union {
+    vector3_t translational_velocity; ///< offset=0x18
+    vector3_t unk_24;
+  };
+  union {
+    vector3_t forward;        ///< offset=0x24
+    vector3_t unk_36;
+  };
+  union {
+    vector3_t up;             ///< offset=0x30
+    vector3_t unk_48;
+  };
+  union {
+    vector3_t angular_velocity; ///< offset=0x3C
+    vector3_t unk_60;
+  };
   uint32_t unk_72;          ///< offset=0x48  .text:00140149                 mov     edx, [ecx+48h] location.???, leaf index?
 
   // .text:00031FEE                 mov     edx, [eax+4Ch]  

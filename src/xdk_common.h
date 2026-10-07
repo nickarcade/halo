@@ -47,6 +47,7 @@ extern "C" {
 #define FUN_00189cb0 render_debug_string_at_point
 #define FUN_0017d060 rasterizer_hud_motion_sensor_blip_draw
 #define FUN_0017d070 rasterizer_hud_motion_sensor_blip_end
+#define FUN_000a57b0 limit3d
 
 #define CLAMP(x, low, high) \
   ((x) < (low) ? (low) : ((x) > (high) ? (high) : (x)))
