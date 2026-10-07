@@ -746,14 +746,20 @@ typedef struct {
   uint16_t unk_460;                   ///< offset=0x1CC .text:0004091B                 cmp     bx, [esi+1CCh]
   uint16_t unk_462;                   ///< offset=0x1CE .text:001A9B5E                 mov     [esi+1CEh], ax
   uint32_t unk_464;                   ///< offset=0x1D0 .text:00040924                 mov     ecx, [esi+1D0h] game time related
-  vector3_t desired_facing_vector;   ///< offset=0x1D4 .text:001AF62B                 lea     ecx, [esi+1D4h]
+  union {
+    vector3_t desired_facing_vector;   ///< offset=0x1D4 .text:001AF62B                 lea     ecx, [esi+1D4h]
+    vector3_t unk_468;
+  };
   vector3_t unk_480;                  ///< offset=0x1E0 .text:001AF63E                 lea     edx, [esi+1E0h]
   vector3_t unk_492;                  ///< offset=0x1EC .text:001AF678                 lea     eax, [esi+1ECh]
   vector3_t unk_504;                  ///< offset=0x1F8 .text:001AF7E5                 fld     dword ptr [esi+1F8h]
   vector3_t unk_516;                  ///< offset=0x204 .text:001AF651                 lea     eax, [esi+204h]
   vector3_t unk_528;                  ///< offset=0x210 .text:001AF68B                 add     esi, 210h
   vector3_t unk_540;                  ///< offset=0x21C .text:001AF82F                 fld     dword ptr [esi+21Ch]
-  vector3_t throttle;                 ///< offset=0x228 .text:001B39A3                 lea     edx, [ebx+228h]
+  union {
+    vector3_t throttle;                 ///< offset=0x228 .text:001B39A3                 lea     edx, [ebx+228h]
+    vector3_t unk_552;
+  };
   float unk_564;                      ///< offset=0x234 .text:001B387D                 mov     dword ptr [ebx+234h], 3F800000h
   uint8_t unk_568;                    ///< offset=0x238
   uint8_t unk_569;                    ///< offset=0x239 .text:001ABDB1                 mov     cl, [esi+239h]

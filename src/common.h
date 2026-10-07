@@ -40,7 +40,7 @@ double __cdecl fabs(double);
 #define FUN_00189cb0 render_debug_string_at_point
 #define FUN_0017d060 rasterizer_hud_motion_sensor_blip_draw
 #define FUN_0017d070 rasterizer_hud_motion_sensor_blip_end
-#define FUN_000a57b0 limit3d
+#define FUN_000a57b0(v, len) limit3d((real_vector3d *)(v), (len))
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert.
  * assert_halt stamps OUR __FILE__/__LINE__, so the emitted .rdata path string
