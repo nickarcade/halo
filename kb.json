@@ -1352,7 +1352,7 @@
         },
         {
           "addr": "0x1da081",
-          "decl": "void _fscanf(void);"
+          "decl": "int _fscanf(void *stream, const char *format, ...);"
         },
         {
           "addr": "0x1da0c1",
@@ -7516,15 +7516,18 @@
         },
         {
           "addr": "0x86270",
-          "decl": "bool director_inhibited_facing(short local_player_index);"
+          "decl": "bool director_inhibited_facing(short local_player_index);",
+          "ported": true
         },
         {
           "addr": "0x862c0",
-          "decl": "bool director_inhibited_input(short local_player_index);"
+          "decl": "bool director_inhibited_input(short local_player_index);",
+          "ported": true
         },
         {
           "addr": "0x86310",
-          "decl": "void director_set_mode(int16_t mode);"
+          "decl": "void director_set_mode(int16_t mode);",
+          "ported": true
         },
         {
           "addr": "0x86360",
@@ -7538,7 +7541,8 @@
         },
         {
           "addr": "0x864b0",
-          "decl": "int16_t director_desired_perspective(int unit_handle, int16_t *perspective);"
+          "decl": "int16_t director_desired_perspective(int unit_handle, int16_t *perspective);",
+          "ported": true
         },
         {
           "addr": "0x865a0",
@@ -7552,7 +7556,8 @@
         },
         {
           "addr": "0x86670",
-          "decl": "void FUN_00086670(int16_t local_player_index@<ax>, int mode_flags, float fwd);"
+          "decl": "void FUN_00086670(int16_t local_player_index@<ax>, int mode_flags, float fwd);",
+          "ported": true
         },
         {
           "addr": "0x86890",
@@ -7561,23 +7566,28 @@
         },
         {
           "addr": "0x86900",
-          "decl": "void director_load_camera(void);"
+          "decl": "void director_load_camera(void);",
+          "ported": true
         },
         {
           "addr": "0x86a50",
-          "decl": "void FUN_00086a50(int local_player_index@<eax>, int16_t *mode_table@<ebx>, int16_t count);"
+          "decl": "void FUN_00086a50(int local_player_index@<eax>, int16_t *mode_table@<ebx>, int16_t count);",
+          "ported": true
         },
         {
           "addr": "0x86b80",
-          "decl": "int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3);"
+          "decl": "int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3);",
+          "ported": true
         },
         {
           "addr": "0x86be0",
-          "decl": "void FUN_00086be0(int local_player_index@<eax>, char force_flag@<bl>);"
+          "decl": "void FUN_00086be0(int local_player_index@<eax>, char force_flag@<bl>);",
+          "ported": true
         },
         {
           "addr": "0x86cb0",
-          "decl": "void director_script_camera(int value);"
+          "decl": "void director_script_camera(int value);",
+          "ported": true
         },
         {
           "addr": "0x86de0",

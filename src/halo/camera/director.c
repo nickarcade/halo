@@ -333,6 +333,52 @@ void director_save_camera(void)
   }
 }
 
+/* director_load_camera (0x86900) — load saved camera state from "d:\camera.txt" */
+void director_load_camera(void)
+{
+  void *file;
+  float position[3];
+  float forward[3];
+  float stored_up[3];
+  float derived_up[3];
+  float field_of_view;
+  float roll;
+  float cross[3];
+  float dot;
+
+  file = crt_fopen("d:\\camera.txt", "r");
+  if (!file)
+    return;
+
+  _fscanf(file, "%f %f %f\n", &position[0], &position[1], &position[2]);
+  _fscanf(file, "%f %f %f\n", &forward[0], &forward[1], &forward[2]);
+  _fscanf(file, "%f %f %f\n", &stored_up[0], &stored_up[1], &stored_up[2]);
+  _fscanf(file, "%f\n", &field_of_view);
+  crt_fclose(file);
+
+  FUN_00089350((void *)0x3352bc, position, forward);
+  observer_up_from_forward(forward, derived_up);
+  roll = FUN_0010c510(stored_up, derived_up);
+
+  /* Cross product stored_up x derived_up */
+  cross[0] = stored_up[1] * derived_up[2] - stored_up[2] * derived_up[1];
+  cross[1] = stored_up[2] * derived_up[0] - stored_up[0] * derived_up[2];
+  cross[2] = stored_up[0] * derived_up[1] - stored_up[1] * derived_up[0];
+
+  /* Dot product with forward */
+  dot = cross[0] * forward[0] + cross[1] * forward[1] + cross[2] * forward[2];
+  if (dot > 0.0f) {
+    roll = -roll;
+  }
+
+  *(float *)0x3352d0 = roll;
+  *(float *)0x3352d4 = field_of_view;
+  *(uint32_t *)0x3352b8 = 0x893a0; /* flying_camera_update */
+  *(float *)0x335374 = 1.0f;
+  *(uint8_t *)0x335370 = 0;
+  *(int16_t *)0x3352b0 = 2; /* _camera_flying */
+}
+
 /*
  * director_get_perspective (0x86410) — return the cached camera
  * "perspective" class for a local player, refreshing the cache from the
@@ -491,6 +537,110 @@ void FUN_000865a0(int16_t local_player_index, int param_1, bool param_2)
   }
 }
 
+double pow(double base, double exponent);
+
+/*
+ * FUN_00086670 (0x86670) — director_process_variables: per-player camera variable integrator.
+ *
+ * Calling convention:
+ *   AX = local_player_index (@<ax>)
+ *   stack arg = mode_flags (uint32_t control_flags)
+ *   stack arg = fwd (float speed_delta)
+ */
+void FUN_00086670(int16_t local_player_index, int mode_flags, float fwd)
+{
+  float *scale_ptr;
+  float input_scale;
+  char *director;
+  float *instance;
+  int16_t *var_def;
+  int i;
+  float delta_time;
+  float friction;
+  float velocity_scale;
+  float v6;
+  float hyper_scale;
+  float delta;
+  int negative_bit;
+  int positive_bit;
+  int reset_bit;
+  bool negative;
+  bool positive;
+  bool reset;
+
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 && local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+
+  director = (char *)0x3352b0 + (int)local_player_index * 0xf8;
+  scale_ptr = (float *)(director + 0xc4);
+
+  /* input_scale = (*scale_ptr) * pow(1.3f, fwd), clamped to [0.01f, 50.0f] */
+  input_scale = *scale_ptr * (float)pow((double)*(float *)0x266f84, (double)fwd);
+  if (input_scale < *(float *)0x25bb10) {
+    input_scale = *(float *)0x25bb10;
+  } else if (input_scale > *(float *)0x25acf0) {
+    input_scale = *(float *)0x25acf0;
+  }
+  *scale_ptr = input_scale;
+
+  var_def = (int16_t *)0x2ee5fc;
+  instance = (float *)(director + 0xc8);
+  delta_time = *(float *)0x3352a8;
+  friction = *(float *)0x266f7c;
+
+  for (i = 4; i > 0; i--) {
+    if (*(uint8_t *)0x2ee610 != 0) {
+      hyper_scale = *scale_ptr;
+    } else {
+      hyper_scale = 1.0f;
+    }
+
+    v6 = delta_time * friction;
+    if (v6 < 0.0f) {
+      v6 = 0.0f;
+    } else if (v6 > 1.0f) {
+      v6 = 1.0f;
+    }
+    velocity_scale = 1.0f - v6;
+
+    negative_bit = (int)var_def[-2];
+    positive_bit = (int)var_def[-1];
+    reset_bit = (int)*var_def;
+
+    negative = (negative_bit != -1) && (((unsigned int)mode_flags & (1U << (negative_bit & 0x1f))) != 0);
+    positive = (positive_bit != -1) && (((unsigned int)mode_flags & (1U << (positive_bit & 0x1f))) != 0);
+    reset = (reset_bit != -1) && (((unsigned int)mode_flags & (1U << (reset_bit & 0x1f))) != 0);
+
+    instance[1] *= velocity_scale;
+    if (negative && !positive) {
+      instance[1] -= *(float *)0x266f80 * *(float *)&var_def[2] * delta_time * hyper_scale;
+    } else if (positive && !negative) {
+      instance[1] += *(float *)0x266f80 * *(float *)&var_def[2] * delta_time * hyper_scale;
+    } else if (game_in_editor()) {
+      instance[1] = 0.0f;
+    }
+
+    delta = delta_time * instance[1];
+    instance[2] = delta;
+
+    if (reset) {
+      instance[0] = *(float *)&var_def[4];
+    } else {
+      instance[0] += delta;
+    }
+
+    if (instance[0] < *(float *)&var_def[6]) {
+      instance[0] = *(float *)&var_def[6];
+    } else if (instance[0] > *(float *)&var_def[8]) {
+      instance[0] = *(float *)&var_def[8];
+    }
+
+    var_def += 0xe;
+    instance += 3;
+  }
+}
+
 /* Per-player default-state init (0x86600). Fills four 12-byte slots at
  * struct offset 0x194/0x1a0/0x1ac/0x1b8 (relative to 0x3352b4 + player*0xf8).
  * Each slot's first dword is seeded from a const table at 0x2ee604 (0x1c
@@ -540,6 +690,65 @@ void director_dispose_from_old_map(void)
   **(char **)0x5ab200 = 0;
 }
 
+/*
+ * FUN_00086a50 (0x86a50) — director_rotate_cameras: cycle through camera modes
+ * for a player and activate the next mode.
+ *
+ * Calling convention:
+ *   EAX = local_player_index (@<eax>)
+ *   EBX = mode_table (@<ebx>)
+ *   stack arg = count (int16_t)
+ */
+void FUN_00086a50(int local_player_index, int16_t *mode_table, int16_t count)
+{
+  char *director;
+  int16_t mode_index;
+  int16_t camera_mode;
+
+  if (local_player_index < 0 || local_player_index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS) {
+    display_assert("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                   "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, 1);
+    system_exit(-1);
+  }
+
+  director = (char *)0x3352b0 + local_player_index * 0xf8;
+  mode_index = (int16_t)((*(int16_t *)director + 1) % count);
+  *(int16_t *)director = mode_index;
+  camera_mode = mode_table[mode_index];
+
+  switch (camera_mode) {
+  case 0: /* following */
+    following_camera_new((void *)(director + 0xc));
+    FUN_000865a0((int16_t)local_player_index, 0x89cd0, 1);
+    break;
+
+  case 1: /* orbiting */
+    orbiting_camera_new((float *)(director + 0xc), *(float *)(director + 0x74), (float *)(director + 0x7c));
+    FUN_000865a0((int16_t)local_player_index, 0x8cf30, 1);
+    break;
+
+  case 2: /* flying */
+    FUN_00089350((void *)(director + 0xc), (float *)(director + 0x5c), (float *)(director + 0x7c));
+    FUN_000865a0((int16_t)local_player_index, 0x893a0, 1);
+    break;
+
+  case 3: /* editor */
+    break;
+
+  case 4: /* first person */
+    first_person_camera_new((void *)(director + 0xc));
+    FUN_000865a0((int16_t)local_player_index, 0x89270, 1);
+    break;
+
+  default:
+    display_assert(NULL, "c:\\halo\\SOURCE\\camera\\director.c", 0x200, 1);
+    system_exit(-1);
+    break;
+  }
+
+  console_printf(0, (const char *)0x267094, *(const char **)(0x2ee5e0 + (int)camera_mode * 4));
+}
+
 /* director_camera_deterministic (0x86b80) — deterministic camera dispatch.
  *
  * Classifies the unit's desired perspective via director_desired_perspective
@@ -570,6 +779,47 @@ int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3)
   }
 
   return result;
+}
+
+/*
+ * FUN_00086be0 (0x86be0) — director_choose_game_perspective: select first-person
+ * or following perspective based on unit's desired perspective.
+ *
+ * Calling convention:
+ *   EAX = local_player_index (@<eax>)
+ *   BL = force_flag (@<bl>)
+ */
+void FUN_00086be0(int local_player_index, char force_flag)
+{
+  int16_t perspective;
+  int16_t following;
+  int unit_index;
+  char *director;
+
+  if (local_player_index < 0 || local_player_index >= MAXIMUM_NUMBER_OF_LOCAL_PLAYERS) {
+    display_assert("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                   "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, 1);
+    system_exit(-1);
+  }
+
+  director = (char *)0x3352b0 + local_player_index * 0xf8;
+  unit_index = player_control_get_unit_index((int16_t)local_player_index);
+  following = director_desired_perspective(unit_index, &perspective);
+
+  if (force_flag != 0 || *(int16_t *)(director + 0x54) != perspective) {
+    if (following == 1) {
+      if (force_flag != 0 || *(uint32_t *)(director + 0x8) == 0x89270) {
+        following_camera_new((void *)(director + 0xc));
+        FUN_000865a0((int16_t)local_player_index, 0x89cd0, force_flag == 0);
+      }
+    } else {
+      if (force_flag != 0 || *(uint32_t *)(director + 0x8) == 0x89cd0) {
+        first_person_camera_new((void *)(director + 0xc));
+        FUN_000865a0((int16_t)local_player_index, 0x89270, force_flag == 0);
+      }
+    }
+    *(int16_t *)(director + 0x54) = perspective;
+  }
 }
 
 /* director_script_camera (0x86cb0) — enable or disable scripted camera control
