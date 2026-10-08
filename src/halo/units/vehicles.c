@@ -895,6 +895,546 @@ done:
  * Unknown: the meaning of the EAX and EBX arguments (they are only forwarded,
  *   never inspected here), and which 'phys' field lives at offset 0.
  */
+/* 0x1b69a0: update_alien_fighter_physics_old
+ * Banshee/Ghost aerodynamics and physics step (legacy variant).
+ */
+void update_alien_fighter_physics_old(int vehicle_handle, void *mass_points, void *state_param)
+{
+  char *vehicle;
+  char *vehicle_tag;
+  float *physics_tag;
+  float local_state_buf[48]; /* 2 powered mass points: 2 * 0x60 bytes */
+  char *state;
+
+  state = (state_param != NULL) ? (char *)state_param : (char *)local_state_buf;
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  vehicle_tag = (char *)tag_get(0x76656869, *(uint32_t *)vehicle);
+  physics_tag = (float *)tag_get(0x70687973, *(uint32_t *)(vehicle_tag + 0x8c));
+
+  if (*(int32_t *)(physics_tag + 26) == 2) {
+    float facing[3];
+    float perp[3];
+    float speed;
+    float thrust;
+    float lift;
+    float force[3];
+    float yaw;
+    float actual[12];
+    float desired[12];
+    float diff[12];
+    float quat[4];
+    float axis[3];
+    float angle;
+    float scaled[3];
+    float torque[3];
+    float scale;
+    float seat_power;
+
+    facing[0] = *(float *)(vehicle + 0x1d4);
+    facing[1] = *(float *)(vehicle + 0x1d8);
+    facing[2] = *(float *)(vehicle + 0x1dc);
+
+    perp[0] = -facing[0] * facing[2];
+    perp[1] = -facing[1] * facing[2];
+    perp[2] = *(float *)0x2533c8 - facing[2] * facing[2];
+
+    if (normalize3d(perp) == *(float *)0x2533c0) {
+      perp[0] = 1.0f;
+      perp[1] = 0.0f;
+      perp[2] = 0.0f;
+    }
+
+    speed = *(float *)(vehicle + 0x24) * *(float *)(vehicle + 0x18) +
+            *(float *)(vehicle + 0x28) * *(float *)(vehicle + 0x1c) +
+            *(float *)(vehicle + 0x2c) * *(float *)(vehicle + 0x20);
+
+    thrust = (*(float *)(vehicle + 0x42c) - speed) * physics_tag[2] * *(float *)0x2533e8;
+
+    lift = x87_fabs(speed / *(float *)(vehicle_tag + 0x2f8)) * physics_tag[2] *
+           *(float *)0x32512c * *(float *)0x2b7cf4;
+
+    force[0] = thrust * *(float *)(vehicle + 0x24) + lift * *(float *)(vehicle + 0x30);
+    force[1] = thrust * *(float *)(vehicle + 0x28) + lift * *(float *)(vehicle + 0x34);
+    force[2] = thrust * *(float *)(vehicle + 0x2c) + lift * *(float *)(vehicle + 0x38);
+
+    yaw = (*(float *)(vehicle + 0x1c) * facing[0] - *(float *)(vehicle + 0x18) * facing[1]) *
+          *(float *)0x2568bc / x87_fabs(*(float *)(vehicle_tag + 0x2f8));
+
+    yaw_vectors(perp, facing, x87_fsin(yaw), x87_fcos(yaw));
+
+    matrix_from_forward_and_up(actual, (float *)(vehicle + 0x24), (float *)(vehicle + 0x30));
+    matrix_from_forward_and_up(desired, facing, perp);
+    matrix_inverse(desired, desired); /* dup-args-ok */
+    matrix4x3_multiply(actual, desired, diff);
+    FUN_00109fc0(diff, quat);
+    FUN_0010caf0(quat, &angle, axis);
+
+    scaled[0] = axis[0] * (angle * *(float *)0x2b7cf0);
+    scaled[1] = axis[1] * (angle * *(float *)0x2b7cf0);
+    scaled[2] = axis[2] * (angle * *(float *)0x2b7cf0);
+
+    scale = physics_tag[0] * physics_tag[0] * physics_tag[2] * *(float *)0x2533e8;
+
+    torque[0] = (scaled[0] - *(float *)(vehicle + 0x3c)) * scale;
+    torque[1] = (scaled[1] - *(float *)(vehicle + 0x40)) * scale;
+    torque[2] = (scaled[2] - *(float *)(vehicle + 0x44)) * scale;
+
+    seat_power = *(float *)(vehicle + 0x2e8);
+
+    *(float *)(state + 0x18) = seat_power;
+    *(float *)(state + 0x1c) = 0.0f;
+    *(float *)(state + 0x20) = 0.0f;
+    *(float *)(state + 0x24) = 0.0f;
+    *(float *)(state + 0x28) = 1.0f;
+
+    *(float *)(state + 0x78) = seat_power;
+    *(float *)(state + 0x7c) = 0.0f;
+    *(float *)(state + 0x80) = 0.0f;
+    *(float *)(state + 0x84) = 0.0f;
+    *(float *)(state + 0x88) = 1.0f;
+
+    force[0] *= seat_power;
+    force[1] *= seat_power;
+    force[2] *= seat_power;
+
+    torque[0] *= seat_power;
+    torque[1] *= seat_power;
+    torque[2] *= seat_power;
+
+    physics_update(vehicle_handle, state, mass_points, force, torque);
+    return;
+  }
+
+  physics_update(vehicle_handle, NULL, mass_points, NULL, NULL);
+}
+
+/* 0x1b6560: update_alien_fighter_physics_new
+ * Banshee flight dynamics, AI pitch bias & banking (modern variant).
+ */
+void update_alien_fighter_physics_new(int vehicle_handle, void *state, void *mass_points)
+{
+  char *vehicle;
+  char *vehicle_tag;
+  float *physics_tag;
+
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  vehicle_tag = (char *)tag_get(0x76656869, *(uint32_t *)vehicle);
+  physics_tag = (float *)tag_get(0x70687973, *(uint32_t *)(vehicle_tag + 0x8c));
+
+  if (*(int32_t *)(physics_tag + 26) != 2) {
+    physics_update(vehicle_handle, NULL, mass_points, NULL, NULL);
+    return;
+  }
+
+  {
+    float desired_vel[3];
+    float accel[3];
+    float throttle;
+    float magic_force[3];
+    float magic_torque[3];
+    float current_rot[9];
+    float desired_rot[9];
+    float rot[9];
+    float quat[4];
+    float angle;
+    float axis[3];
+    float desired_ang_vel[3];
+    float ang_accel[3];
+    float spin;
+    float thrust_delta;
+    float speed;
+    float neg_k;
+    float yaw;
+    float moment_sum;
+    float seat_power;
+    float *global_up;
+    float *global_fwd;
+    float *global_id_quat;
+
+    global_up = *(float **)0x31fc44;
+    global_fwd = *(float **)0x31fc3c;
+    global_id_quat = *(float **)0x31fc5c;
+
+    speed = *(float *)(vehicle + 0x42c);
+    desired_vel[0] = *(float *)(vehicle + 0x24) * speed;
+    desired_vel[1] = *(float *)(vehicle + 0x28) * speed;
+    desired_vel[2] = *(float *)(vehicle + 0x2c) * speed;
+
+    if (speed <= *(float *)0x2533c0) {
+      throttle = -(speed / *(float *)(vehicle_tag + 0x2fc));
+    } else {
+      throttle = speed / *(float *)(vehicle_tag + 0x2f8);
+    }
+
+    compute_acceleration(accel, (const float *)(vehicle + 0x18), desired_vel,
+                         throttle * *(float *)(vehicle_tag + 0x300),
+                         throttle * *(float *)(vehicle_tag + 0x304));
+
+    seat_power = *(float *)(vehicle + 0x2e8);
+    magic_force[0] = accel[0] * physics_tag[2] * seat_power;
+    magic_force[1] = accel[1] * physics_tag[2] * seat_power;
+    magic_force[2] = accel[2] * physics_tag[2] * seat_power;
+
+    matrix_from_forward_and_up(current_rot, (float *)(vehicle + 0x24), (float *)(vehicle + 0x30));
+
+    desired_rot[0] = *(float *)(vehicle + 0x1d4);
+    desired_rot[1] = *(float *)(vehicle + 0x1d8);
+    desired_rot[2] = *(float *)(vehicle + 0x1dc);
+
+    neg_k = -desired_rot[2];
+    desired_rot[6] = desired_rot[0] * neg_k + global_up[0];
+    desired_rot[7] = desired_rot[1] * neg_k + global_up[1];
+    desired_rot[8] = desired_rot[2] * neg_k + global_up[2];
+
+    if (normalize3d(&desired_rot[6]) == *(float *)0x2533c0) {
+      desired_rot[6] = global_fwd[0];
+      desired_rot[7] = global_fwd[1];
+      desired_rot[8] = global_fwd[2];
+    }
+
+    if (!unit_driven_by_ai(vehicle_handle)) {
+      float bias_angle = *(float *)(vehicle_tag + 0x364);
+      FUN_0010c700(&desired_rot[0], &desired_rot[6], x87_fsin(bias_angle), x87_fcos(bias_angle));
+    }
+
+    yaw = ((desired_rot[0] * *(float *)(vehicle + 0x1c) - desired_rot[1] * *(float *)(vehicle + 0x18)) /
+           *(float *)(vehicle_tag + 0x2f8)) * *(float *)(vehicle_tag + 0x308);
+
+    yaw_vectors(&desired_rot[6], &desired_rot[0], x87_fsin(yaw), x87_fcos(yaw));
+
+    desired_rot[3] = desired_rot[7] * desired_rot[2] - desired_rot[8] * desired_rot[1];
+    desired_rot[4] = desired_rot[8] * desired_rot[0] - desired_rot[6] * desired_rot[2];
+    desired_rot[5] = desired_rot[6] * desired_rot[1] - desired_rot[7] * desired_rot[0];
+
+    FUN_001099f0(current_rot, current_rot); /* dup-args-ok */
+    FUN_00109c70(desired_rot, current_rot, rot);
+    FUN_00109fc0(rot, quat);
+    FUN_0010caf0(quat, &angle, axis);
+
+    {
+      float factor = -angle * *(float *)(vehicle_tag + 0x314) * *(float *)0x267328;
+      desired_ang_vel[0] = axis[0] * factor;
+      desired_ang_vel[1] = axis[1] * factor;
+      desired_ang_vel[2] = axis[2] * factor;
+    }
+
+    ang_accel[0] = desired_ang_vel[0] - *(float *)(vehicle + 0x3c);
+    ang_accel[1] = desired_ang_vel[1] - *(float *)(vehicle + 0x40);
+    ang_accel[2] = desired_ang_vel[2] - *(float *)(vehicle + 0x44);
+
+    moment_sum = (*(float *)((char *)physics_tag + 0x58) +
+                  *(float *)((char *)physics_tag + 0x54) +
+                  *(float *)((char *)physics_tag + 0x50)) * *(float *)0x259ec0;
+
+    magic_torque[0] = ang_accel[0] * moment_sum * seat_power;
+    magic_torque[1] = ang_accel[1] * moment_sum * seat_power;
+    magic_torque[2] = ang_accel[2] * moment_sum * seat_power;
+
+    spin = x87_sqrt(*(float *)(vehicle + 0x3c) * *(float *)(vehicle + 0x3c) +
+                    *(float *)(vehicle + 0x40) * *(float *)(vehicle + 0x40) +
+                    *(float *)(vehicle + 0x44) * *(float *)(vehicle + 0x44)) /
+           *(float *)(vehicle_tag + 0x314);
+
+    if (spin <= *(float *)(vehicle + 0x448)) {
+      float limit = *(float *)(vehicle + 0x448) * *(float *)(vehicle + 0x448) * *(float *)0x2533e8;
+      if (limit <= *(float *)0x29d9ac) {
+        limit = *(float *)0x29d9ac;
+      }
+      limit = -limit;
+      thrust_delta = spin - *(float *)(vehicle + 0x448);
+      if (thrust_delta <= limit) {
+        thrust_delta = limit;
+      }
+    } else {
+      float limit = (*(float *)0x2533c8 - *(float *)(vehicle + 0x448)) *
+                    (*(float *)0x2533c8 - *(float *)(vehicle + 0x448)) * *(float *)0x2549d4;
+      if (limit < *(float *)0x25bb10) {
+        limit = *(float *)0x25bb10;
+      } else if (limit > *(float *)0x2533e8) {
+        limit = *(float *)0x2533e8;
+      }
+      thrust_delta = spin - *(float *)(vehicle + 0x448);
+      if (thrust_delta >= limit) {
+        thrust_delta = limit;
+      }
+    }
+
+    *(float *)(vehicle + 0x448) += thrust_delta;
+
+    *(float *)((char *)state + 0x18) = seat_power;
+    *(float *)((char *)state + 0x1c) = global_id_quat[0];
+    *(float *)((char *)state + 0x20) = global_id_quat[1];
+    *(float *)((char *)state + 0x24) = global_id_quat[2];
+    *(float *)((char *)state + 0x28) = global_id_quat[3];
+
+    *(float *)((char *)state + 0x78) = seat_power;
+    *(float *)((char *)state + 0x7c) = global_id_quat[0];
+    *(float *)((char *)state + 0x80) = global_id_quat[1];
+    *(float *)((char *)state + 0x84) = global_id_quat[2];
+    *(float *)((char *)state + 0x88) = global_id_quat[3];
+
+    physics_update(vehicle_handle, state, mass_points, magic_force, magic_torque);
+  }
+}
+
+/* 0x1b6250: update_human_boat_physics
+ * Watercraft physics update.
+ */
+void update_human_boat_physics(int vehicle_handle, void *mass_points, void *state_param)
+{
+  char *vehicle;
+  char *vehicle_tag;
+  char *physics_tag;
+  float local_state_buf[72]; /* 3 powered mass points: 3 * 0x60 bytes */
+  char *state;
+
+  state = (state_param != NULL) ? (char *)state_param : (char *)local_state_buf;
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  vehicle_tag = (char *)tag_get(0x76656869, *(uint32_t *)vehicle);
+  physics_tag = (char *)tag_get(0x70687973, *(uint32_t *)(vehicle_tag + 0x8c));
+
+  if (*(int32_t *)(physics_tag + 0x68) != 3) {
+    physics_update(vehicle_handle, NULL, mass_points, NULL, NULL);
+    return;
+  }
+
+  {
+    float zero[3];
+    float cross[3];
+    float thrust[3];
+    float up_rel[3];
+    float dot;
+    float angle;
+    float sign;
+    float speed;
+    float neg_k;
+    float spin;
+    float max_angle;
+    float *global_up;
+    const float *forward;
+
+    global_up = *(float **)0x31fc44;
+    zero[0] = 0.0f;
+    zero[1] = 0.0f;
+    zero[2] = 0.0f;
+
+    speed = x87_fabs(x87_sqrt(*(float *)(vehicle + 0x18) * *(float *)(vehicle + 0x18) +
+                              *(float *)(vehicle + 0x1c) * *(float *)(vehicle + 0x1c) +
+                              *(float *)(vehicle + 0x20) * *(float *)(vehicle + 0x20)) * *(float *)0x254e04);
+    max_angle = *(float *)(vehicle + 0x434) * *(float *)0x253398;
+    if (speed > *(float *)0x2533c8) {
+      speed = *(float *)0x2533c8;
+    }
+    angle = (*(float *)0x2533c8 - speed) * max_angle;
+
+    *(float *)(state + 0x4) = *(float *)(vehicle + 0x42c);
+    *(uint32_t *)(state + 0xc) = 0x3b449ba6;
+    *(uint32_t *)(state + 0x1c) = 0;
+    *(uint32_t *)(state + 0x20) = 0;
+    *(float *)(state + 0x24) = x87_fsin(angle);
+    *(float *)(state + 0x28) = x87_fcos(angle);
+
+    *(uint32_t *)(state + 0x6c) = 0x3b449ba6;
+    *(uint32_t *)(state + 0x7c) = 0;
+    *(uint32_t *)(state + 0x80) = 0;
+    *(uint32_t *)(state + 0x84) = 0;
+    *(float *)(state + 0x88) = 1.0f;
+
+    *(uint32_t *)(state + 0xcc) = 0x3ba3d70a;
+    *(uint32_t *)(state + 0xdc) = 0;
+    *(uint32_t *)(state + 0xe0) = 0;
+    *(uint32_t *)(state + 0xe4) = 0;
+    *(float *)(state + 0xe8) = 1.0f;
+
+    forward = (const float *)(vehicle + 0x24);
+    neg_k = -*(float *)(vehicle + 0x2c);
+
+    up_rel[0] = forward[0] * neg_k + global_up[0];
+    up_rel[1] = forward[1] * neg_k + global_up[1];
+    up_rel[2] = forward[2] * neg_k + global_up[2];
+
+    if (normalize3d(up_rel) != *(float *)0x2533c0) {
+      cross_product3d((float *)(vehicle + 0x30), (float *)(vehicle + 0x24), cross);
+
+      spin = ((*(float *)(vehicle + 0x20) * forward[1] - *(float *)(vehicle + 0x1c) * forward[2]) * global_up[0] +
+              (*(float *)(vehicle + 0x1c) * forward[0] - *(float *)(vehicle + 0x18) * forward[1]) * global_up[2] +
+              (*(float *)(vehicle + 0x18) * forward[2] - *(float *)(vehicle + 0x20) * forward[0]) * global_up[1]) *
+             *(float *)0x255a54;
+
+      rotate_vector3d_by_sincos(up_rel, (float *)forward, x87_fsin(spin), x87_fcos(spin));
+
+      angle = FUN_0010c510(up_rel, (float *)(vehicle + 0x30));
+
+      if ((cross[0] * up_rel[0] + cross[1] * up_rel[1] + cross[2] * up_rel[2]) > *(float *)0x2533c0) {
+        angle = -angle;
+      }
+
+      dot = *(float *)(vehicle + 0x3c) * forward[0] +
+            *(float *)(vehicle + 0x40) * forward[1] +
+            *(float *)(vehicle + 0x44) * forward[2];
+
+      sign = (angle != *(float *)0x2533c0) ? ((angle < *(float *)0x2533c0) ? -1.0f : 1.0f) : 0.0f;
+
+      {
+        float term = x87_sqrt(x87_fabs(angle) * *(float *)0x2533b8) * sign - dot;
+        if (term < -*(float *)0x25bb10) {
+          term = -*(float *)0x25bb10;
+        } else if (term > *(float *)0x25bb10) {
+          term = *(float *)0x25bb10;
+        }
+        term *= *(float *)(physics_tag + 0x50);
+        thrust[0] = forward[0] * term;
+        thrust[1] = forward[1] * term;
+        thrust[2] = forward[2] * term;
+      }
+    } else {
+      thrust[0] = 0.0f;
+      thrust[1] = 0.0f;
+      thrust[2] = 0.0f;
+    }
+
+    physics_update(vehicle_handle, state, mass_points, zero, thrust);
+  }
+}
+
+/* 0x1b81d0: update_human_plane_physics
+ * Pelican / Human aircraft physics update.
+ */
+void update_human_plane_physics(int vehicle_handle, void *powered_mass_points, void *mass_points)
+{
+  char *vehicle;
+  char *vehicle_tag;
+  float *physics_tag;
+  uint16_t vehicle_flags;
+
+  vehicle = (char *)object_get_and_verify_type(vehicle_handle, 2);
+  vehicle_tag = (char *)tag_get(0x76656869, *(uint32_t *)vehicle);
+  physics_tag = (float *)tag_get(0x70687973, *(uint32_t *)(vehicle_tag + 0x8c));
+
+  vehicle_flags = *(uint16_t *)(vehicle + 0x424);
+
+  if (vehicle_flags & 2) {
+    csmemset(mass_points, 0, *(int32_t *)(physics_tag + 29) * 0x130);
+    create_pelican_effect(vehicle_handle);
+    return;
+  }
+
+  {
+    float throttle;
+    float factor;
+    float desired_fwd[3];
+    float desired_up[3];
+    float neg_k;
+    float dot;
+    float drive;
+    float lift;
+    float force[3];
+    float yaw;
+    float actual[12];
+    float desired[12];
+    float diff[12];
+    float quat[4];
+    float axis[3];
+    float angle;
+    float scaled[3];
+    float torque[3];
+    float scale;
+    float seat_power;
+    float speed;
+    float max_speed;
+    float delta_hover;
+
+    max_speed = *(float *)(vehicle_tag + 0x2f8);
+    speed = *(float *)(vehicle + 0x42c);
+
+    if (speed < *(float *)0x2533c0) {
+      speed = *(float *)0x2533c0;
+    } else if (speed > max_speed) {
+      speed = max_speed;
+    }
+    throttle = speed / max_speed;
+    throttle = throttle * throttle;
+
+    if (vehicle_flags & 4) {
+      factor = *(float *)0x25337c;
+    } else if (vehicle_flags & 8) {
+      factor = *(float *)0x2533c8;
+    } else {
+      factor = *(float *)0x25afcc;
+    }
+
+    seat_power = *(float *)(vehicle + 0x2e8);
+    delta_hover = (*(float *)0x2533c8 - throttle) * factor * seat_power - *(float *)(vehicle + 0x444);
+
+    if (delta_hover < *(float *)0x2b7d44) {
+      delta_hover = *(float *)0x2b7d44;
+    } else if (delta_hover > *(float *)0x2533e8) {
+      delta_hover = *(float *)0x2533e8;
+    }
+    *(float *)(vehicle + 0x444) += delta_hover;
+
+    throttle *= seat_power;
+    *(float *)(vehicle + 0x448) = throttle;
+
+    desired_fwd[0] = *(float *)(vehicle + 0x1d4);
+    desired_fwd[1] = *(float *)(vehicle + 0x1d8);
+    desired_fwd[2] = *(float *)(vehicle + 0x1dc);
+
+    neg_k = -desired_fwd[2];
+    desired_up[0] = desired_fwd[0] * neg_k;
+    desired_up[1] = desired_fwd[1] * neg_k;
+    desired_up[2] = *(float *)0x2533c8 - desired_fwd[2] * desired_fwd[2];
+
+    if (normalize3d(desired_up) == *(float *)0x2533c0) {
+      desired_up[0] = 1.0f;
+      desired_up[1] = 0.0f;
+      desired_up[2] = 0.0f;
+    }
+
+    dot = *(float *)(vehicle + 0x24) * *(float *)(vehicle + 0x18) +
+          *(float *)(vehicle + 0x28) * *(float *)(vehicle + 0x1c) +
+          *(float *)(vehicle + 0x2c) * *(float *)(vehicle + 0x20);
+
+    drive = (*(float *)(vehicle + 0x42c) - dot) * throttle * physics_tag[2] * *(float *)0x2533e8;
+    lift = (*(float *)(vehicle + 0x444) * *(float *)0x255b9c +
+            x87_fabs(dot / max_speed) * *(float *)0x2b7cf4) *
+           *(float *)0x32512c * physics_tag[2];
+
+    force[0] = drive * *(float *)(vehicle + 0x24) + lift * *(float *)(vehicle + 0x30);
+    force[1] = drive * *(float *)(vehicle + 0x28) + lift * *(float *)(vehicle + 0x34);
+    force[2] = drive * *(float *)(vehicle + 0x2c) + lift * *(float *)(vehicle + 0x38);
+
+    yaw = (*(float *)(vehicle + 0x1c) * desired_fwd[0] - *(float *)(vehicle + 0x18) * desired_fwd[1]) *
+          *(float *)0x2568bc / x87_fabs(max_speed);
+
+    yaw_vectors(desired_up, desired_fwd, x87_fsin(yaw), x87_fcos(yaw));
+
+    matrix_from_forward_and_up(actual, (float *)(vehicle + 0x24), (float *)(vehicle + 0x30));
+    matrix_from_forward_and_up(desired, desired_fwd, desired_up);
+    matrix_inverse(desired, desired); /* dup-args-ok */
+    matrix4x3_multiply(actual, desired, diff);
+    FUN_00109fc0(diff, quat);
+    FUN_0010caf0(quat, &angle, axis);
+
+    scaled[0] = axis[0] * (angle * *(float *)0x2546a4);
+    scaled[1] = axis[1] * (angle * *(float *)0x2546a4);
+    scaled[2] = axis[2] * (angle * *(float *)0x2546a4);
+
+    scale = physics_tag[0] * physics_tag[0] * physics_tag[2] * *(float *)0x2533e8;
+
+    torque[0] = seat_power * ((scaled[0] - *(float *)(vehicle + 0x3c)) * scale);
+    torque[1] = seat_power * ((scaled[1] - *(float *)(vehicle + 0x40)) * scale);
+    torque[2] = seat_power * ((scaled[2] - *(float *)(vehicle + 0x44)) * scale);
+
+    force[0] *= seat_power;
+    force[1] *= seat_power;
+    force[2] *= seat_power;
+
+    physics_update(vehicle_handle, NULL, mass_points, force, torque);
+    create_pelican_effect(vehicle_handle);
+  }
+}
+
 void update_alien_fighter_physics(int vehicle_handle, int param_2, int param_3)
 {
   void *vehicle;
@@ -906,12 +1446,13 @@ void update_alien_fighter_physics(int vehicle_handle, int param_2, int param_3)
   physics_tag = (float *)tag_get(0x70687973, *(int32_t *)(vehicle_tag + 0x8c));
 
   if (*physics_tag > *(float *)0x2533c0) {
-    update_alien_fighter_physics_old(vehicle_handle, param_3);
+    update_alien_fighter_physics_old(vehicle_handle, (void *)param_3, (void *)param_2);
     create_ghost_effect(vehicle_handle);
     return;
   }
 
-  update_alien_fighter_physics_new(vehicle_handle, param_2, param_3);
+  update_alien_fighter_physics_new(vehicle_handle, (void *)param_2, (void *)param_3);
+  create_ghost_effect(vehicle_handle);
 }
 
 /* 0x1b5c90: vehicle_accelerate

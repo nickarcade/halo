@@ -35273,18 +35273,21 @@
         },
         {
           "addr": "0x1b6250",
-          "decl": "void update_human_boat_physics(void);",
-          "comment": "[NAME: update_human_boat_physics \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void update_human_boat_physics(int vehicle_handle, void *mass_points, void *state_param);",
+          "comment": "[NAME: update_human_boat_physics \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b6560",
-          "decl": "void update_alien_fighter_physics_new(int vehicle_handle, int param_2, int param_3);",
-          "comment": "[NAME: update_alien_fighter_physics_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void update_alien_fighter_physics_new(int vehicle_handle, void *state, void *mass_points);",
+          "comment": "[NAME: update_alien_fighter_physics_new \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b69a0",
-          "decl": "void update_alien_fighter_physics_old(int vehicle_handle, int param_2);",
-          "comment": "[NAME: update_alien_fighter_physics_old \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void update_alien_fighter_physics_old(int vehicle_handle, void *mass_points, void *state_param);",
+          "comment": "[NAME: update_alien_fighter_physics_old \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b6ca0",
@@ -35339,8 +35342,9 @@
         },
         {
           "addr": "0x1b81d0",
-          "decl": "void update_human_plane_physics(void);",
-          "comment": "[NAME: update_human_plane_physics \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void update_human_plane_physics(int vehicle_handle, void *powered_mass_points, void *mass_points);",
+          "comment": "[NAME: update_human_plane_physics \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1b8570",
