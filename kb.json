@@ -7491,8 +7491,9 @@
         },
         {
           "addr": "0x85c80",
-          "decl": "void dead_camera_update(void);",
-          "comment": "[NAME: dead_camera_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void dead_camera_update(void *camera, const void *controls, void *result);",
+          "comment": "[NAME: dead_camera_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x861a0",
@@ -7631,23 +7632,28 @@
         },
         {
           "addr": "0x878d0",
-          "decl": "void editor_camera_get_focus(uint32_t *position, uint32_t *angles);"
+          "decl": "void editor_camera_get_focus(uint32_t *position, uint32_t *angles);",
+          "ported": true
         },
         {
           "addr": "0x87950",
-          "decl": "void editor_camera_set_focus(const uint32_t *position, const uint32_t *angles);"
+          "decl": "void editor_camera_set_focus(const uint32_t *position, const uint32_t *angles);",
+          "ported": true
         },
         {
           "addr": "0x879d0",
-          "decl": "void editor_camera_set_position(const uint32_t *point, const uint32_t *angles);"
+          "decl": "void editor_camera_set_position(const uint32_t *point, const uint32_t *angles);",
+          "ported": true
         },
         {
           "addr": "0x87ac0",
-          "decl": "char FUN_00087ac0(char enabled);"
+          "decl": "char FUN_00087ac0(char enabled);",
+          "ported": true
         },
         {
           "addr": "0x87b00",
-          "decl": "void editor_camera_set_mode(int16_t mode);"
+          "decl": "void editor_camera_set_mode(int16_t mode);",
+          "ported": true
         },
         {
           "addr": "0x87c00",
@@ -7661,7 +7667,8 @@
         },
         {
           "addr": "0x87d00",
-          "decl": "void editor_camera_set_position_and_roll(void);"
+          "decl": "void editor_camera_set_position_and_roll(const float *point, const float *angles);",
+          "ported": true
         },
         {
           "addr": "0x87eb0",
@@ -7685,12 +7692,14 @@
         },
         {
           "addr": "0x88260",
-          "decl": "void editor_camera_flying_update(void);"
+          "decl": "void editor_camera_flying_update(void *camera, const void *controls, void *result);",
+          "ported": true
         },
         {
           "addr": "0x887e0",
-          "decl": "void editor_camera_orbiting_update(void);",
-          "comment": "[NAME: editor_camera_orbiting_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "decl": "void editor_camera_orbiting_update(void *camera, const void *controls, void *result);",
+          "comment": "[NAME: editor_camera_orbiting_update \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x86160",

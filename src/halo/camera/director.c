@@ -20,6 +20,7 @@
  *
  * Register-arg callees are reached through shims in camera_internal.h. */
 #include "camera_internal.h"
+#include "x87_math.h"
 
 /*
  * FUN_00085a40 (0x85a40) — is there another player whose player-record dword
@@ -235,6 +236,116 @@ void dead_camera_new(void *camera, int16_t local_player_index, int handle)
 
   *(int *)(dst + 0x28) = handle;
   *(int *)(dst + 0x24) = *(int *)(dst + 0x20);
+}
+
+/*
+ * dead_camera_update (0x85c80) — tick update for dead camera.
+ * Follows dead unit or pans between living allied players.
+ */
+void dead_camera_update(void *camera, const void *controls, void *result)
+{
+  char *cam;
+  const char *ctrl;
+  char *res;
+  int unit_index;
+  char *unit;
+  float depth;
+  float timer;
+  float elapsed;
+  float switch_timer;
+  int player_index;
+  int current_player_index;
+  int next_player;
+  int next_unit;
+  bool match_team;
+  float *zero_vec;
+
+  cam = (char *)camera;
+  ctrl = (const char *)controls;
+  res = (char *)result;
+
+  unit_index = *(int *)(cam + 0x28);
+  unit = NULL;
+  if (unit_index != -1) {
+    unit = (char *)object_try_and_get_and_verify_type(unit_index, -1);
+  }
+
+  if (unit != NULL) {
+    *(float *)(res + 0x04) = *(float *)(unit + 0x50);
+    *(float *)(res + 0x08) = *(float *)(unit + 0x54);
+    *(float *)(res + 0x0c) = *(float *)(unit + 0x58);
+  } else {
+    *(float *)(res + 0x04) = *(float *)(cam + 0x00);
+    *(float *)(res + 0x08) = *(float *)(cam + 0x04);
+    *(float *)(res + 0x0c) = *(float *)(cam + 0x08);
+  }
+
+  depth = *(float *)(cam + 0x14);
+  *(float *)(res + 0x1c) = depth;
+
+  angles_to_vector((float *)(res + 0x24), (float *)(cam + 0x0c));
+  observer_up_from_forward((float *)(res + 0x24), (float *)(res + 0x30));
+
+  *(float *)(res + 0x20) = *(float *)(cam + 0x18);
+
+  zero_vec = *(float **)0x31fc38;
+  *(float *)(res + 0x10) = zero_vec[0];
+  *(float *)(res + 0x14) = zero_vec[1];
+  *(float *)(res + 0x18) = zero_vec[2];
+  *(float *)(res + 0x3c) = zero_vec[0];
+  *(float *)(res + 0x40) = zero_vec[1];
+  *(float *)(res + 0x44) = zero_vec[2];
+
+  *(uint32_t *)res = 1;
+
+  timer = *(float *)(cam + 0x1c);
+  if (timer < 0.0f) {
+    timer = 0.0f;
+  }
+  *(float *)(res + 0x48) = timer;
+  *(float *)(res + 0x54) = 0.0f;
+  *(char *)(res + 0x4c) = 3;
+
+  if (*(float *)(cam + 0x1c) == *(float *)0x266f38) {
+    *(float *)(res + 0x1c) = 0.5f;
+    *(float *)(res + 0x5c) = 0.0f;
+    *(char *)(res + 0x4e) = 3;
+  }
+
+  elapsed = *(float *)(ctrl + 0x04);
+  *(float *)(cam + 0x1c) -= elapsed;
+
+  switch_timer = *(float *)(cam + 0x2c) - elapsed;
+  if (switch_timer < 0.0f) {
+    switch_timer = 0.0f;
+  }
+  *(float *)(cam + 0x2c) = switch_timer;
+
+  if (switch_timer == 0.0f && !game_time_get_paused()) {
+    player_index = *(int *)(cam + 0x20);
+    current_player_index = *(int *)(cam + 0x24);
+    match_team = FUN_00085a40(player_index) != 0;
+    next_player = FUN_00085ab0(player_index, current_player_index, match_team);
+    *(int *)(cam + 0x24) = next_player;
+
+    if (next_player != -1) {
+      char *p = (char *)datum_get(player_data, next_player);
+      next_unit = *(int *)(p + 0x34);
+    } else {
+      next_unit = -1;
+    }
+
+    if (next_unit != *(int *)(cam + 0x28) && next_unit != -1) {
+      *(float *)(cam + 0x1c) = *(float *)0x266f38;
+      *(int *)(cam + 0x28) = next_unit;
+    }
+
+    if (game_engine_running()) {
+      *(float *)(cam + 0x2c) = *(float *)0x266f3c;
+    } else {
+      *(float *)(cam + 0x2c) = *(float *)0x266f40;
+    }
+  }
 }
 
 /* Allocate director scripting state. */
@@ -1754,6 +1865,69 @@ void editor_camera_move_to_point(const float *point)
   camera_data[2] = point[2] - forward[2] * *(float *)0x254e04;
 }
 
+/*
+ * editor_camera_set_position_and_roll (0x87d00) — update editor camera position
+ * and roll angles.
+ */
+void editor_camera_set_position_and_roll(const float *point, const float *angles)
+{
+  float matrix[16];
+  float forward[3];
+  float up[3];
+  float diff[3];
+  float hack_angles[2];
+  float *camera;
+  float dot;
+
+  if (point == NULL) {
+    display_assert("point", "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0xa9, 1);
+    system_exit(-1);
+  }
+  if (angles == NULL) {
+    display_assert("angles", "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0xaa, 1);
+    system_exit(-1);
+  }
+
+  camera = *(float **)0x3356b0;
+  if (camera == NULL) {
+    editor_camera_set_focus((const uint32_t *)point, (const uint32_t *)angles);
+    *(char *)0x33569a = 1;
+    *(char *)0x3356b4 = 1;
+    return;
+  }
+
+  camera[0] = point[0];
+  camera[1] = point[1];
+  camera[2] = point[2];
+
+  FUN_00109e90(matrix, angles[0], angles[1], angles[2]);
+  vector_to_angles(&camera[3], matrix);
+  angles_to_vector(forward, &camera[3]);
+
+  hack_angles[0] = camera[3];
+  hack_angles[1] = camera[4] + *(float *)0x2568bc; /* _pi / 2.0f */
+  angles_to_vector(up, hack_angles);
+
+  normalize3d(forward);
+  normalize3d(up);
+
+  /* diff = up x matrix.up */
+  diff[0] = up[1] * matrix[8] - up[2] * matrix[7];
+  diff[1] = up[2] * matrix[6] - up[0] * matrix[8];
+  diff[2] = up[0] * matrix[7] - up[1] * matrix[6];
+  normalize3d(diff);
+
+  dot = forward[0] * diff[0] + forward[1] * diff[1] + forward[2] * diff[2];
+  camera[5] = FUN_0010c510(up, &matrix[6]) * dot;
+
+  if (*(int *)0x2ee66c != -1) {
+    *(float *)0x3356b8 = point[0];
+    *(float *)0x3356bc = point[1];
+    *(float *)0x3356c0 = point[2];
+  }
+  *(char *)0x3356b4 = 1;
+}
+
 /* FUN_00087eb0 (0x87eb0) — record the editor camera target handle and derive
  * the camera offset vector at 0x3356b8.
  *
@@ -2011,4 +2185,256 @@ void FUN_00088200(void *state)
   FUN_00087eb0(*(void **)0x2ee66c);
 }
 
+/*
+ * editor_camera_flying_update (0x88260) — tick update for editor flying camera.
+ */
+void editor_camera_flying_update(void *camera, const void *controls, void *result)
+{
+  float right[3];
+  float translation[3];
+  float position[3];
+  float *cam;
+  const unsigned short *ctrl;
+  float *res;
+  float facing_pitch;
+  float roll;
+  float speed;
+  float cos_yaw;
+  float sin_yaw;
+  float norm;
+  int unit_focus;
+  char *unit;
 
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x1c0, camera);
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x1c1, controls);
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x1c2, result);
+
+  cam = (float *)camera;
+  ctrl = (const unsigned short *)controls;
+  res = (float *)result;
+
+  if (*((const char *)ctrl + 2) != 0) {
+    cam[3] += *(const float *)(ctrl + 4);
+    facing_pitch = cam[4] + *(const float *)(ctrl + 6);
+    if (facing_pitch < -1.56765485f) {
+      facing_pitch = -1.56765485f;
+    } else if (facing_pitch > 1.56765485f) {
+      facing_pitch = 1.56765485f;
+    }
+    cam[4] = facing_pitch;
+
+    if (*(char *)0x335699 != 0) {
+      cam[5] += *(const float *)(ctrl + 8);
+    } else {
+      cam[5] = 0.0f;
+    }
+  }
+
+  res[18] = 0.3f;
+  angles_to_vector(&res[9], &cam[3]);
+  right[0] = res[10];
+  right[1] = -res[9];
+  right[2] = 0.0f;
+  norm = normalize3d(right);
+  if (norm == 0.0f) {
+    right[0] = 1.0f;
+    right[1] = 0.0f;
+    right[2] = 0.0f;
+  }
+  cross_product3d(right, &res[9], &res[12]);
+
+  roll = cam[5];
+  rotate_vector3d_by_sincos(&res[12], &res[9], x87_fsin(roll), x87_fcos(roll));
+
+  cos_yaw = x87_fcos(cam[3]);
+  sin_yaw = x87_fsin(cam[3]);
+
+  translation[0] = cos_yaw * *(const float *)(ctrl + 10) - sin_yaw * *(const float *)(ctrl + 12);
+  translation[1] = cos_yaw * *(const float *)(ctrl + 12) + sin_yaw * *(const float *)(ctrl + 10);
+  translation[2] = *(const float *)(ctrl + 14);
+
+  speed = *(float *)0x335694;
+  translation[0] *= speed;
+  translation[1] *= speed;
+  translation[2] *= speed;
+
+  unit_focus = *(int *)0x2ee66c;
+  if (unit_focus != -1 && (unit = (char *)object_try_and_get_and_verify_type(unit_focus, -1)) != NULL) {
+    *(float *)0x3356b8 += translation[0];
+    *(float *)0x3356bc += translation[1];
+    *(float *)0x3356c0 += translation[2];
+    position[0] = *(float *)(unit + 0x50) + *(float *)0x3356b8;
+    position[1] = *(float *)(unit + 0x54) + *(float *)0x3356bc;
+    position[2] = *(float *)(unit + 0x58) + *(float *)0x3356c0;
+  } else {
+    position[0] = cam[0] + translation[0];
+    position[1] = cam[1] + translation[1];
+    position[2] = cam[2] + translation[2];
+  }
+
+  cam[0] = position[0];
+  cam[1] = position[1];
+  cam[2] = position[2];
+
+  res[1] = position[0];
+  res[2] = position[1];
+  res[3] = position[2];
+
+  res[4] = (*(float **)0x31fc38)[0];
+  res[5] = (*(float **)0x31fc38)[1];
+  res[6] = (*(float **)0x31fc38)[2];
+
+  res[7] = 0.0f;
+  res[8] = 1.2217305f;
+  *(uint32_t *)res = 1;
+}
+
+/*
+ * editor_camera_orbiting_update (0x887e0) — tick update for editor orbiting camera.
+ */
+void editor_camera_orbiting_update(void *camera, const void *controls, void *result)
+{
+  float *cam;
+  const unsigned short *ctrl;
+  float *res;
+  int unit_index;
+  int camera_info[6];
+  float facing_pitch;
+  float new_y;
+
+  cam = (float *)camera;
+  ctrl = (const unsigned short *)controls;
+  res = (float *)result;
+
+  player_control_get_unit_camera_info((int16_t)ctrl[0], (void *)camera_info);
+  res[1] = *(float *)&camera_info[3];
+  res[2] = *(float *)&camera_info[4];
+  res[3] = *(float *)&camera_info[5];
+
+  if (*((const char *)ctrl + 2) != 0) {
+    cam[3] += *(const float *)(ctrl + 4);
+    facing_pitch = cam[4] + *(const float *)(ctrl + 6);
+    if (facing_pitch < *(float *)0x267208) {
+      facing_pitch = *(float *)0x267208;
+    } else if (facing_pitch > *(float *)0x267204) {
+      facing_pitch = *(float *)0x267204;
+    }
+    cam[4] = facing_pitch;
+
+    director_set_local_player_context((int16_t)ctrl[0]);
+  }
+
+  new_y = cam[1] - *(const float *)(ctrl + 16) * *(float *)0x259ec0;
+  if (new_y < *(float *)0x253f3c) {
+    new_y = *(float *)0x253f3c;
+  }
+  cam[1] = new_y;
+
+  unit_index = camera_info[0];
+  if (unit_index != -1) {
+    angles_to_vector(&res[9], &cam[3]);
+    observer_up_from_forward(&res[9], &res[12]);
+    object_get_root_location(unit_index, (float *)&res[15], NULL);
+    *(uint32_t *)res = 1;
+  }
+
+  res[4] = (*(float **)0x31fc38)[0];
+  res[5] = (*(float **)0x31fc38)[1];
+  res[6] = (*(float **)0x31fc38)[2];
+
+  res[7] = cam[1];
+  res[8] = *(float *)0x2670c8;
+  res[18] = *(float *)0x2670d0;
+}
+
+/* first_person_camera_new (0x88c40) — reset the first-person camera data
+ * block.  Ghidra types this void(void) and reports the stack parameter as
+ * in_stack_00000004; the disassembly loads it at [EBP+8] into ESI
+ * (MOV ESI,[EBP+8] at 0x88c44), so it is a single cdecl pointer parameter.
+ *
+ * The null check at 0x88c47 (TEST ESI,ESI / JNZ 0x88c68) is an assert: the
+ * pushed arguments at 0x88c4b-0x88c54 are display_assert("camera",
+ * "c:\halo\SOURCE\camera\first_person_camera.c", 0x18, true) followed by
+ * system_exit(-1) at 0x88c60.  The .rdata reason string is "camera", so the
+ * original condition was written on a parameter of that name; the assert is
+ * stamped with the first_person_camera.c TU, not director.c, so the file and
+ * line are pinned with assert_halt_at.
+ *
+ * The body is a single dword store of 0 (MOV [ESI],0x0 at 0x88c68); the width
+ * is a dword, and nothing else in the block is touched here. */
+void first_person_camera_new(void *camera)
+{
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\first_person_camera.c", 0x18,
+                 camera);
+
+  *(uint32_t *)camera = 0;
+}
+
+/* FUN_00088c80 (0x88c80) — produce the first-person camera's eye position and
+ * forward vector for a unit.
+ *
+ * Ghidra types this void(void) and reports the three cdecl arguments as
+ * in_stack_00000004/8/c; the disassembly loads them at [EBP+8] (EDI, then
+ * ESI after the first call), [EBP+0xc] (EBX) and [EBP+0x10] (EDI) at
+ * 0x88c89/0x88c94/0x88ca0, so it is a three-parameter cdecl function.
+ *
+ * Baseline: unit_set_seat_state fills the caller's position vector, and the
+ * unit's own aiming vector at +0x1ec..+0x1f4 is copied out as the forward
+ * vector.  Both copies are plain dword moves in the reference
+ * (MOV EDX,[EAX] / MOV [ECX],EDX at 0x88ca9..0x88cb8), so they are spelled as
+ * dword copies here rather than float assignments.
+ *
+ * Override: if the unit is riding something (+0xcc is a valid object handle,
+ * type mask 2), the vehicle's seat definition is fetched from the 'vehi'
+ * definition's seat block at +0x2e4, indexed by the unit's seat index at
+ * +0x2a0 with element size 0x11c.  The reference reads only the low byte of
+ * the seat definition and branches on its sign (MOV CL,[EAX] / TEST CL,CL /
+ * JNS at 0x88cfd..0x88d04) — a seat flag whose bit 7 selects the marker-driven
+ * camera.  In that case the "primary trigger" marker on the vehicle supplies
+ * both vectors: the marker record's forward vector at +0x3c and its position
+ * at +0x60, matching the marker layout used by player_control (0x6c-byte
+ * record, one marker requested).
+ *
+ * Note the two halves are written to opposite parameters: the marker position
+ * (+0x60, read at [EBP-0xc]) goes to the EBX parameter that unit_set_seat_state
+ * filled, and the marker forward (+0x3c, read at [EBP-0x30]) goes to the EDI
+ * parameter that received the unit's aiming vector. */
+void FUN_00088c80(int unit_handle, float *out_position, float *out_forward)
+{
+  char *unit;
+  char *vehicle;
+  char *seat;
+  char marker_buf[0x6c]; /* object_get_markers_by_string_id output */
+
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  unit_set_seat_state(unit_handle, out_position);
+
+  ((uint32_t *)out_forward)[0] = *(uint32_t *)(unit + 0x1ec);
+  ((uint32_t *)out_forward)[1] = *(uint32_t *)(unit + 0x1f0);
+  ((uint32_t *)out_forward)[2] = *(uint32_t *)(unit + 0x1f4);
+
+  if (*(int *)(unit + 0xcc) != NONE) {
+    vehicle =
+      (char *)object_try_and_get_and_verify_type(*(int *)(unit + 0xcc), 2);
+    if (vehicle != NULL) {
+      /* one nested expression: the original cleans both calls with a single
+       * ADD ESP,0x14 at 0x88cff */
+      seat = (char *)tag_block_get_element(
+        (char *)tag_get(0x76656869 /* 'vehi' */, *(int *)vehicle) + 0x2e4,
+        *(int16_t *)(unit + 0x2a0), 0x11c);
+
+      if (*seat < 0) {
+        if (object_get_markers_by_string_id(*(int *)(unit + 0xcc),
+                                            (void *)"primary trigger",
+                                            marker_buf, 1) != 0) {
+          ((uint32_t *)out_position)[0] = *(uint32_t *)(marker_buf + 0x60);
+          ((uint32_t *)out_position)[1] = *(uint32_t *)(marker_buf + 0x64);
+          ((uint32_t *)out_position)[2] = *(uint32_t *)(marker_buf + 0x68);
+          ((uint32_t *)out_forward)[0] = *(uint32_t *)(marker_buf + 0x3c);
+          ((uint32_t *)out_forward)[1] = *(uint32_t *)(marker_buf + 0x40);
+          ((uint32_t *)out_forward)[2] = *(uint32_t *)(marker_buf + 0x44);
+        }
+      }
+    }
+  }
+}
