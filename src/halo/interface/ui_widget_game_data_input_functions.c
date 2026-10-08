@@ -1,3 +1,127 @@
+/* --- BATCH 5.1B: ui_widget_game_data_input_functions.obj recovery --- */
+
+/* playlist_profile_initialize_koth_rules (0x0ed240) */
+bool playlist_profile_initialize_koth_rules(void *widget, void *event_data,
+                                            bool *widget_deleted)
+{
+  char *profile;
+  void *child;
+  void *spinner;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  profile = (char *)player_ui_get_edit_playlist_profile();
+  if (*(short *)((char *)widget + 0xe) != 3) {
+    display_assert(
+      "expected column list for multiplayer game settings widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xb43,
+      1);
+    system_exit(-1);
+  }
+
+  if (profile == NULL) {
+    error(2, "failed to retrieve editable game variant");
+    return false;
+  }
+
+  child = *(void **)((char *)widget + 0x34);
+  if (child == NULL) {
+    display_assert(
+      "expected 'moving hill' list item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xb4b,
+      1);
+    system_exit(-1);
+  }
+
+  for (spinner = *(void **)((char *)child + 0x34); spinner != NULL;
+       spinner = *(void **)((char *)spinner + 0x2c)) {
+    if (*(short *)((char *)spinner + 0xe) == 2) {
+      break;
+    }
+  }
+
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'moving hill' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xb4d,
+      1);
+    system_exit(-1);
+  }
+
+  *(unsigned short *)((char *)spinner + 0x3c) = (profile[0x4c] != 0) ? 0 : 1;
+
+  child = *(void **)((char *)child + 0x2c);
+  if (child == NULL) {
+    display_assert(
+      "expected 'score to win' list item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xb56,
+      1);
+    system_exit(-1);
+  }
+
+  for (spinner = *(void **)((char *)child + 0x34); spinner != NULL;
+       spinner = *(void **)((char *)spinner + 0x2c)) {
+    if (*(short *)((char *)spinner + 0xe) == 2) {
+      break;
+    }
+  }
+
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'score to win' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xb58,
+      1);
+    system_exit(-1);
+  }
+
+  switch (*(unsigned int *)(profile + 0x40)) {
+  case 2:
+    *(unsigned short *)((char *)spinner + 0x3c) = 1;
+    break;
+  case 5:
+    *(unsigned short *)((char *)spinner + 0x3c) = 2;
+    break;
+  case 10:
+    *(unsigned short *)((char *)spinner + 0x3c) = 3;
+    break;
+  case 15:
+    *(unsigned short *)((char *)spinner + 0x3c) = 4;
+    break;
+  default:
+    *(unsigned short *)((char *)spinner + 0x3c) = 0;
+    break;
+  }
+
+  child = *(void **)((char *)child + 0x2c);
+  if (child == NULL) {
+    display_assert(
+      "expected 'teams' item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xb64,
+      1);
+    system_exit(-1);
+  }
+
+  for (spinner = *(void **)((char *)child + 0x34); spinner != NULL;
+       spinner = *(void **)((char *)spinner + 0x2c)) {
+    if (*(short *)((char *)spinner + 0xe) == 2) {
+      break;
+    }
+  }
+
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'teams' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xb66,
+      1);
+    system_exit(-1);
+  }
+
+  *(unsigned short *)((char *)spinner + 0x3c) =
+    (*(unsigned char *)(profile + 0x1c) == 0) ? 1 : 0;
+  return true;
+}
+
 /* playlist profile slayer rules initializer (0x0ed470) -- fetches the
  * in-progress playlist profile, asserts the widget is a column list
  * (+0xe == 3), then walks the list items (first child +0x34, next sibling
@@ -1036,94 +1160,162 @@ bool playlist_profile_initialize_item_options(void *widget)
   if (profile != NULL) {
     list_item = *(void **)((char *)widget + 0x34);
     if (list_item == NULL) {
-      display_assert("expected 'infinite grenades' list item",
-        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd2e, true);
+      display_assert(
+        "expected 'infinite grenades' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd2e, true);
       system_exit(-1);
     }
     option_spinner = *(void **)((char *)list_item + 0x34);
-    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2)
+    while (option_spinner != NULL &&
+           *(int16_t *)((char *)option_spinner + 0xe) != 2)
       option_spinner = *(void **)((char *)option_spinner + 0x2c);
     if (option_spinner == NULL) {
-      display_assert("expected 'infinite grenades' option spinner list",
-        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd30, true);
+      display_assert(
+        "expected 'infinite grenades' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd30, true);
       system_exit(-1);
     }
     switch ((*(unsigned int *)((char *)profile + 0x20) >> 2) & 1) {
-    case 0: *(int16_t *)((char *)option_spinner + 0x3c) = 1; break;
-    case 1: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
-    default: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
+    case 0:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 1;
+      break;
+    case 1:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 0;
+      break;
+    default:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 0;
+      break;
     }
 
     list_item = *(void **)((char *)list_item + 0x2c);
     if (list_item == NULL) {
-      display_assert("expected 'vehicle set' list item",
-        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd3a, true);
+      display_assert(
+        "expected 'vehicle set' list item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd3a, true);
       system_exit(-1);
     }
     option_spinner = *(void **)((char *)list_item + 0x34);
-    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2)
+    while (option_spinner != NULL &&
+           *(int16_t *)((char *)option_spinner + 0xe) != 2)
       option_spinner = *(void **)((char *)option_spinner + 0x2c);
     if (option_spinner == NULL) {
-      display_assert("expected 'vehicle set' option spinner list",
-        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd3c, true);
+      display_assert(
+        "expected 'vehicle set' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd3c, true);
       system_exit(-1);
     }
     switch (*(int *)((char *)profile + 0x48)) {
-    case 0: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
-    case 1: *(int16_t *)((char *)option_spinner + 0x3c) = 1; break;
-    case 2: *(int16_t *)((char *)option_spinner + 0x3c) = 2; break;
-    case 3: *(int16_t *)((char *)option_spinner + 0x3c) = 3; break;
-    case 4: *(int16_t *)((char *)option_spinner + 0x3c) = 4; break;
-    default: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
+    case 0:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 0;
+      break;
+    case 1:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 1;
+      break;
+    case 2:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 2;
+      break;
+    case 3:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 3;
+      break;
+    case 4:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 4;
+      break;
+    default:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 0;
+      break;
     }
 
     list_item = *(void **)((char *)list_item + 0x2c);
     if (list_item == NULL) {
-      display_assert("expected 'weapon set' item",
-        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd48, true);
+      display_assert(
+        "expected 'weapon set' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd48, true);
       system_exit(-1);
     }
     option_spinner = *(void **)((char *)list_item + 0x34);
-    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2)
+    while (option_spinner != NULL &&
+           *(int16_t *)((char *)option_spinner + 0xe) != 2)
       option_spinner = *(void **)((char *)option_spinner + 0x2c);
     if (option_spinner == NULL) {
-      display_assert("expected 'weapon set' option spinner list",
-        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd4a, true);
+      display_assert(
+        "expected 'weapon set' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd4a, true);
       system_exit(-1);
     }
     switch (*(int *)((char *)profile + 0x44)) {
-    case 0: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
-    case 1: *(int16_t *)((char *)option_spinner + 0x3c) = 1; break;
-    case 2: *(int16_t *)((char *)option_spinner + 0x3c) = 2; break;
-    case 3: *(int16_t *)((char *)option_spinner + 0x3c) = 3; break;
-    case 4: *(int16_t *)((char *)option_spinner + 0x3c) = 4; break;
-    case 5: *(int16_t *)((char *)option_spinner + 0x3c) = 5; break;
-    case 6: *(int16_t *)((char *)option_spinner + 0x3c) = 6; break;
-    case 7: *(int16_t *)((char *)option_spinner + 0x3c) = 7; break;
-    case 8: *(int16_t *)((char *)option_spinner + 0x3c) = 8; break;
-    case 9: *(int16_t *)((char *)option_spinner + 0x3c) = 9; break;
-    case 10: *(int16_t *)((char *)option_spinner + 0x3c) = 10; break;
-    default: *(int16_t *)((char *)option_spinner + 0x3c) = 0; break;
+    case 0:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 0;
+      break;
+    case 1:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 1;
+      break;
+    case 2:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 2;
+      break;
+    case 3:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 3;
+      break;
+    case 4:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 4;
+      break;
+    case 5:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 5;
+      break;
+    case 6:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 6;
+      break;
+    case 7:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 7;
+      break;
+    case 8:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 8;
+      break;
+    case 9:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 9;
+      break;
+    case 10:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 10;
+      break;
+    default:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 0;
+      break;
     }
 
     list_item = *(void **)((char *)list_item + 0x2c);
     if (list_item == NULL) {
-      display_assert("expected 'starting equipment' item",
-        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd5d, true);
+      display_assert(
+        "expected 'starting equipment' item",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd5d, true);
       system_exit(-1);
     }
     option_spinner = *(void **)((char *)list_item + 0x34);
-    while (option_spinner != NULL && *(int16_t *)((char *)option_spinner + 0xe) != 2)
+    while (option_spinner != NULL &&
+           *(int16_t *)((char *)option_spinner + 0xe) != 2)
       option_spinner = *(void **)((char *)option_spinner + 0x2c);
     if (option_spinner == NULL) {
-      display_assert("expected 'starting equpiment' option spinner list",
-        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xd5f, true);
+      display_assert(
+        "expected 'starting equpiment' option spinner list",
+        "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+        0xd5f, true);
       system_exit(-1);
     }
     switch ((*(unsigned int *)((char *)profile + 0x20) >> 5) & 1) {
-    case 0: *(int16_t *)((char *)option_spinner + 0x3c) = 0; return true;
-    case 1: *(int16_t *)((char *)option_spinner + 0x3c) = 1; return true;
-    default: *(int16_t *)((char *)option_spinner + 0x3c) = 0; return true;
+    case 0:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 0;
+      return true;
+    case 1:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 1;
+      return true;
+    default:
+      *(int16_t *)((char *)option_spinner + 0x3c) = 0;
+      return true;
     }
   }
 
@@ -1579,6 +1771,112 @@ bool player_profile_save_changes(void *widget, void *event_data,
   }
 
   return result;
+}
+
+/* player_profile_initialize_controller_settings (0x0eef30) */
+bool player_profile_initialize_controller_settings(void *widget,
+                                                   void *event_data,
+                                                   bool *widget_deleted)
+{
+  char *profile;
+  void *child;
+  void *spinner;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  profile = (char *)player_ui_get_edit_player_profile();
+  if (*(short *)((char *)widget + 0xe) != 3) {
+    display_assert(
+      "expected column list for controller settings widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xed1,
+      1);
+    system_exit(-1);
+  }
+
+  if (profile == NULL) {
+    error(2, "failed to retrieve editable player profile");
+    return false;
+  }
+
+  /* 1. joystick config */
+  child = *(void **)((char *)widget + 0x34);
+  if (child == NULL) {
+    display_assert(
+      "expected 'joystick config' list item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xed9,
+      1);
+    system_exit(-1);
+  }
+  for (spinner = *(void **)((char *)child + 0x34); spinner != NULL;
+       spinner = *(void **)((char *)spinner + 0x2c)) {
+    if (*(short *)((char *)spinner + 0xe) == 2) {
+      break;
+    }
+  }
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'joystick config' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xedb,
+      1);
+    system_exit(-1);
+  }
+  switch (profile[0x29]) {
+  case 1:
+    *(unsigned short *)((char *)spinner + 0x3c) = 1;
+    break;
+  case 2:
+    *(unsigned short *)((char *)spinner + 0x3c) = 2;
+    break;
+  case 3:
+    *(unsigned short *)((char *)spinner + 0x3c) = 3;
+    break;
+  default:
+    *(unsigned short *)((char *)spinner + 0x3c) = 0;
+    break;
+  }
+
+  /* 2. button config */
+  child = *(void **)((char *)child + 0x2c);
+  if (child == NULL) {
+    display_assert(
+      "expected 'button config' list item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xee6,
+      1);
+    system_exit(-1);
+  }
+  for (spinner = *(void **)((char *)child + 0x34); spinner != NULL;
+       spinner = *(void **)((char *)spinner + 0x2c)) {
+    if (*(short *)((char *)spinner + 0xe) == 2) {
+      break;
+    }
+  }
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'button config' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0xee8,
+      1);
+    system_exit(-1);
+  }
+  switch (profile[0x28]) {
+  case 1:
+    *(unsigned short *)((char *)spinner + 0x3c) = 1;
+    break;
+  case 2:
+    *(unsigned short *)((char *)spinner + 0x3c) = 2;
+    break;
+  case 3:
+    *(unsigned short *)((char *)spinner + 0x3c) = 3;
+    break;
+  case 4:
+    *(unsigned short *)((char *)spinner + 0x3c) = 4;
+    break;
+  default:
+    *(unsigned short *)((char *)spinner + 0x3c) = 0;
+    break;
+  }
+
+  return true;
 }
 
 /* advanced controller settings initializer (0x0ef110, table xref 0x31e26c) —
@@ -2177,6 +2475,71 @@ bool delete_player_profile_request(void *widget, void *event_data,
   return false;
 }
 
+/* delete_playlist_profile_request (0x0efa80) */
+bool delete_playlist_profile_request(void *widget, void *event_data,
+                                     bool *widget_deleted)
+{
+  short *tag;
+  void *list_child;
+  short list_index;
+  int profile_handle;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  tag = (short *)tag_get(0x44654c61, *(int *)widget);
+  if (*tag != 0 || *(int *)(tag + 0x1f0) <= 2) {
+    display_assert(
+      "expected the playlist profile select screen to be a container w/ 3+ "
+      "children",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+      0x103d, 1);
+    system_exit(-1);
+  }
+
+  list_child = *(void **)((char *)widget + 0x34);
+  tag = (short *)tag_get(0x44654c61, *(int *)list_child);
+  if (*tag != 2) {
+    display_assert(
+      "expected a spinner list widget for 'playlist profile list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+      0x1040, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(tag + 0x1f0) != 3) {
+    display_assert(
+      "expected 3 list items for 'playlist profile list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+      0x1041, 1);
+    system_exit(-1);
+  }
+
+  list_index = *(short *)((char *)list_child + 0x3c);
+  if (list_index < 0 ||
+      (int)*(unsigned short *)((char *)list_child + 0x44) <= (int)list_index) {
+    display_assert(
+      "invalid multiplayer profile specified from 'multiplayer profile list' "
+      "list widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c",
+      0x1049, 1);
+    system_exit(-1);
+  }
+
+  profile_handle =
+    *(int *)(*(int *)((char *)list_child + 0x40) + list_index * 4);
+  *(int *)0x31e494 = profile_handle;
+  if (profile_handle != -1) {
+    if (profile_handle & 0x40000000) {
+      display_error_deferred(0x1a, -1, 1, 0);
+      ui_play_audio_feedback_sound(4);
+      return false;
+    }
+    return true;
+  }
+
+  ui_play_audio_feedback_sound(4);
+  return false;
+}
 
 /* create and begin editing a new multiplayer game-type profile (0x0efc60,
  * table xref 0x31e294) — the game-variant sibling of the player-profile
@@ -2251,7 +2614,6 @@ bool create_and_begin_editing_new_gametype_profile(void *widget,
 
   return result;
 }
-
 
 /* create and edit a new player profile (0x0efde0, table xref 0x31e298) —
  * fetches a default "untitled profile" name, creates a new saved-game
@@ -2351,7 +2713,6 @@ bool network_game_start_faster(void *widget, void *event_data,
   return true;
 }
 
-
 /* request start-time change (0x0eff70, table xref 0x31e2a0) — scans up to 16
  * player-record slots (client's machine-index base +0x242, stride 0x20) for
  * a valid player whose record bytes at +0x1c/+0x1d match this machine's
@@ -2388,7 +2749,6 @@ bool network_game_start_slower(void *widget, void *event_data,
   }
   return true;
 }
-
 
 /* disable if no xdemos (event handler table index 86, 0x0f0070) — marks the
  * widget disabled (+0x12) and clears its enabled/visible byte (+0x10) when no
@@ -2532,7 +2892,6 @@ bool start_network_game_if_no_advertised_servers(void *widget, void *event_data,
 
   return result;
 }
-
 
 /* unjoin network-game player (0x0f0250) — scans the local client's 16
  * player records at machine-index base +0x226 (stride 0x20) for records on
@@ -2787,7 +3146,6 @@ bool difficulty_menu_initialize(void *widget)
   return true;
 }
 
-
 /* new campaign if no custom player profiles exist (0xf0740) — calls the
  * saved-game profile enumerator at 0x1c0d50 with the same argument shape as
  * FUN_000e5590 (index -1, two out-param locals with local_4 pre-set to 1,
@@ -2830,8 +3188,10 @@ bool solo_level_initialize_list_single_player(void *widget, void *event_data,
                                               bool *widget_deleted)
 {
   uint8_t profile[0x30];
-  int16_t highest_level; /* name: PAL 2342 ui_widget_event_handler_functions.c:5786 */
-  int16_t highest_difficulty; /* name: PAL 2342 ui_widget_event_handler_functions.c:5787 */
+  int16_t
+    highest_level; /* name: PAL 2342 ui_widget_event_handler_functions.c:5786 */
+  int16_t highest_difficulty; /* name: PAL 2342
+                                 ui_widget_event_handler_functions.c:5787 */
   int profile_index;
   int i, name_stride;
   signed char level_flags;
@@ -2863,7 +3223,8 @@ bool solo_level_initialize_list_single_player(void *widget, void *event_data,
   name_stride = 4; /* scaled index, not a walking pointer */
   i = 0;
   do {
-    *(const char **)(0x46cce8 + i * 8) = *(const char **)(0x31e498 + i * name_stride);
+    *(const char **)(0x46cce8 + i * 8) =
+      *(const char **)(0x31e498 + i * name_stride);
     level_flags = (signed char)profile[0x1c + i];
     if ((level_flags != 0) || (i == (int)highest_level + 1) || (i == 0)) {
       flags = (unsigned int)(int)level_flags;
@@ -5501,6 +5862,56 @@ void dim_if_no_system_link_cable(void *widget)
   }
 }
 
+/* FUN_000f3690 (0x0f3690) */
+void FUN_000f3690(int *out_indices, void *widget)
+{
+  short list_index;
+  int count;
+
+  count = (int)*(unsigned short *)((char *)widget + 0x44);
+  list_index = *(short *)((char *)widget + 0x3c);
+
+  if (*(void **)((char *)widget + 0x38) != *(void **)((char *)widget + 0x34)) {
+    if (*(void **)((char *)widget + 0x38) !=
+        *(void **)(*(char **)((char *)widget + 0x34) + 0x2c)) {
+      out_indices[2] = list_index;
+      out_indices[1] = list_index - 1;
+      if (out_indices[1] < 0) {
+        out_indices[1] = count - 1;
+      }
+      out_indices[0] = out_indices[1] - 1;
+      if (out_indices[0] < 0) {
+        out_indices[0] = count - 1;
+      }
+      goto label_clamp;
+    }
+    out_indices[1] = list_index;
+    out_indices[0] = list_index - 1;
+    if (out_indices[0] < 0) {
+      out_indices[0] = count - 1;
+    }
+  } else {
+    out_indices[0] = list_index;
+    out_indices[1] = list_index + 1;
+    if (out_indices[1] == count) {
+      out_indices[1] = 0;
+    }
+  }
+
+  out_indices[2] = out_indices[1] + 1;
+  if (out_indices[2] == count) {
+    out_indices[2] = 0;
+  }
+
+label_clamp:
+  if (count <= out_indices[0])
+    out_indices[0] = -1;
+  if (count <= out_indices[1])
+    out_indices[1] = -1;
+  if (count <= out_indices[2])
+    out_indices[2] = -1;
+}
+
 /* player_profile_update_cache_for_nwide_list (0xf3740,
  * ui_widget_game_data_input_functions.obj). Ensures the global profile record
  * table at 0x5aa3c0 (3 records, stride 0x34 -- see the layout comment on
@@ -5835,6 +6246,203 @@ void solo_level_select_list_update_displayed_items(int *widget)
       *(unsigned char *)(c3 + 0x10) = level_entry[1];
       *(unsigned char *)(c4 + 0x10) = level_entry[2];
       *(unsigned char *)(c5 + 0x10) = level_entry[3];
+    }
+  }
+}
+
+/* mutliplayer_settings_select_list_update_displayed_items (0x0f3c80) */
+void mutliplayer_settings_select_list_update_displayed_items(void *widget)
+{
+  short *tag;
+  int string_tag;
+  int out_indices[3];
+  int ids[3];
+  int i;
+  int id;
+  void *item;
+  void *name_tb;
+  void *pic_cnt;
+  void *desc_tb;
+  char *cached_profile;
+  void *alloc_result;
+  wchar_t *src_str;
+  int desc_tag;
+
+  string_tag =
+    tag_loaded(0x75737472, "ui\\shell\\strings\\game_variant_descriptions");
+  tag = (short *)tag_get(0x44654c61, *(int *)widget);
+  if (*tag != 2) {
+    display_assert(
+      "expected a spinner list for 'multiplayer settings select' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x67d, 1);
+    system_exit(-1);
+  }
+  if (*(int *)(tag + 0x1f0) != 3) {
+    display_assert(
+      "expected 3 children (list items) for 'multiplayer settings select' "
+      "widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+      0x67e, 1);
+    system_exit(-1);
+  }
+
+  FUN_000f3690(out_indices, widget);
+  for (i = 0; i < 3; i++) {
+    if (out_indices[i] != -1) {
+      ids[i] = *(int *)(*(int *)((char *)widget + 0x40) + out_indices[i] * 4);
+    } else {
+      ids[i] = -1;
+    }
+  }
+
+  variant_profile_update_cache_for_nwide_list(ids, 3);
+
+  for (i = 0; i < 3; i++) {
+    if (out_indices[i] == -1) {
+      return;
+    }
+
+    item = widget_instance_get_nth_child(widget, i);
+    name_tb = *(void **)((char *)item + 0x34);
+    pic_cnt = *(void **)((char *)name_tb + 0x2c);
+    desc_tb = *(void **)((char *)pic_cnt + 0x2c);
+
+    id = ids[i];
+    cached_profile = NULL;
+    if (id != -1) {
+      int j;
+      int *entry = (int *)0x5aa260;
+      for (j = 0; j < 3; j++) {
+        if (*entry == id) {
+          cached_profile = (char *)(0x5aa264 + j * 0x6c);
+          break;
+        }
+        entry += 27;
+      }
+    }
+
+    if (cached_profile != NULL) {
+      alloc_result = ui_widget_realloc(
+        *(int *)((char *)name_tb + 0x3c), 0x100,
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x6ba);
+      *(void **)((char *)name_tb + 0x3c) = alloc_result;
+      if (alloc_result != NULL) {
+        ustrncpy((wchar_t *)alloc_result, (wchar_t *)(void *)cached_profile,
+                 0x7f);
+        *(unsigned short *)((char *)alloc_result + 0xfe) = 0;
+      }
+
+      *(unsigned short *)((char *)pic_cnt + 0x50) = 5;
+      alloc_result = ui_widget_realloc(
+        *(int *)((char *)desc_tb + 0x3c), 0x200,
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x6c1);
+      *(void **)((char *)desc_tb + 0x3c) = alloc_result;
+      if (alloc_result != NULL) {
+        *(unsigned short *)alloc_result = 0;
+      }
+
+      if (*(unsigned short *)(cached_profile + 100) & 1) {
+        switch (*(unsigned int *)(cached_profile + 0x18)) {
+        case 1:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 0;
+          break;
+        case 2:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 2;
+          break;
+        case 3:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 3;
+          break;
+        case 4:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 1;
+          break;
+        case 5:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 4;
+          break;
+        }
+        if (string_tag != -1 && *(int *)((char *)desc_tb + 0x3c) != 0) {
+          src_str = (wchar_t *)(wchar_t *)FUN_0019d420(
+            string_tag, (*(unsigned short *)(cached_profile + 100) >> 8) + 10);
+          ustrncpy(*(wchar_t **)((char *)desc_tb + 0x3c), src_str, 0xff);
+          *(unsigned short *)(*(int *)((char *)desc_tb + 0x3c) + 0x1fe) = 0;
+        }
+      } else {
+        switch (*(unsigned int *)(cached_profile + 0x18)) {
+        case 1:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 0;
+          if (string_tag != -1 && *(int *)((char *)desc_tb + 0x3c) != 0) {
+            src_str = (wchar_t *)(wchar_t *)FUN_0019d420(
+              string_tag, (cached_profile[0x1c] != 1) ? 0 : 1);
+            ustrncpy(*(wchar_t **)((char *)desc_tb + 0x3c), src_str, 0xff);
+            *(unsigned short *)(*(int *)((char *)desc_tb + 0x3c) + 0x1fe) = 0;
+          }
+          break;
+        case 2:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 2;
+          if (string_tag != -1 && *(int *)((char *)desc_tb + 0x3c) != 0) {
+            src_str = (wchar_t *)(wchar_t *)FUN_0019d420(
+              string_tag, (cached_profile[0x1c] != 1) ? 2 : 3);
+            ustrncpy(*(wchar_t **)((char *)desc_tb + 0x3c), src_str, 0xff);
+            *(unsigned short *)(*(int *)((char *)desc_tb + 0x3c) + 0x1fe) = 0;
+          }
+          break;
+        case 3:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 3;
+          if (string_tag != -1 && *(int *)((char *)desc_tb + 0x3c) != 0) {
+            src_str = (wchar_t *)(wchar_t *)FUN_0019d420(
+              string_tag, (cached_profile[0x1c] != 1) ? 4 : 5);
+            ustrncpy(*(wchar_t **)((char *)desc_tb + 0x3c), src_str, 0xff);
+            *(unsigned short *)(*(int *)((char *)desc_tb + 0x3c) + 0x1fe) = 0;
+          }
+          break;
+        case 4:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 1;
+          if (string_tag != -1 && *(int *)((char *)desc_tb + 0x3c) != 0) {
+            src_str = (wchar_t *)(wchar_t *)FUN_0019d420(
+              string_tag, (cached_profile[0x1c] != 1) ? 6 : 7);
+            ustrncpy(*(wchar_t **)((char *)desc_tb + 0x3c), src_str, 0xff);
+            *(unsigned short *)(*(int *)((char *)desc_tb + 0x3c) + 0x1fe) = 0;
+          }
+          break;
+        case 5:
+          *(unsigned short *)((char *)pic_cnt + 0x50) = 4;
+          if (string_tag != -1 && *(int *)((char *)desc_tb + 0x3c) != 0) {
+            src_str = (wchar_t *)(wchar_t *)FUN_0019d420(
+              string_tag, (cached_profile[0x1c] != 1) ? 8 : 9);
+            ustrncpy(*(wchar_t **)((char *)desc_tb + 0x3c), src_str, 0xff);
+            *(unsigned short *)(*(int *)((char *)desc_tb + 0x3c) + 0x1fe) = 0;
+          }
+          break;
+        }
+      }
+    } else {
+      alloc_result = ui_widget_realloc(
+        *(int *)((char *)name_tb + 0x3c), 0x100,
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x751);
+      *(void **)((char *)name_tb + 0x3c) = alloc_result;
+      if (alloc_result != NULL) {
+        *(unsigned short *)alloc_result = 0;
+      }
+      *(unsigned short *)((char *)pic_cnt + 0x50) = 5;
+      alloc_result = ui_widget_realloc(
+        *(int *)((char *)desc_tb + 0x3c), 0x200,
+        "c:\\halo\\SOURCE\\interface\\ui_widget_game_data_input_functions.c",
+        0x756);
+      *(void **)((char *)desc_tb + 0x3c) = alloc_result;
+      if (alloc_result != NULL) {
+        desc_tag =
+          tag_loaded(0x75737472, "ui\\shell\\main_menu\\player_profiles_"
+                                 "select\\profile_description_labels");
+        *(unsigned short *)alloc_result = 0;
+        if (desc_tag != -1) {
+          src_str = (wchar_t *)(wchar_t *)FUN_0019d420(desc_tag, 5);
+          ustrncpy((wchar_t *)alloc_result, src_str, 0xff);
+          *(unsigned short *)((char *)alloc_result + 0x1fe) = 0;
+        }
+      }
     }
   }
 }

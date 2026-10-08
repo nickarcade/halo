@@ -31934,7 +31934,10 @@
         },
         {
           "addr": "0xe3e80",
-          "decl": "void draw_bitmap_in_rect(int bitmap, int16_t *src_rect, int16_t *dst_rect, int16_t *clip_rect, int flags, int param_6, int param_7);"
+          "decl": "void draw_bitmap_in_rect(int bitmap, int16_t *src_rect, int16_t *dst_rect, int16_t *clip_rect, int flags, int param_6, int param_7);",
+          "name": "draw_bitmap_in_rect",
+          "ported": true,
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe4310",
@@ -32117,8 +32120,9 @@
         {
           "addr": "0xe5090",
           "decl": "void widget_instance_set_focused_child_by_index(int a6@<eax>, int widget, int16_t a7);",
-          "ported": false,
-          "name": "widget_instance_set_focused_child_by_index"
+          "ported": true,
+          "name": "widget_instance_set_focused_child_by_index",
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe5180",
@@ -32135,8 +32139,9 @@
         {
           "addr": "0xe53e0",
           "decl": "void widget_instance_tab_to_next_valid_widget(void *widget@<edi>);",
-          "ported": false,
-          "name": "widget_instance_tab_to_next_valid_widget"
+          "ported": true,
+          "name": "widget_instance_tab_to_next_valid_widget",
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe5440",
@@ -32199,13 +32204,18 @@
         },
         {
           "addr": "0xe5b10",
-          "decl": "void ui_widget_load_children_recursive(void);",
+          "decl": "int ui_widget_load_children_recursive(void *definition, void *widget);",
           "comment": "[NAME: ui_widget_load_children_recursive \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-          "name": "ui_widget_load_children_recursive"
+          "name": "ui_widget_load_children_recursive",
+          "ported": true,
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe5de0",
-          "decl": "void draw_string_and_hack_in_icons(void *rect, int param_2, int param_3, int param_4, wchar_t *text, int param_6);"
+          "decl": "void draw_string_and_hack_in_icons(void *rect, int param_2, int param_3, int param_4, wchar_t *text, int param_6);",
+          "name": "draw_string_and_hack_in_icons",
+          "ported": true,
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe6140",
@@ -32215,9 +32225,11 @@
         },
         {
           "addr": "0xe6450",
-          "decl": "void widget_instance_render_spinner_list(void);",
+          "decl": "void widget_instance_render_spinner_list(void *widget, void *definition, int param_3, char param_4);",
           "comment": "[NAME: widget_instance_render_spinner_list \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-          "name": "widget_instance_render_spinner_list"
+          "name": "widget_instance_render_spinner_list",
+          "ported": true,
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe6890",
@@ -32228,8 +32240,9 @@
         {
           "addr": "0xe68e0",
           "decl": "void widget_instance_go_back_to_previous(void *widget@<eax>);",
-          "ported": false,
-          "name": "widget_instance_go_back_to_previous"
+          "ported": true,
+          "name": "widget_instance_go_back_to_previous",
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe6980",
@@ -32245,25 +32258,30 @@
         {
           "addr": "0xe6ab0",
           "decl": "int widget_event_function_list_widget_goto_next_item(void *widget, void *event_data, char *widget_deleted);",
-          "ported": false,
-          "name": "widget_event_function_list_widget_goto_next_item"
+          "ported": true,
+          "name": "widget_event_function_list_widget_goto_next_item",
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe6cb0",
           "decl": "int widget_event_function_list_widget_goto_previous_item(void *widget, void *event_data, char *widget_deleted);",
-          "ported": false,
-          "name": "widget_event_function_list_widget_goto_previous_item"
+          "ported": true,
+          "name": "widget_event_function_list_widget_goto_previous_item",
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe6ed0",
           "decl": "void event_handler_dispatch(void *widget, void *definition, void *event_data, void *event_handler, char *widget_deleted);",
-          "ported": false,
-          "name": "event_handler_dispatch"
+          "ported": true,
+          "name": "event_handler_dispatch",
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe73c0",
           "decl": "void widget_instance_render_recursive(int widget, viewport_bounds_t *bounds, int arg3, int arg4, int arg5);",
-          "name": "widget_instance_render_recursive"
+          "name": "widget_instance_render_recursive",
+          "ported": true,
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe76b0",
@@ -32286,8 +32304,9 @@
         {
           "addr": "0xe7b10",
           "decl": "void widget_instance_initialize(void *tag_data@<eax>, void *widget@<edx>, void *parent@<ecx>, int tag_index, int widget_stack, int widget_stack_base);",
-          "ported": false,
-          "name": "widget_instance_initialize"
+          "ported": true,
+          "name": "widget_instance_initialize",
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe7d00",
@@ -32358,9 +32377,11 @@
         },
         {
           "addr": "0xe9a90",
-          "decl": "void solo_level_set_next_map_name(void);",
+          "decl": "bool solo_level_set_next_map_name(void *widget, void *event_data, bool *widget_deleted);",
           "comment": "[NAME: solo_level_set_next_map_name \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-          "name": "solo_level_set_next_map_name"
+          "name": "solo_level_set_next_map_name",
+          "ported": true,
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe9bd0",
@@ -32382,9 +32403,10 @@
         },
         {
           "addr": "0xe9dd0",
-          "decl": "void network_game_join_game_from_server_list(void);",
-          "ported": false,
-          "name": "network_game_join_game_from_server_list"
+          "decl": "bool network_game_join_game_from_server_list(void *widget, void *event_data, bool *widget_deleted);",
+          "ported": true,
+          "name": "network_game_join_game_from_server_list",
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xe9fd0",
@@ -32449,8 +32471,10 @@
         },
         {
           "addr": "0xeaa10",
-          "decl": "void player_profiles_list_initialize(void);",
-          "name": "player_profiles_list_initialize"
+          "decl": "bool player_profiles_list_initialize(void *widget, void *event_data, bool *widget_deleted);",
+          "name": "player_profiles_list_initialize",
+          "ported": true,
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xeab70",
@@ -32492,9 +32516,11 @@
         },
         {
           "addr": "0xeb4f0",
-          "decl": "void playlist_profile_change_koth_rules(void);",
+          "decl": "bool playlist_profile_change_koth_rules(void *widget, void *event_data, bool *widget_deleted);",
           "comment": "[NAME: playlist_profile_change_koth_rules \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-          "name": "playlist_profile_change_koth_rules"
+          "name": "playlist_profile_change_koth_rules",
+          "ported": true,
+          "source_path": "src/halo/interface/ui_widget.c"
         },
         {
           "addr": "0xeb710",
@@ -32738,7 +32764,8 @@
         {
           "addr": "0xed240",
           "decl": "bool playlist_profile_initialize_koth_rules(void *widget, void *event_data, bool *widget_deleted);",
-          "name": "playlist_profile_initialize_koth_rules"
+          "name": "playlist_profile_initialize_koth_rules",
+          "ported": true
         },
         {
           "addr": "0xed470",
@@ -32821,9 +32848,10 @@
         },
         {
           "addr": "0xeef30",
-          "decl": "void player_profile_initialize_controller_settings(void);",
+          "decl": "bool player_profile_initialize_controller_settings(void *widget, void *event_data, bool *widget_deleted);",
           "comment": "[NAME: player_profile_initialize_controller_settings \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-          "name": "player_profile_initialize_controller_settings"
+          "name": "player_profile_initialize_controller_settings",
+          "ported": true
         },
         {
           "addr": "0xef110",
@@ -32859,9 +32887,10 @@
         },
         {
           "addr": "0xefa80",
-          "decl": "void delete_playlist_profile_request(void);",
+          "decl": "bool delete_playlist_profile_request(void *widget, void *event_data, bool *widget_deleted);",
           "comment": "[NAME: delete_playlist_profile_request \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-          "name": "delete_playlist_profile_request"
+          "name": "delete_playlist_profile_request",
+          "ported": true
         },
         {
           "addr": "0xefc60",
@@ -33173,7 +33202,8 @@
         },
         {
           "addr": "0xf3690",
-          "decl": "void FUN_000f3690(int *out_indices@<eax>, void *widget@<ecx>);"
+          "decl": "void FUN_000f3690(int *out_indices@<eax>, void *widget@<ecx>);",
+          "ported": true
         },
         {
           "addr": "0xf3740",
@@ -33202,8 +33232,9 @@
         },
         {
           "addr": "0xf3c80",
-          "decl": "void mutliplayer_settings_select_list_update_displayed_items(void);",
-          "name": "mutliplayer_settings_select_list_update_displayed_items"
+          "decl": "void mutliplayer_settings_select_list_update_displayed_items(void *widget);",
+          "name": "mutliplayer_settings_select_list_update_displayed_items",
+          "ported": true
         },
         {
           "addr": "0xf4210",

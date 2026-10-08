@@ -229,9 +229,12 @@ bool ui_widgets_active_for_local_player(int16_t local_player_index)
  * flag at 0x46cc85 in the widget globals block. When suppressed, the
  * per-frame event dispatch in process_ui_widgets skips input processing.
  * Asserts that the widget subsystem has been initialized (0x46cc82). */
-void ui_widgets_inhibit_processing(bool inhibit) /* name: PAL 2342 ui_widget.c:1624 */
+void ui_widgets_inhibit_processing(
+  bool inhibit) /* name: PAL 2342 ui_widget.c:1624 */
 {
-  assert_halt_msg_at("widget_globals.initialized", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x496, *(uint8_t *)0x46cc82);
+  assert_halt_msg_at("widget_globals.initialized",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x496,
+                     *(uint8_t *)0x46cc82);
   *(uint8_t *)0x46cc85 = (uint8_t)inhibit;
 }
 
@@ -249,6 +252,173 @@ double compute_offset_coordinate(int param_1, float param_2)
 #else
   return x87_fmod(param_1 * (param_2 * *(float *)0x255ef8), 1.0);
 #endif
+}
+
+/* ========================================================================= */
+/* BATCH 5.1B: UI Widget Hierarchy & Data Binding (ui_widget.obj)             */
+/* ========================================================================= */
+
+#define ui_widget_apply_focus widget_instance_give_focus_directly
+#define ui_widget_set_focus widget_instance_give_focus_by_tag
+#define ui_widget_close ui_widget_delete
+#define ui_widget_pending_load_pop pop_widget
+#define ui_widget_find_by_tag widget_instance_find_by_tag_index_recursive
+#define FUN_000e4980 widget_instance_can_receive_events
+#define render_text_box_widget widget_instance_render_text_box
+#define FUN_000e4960 widget_instance_get_cumulative_alpha_modifier
+#define FUN_000e5180 search_and_replace
+#define FUN_000e4a80 get_icon_type
+#define FUN_000e4c70 render_state_text
+#define FUN_000d1c90 real_argb_color_to_pixel32
+#define ui_widget_event_handler_dispatch ui_widget_event_handler_function_invoke
+#define ui_widget_spawn_from_event_handler ui_widget_launch_widget
+#define ui_widget_text_search_and_replace_function_invoke \
+  ui_widget_search_and_replace_invoke
+#define FUN_000e76b0 widget_instance_render_column_list
+
+/* 0xe3e80 */
+void draw_bitmap_in_rect(int bitmap, int16_t *src_rect, int16_t *dst_rect,
+                         int16_t *clip_rect, int flags, int param_6,
+                         int param_7)
+{
+  int16_t default_dst[4];
+  int16_t *dst;
+  float coords[4][2];
+  float vertices[20];
+  uint8_t render_desc[0x8c];
+  float u_scale, v_scale;
+  float anim_time;
+  float u_anim[2], v_anim[2];
+  float f3f66;
+  int i;
+  int bitm_elem;
+  uint32_t tag_idx;
+
+  (void)param_6;
+
+  if (bitmap == 0 || src_rect == NULL) {
+    return;
+  }
+
+  f3f66 = 0.9f;
+
+  dst = dst_rect;
+  if (dst == NULL) {
+    default_dst[0] = 0;
+    default_dst[1] = 0;
+    default_dst[2] = *(int16_t *)(bitmap + 6);
+    default_dst[3] = *(int16_t *)(bitmap + 4);
+    dst = default_dst;
+  }
+
+  coords[0][0] = (float)src_rect[1];
+  coords[0][1] = (float)src_rect[0];
+  coords[1][0] = (float)src_rect[1];
+  coords[1][1] = (float)src_rect[2];
+  coords[2][0] = (float)src_rect[3];
+  coords[2][1] = (float)src_rect[2];
+  coords[3][0] = (float)src_rect[3];
+  coords[3][1] = (float)src_rect[0];
+
+  if (clip_rect != NULL) {
+    if ((int16_t)coords[0][0] < clip_rect[1]) {
+      coords[0][0] = (float)clip_rect[1];
+      coords[1][0] = (float)clip_rect[1];
+    }
+    if ((int16_t)coords[2][0] > clip_rect[3]) {
+      coords[2][0] = (float)clip_rect[3];
+      coords[3][0] = (float)clip_rect[3];
+    }
+    if ((int16_t)coords[0][1] < clip_rect[0]) {
+      coords[0][1] = (float)clip_rect[0];
+      coords[3][1] = (float)clip_rect[0];
+    }
+    if ((int16_t)coords[1][1] > clip_rect[2]) {
+      coords[1][1] = (float)clip_rect[2];
+      coords[2][1] = (float)clip_rect[2];
+    }
+  }
+
+  u_scale =
+    (float)(dst[3] - dst[1]) /
+    (float)(*(int16_t *)(bitmap + 4) > 1 ? *(int16_t *)(bitmap + 4) : 1);
+  if (u_scale > 1.0f)
+    u_scale = 1.0f;
+
+  v_scale =
+    (float)(dst[2] - dst[0]) /
+    (float)(*(int16_t *)(bitmap + 6) > 1 ? *(int16_t *)(bitmap + 6) : 1);
+  if (v_scale > 1.0f)
+    v_scale = 1.0f;
+
+  for (i = 0; i < 4; i++) {
+    vertices[i * 5 + 0] = coords[i][0];
+    vertices[i * 5 + 1] = coords[i][1];
+    vertices[i * 5 + 2] = (i % 3 != 0) ? u_scale : 0.0f;
+    vertices[i * 5 + 3] = (i >= 2) ? v_scale : 0.0f;
+    *(int *)&vertices[i * 5 + 4] = flags;
+  }
+
+  csmemset(render_desc, 0, 0x8c);
+  if (param_7) {
+    *(float *)(render_desc + 0x44) = 1.0f;
+    *(float *)(render_desc + 0x40) = 1.0f;
+    *(float *)(render_desc + 0x2c) = 1.0f;
+    *(float *)(render_desc + 0x28) = 1.0f;
+    *(int *)(render_desc + 0x10) = bitmap;
+  } else {
+    tag_idx = interface_get_tag_index(0xf);
+    bitm_elem = (int)tag_block_get_element(
+      (char *)tag_get(0x6269746d, tag_idx) + 0x60, 0, 0x30);
+    anim_time = (float)game_time_get();
+    u_anim[0] =
+      x87_fmod(anim_time * (*(float *)0x283304), 1.0f) * (*(float *)0x283300);
+    u_anim[1] =
+      x87_fmod(anim_time * (*(float *)0x2832fc), 1.0f) * (*(float *)0x283300);
+    v_anim[0] =
+      -x87_fmod(anim_time * (*(float *)0x2832f8), 1.0f) * (*(float *)0x2832f4);
+    v_anim[1] =
+      -x87_fmod(anim_time * (*(float *)0x2832f0), 1.0f) * (*(float *)0x2832f4);
+
+    render_desc[0x08] = 1;
+    render_desc[0x09] = 1;
+    *(int *)(render_desc + 0x0c) = bitm_elem;
+    *(int *)(render_desc + 0x10) = bitm_elem;
+    *(int *)(render_desc + 0x14) = bitmap;
+    render_desc[0x18] = 1;
+    render_desc[0x19] = 1;
+    *(float **)(render_desc + 0x1c) = u_anim;
+    *(float **)(render_desc + 0x20) = v_anim;
+    *(float *)(render_desc + 0x28) = 1.0f;
+    *(float *)(render_desc + 0x2c) = 1.0f;
+    *(float *)(render_desc + 0x30) = 1.0f;
+    *(float *)(render_desc + 0x34) = 1.0f;
+    *(float *)(render_desc + 0x38) = 1.0f;
+    *(float *)(render_desc + 0x3c) = 1.0f;
+    *(uint32_t *)(render_desc + 0x40) = 0x3b52ba08;
+    *(uint32_t *)(render_desc + 0x44) = 0x3b52ba08;
+    *(uint32_t *)(render_desc + 0x48) = 0x3ba3065e;
+    *(uint32_t *)(render_desc + 0x4c) = 0x3ba3065e;
+    *(float *)(render_desc + 0x50) = 1.0f;
+    *(float *)(render_desc + 0x54) = 1.0f;
+    *(float **)(render_desc + 0x58) = &f3f66;
+    *(float **)(render_desc + 0x5c) = &f3f66;
+    *(uint32_t *)(render_desc + 0x64) = (*(uint32_t *)0x5aa460);
+    *(uint32_t *)(render_desc + 0x68) = (*(uint32_t *)0x5aa464);
+    *(uint32_t *)(render_desc + 0x6c) = (*(uint32_t *)0x5aa468);
+    *(uint32_t *)(render_desc + 0x70) = (*(uint32_t *)0x5aa46c);
+    render_desc[0x74] = 1;
+    *(float **)(render_desc + 0x78) = &f3f66;
+    *(float **)(render_desc + 0x7c) = &f3f66;
+    *(uint32_t *)(render_desc + 0x80) = 0;
+    *(uint16_t *)(render_desc + 0x84) = 5;
+    *(uint16_t *)(render_desc + 0x86) = 0;
+  }
+  *(uint32_t *)(render_desc + 0x00) = 0;
+  *(uint16_t *)(render_desc + 0x88) = 0;
+  render_desc[0x8a] = 0;
+
+  rasterizer_psuedo_dynamic_screen_quad_draw(render_desc, vertices);
 }
 
 /* widget_instance_get_topmost_parent (0xe4310) — walks the parent chain (field
@@ -1173,6 +1343,62 @@ void widget_instance_give_focus_directly(void *root_widget, void *target_widget)
   }
 }
 
+/* 0xe5090 */
+void widget_instance_set_focused_child_by_index(int a6, int widget, int16_t a7)
+{
+  void *child;
+  void *curr;
+  void *tag_elem;
+  void *parent;
+  int16_t idx;
+  int16_t type;
+
+  if (a6 == -1) {
+    return;
+  }
+
+  child = ui_widget_find_by_tag((int *)widget, a6);
+  if (child == NULL) {
+    return;
+  }
+
+  if (a7 >= 0) {
+    curr = *(void **)((char *)child + 0x34);
+    idx = 0;
+    while (curr != NULL) {
+      if (*(int16_t *)((char *)curr + 0x0e) == 2) {
+        tag_elem = tag_get(0x44654c61, *(uint32_t *)curr);
+        if (*(int *)((char *)tag_elem + 0x3e0) > 1) {
+          return;
+        }
+      }
+      if (idx == a7) {
+        ui_widget_apply_focus((void *)widget, curr);
+        parent = *(void **)((char *)curr + 0x30);
+        if (parent != NULL) {
+          type = *(int16_t *)((char *)parent + 0x0e);
+          if (type == 2 || type == 3) {
+            *(int16_t *)((char *)parent + 0x3c) = idx;
+          }
+        }
+        return;
+      }
+      curr = *(void **)((char *)curr + 0x2c);
+      idx++;
+    }
+  } else {
+    if (FUN_000e4980(child)) {
+      if (*(int16_t *)((char *)child + 0x0e) == 2) {
+        tag_elem = tag_get(0x44654c61, *(uint32_t *)child);
+        if (*(int *)((char *)tag_elem + 0x3e0) > 1) {
+          return;
+        }
+      }
+      ui_widget_apply_focus((void *)widget, child);
+    }
+  }
+}
+
 void widget_instance_set_focused_child_by_index(int pending_a6, int widget,
                                                 int16_t a7);
 
@@ -1294,6 +1520,44 @@ void column_list_update(void *widget, void *definition)
       *(short *)(child + 0x50) = 0;
     }
   }
+}
+
+#define ui_widget_pending_load_apply widget_instance_set_focused_child_by_index
+
+/* 0xe53e0 */
+void widget_instance_tab_to_next_valid_widget(void *widget)
+{
+  void *target;
+  void *tag;
+
+  if (*(void **)((char *)widget + 0x38) == NULL ||
+      (target = *(void **)((char *)*(void **)((char *)widget + 0x38) + 0x2c)) ==
+        NULL) {
+    target = *(void **)((char *)widget + 0x34);
+  }
+  if (target == NULL) {
+    return;
+  }
+  while (true) {
+    if (target == *(void **)((char *)widget + 0x38)) {
+      return;
+    }
+    tag = tag_get(0x44654c61, *(int *)target);
+    if (*(int *)((char *)tag + 0x54) > 0 ||
+        (*(uint8_t *)((char *)tag + 0x2c) & 1) != 0 ||
+        *(int16_t *)((char *)widget + 0xe) == 2 ||
+        *(int16_t *)((char *)widget + 0xe) == 3) {
+      break;
+    }
+    target = *(void **)((char *)target + 0x2c);
+    if (target == NULL) {
+      target = *(void **)((char *)widget + 0x34);
+      if (target == NULL) {
+        return;
+      }
+    }
+  }
+  *(void **)((char *)widget + 0x38) = target;
 }
 
 /* widget_instance_tab_to_previous_valid_widget (0xe5440) — widget@<edi>.
@@ -1818,6 +2082,307 @@ void ui_play_audio_feedback_sound(short sound_selector)
   }
 }
 
+#define ui_widget_list_prev widget_instance_tab_to_next_valid_widget
+
+/* 0xe5b10 */
+int ui_widget_load_children_recursive(void *definition, void *widget)
+{
+  int16_t v1;
+  char v10;
+  int *v2;
+  void *v3;
+  int v5;
+  unsigned int *v6;
+  int v7;
+  unsigned int *v8;
+  int v9;
+
+  v5 = (int)definition;
+  v6 = (unsigned int *)widget;
+  v10 = 1;
+
+  if (*(uint8_t *)(v5 + 0x150) & 2) {
+    if (*(int16_t *)((char *)v6 + 0x0e) != 2) {
+      display_assert("_list_items_generated_from_string_list_tag flag should "
+                     "only be set for 1-wide spinner list widgets",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0xa20, true);
+      system_exit(-1);
+    }
+    if (*(int *)(v5 + 0x3e0)) {
+      display_assert("no child widget references are needed to define list "
+                     "items when generating a list from a string list tag",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0xa22, true);
+      system_exit(-1);
+    }
+    if (*(int *)(v5 + 0xf8) == -1) {
+      display_assert("_list_items_generated_from_string_list_tag flag was set "
+                     "but no string list tag was specified",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0xa24, true);
+      system_exit(-1);
+    }
+    v2 = (int *)tag_get(0x75737472, *(uint32_t *)(v5 + 0xf8));
+    (*(uint8_t *)0x46cc83) = 1;
+    v7 = 0;
+    if (v2 != NULL && 1 <= *v2) {
+      do {
+        v3 = ui_widget_load_by_name_or_tag(
+          NULL, *v6, (int)v6, *(int16_t *)((char *)v6 + 8), -1, -1, -1);
+        if (!v3) {
+          v10 = 0;
+          break;
+        }
+        ui_widget_add_child(v3, (void *)v6);
+        *(int16_t *)((char *)v6 + 0x44) = *(int16_t *)((char *)v6 + 0x44) + 1;
+        v7 += 1;
+      } while (v7 < *v2);
+    }
+    (*(uint8_t *)0x46cc83) = 0;
+  }
+
+  v9 = 0;
+  if (1 <= *(int *)(v5 + 0x3e0)) {
+    do {
+      v7 = *(int *)(v5 + 0x3e4) + v9 * 0x50;
+      if ((*(uint8_t *)(v7 + 0x30) & 1)) {
+        v1 = *(int16_t *)(v7 + 0x34);
+        if (v1 < 0 || 4 <= v1) {
+          error(2, "invalid controller index specified for child widget (#%d)",
+                (int)v1);
+        }
+      }
+      if (*(int *)(v7 + 0x0c) != -1) {
+        v3 = ui_widget_load_by_name_or_tag(NULL, *(int *)(v7 + 0x0c), (int)v6,
+                                           *(int16_t *)(v7 + 0x34), -1, -1, -1);
+        if (!v3) {
+          v10 = 0;
+          break;
+        }
+        *(int16_t *)((char *)v3 + 10) =
+          *(int16_t *)(v7 + 0x38) + *(int16_t *)((char *)v6 + 10);
+        *(int16_t *)((char *)v3 + 12) =
+          *(int16_t *)(v7 + 0x36) + *(int16_t *)((char *)v6 + 12);
+        ui_widget_add_child(v3, (void *)v6);
+      }
+      v9++;
+    } while (v9 < *(int *)(v5 + 0x3e0));
+  }
+
+  if (*(int16_t *)((char *)v6 + 0x0e) == 3 && *(int *)(v5 + 0x1b0) != -1) {
+    v3 =
+      ui_widget_load_by_name_or_tag(NULL, *(int *)(v5 + 0x1b0), (int)v6,
+                                    *(int16_t *)((char *)v6 + 8), -1, -1, -1);
+    *(void **)((char *)v6 + 0x48) = v3;
+    if (v3 != NULL) {
+      if (*(void **)((char *)v3 + 0x28)) {
+        *(void **)(*(char **)((char *)v3 + 0x28) + 0x2c) = NULL;
+      }
+      *(void **)((char *)v3 + 0x28) = NULL;
+      *(void **)((char *)v3 + 0x30) = NULL;
+    }
+  }
+
+  if (*(char *)(v5 + 0x2c) >= 0) {
+    v1 = *(int16_t *)((char *)v6 + 0x0e);
+    if (v1 != 2 && v1 != 3) {
+      if (!(*(uint32_t *)(v5 + 0x2c) & 1)) {
+        return (int)v10;
+      }
+    } else {
+      *(int16_t *)((char *)v6 + 0x3c) = 0;
+      *(int16_t *)((char *)v6 + 0x3e) = 0;
+    }
+    v8 = (unsigned int *)v6[0xd];
+    if (v8 != NULL) {
+      while (1) {
+        v1 = *(int16_t *)((char *)v6 + 0x0e);
+        if (v1 == 2 || v1 == 3) {
+          break;
+        }
+        v3 = tag_get(0x44654c61, *v8);
+        if (!*(char *)((char *)v8 + 0x12)) {
+          if (*(int *)((char *)v3 + 0x54) <= 0) {
+            v1 = *(int16_t *)((char *)v8 + 0x0e);
+            if (v1 != 2 && v1 != 3) {
+              goto next_child;
+            }
+          }
+          break;
+        }
+      next_child:
+        v8 = (unsigned int *)v8[0xb];
+        if (!v8) {
+          return (int)v10;
+        }
+      }
+      *(void **)((char *)v6 + 0x38) = v8;
+    }
+  }
+
+  return (int)v10;
+}
+
+/* 0xe5de0 */
+void draw_string_and_hack_in_icons(void *rect, int param_2, int param_3,
+                                   int param_4, wchar_t *text, int param_6)
+{
+  unsigned int *a0 = (unsigned int *)rect;
+  unsigned int v17 = (unsigned int)text;
+  char v18 = (char)param_6;
+  unsigned int v1;
+  uint8_t v10[16];
+  float v11; /*  stack - 0x38 */
+  float v12; /*  stack - 0x48 */
+  unsigned int *v13;
+  int16_t v14; /*  di */
+  unsigned short *v15;
+  unsigned int v16; /*  eax */
+  float v19 = 0.0f; /*  stack - 0x44 */
+  uint16_t v2;
+  float v20 = 0.0f; /*  stack - 0x40 */
+  float v21 = 0.0f; /*  stack - 0x3c */
+  float v22; /*  stack - 0x34 */
+  float v23; /*  stack - 0x30 */
+  float v24; /*  stack - 0x2c */
+  unsigned short v25; /*  stack - 0x26 */
+  unsigned short v26; /*  stack - 0x1e */
+  unsigned int v27; /*  stack - 0x14 */
+  unsigned short v28; /*  stack - 0x10 */
+  unsigned short *v29; /*  stack - 0xc */
+  unsigned short *v3; /*  eax */
+  char v30; /*  stack - 0x5 */
+  int v4; /*  eax */
+  int v5; /*  eax */
+  unsigned int v6; /*  stack - 0x18 */
+  char v7[2];
+  char v8[2];
+  char v9[8];
+
+  v13 = a0;
+  v6 = *a0;
+  v27 = a0[1];
+  (void)v25;
+  (void)v26;
+  (void)v27;
+  v29 = (unsigned short *)0x46c420;
+  _wcscpy((wchar_t *)0x46c420, (const wchar_t *)v17);
+  v15 = (unsigned short *)0x46c420;
+  while (true) {
+    v3 = (unsigned short *)_wcschr(v15, 0x25);
+    if (!v3) {
+      if (v15)
+        FUN_000e4c70((short *)v13, v15, (short *)&v6);
+      draw_string_set_indents(0, 0);
+      return;
+    }
+    *v3 = 0;
+    v14 = ((int16_t)((v6) >> 16)) - *(int16_t *)((int)v13 + 2);
+    v16 = ((((uint32_t)((int16_t)((uint32_t)v15 >> 0x10))) << 16) |
+           ((uint16_t)(v14)));
+    if ((v14 <= -1) &&
+        (error(
+           2,
+           "initial_indent<0 in render_state_text() and was about to explode"),
+         v14 <= -1))
+      v16 = 0;
+    draw_string_set_indents(v16, 0);
+    v15 = v29;
+    FUN_0019cdb0((short *)v13, (void *)v29, (short *)v7, (short *)&v6);
+    v26 = *(unsigned short *)((int)v13 + 2);
+    v6 = ((((uint32_t)(((int16_t)((v6) >> 16)) + -3)) << 16) |
+          ((uint16_t)((unsigned short)v6)));
+    rasterizer_draw_unicode_string(v7, 0, 0, 0, (unsigned short *)v15);
+    *(unsigned short *)v13 = (unsigned short)v6;
+    v29 = &v3[1];
+    v16 = FUN_000e4a80((const wchar_t *)&v3[1]);
+    if ((int16_t)v16 != -1) { /*  branch-flip */
+      v1 = *(unsigned int *)((int16_t)v16 * 4 + 0x31e098);
+      v29 = &(&v3[1])[_wcslen((const wchar_t *)v1)];
+      v2 = remap_sticks_for_local_player(v16, (*(int *)0x5aa45c));
+      if ((int16_t)v2 > 0x11) {
+        if (0x20 <= (int16_t)v2) { /*  branch-flip */
+          display_assert("FALSE", "c:\\halo\\SOURCE\\interface\\ui_widget.c",
+                         0x10f5, 1);
+          system_exit(0xffffffff);
+          v2 = 0xffff;
+        } else if (0x1d <= (int16_t)v2) { /*  branch-flip */
+          v4 = (int)(int16_t)v2;
+          v2 = (int16_t)*(char *)(v4 + 0x31e126);
+          switch (v4) {
+          case 0x1c:
+            v2 = 0xc;
+            break;
+          case 0x1d:
+            v2 = 0xd;
+            break;
+          case 0x1e:
+            v2 = 0x10;
+            break;
+          case 0x1f:
+            v2 = 0x11;
+          }
+        } else {
+          input_abstraction_get_local_player_preferences((*(int *)0x5aa45c),
+                                                         v9);
+          v2 = (uint16_t)v10[(uint8_t)*(char *)((int16_t)v2 + 0x31e126)];
+        }
+      }
+      v4 = (int)tag_block_get_element((char *)(*(int *)0x46bd0c) + 0xc4,
+                                      (int)(int16_t)v2, 0x10);
+      v30 = *(char *)(v4 + 0xd);
+      v28 = *(unsigned short *)(v4 + 2);
+      pixel32_to_real_argb_color(*(unsigned int *)(v4 + 8), &v11);
+      *(uint8_t *)(v4 + 0xd) = *(uint8_t *)(v4 + 0xd) & 0xfd;
+      if (((int16_t)v2 < 0) || (0x12 <= (int16_t)v2)) {
+        display_assert("icon_index>=0 && icon_index<NUM_ICONS",
+                       "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x110a, 1);
+        system_exit(0xffffffff);
+      }
+      if (*(char *)((int16_t)v2 + 0x31e080)) {
+        *(uint8_t *)(v4 + 0xd) = *(uint8_t *)(v4 + 0xd) & 0xfb;
+        *(unsigned short *)(v4 + 2) = 0xfffb;
+      }
+      draw_string_get_color(&v12);
+      v5 = (int)v11;
+      if ((!*(int *)(v4 + 8)) || (v18)) {
+        v11 = v12;
+        v22 = v19;
+        v23 = v20;
+        v24 = v21;
+      }
+      v22 = v22 * v12;
+      v23 = v23 * v12;
+      v24 = v24 * v12;
+      render_state_bitmap(
+        (short *)a0, (void *)v4, 0,
+        (real_argb_color_to_pixel32(&v11) & 0xffffff) | (v5 << 0x18), 0);
+      *(int16_t *)((int)a0 + 2) = *(int16_t *)((int)a0 + 2) + 1;
+      *(char *)(v4 + 0xd) = v30;
+      *(unsigned short *)(v4 + 2) = v28;
+      v13 = a0;
+    } else {
+      v14 = ((int16_t)((v6) >> 16)) - *(int16_t *)((int)v13 + 2);
+      v16 = ((((uint32_t)((int16_t)((uint32_t)v16 >> 0x10))) << 16) |
+             ((uint16_t)(v14)));
+      if ((v14 <= -1) && (error(2, "initial_indent<0 in render_state_text() "
+                                   "and was about to explode"),
+                          v14 <= -1))
+        v16 = 0;
+      draw_string_set_indents(v16, 0);
+      FUN_0019cdb0((short *)v13, (void *)L"%", (short *)v8, (short *)&v6);
+      v25 = *(unsigned short *)((int)v13 + 2);
+      v6 = ((((uint32_t)(((int16_t)((v6) >> 16)) + -3)) << 16) |
+            ((uint16_t)((unsigned short)v6)));
+      rasterizer_draw_unicode_string(v8, 0, 0, 0, (unsigned short *)L"%");
+      *(unsigned short *)v13 = (unsigned short)v6;
+    }
+    if (!v29)
+      break;
+    v15 = v29;
+  }
+  draw_string_set_indents(0, 0);
+  return;
+}
+
 /* widget_instance_render_text_box (0xe6140) — refreshes and draws a text-box
  * widget.
  *
@@ -2006,6 +2571,191 @@ void widget_instance_render_text_box(void *definition, void *widget,
   }
 }
 
+/* 0xe6450 */
+void widget_instance_render_spinner_list(void *widget, void *definition,
+                                         int param_3, char param_4)
+{
+  int a0 = (int)widget;
+  unsigned int *a1 = (unsigned int *)definition;
+  unsigned int a2 = (unsigned int)param_3;
+  char a3 = param_4;
+  int v1;
+  float v10[3];
+  float v11[4];
+  unsigned int v12;
+  int v13;
+  int16_t v14;
+  char *v15;
+  bool v16;
+  float v17;
+  float v19;
+  int v24;
+  uint32_t v25;
+  int16_t v26, v28;
+  unsigned int v27;
+  const wchar_t *replace_str;
+  const wchar_t *search_str;
+  int16_t v5;
+  char v6[140];
+  unsigned int v7;
+  float alpha;
+  wchar_t *str_buf;
+  const wchar_t *ustr;
+  wchar_t v9[64];
+
+  (void)v12;
+
+  v13 = (int)definition;
+  v1 = *(int *)(a0 + 0x30);
+  alpha = *(float *)(a0 + 0x24);
+  v16 = false;
+  v25 = 0;
+
+  if (v1) {
+    do {
+      alpha = alpha * *(float *)(v1 + 0x24);
+      v1 = *(int *)(v1 + 0x30);
+    } while (v1);
+  }
+
+  if (!*(char *)(a0 + 0x10))
+    return;
+
+  v5 = *(int16_t *)(a0 + 0x3e);
+  if (v5) {
+    v16 = (v5 <= -1);
+    if (v16)
+      v14 = 1;
+    else
+      v14 = -1;
+    v25 = (uint32_t)!v16;
+    *(int16_t *)(a0 + 0x3e) = v5 + v14;
+  }
+
+  v24 = (int)FUN_00077040(*(uint32_t *)(v13 + 0x160), 0, (int16_t)v16);
+  v5 = (int16_t)a2;
+  if (v24) {
+    v19 = alpha * 255.0f;
+    csmemset(v6, 0, 0x8c);
+    v14 = (int16_t)(a2 >> 16);
+    v26 = (int16_t)(*(uint32_t *)(v13 + 0x174) >> 16);
+    v7 = (v26 + v5) << 16 |
+         (uint16_t)((int16_t)*(uint32_t *)(v13 + 0x174) + (int16_t)(a2 >> 16));
+    v28 = (int16_t)(*(uint32_t *)(v13 + 0x178) >> 16);
+    v27 = (v28 + v5) << 16 |
+          (uint16_t)((int16_t)*(uint32_t *)(v13 + 0x178) + (int16_t)(a2 >> 16));
+    draw_bitmap_in_rect(v24, (int16_t *)&v7, (int16_t *)&v7, (int16_t *)a1,
+                        ((int)v19 << 24) | 0xffffff, (int)v6, 0);
+  } else {
+    v14 = (int16_t)(a2 >> 16);
+  }
+
+  v24 = (int)FUN_00077040(*(uint32_t *)(v13 + 0x170), 0, (int16_t)v25);
+  if (v24) {
+    v19 = alpha * 255.0f;
+    csmemset(v6, 0, 0x8c);
+    v26 = (int16_t)(*(uint32_t *)(v13 + 0x17c) >> 16);
+    v7 =
+      (v26 + v5) << 16 | (uint16_t)((int16_t)*(uint32_t *)(v13 + 0x17c) + v14);
+    v28 = (int16_t)(*(uint32_t *)(v13 + 0x180) >> 16);
+    v27 =
+      (v28 + v5) << 16 | (uint16_t)((int16_t)*(uint32_t *)(v13 + 0x180) + v14);
+    draw_bitmap_in_rect(v24, (int16_t *)&v7, (int16_t *)&v7, (int16_t *)a1,
+                        ((int)v19 << 24) | 0xffffff, (int)v6, 0);
+  }
+
+  if (*(int *)(v13 + 0x3e0))
+    return;
+
+  str_buf = NULL;
+  if (*(int *)(v13 + 0xf8) != -1) {
+    ustr = (const wchar_t *)FUN_0019d420(*(int *)(v13 + 0xf8),
+                                         (int)*(int16_t *)(a0 + 0x3c));
+    v25 = ustrlen((const unsigned short *)ustr) * 2;
+    str_buf = (wchar_t *)stack_memory_pool_allocate(
+      (*(void **)0x31e04c), v25 + 2, "c:\\halo\\SOURCE\\interface\\ui_widget.c",
+      0x1202);
+    if (str_buf == NULL)
+      goto label_e686c;
+    csmemcpy(str_buf, (void *)ustr, v25);
+    *(unsigned short *)((char *)str_buf + v25) = 0;
+    v25 = 0;
+    if (1 <= *(int *)(v13 + 0x60)) {
+      v24 = 0;
+      do {
+        v15 = (char *)(*(int *)(v13 + 100) + v24);
+        if (v15 && *v15) {
+          replace_str =
+            (const wchar_t *)ui_widget_text_search_and_replace_function_invoke(
+              (void *)a0, *(unsigned short *)&v15[0x20]);
+          search_str = ascii_to_wide(v15, v9, 0x40);
+          FUN_000e5180(search_str, replace_str, &str_buf);
+        }
+        v25++;
+        v24 += 0x22;
+      } while ((int)v25 < *(int *)(v13 + 0x60));
+      v14 = (int16_t)(a2 >> 16);
+    }
+  } else {
+    str_buf = *(wchar_t **)(a0 + 0x4c);
+  }
+
+  if (str_buf != NULL) {
+    if (*(int *)(v13 + 0x108) != -1) {
+      if (0 <= *(int16_t *)(v13 + 0x11c) && *(int16_t *)(v13 + 0x11c) <= 2) {
+        v17 = FUN_000e4960((void *)a0);
+        if (a1) {
+          v12 = *a1;
+        } else {
+          v12 = *(uint32_t *)(v13 + 0x24);
+        }
+        v28 = (int16_t)(*(uint32_t *)(v13 + 0x28) >> 16);
+        v27 = (v28 + v5) << 16 |
+              (uint16_t)((int16_t)*(uint32_t *)(v13 + 0x28) + v14);
+        v26 = (int16_t)(*(uint32_t *)(v13 + 0x24) >> 16);
+        v7 = (v26 + v5) << 16 |
+             (uint16_t)((int16_t)*(uint32_t *)(v13 + 0x24) + v14);
+        if (a3) {
+          get_ui_rgb_white(v10);
+          v11[0] = *(float *)(v13 + 0x10c);
+          v11[1] = v10[0];
+          v11[2] = v10[1];
+          v11[3] = v10[2];
+        } else {
+          v11[0] = *(float *)(v13 + 0x10c);
+          v11[1] = *(float *)(v13 + 0x110);
+          v11[2] = *(float *)(v13 + 0x114);
+          v11[3] = *(float *)(v13 + 0x118);
+        }
+        v11[0] = v11[0] * v17;
+        if (*(uint8_t *)(v13 + 0x11e) & 4) {
+          v17 = (float)(*(int *)0x46cc40);
+          v11[0] =
+            ((x87_fsin(v17 * (*(float *)0x28327c) * (*(float *)0x254644)) +
+              1.0f) *
+             (*(float *)0x253398) * v11[0]);
+        }
+        draw_string_set_font(*(uint32_t *)(v13 + 0x108), 0xffffffff,
+                             *(unsigned short *)(v13 + 0x11c), 0, v11);
+        rasterizer_draw_unicode_string((void *)&v7, (short *)&v27, 0, 0,
+                                       (unsigned short *)str_buf);
+        goto label_e686c;
+      }
+      error(2, "failed to render spinner list item because the justification "
+               "was invalid");
+    } else {
+      error(
+        2,
+        "failed to render spinner list item because the font tag was invalid");
+    }
+  }
+
+label_e686c:
+  if (*(int *)(v13 + 0xf8) != -1 && str_buf) {
+    stack_memory_pool_deallocate((*(void **)0x31e04c), str_buf);
+  }
+}
+
 /* widget_instance_give_focus_by_tag — walks up the parent chain (field_0x30)
  * from the given widget to the root, then searches the widget tree for one
  * matching tag_handle.  If found, calls widget_instance_give_focus_directly;
@@ -2031,6 +2781,37 @@ void widget_instance_give_focus_by_tag(void *widget, int tag_handle,
   error(2, "failed to find event focus target widget");
 }
 
+/* 0xe68e0 */
+void widget_instance_go_back_to_previous(void *widget)
+{
+  void *root;
+  int record[3];
+  int16_t player_idx;
+  int slot_idx;
+  void *new_root;
+
+  player_idx = *(int16_t *)((char *)widget + 8);
+  slot_idx = (player_idx == -1) ? 0 : player_idx;
+  if (*(int **)(0x46cc30 + slot_idx * 4) != NULL) {
+    ui_widget_pending_load_pop((int *)(0x46cc30 + slot_idx * 4), record);
+  } else {
+    record[0] = -1;
+  }
+  root = widget;
+  while (*(void **)((char *)root + 0x30) != NULL) {
+    root = *(void **)((char *)root + 0x30);
+  }
+  ui_widget_close(root);
+  if (record[0] != -1) {
+    new_root =
+      ui_widget_load_by_name_or_tag(NULL, record[0], 0, record[2], -1, -1, -1);
+    if (new_root != NULL) {
+      ui_widget_pending_load_apply(record[1], (int)new_root,
+                                   (int16_t)(record[1] >> 16));
+    }
+  }
+}
+
 void widget_instance_go_back_to_previous(void *widget);
 
 /* perform_filesystem_initialization — spawns a background thread to perform
@@ -2042,9 +2823,13 @@ void widget_instance_go_back_to_previous(void *widget);
  * procedure synchronously (0xe5590) and re-clears the suppress flag. */
 void perform_filesystem_initialization(void)
 {
-  assert_halt_msg_at("widget_globals.initialization_thread==NULL", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x153f, *(int *)0x46cc7c == 0);
+  assert_halt_msg_at("widget_globals.initialization_thread==NULL",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x153f,
+                     *(int *)0x46cc7c == 0);
   error(2, "begining filesystem checks & saved game file enumeration...");
-  assert_halt_msg_at("widget_globals.initialized", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x496, *(uint8_t *)0x46cc82);
+  assert_halt_msg_at("widget_globals.initialized",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x496,
+                     *(uint8_t *)0x46cc82);
   *(uint8_t *)0x46cc85 = 1;
   *(int16_t *)0x46cc80 = 0;
   if (!thread_new(0, (void *)0xe5590, 0, (void **)0x46cc7c)) {
@@ -2052,7 +2837,9 @@ void perform_filesystem_initialization(void)
              "synchronously!");
     *(int *)0x46cc7c = 0;
     filesystem_initialization_thread_proc(0);
-    assert_halt_msg_at("widget_globals.initialized", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x496, *(uint8_t *)0x46cc82);
+    assert_halt_msg_at("widget_globals.initialized",
+                       "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x496,
+                       *(uint8_t *)0x46cc82);
     *(uint8_t *)0x46cc85 = 0;
   }
 }
@@ -2073,6 +2860,663 @@ void ui_widgets_dispose(void)
   (*(int **)0x31e04c)[1] = 0;
   (*(int **)0x31e04c)[2] = 0;
   csmemset((void *)0x46cc20, 0, 0x68);
+}
+
+#define ui_widget_close_and_reload widget_instance_go_back_to_previous
+
+/* 0xe6ab0 */
+int widget_event_function_list_widget_goto_next_item(void *widget,
+                                                     void *event_data,
+                                                     char *widget_deleted)
+{
+  unsigned int *a0 = (unsigned int *)widget;
+  (void)event_data;
+  (void)widget_deleted;
+  int *v1;
+  int16_t v2;
+  uint16_t v3;
+  unsigned int *v4;
+  int v5; /*  eax */
+  unsigned int *v6;
+  uint32_t v7;
+  unsigned int v8 = 0; /*  eax */
+  uint32_t v9; /*  edi */
+
+  v4 = a0;
+  if (!a0) {
+    display_assert("widget", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x4ce,
+                   1);
+    system_exit(0xffffffff);
+  }
+  v5 = (int)tag_get(0x44654c61, *v4);
+  if ((*(int16_t *)((int)v4 + 0xe) != 2) &&
+      (*(int16_t *)((int)v4 + 0xe) != 3)) {
+    display_assert("calling a list widget function on a non-list widget",
+                   "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x4d1, 1);
+    system_exit(0xffffffff);
+  }
+  if (v4[0x10]) {
+    if (*(uint16_t *)&v4[0x11]) {
+      v9 = (int)*(int16_t *)&v4[0xf] + 1;
+      if ((int)(uint32_t)*(uint16_t *)&v4[0x11] <= (int)v9)
+        v9 = 0;
+      v2 = *(int16_t *)((int)v4 + 0xe);
+      v7 = ((((uint32_t)((int16_t)((uint32_t)v4[0x10] >> 0x10))) << 16) |
+            ((uint16_t)(v2)));
+      if (v2 != 3) {
+        if (v2 == 2) {
+          v7 = *(uint32_t *)(v5 + 0x3e0);
+          if (2 <= (int)v7) {
+            if (v7 != 3) {
+              display_assert(
+                "spinner lists must be either 1- or 3-wide... sorry",
+                "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x4f4, 1);
+              system_exit(0xffffffff);
+            }
+            v7 = v4[0xe];
+            if (((v7 == v4[0xd]) || (v7 == *(uint32_t *)(v4[0xd] + 0x2c))) &&
+                (v1 = (int *)(v7 + 0x2c), v7 = 0, *v1)) {
+              ui_widget_apply_focus((void *)v4, (void *)*(int *)(v7 + 0x2c));
+              v7 = 0;
+            }
+          }
+          *(int16_t *)&v4[0xf] = (int16_t)v9;
+        }
+        goto label_e6bd5;
+      }
+      v6 = (unsigned int *)widget_instance_get_nth_child(v4, v9);
+      if (!v6) {
+        error(
+          2, "failed to set focus to the #%d list item of a column list widget",
+          v9);
+        return 0;
+      }
+      goto label_e6c74;
+    }
+  }
+  if (*(int16_t *)((int)v4 + 0xe) == 2) {
+    if (2 <= *(int *)(v5 + 0x3e0)) {
+      display_assert("spinner lists with more that 1 visible item need to have "
+                     "code-generated lists associated with them... sorry.",
+                     "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x508, 1);
+      system_exit(0xffffffff);
+    }
+    if (((*(int16_t *)((int)v4 + 0xe) == 2) &&
+         (*(uint8_t *)(v5 + 0x150) & 2)) &&
+        (!*(int *)(v5 + 0x3e0))) {
+      *(int16_t *)&v4[0xf] = *(int16_t *)&v4[0xf] + 1;
+      v3 = *(uint16_t *)&v4[0xf];
+      v7 = (uint32_t)v3;
+      if ((int)(int16_t)v3 == (uint32_t)*(uint16_t *)&v4[0x11]) {
+        *(unsigned short *)&v4[0xf] = 0;
+        *(unsigned short *)((int)v4 + 0x3e) = 0xf;
+        return ((((uint32_t)((uint32_t)(uint8_t)(v3 >> 8))) << 8) |
+                ((uint8_t)(1)));
+      }
+    label_e6bd5:
+      *(unsigned short *)((int)v4 + 0x3e) = 0xf;
+      return ((((uint32_t)((uint32_t)(v7 >> 8))) << 8) | ((uint8_t)(1)));
+    }
+  }
+  if (v4[0xe]) {
+    v6 = *(unsigned int **)(v4[0xe] + 0x2c);
+    v9 = (int)*(int16_t *)&v4[0xf] + 1;
+    if ((v9 != *(uint16_t *)&v4[0x11]) && (v6))
+      goto label_e6c74;
+  }
+  v6 = (unsigned int *)v4[0xd];
+  v9 = 0;
+  if (!v6) {
+    error(2, "failed to set focus to the next list item of a column widget");
+    return 0;
+  }
+label_e6c74:
+  ui_widget_set_focus((void *)v4, *v6, *(int16_t *)((char *)v4 + 8));
+  *(int16_t *)&v4[0xf] = (int16_t)v9;
+  *(unsigned short *)((int)v4 + 0x3e) = 0xf;
+  return ((((uint32_t)((uint32_t)((uint32_t)v8 >> 8))) << 8) | ((uint8_t)(1)));
+}
+
+#define ui_widget_list_next_item \
+  widget_event_function_list_widget_goto_next_item
+
+/* 0xe6cb0 */
+int widget_event_function_list_widget_goto_previous_item(void *widget,
+                                                         void *event_data,
+                                                         char *widget_deleted)
+{
+  unsigned int *a0 = (unsigned int *)widget;
+  (void)event_data;
+  (void)widget_deleted;
+  int16_t v1;
+  unsigned short v2;
+  unsigned int *v3;
+  unsigned int *v4;
+  int v5; /*  eax */
+  unsigned int *v6;
+  unsigned int v7;
+  int v8 = 0;
+  (void)v2;
+  int v9;
+
+  v3 = a0;
+  if (!a0) {
+    display_assert("widget", "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x54f,
+                   1);
+    system_exit(0xffffffff);
+  }
+  v5 = (int)tag_get(0x44654c61, *v3);
+  if ((*(int16_t *)((int)v3 + 0xe) != 2) &&
+      (*(int16_t *)((int)v3 + 0xe) != 3)) {
+    display_assert("calling a list widget function on a non-list widget",
+                   "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x552, 1);
+    system_exit(0xffffffff);
+  }
+  if (v3[0x10]) { /*  branch-flip */
+    if (!*(uint16_t *)&v3[0x11])
+      goto label_e6e18;
+    v9 = *(int16_t *)&v3[0xf] + -1;
+    if (v9 <= -1)
+      v9 = (uint32_t)*(uint16_t *)&v3[0x11] - 1;
+    v1 = *(int16_t *)((int)v3 + 0xe);
+    v8 = ((((uint32_t)((int16_t)((uint32_t)v3[0x10] >> 0x10))) << 16) |
+          ((uint16_t)(v1)));
+    if (v1 == 3) {
+      v6 = (unsigned int *)widget_instance_get_nth_child(v3, v9);
+      if (!v6) {
+        error(
+          2, "failed to set focus to the #%d list item of a column list widget",
+          v9);
+        return 0;
+      }
+      v7 = *v6;
+      v2 = *(unsigned short *)&v3[2];
+      goto label_e6eb5;
+    }
+    if (v1 != 2)
+      goto label_e6ec3;
+    v8 = *(int *)(v5 + 0x3e0);
+    if (2 <= v8) {
+      if (v8 != 3) {
+        display_assert("spinner lists must be either 1- or 3-wide... sorry",
+                       "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x574, 1);
+        system_exit(0xffffffff);
+      }
+      v8 = v3[0xe];
+      if (v8 != v3[0xd]) {
+        if (!v8) {
+          display_assert("widget->focused_child",
+                         "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x57d, 1);
+          system_exit(0xffffffff);
+        }
+        v8 = v3[0xe];
+        if (*(int *)(v8 + 0x28)) {
+          ui_widget_apply_focus(
+            (void *)v3,
+            *(void **)((char *)*(void **)((char *)v3 + 0x38) + 0x28));
+          v7 = 0;
+          *(int16_t *)&v3[0xf] = (int16_t)v9;
+          *(unsigned short *)((int)v3 + 0x3e) = 0xfff1;
+          return ((((uint32_t)((uint32_t)((uint32_t)v7 >> 8))) << 8) |
+                  ((uint8_t)(1)));
+        }
+      }
+    }
+  } else {
+  label_e6e18:
+    if (*(int16_t *)((int)v3 + 0xe) == 2) {
+      if (2 <= *(int *)(v5 + 0x3e0)) {
+        display_assert(
+          "spinner lists with more that 1 visible item need to have "
+          "code-generated lists associated with them... sorry.",
+          "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x58c, 1);
+        system_exit(0xffffffff);
+      }
+      if (((*(int16_t *)((int)v3 + 0xe) == 2) &&
+           (*(uint8_t *)(v5 + 0x150) & 2)) &&
+          (!*(int *)(v5 + 0x3e0))) {
+        *(int16_t *)&v3[0xf] = *(int16_t *)&v3[0xf] + -1;
+        v8 = 0;
+        if (*(int16_t *)&v3[0xf] <= -1) {
+          *(int16_t *)&v3[0xf] = *(int16_t *)&v3[0x11] + -1;
+          *(unsigned short *)((int)v3 + 0x3e) = 0xfff1;
+          return 1;
+        }
+        goto label_e6ec3;
+      }
+    }
+    if (v3[0xe]) { /*  branch-flip */
+      v6 = *(unsigned int **)(v3[0xe] + 0x28);
+      v9 = *(int16_t *)&v3[0xf] + -1;
+      if (!v6)
+        goto label_e6e95;
+    } else {
+    label_e6e95:
+      v9 = 0;
+      v6 = (unsigned int *)v3[0xd];
+      for (v4 = (unsigned int *)((unsigned int *)v3[0xd])[0xb]; v4;
+           v4 = (unsigned int *)v4[0xb]) {
+        v9 += 1;
+        v6 = v4;
+      }
+    }
+    v7 = *v6;
+    v2 = *(unsigned short *)&v3[2];
+  label_e6eb5:
+    ui_widget_set_focus((void *)v3, *(int *)v7, *(int16_t *)((char *)v3 + 8));
+  }
+  *(int16_t *)&v3[0xf] = (int16_t)v9;
+label_e6ec3:
+  *(unsigned short *)((int)v3 + 0x3e) = 0xfff1;
+  return ((((uint32_t)((uint32_t)((uint32_t)v8 >> 8))) << 8) | ((uint8_t)(1)));
+}
+
+#define ui_widget_list_prev_item \
+  widget_event_function_list_widget_goto_previous_item
+
+/* 0xe6ed0 */
+void event_handler_dispatch(void *widget, void *definition, void *event_data,
+                            void *event_handler, char *widget_deleted)
+{
+  int a0 = (int)widget;
+  int a1 = (int)definition;
+  int a2 = (int)event_data;
+  uint32_t *a3 = (uint32_t *)event_handler;
+  char *a4 = widget_deleted;
+  uint32_t *v1;
+  int v10;
+  int v11;
+  uint32_t *v12;
+  int v13;
+  char v14; /*  stack - 0x5 */
+  int *v15; /*  esi */
+  bool v16; /*  zf */
+  const char *v17 = NULL; /*  stack - 0x20 */
+  bool v18; /*  stack - 0x6 */
+  uint32_t v2;
+  int v3;
+  char v4;
+  bool v5;
+  bool v6;
+  bool v7;
+  bool v8;
+  char v9; /*  al */
+
+  v12 = a3;
+  v10 = a0;
+  v14 = '\0';
+  v18 = 1;
+  v8 = 0;
+  v4 = 0;
+  v6 = 0;
+  v7 = 0;
+  v5 = 0;
+  if ((((*a3) & 0x400) && (v1 = &a3[10], *((char *)a3 + 40))) &&
+      (!hs_evaluate_by_name((const char *)v1)))
+    error(2, "\"failed to run ui widget event script '%s'\"", v1);
+  if ((('\0' <= (char)(uint8_t)*v12) || (v14)) ||
+      (v9 = ui_widget_event_handler_dispatch(
+         (void *)v10, (int)a2, *(unsigned short *)((int)v12 + 6), (bool *)&v14),
+       v9)) {
+    if ((*v12 & 0x40) && (!v14)) {
+      v16 = v12[5] == 0xffffffff;
+      if (v16)
+        error(2, "failed to give focus to a widget because "
+                 "event_handler->ui_widget_tag == NONE");
+      else {
+        ui_widget_set_focus((void *)v10, v12[5], *(int16_t *)(v10 + 8));
+      }
+      v18 = !v16;
+      v4 = !v16;
+    }
+    if (((*v12 & 0x20) && (!v14)) && (v12[5] == 0xffffffff)) {
+      error(
+        2,
+        "failed to reload widget because event_handler->ui_widget_tag == NONE");
+      v18 = 0;
+    }
+    if ((*v12 & 1) && (!v14))
+      v6 = 1;
+    if (((*v12 & 2) && (!v14)) && (v2 = v12[5], v2 != 0xffffffff)) {
+      v10 = 0;
+      v15 = (int *)0x46cc20;
+      do {
+        if (v10)
+          goto label_e7023;
+        if (*v15)
+          v10 = (int)ui_widget_find_by_tag((int *)*v15, v2);
+        v15 = &v15[1];
+      } while ((int)v15 < 0x46cc30);
+      if (v10) { /*  branch-flip */
+      label_e7023:
+        if (v10 != a0) /*  branch-flip */
+          ui_widget_close((void *)v10);
+        else {
+          v7 = 1;
+        }
+      } else {
+        error(2, "failed to close widget because event_handler->ui_widget_tag "
+                 "== NONE");
+        v18 = 0;
+      }
+    }
+    if ((*v12 & 4) && (!v14))
+      v5 = 1;
+    if ((*v12 & 8) && (v12[5] != 0xffffffff)) {
+      v10 = (int)ui_widget_spawn_from_event_handler((void *)a0, v12[5]);
+      if (v10) { /*  branch-flip */
+        if (!(bool)v4)
+          v4 = '\x02';
+        v14 = '\x01';
+      } else {
+        error(2, "event handler failed to spawn widget");
+        v18 = 0;
+      }
+    }
+    if (((*v12 & 0x100) && (!v14)) && (a3[5] != 0xffffffff)) {
+      v10 = (int)ui_widget_load_by_name_or_tag(
+        0, a3[5], a0, *(int16_t *)(a0 + 8), -1, -1, -1);
+      if (v10) { /*  branch-flip */
+        v13 = *(int *)(a0 + 0x30);
+        v11 = *(int *)(a0 + 0x2c);
+        v3 = *(int *)(a0 + 0x28);
+        if (*(int *)(v10 + 0x28))
+          *(unsigned int *)(*(int *)(v10 + 0x28) + 0x2c) = 0;
+        *(unsigned int *)(v10 + 0x28) = 0;
+        *(unsigned int *)(v10 + 0x30) = 0;
+        *(int16_t *)(v10 + 10) = *(int16_t *)(v10 + 10) + *(int16_t *)(a0 + 10);
+        *(int16_t *)(v10 + 0xc) =
+          *(int16_t *)(v10 + 0xc) + *(int16_t *)(a0 + 0xc);
+        if (v13) {
+          *(int *)(v10 + 0x30) = v13;
+          if (*(int *)(v13 + 0x34) == a0)
+            *(int *)(v13 + 0x34) = v10;
+          if (*(int *)(v13 + 0x38) == a0)
+            *(int *)(v13 + 0x38) = v10;
+        }
+        v13 = a0;
+        if (v11) {
+          if (*(int *)(v11 + 0x28) != a0) {
+            display_assert("next->previous == widget",
+                           "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0xe89,
+                           1);
+            system_exit(0xffffffff);
+          }
+          *(int *)(v11 + 0x28) = v10;
+          v13 = a0;
+        }
+        *(int *)(v10 + 0x2c) = v11;
+        if (v3) {
+          if (*(int *)(v3 + 0x2c) != v13) {
+            display_assert("previous->next == widget",
+                           "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0xe90,
+                           1);
+            system_exit(0xffffffff);
+            v13 = a0;
+          }
+          *(int *)(v3 + 0x2c) = v10;
+        }
+        *(int *)(v10 + 0x28) = v3;
+        v11 = 0;
+        do {
+          if (*(int *)(v11 * 4 + 0x46cc20) == v10) {
+            *(unsigned int *)(v11 * 4 + 0x46cc20) = 0;
+            break;
+          }
+          v11 += 1;
+        } while (v11 < 4);
+        if (!v4)
+          v4 = '\x02';
+        *(unsigned int *)(v13 + 0x28) = 0;
+        *(unsigned int *)(v13 + 0x2c) = 0;
+        *(unsigned int *)(v13 + 0x30) = 0;
+        v7 = 1;
+      } else {
+        error(2, "failed to open widget because the specified widget tag was "
+                 "not found");
+        v18 = 0;
+      }
+    }
+    if (*a3 & 0x200) {
+      ui_widget_close_and_reload((void *)a0);
+      if (!v4)
+        v4 = '\x03';
+      v14 = '\x01';
+    }
+    if (a3[9] != 0xffffffff)
+      sound_impulse_start(a3[9], 0x3f800000);
+    if (v5) {
+      v15 = (int *)0x46cc30;
+      do {
+        if (v15[-4])
+          ui_widget_close((void *)v15[-4]);
+        v10 = *v15;
+        while (v10) {
+          if (!v15) {
+            display_assert("top && data",
+                           "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x9fc,
+                           1);
+            system_exit(0xffffffff);
+          }
+          v10 = *v15;
+          *v15 = *(int *)(v10 + 0xc);
+          stack_memory_pool_deallocate((*(void **)0x31e04c), (void *)v10);
+          v10 = *v15;
+        }
+        v15 = &v15[1];
+      } while ((int)v15 < 0x46cc40);
+    label_e72c3:
+      v14 = '\x01';
+    } else {
+      v10 = a0;
+      if (v6) {
+        v13 = *(int *)(a0 + 0x30);
+        while (v11 = v13, v11) {
+          v13 = *(int *)(v11 + 0x30);
+          v10 = v11;
+        }
+      label_e72bb:
+        ui_widget_close((void *)v10);
+        goto label_e72c3;
+      }
+      if (v7)
+        goto label_e72bb;
+    }
+    if (!v18) {
+      v12 = a3;
+      goto label_e72d5;
+    }
+  } else {
+    error(2, "event handler function failed");
+    v8 = 1;
+  label_e72d5:
+    v10 = a1;
+    if ((*v12 & 0x800) && (v13 = 0, 1 <= *(int *)(a1 + 0x2d4))) {
+      do {
+        v11 = *(int *)(v10 + 0x2d8) + v13 * 0x50;
+        if ((v8) && (*(uint8_t *)(v11 + 0x30) & 1)) {
+          if (v14) { /*  branch-flip */
+            v17 = "\"couldn't load conditional widget because the calling "
+                  "widget was deleted\"";
+          label_e7338:
+            error(2, v17);
+          } else {
+            v11 = *(int *)(v11 + 0xc);
+            if (v11 != -1) {
+              v11 = (int)ui_widget_spawn_from_event_handler((void *)a0, v11);
+              if (!v11) {
+                v17 = "condition handler failed to spawn widget";
+                goto label_e7338;
+              }
+              v14 = '\x01';
+            }
+          }
+        }
+        v13 += 1;
+      } while (v13 < *(int *)(v10 + 0x2d4));
+    }
+  }
+  switch (v4) {
+  case 1:
+    v17 = "sound\\sfx\\ui\\cursor";
+    break;
+  case 2:
+    v17 = "sound\\sfx\\ui\\forward";
+    break;
+  case 3:
+    v17 = "sound\\sfx\\ui\\back";
+    break;
+  default:
+    goto label_e739e;
+  }
+  v10 = tag_loaded(0x736e6421, v17);
+  if (v10 != -1)
+    sound_impulse_start(v10, 0x3f800000);
+label_e739e:
+  *a4 = v14;
+  return;
+}
+
+#define ui_widget_handle_event_handler event_handler_dispatch
+
+/* 0xe73c0 */
+void widget_instance_render_recursive(int widget, viewport_bounds_t *bounds,
+                                      int arg3, int arg4, int arg5)
+{
+  unsigned int *a0 = (unsigned int *)widget;
+  unsigned int *a1 = (unsigned int *)bounds;
+  unsigned int a2 = (unsigned int)arg3;
+  unsigned int a3 = (unsigned int)arg4;
+  int a4 = arg5;
+  int16_t v1;
+  unsigned int v10; /*  stack - 0x10 */
+  float v14; /*  st0 */
+  int v15; /*  stack - 0x20 */
+  float v16; /*  stack - 0x1c */
+  unsigned int v17; /*  stack - 0x14 */
+  unsigned int v18; /*  stack - 0xc */
+  float v19; /*  stack - 0x8 */
+  unsigned int v2;
+  unsigned int *v3;
+  unsigned int *v4;
+  int v5; /*  eax */
+  int v6;
+  int is_selected;
+  int child_flag;
+  int v7; /*  ebx */
+  unsigned int v8; /*  stack - 0x18 */
+  char v9[140];
+
+  v3 = a0;
+  v5 = (int)tag_get(0x44654c61, *a0);
+  v19 = (float)v3[9];
+  v6 = v3[0xc];
+  v7 = 0;
+  if (v6) {
+    do {
+      v19 = v19 * *(float *)(v6 + 0x24);
+      v6 = *(int *)(v6 + 0x30);
+    } while (v6);
+  }
+  if ((!(char)a4) && (*(uint32_t *)(v5 + 0x2c) & 0x2000))
+    a4 = ((((uint32_t)(((uint32_t)((a4) >> 8)))) << 8) | ((uint8_t)(1)));
+  a2 = ((((uint32_t)(((int16_t)((a2) >> 16)) + *(int16_t *)&v3[3])) << 16) |
+        ((uint16_t)((int16_t)a2 + *(int16_t *)((int)v3 + 10))));
+  if (1 <= *(int *)(v5 + 0x48)) {
+    a0 = NULL;
+    do {
+      ui_widget_game_data_function_invoke(
+        v3, *(unsigned short *)((int)a0 + *(int *)(v5 + 0x4c)));
+      v7 += 1;
+      a0 = &a0[9];
+    } while (v7 < *(int *)(v5 + 0x48));
+  }
+  if (*(char *)&v3[4]) {
+    v15 = (int)FUN_00077040(*(unsigned int *)(v5 + 0x44), 0,
+                            *(unsigned short *)&v3[0x14]);
+    v4 = a1;
+    if (v15) {
+      v10 = *(unsigned int *)(v5 + 0x24);
+      v18 = *(unsigned int *)(v5 + 0x28);
+      v16 = v19;
+      v2 = *(unsigned int *)(v5 + 0x44);
+      a0 = a1;
+      tag_block_get_element(tag_get(0x6269746d, v2) + 0x54, 0, 0x40);
+      if ((char)a4) {
+        (*(int *)0x5aa460) = 0;
+        (*(int *)0x5aa464) = 0x3d4ccccd;
+        (*(int *)0x5aa468) = 0x3d4ccccd;
+        (*(int *)0x5aa46c) = 0x3d4ccccd;
+      }
+      v10 = ((((uint32_t)(((int16_t)((v10) >> 16)) + (int16_t)a2)) << 16) |
+             ((uint16_t)((int16_t)v10 + ((int16_t)((a2) >> 16)))));
+      v18 = ((((uint32_t)(((int16_t)((v18) >> 16)) + (int16_t)a2)) << 16) |
+             ((uint16_t)((int16_t)v18 + ((int16_t)((a2) >> 16)))));
+      if (v4) {
+        v8 = *v4;
+
+        v8 = ((((uint32_t)(((int16_t)((v8) >> 16)) + (int16_t)a2)) << 16) |
+              ((uint16_t)((int16_t)v8 + ((int16_t)((a2) >> 16)))));
+        v17 = v4[1];
+
+        v17 = ((((uint32_t)(((int16_t)((v17) >> 16)) + (int16_t)a2)) << 16) |
+               ((uint16_t)((int16_t)v17 + ((int16_t)((a2) >> 16)))));
+        a0 = &v8;
+      }
+      if (*(uint8_t *)(v5 + 0x2c) & 4) { /*  branch-flip */
+        v14 = (float)(*(int *)0x46cc40);
+        if ((*(int *)0x46cc40) <= -1)
+          v14 = v14 + (float)(*(float *)0x25fb8c);
+        v14 = ((x87_fcos(v14 * (float)(*(int *)0x28327c) *
+                         (float)(*(float *)0x254644)) +
+                1.0f) *
+               (*(float *)0x253398)) *
+              v19;
+      } else {
+        v14 = (float)v16;
+      }
+      v16 = (float)(v14 * (float)255.0f);
+      v19 = (float)(int)((int)(v16));
+      draw_bitmap_in_rect(v15, (int16_t *)&v10, (int16_t *)&v10, (int16_t *)a0,
+                          ((int)v19 << 0x18) | 0xffffff, (int)v9, 0);
+      if ((char)a4) {
+        (*(int *)0x5aa460) = 0;
+        (*(int *)0x5aa464) = 0;
+        (*(int *)0x5aa468) = 0;
+        (*(int *)0x5aa46c) = 0;
+      }
+    }
+    v1 = *(int16_t *)((int)v3 + 0xe);
+    if (v1 != 1) { /*  branch-flip */
+      if (v1 != 2) { /*  branch-flip */
+        if (v1 == 3) {
+          FUN_000e76b0((int)v3, v5, (viewport_bounds_t *)v4, a2, a3);
+          if (!(~*(uint8_t *)(v5 + 0x150) & 1))
+            return;
+        }
+      } else {
+        widget_instance_render_spinner_list((void *)v3, (void *)v4, a2, a3);
+        if ((*(uint8_t *)(v5 + 0x150) & 2) && (!*(int *)(v5 + 0x3e0)))
+          return;
+      }
+    } else {
+      render_text_box_widget((void *)v5, (void *)v3, (const int32_t *)v4, a2,
+                             widget_instance_text_box_is_focused((void *)v3));
+    }
+    for (v6 = v3[0xd]; v6; v6 = *(int *)(v6 + 0x2c)) {
+      is_selected = (v6 == (int)v3[0xe]);
+      child_flag = 0;
+      if (is_selected) {
+        if (*(int16_t *)((int)v3 + 0xe) == 2 ||
+            *(int16_t *)((int)v3 + 0xe) == 3) {
+          child_flag = 1;
+        }
+      }
+      widget_instance_render_recursive(v6, (viewport_bounds_t *)v4, a2,
+                                       is_selected, child_flag);
+    }
+  }
+  return;
 }
 
 int widget_event_function_list_widget_goto_next_item(void *widget,
@@ -2318,6 +3762,83 @@ void render_ui_widgets(int16_t player_index, viewport_bounds_t *window_bounds)
     {
       int alpha = (int)(*(float *)0x46cc4c * *(float *)0x2602c8); /* * 255.0 */
       ((void (*)(viewport_bounds_t *, int))0x92ec0)(&local_bounds, alpha << 24);
+    }
+  }
+}
+
+#define FUN_000e73c0 widget_instance_render_recursive
+
+/* 0xe7b10 */
+void widget_instance_initialize(void *tag_data, void *widget, void *parent,
+                                int tag_index, int widget_stack,
+                                int widget_stack_base)
+{
+  unsigned short *a0 = (unsigned short *)tag_data;
+  int *a1 = (int *)widget;
+  int *a2 = (int *)parent;
+  int a3 = tag_index;
+  unsigned short a4 = (unsigned short)widget_stack;
+  (void)widget_stack_base;
+  char widget_deleted = 0;
+  unsigned int *v2;
+  void *v3;
+  int16_t event[4];
+
+  *(uint32_t *)a1 = (uint32_t)a3;
+  *(unsigned short *)((char *)a1 + 4) = a4;
+  *(int **)((char *)a1 + 0x30) = a2;
+  if (*(int16_t *)((char *)a1 + 0x0e) == 1) {
+    *(unsigned short *)((char *)a1 + 0x40) = 0xffff;
+  }
+  if (*(int *)&a0[0x22] != -1) {
+    v3 = tag_get(0x6269746d, *(int *)&a0[0x22]);
+    *(unsigned short *)((char *)a1 + 0x56) =
+      *(unsigned short *)((char *)tag_block_get_element((char *)v3 + 0x54, 0,
+                                                        0x40) +
+                          0x22);
+  }
+  if (!(*(uint8_t *)0x46cc83) &&
+      !ui_widget_load_children_recursive((void *)a0, (void *)a1)) {
+    error(2, "failed to recursively load child widgets for widget");
+  }
+  a3 = 0;
+  if (1 <= *(int *)&a0[0x2a]) {
+    int offset = 0;
+    do {
+      if (*(int16_t *)(*(int *)&a0[0x2c] + offset + 4) == 0x18) {
+        event[0] = 0;
+        event[1] = *(int16_t *)((char *)a1 + 8);
+        event[2] = 0;
+        event[3] = 0;
+        ui_widget_handle_event_handler((void *)a1, (void *)a0, event,
+                                       (void *)(*(int *)&a0[0x2c] + offset),
+                                       &widget_deleted);
+      }
+      a3++;
+      offset += 0x48;
+    } while (a3 < *(int *)&a0[0x2a]);
+  }
+  if (!*(int16_t *)((char *)a1 + 0x38)) {
+    for (v2 = *(unsigned int **)((char *)a1 + 0x34); v2 != NULL;
+         v2 = *(unsigned int **)((char *)v2 + 0x2c)) {
+      v3 = tag_get(0x44654c61, *v2);
+      if (!*(char *)((char *)v2 + 0x12)) {
+        if (*(int *)((char *)v3 + 0x54) > 0 ||
+            *(int16_t *)((char *)v2 + 0x0e) == 2 ||
+            *(int16_t *)((char *)v2 + 0x0e) == 3) {
+          ui_widget_apply_focus((void *)a1, (void *)v2);
+        }
+      }
+    }
+  }
+  if (*(char *)((char *)a1 + 0x13) == 1) {
+    (*(int16_t *)0x46cc4a)++;
+    if (!game_time_get_paused()) {
+      game_time_set_paused(1);
+    }
+    if (!(*(uint8_t *)0x46cc87) && !(*(uint8_t *)0x46cc88)) {
+      sound_set_music_enabled(1);
+      *(uint8_t *)0x46cc87 = 1;
     }
   }
 }
@@ -3795,6 +5316,74 @@ bool solo_level_dispose_list(void *widget, void *event_data,
   return true;
 }
 
+#define ui_widget_load_from_tag_internal widget_instance_initialize
+
+/* solo_level_set_next_map_name (0x0e9a90) */
+bool solo_level_set_next_map_name(void *widget, void *event_data,
+                                  bool *widget_deleted)
+{
+  short list_index;
+  char profile_buf[28];
+  char completion_flags[20];
+  char unknown_buf[4];
+  short counts[2];
+  bool can_play;
+  int i;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  list_index = *(short *)((char *)widget + 0x3c);
+  can_play = false;
+
+  if (list_index < 0 || list_index >= 10) {
+    display_assert(
+      "I don't think this is the solo level list widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x2d4,
+      1);
+    system_exit(-1);
+  }
+
+  if (*(int16_t *)0x31fa94 != 1) {
+    if (*(int16_t *)0x31fa94 != 2) {
+      error(2, "invalid player count for single player game");
+      error(2, "this level is unavailable to you!");
+      ui_play_audio_feedback_sound(4);
+      return false;
+    }
+  } else {
+    player_ui_get_active_player_profile(0, profile_buf);
+    player_profile_save_last_level_played(profile_buf, counts,
+                                          (short *)unknown_buf);
+    if (completion_flags[list_index] != 0 || list_index == counts[0] + 1 ||
+        list_index == 0) {
+      can_play = true;
+    }
+    player_ui_remember_player1_profile(false);
+  }
+
+  for (i = 0; i <= 1; i++) {
+    player_ui_get_active_player_profile((short)i, profile_buf);
+    player_profile_save_last_level_played(profile_buf, counts,
+                                          (short *)unknown_buf);
+    if (completion_flags[list_index] != 0 || list_index == counts[0] + 1 ||
+        list_index == 0) {
+      can_play = true;
+      break;
+    }
+  }
+
+  if (can_play) {
+    main_set_map_name(*(const char **)((char *)0x31e498 + list_index * 4));
+    main_defer_map_map_change();
+    return true;
+  }
+
+  error(2, "this level is unavailable to you!");
+  ui_play_audio_feedback_sound(4);
+  return false;
+}
+
 /* difficulty_set (event handler, 0x0e9bd0) — reads the widget's selected
  * item index (signed 16-bit) at +0x3c. If it is a valid difficulty
  * (0 <= selected < 4), applies it via main_set_difficulty and plays audio
@@ -3932,7 +5521,9 @@ fail:
  * to FUN_00082bd0 is not evidenced here, so they stay raw offsets; the
  * 0x18-byte address record is zeroed as six dwords because the callee
  * writes +0x14, past the declared transport_address tail. */
-bool FUN_000e9dd0(void *widget, void *event_data, bool *widget_deleted)
+#define FUN_000e9dd0 network_game_join_game_from_server_list
+bool network_game_join_game_from_server_list(void *widget, void *event_data,
+                                             bool *widget_deleted)
 {
   unsigned char address[0x18];
   unsigned char join_params[0x22];
@@ -4635,6 +6226,65 @@ bool netgame_join_player(void *widget, void *event_data, bool *widget_deleted)
   return true;
 }
 
+/* FUN_000eaa10 (0x0eaa10) */
+bool player_profiles_list_initialize(void *widget, void *event_data,
+                                     bool *widget_deleted)
+{
+  short *tag;
+  void *alloc_res;
+  int count;
+  int profile_idx;
+  int i;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  tag = (short *)tag_get(0x44654c61, *(int *)widget);
+  *(int *)0x31e494 = -1;
+  csmemset((void *)0x5aa3c0, 0xff, 0x9c);
+
+  if (*tag != 2) {
+    display_assert(
+      "expected a spinner list widget for 'player settings list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x696,
+      1);
+    system_exit(-1);
+  }
+  if (*(int *)(tag + 0x1f0) != 0 && *(int *)(tag + 0x1f0) != 3) {
+    display_assert(
+      "expected either 1 or 3 list items for 'player settings list' widget",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x698,
+      1);
+    system_exit(-1);
+  }
+
+  alloc_res = ui_widget_realloc(
+    *(int *)((char *)widget + 0x40), 400,
+    "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x69d);
+  *(void **)((char *)widget + 0x40) = alloc_res;
+  if (alloc_res != NULL) {
+    count = 100;
+    FUN_001c0d50(*(unsigned short *)((char *)widget + 8), &count,
+                 (int *)alloc_res, (*(int *)(tag + 0x1f0) == 3) ? 0 : 1);
+    if (*(int *)(tag + 0x1f0) == 3 && count <= 2) {
+      for (i = count; i < 3; i++) {
+        *(int *)((char *)alloc_res + i * 4) = -1;
+      }
+    }
+    *(unsigned short *)((char *)widget + 0x44) = (unsigned short)count;
+    profile_idx = player_ui_get_player1_last_used_profile_index();
+    if (profile_idx != -1 && *(unsigned short *)((char *)widget + 0x44) != 0) {
+      for (i = 0; i < (int)*(unsigned short *)((char *)widget + 0x44); i++) {
+        if (*(int *)((char *)alloc_res + i * 4) == profile_idx) {
+          *(short *)((char *)widget + 0x3c) = (short)i;
+          break;
+        }
+      }
+    }
+  }
+  return true;
+}
+
 /* dispose owned list, duplicate table entry (event handler, 0x0eab70; data
  * xref at 0x31e1e4, 0x14 bytes after multiplayer_profiles_list_dispose's
  * 0x31e1d0 entry) — byte-identical body to multiplayer_profiles_list_dispose
@@ -5272,6 +6922,129 @@ bool playlist_profile_change_ctf_rules(void *widget)
   }
 
   error(2, "failed to retrieve editable game variant");
+  return true;
+}
+
+#define FUN_000eaa10 player_profiles_list_initialize
+
+/* playlist_profile_change_koth_rules (0x0eb4f0) */
+bool playlist_profile_change_koth_rules(void *widget, void *event_data,
+                                        bool *widget_deleted)
+{
+  char *profile;
+  void *item;
+  void *spinner;
+
+  (void)event_data;
+  (void)widget_deleted;
+
+  profile = (char *)player_ui_get_edit_playlist_profile();
+  if (profile == NULL) {
+    error(2, "failed to retrieve editable game variant");
+    return false;
+  }
+
+  /* moving hill */
+  item = *(void **)((char *)widget + 0x34);
+  if (item == NULL) {
+    display_assert(
+      "expected 'moving hill' list item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x84e,
+      1);
+    system_exit(-1);
+  }
+  for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+       spinner = *(void **)((char *)spinner + 0x2c)) {
+    if (*(short *)((char *)spinner + 0xe) == 2)
+      break;
+  }
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'moving hill' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x850,
+      1);
+    system_exit(-1);
+  }
+  if (*(short *)((char *)spinner + 0x3c) == 0) {
+    *(char *)(profile + 0x4c) = 1;
+  } else if (*(short *)((char *)spinner + 0x3c) == 1) {
+    *(char *)(profile + 0x4c) = 0;
+  } else {
+    error(2, "unknown option selected in 'moving hill' option spinner list");
+  }
+
+  /* score to win */
+  item = *(void **)((char *)item + 0x2c);
+  if (item == NULL) {
+    display_assert(
+      "expected 'score to win' list item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x859,
+      1);
+    system_exit(-1);
+  }
+  for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+       spinner = *(void **)((char *)spinner + 0x2c)) {
+    if (*(short *)((char *)spinner + 0xe) == 2)
+      break;
+  }
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'score to win' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x85b,
+      1);
+    system_exit(-1);
+  }
+  switch (*(unsigned short *)((char *)spinner + 0x3c)) {
+  case 0:
+    *(unsigned int *)(profile + 0x40) = 1;
+    break;
+  case 1:
+    *(unsigned int *)(profile + 0x40) = 2;
+    break;
+  case 2:
+    *(unsigned int *)(profile + 0x40) = 5;
+    break;
+  case 3:
+    *(unsigned int *)(profile + 0x40) = 10;
+    break;
+  case 4:
+    *(unsigned int *)(profile + 0x40) = 15;
+    break;
+  default:
+    error(2, "unknown option selected in 'score to win' option spinner list");
+    break;
+  }
+
+  /* teams */
+  item = *(void **)((char *)item + 0x2c);
+  if (item == NULL) {
+    display_assert(
+      "expected 'teams' item",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x867,
+      1);
+    system_exit(-1);
+  }
+  for (spinner = *(void **)((char *)item + 0x34); spinner != NULL;
+       spinner = *(void **)((char *)spinner + 0x2c)) {
+    if (*(short *)((char *)spinner + 0xe) == 2)
+      break;
+  }
+  if (spinner == NULL) {
+    display_assert(
+      "expected 'teams' option spinner list",
+      "c:\\halo\\SOURCE\\interface\\ui_widget_event_handler_functions.c", 0x869,
+      1);
+    system_exit(-1);
+  }
+  if (*(short *)((char *)spinner + 0x3c) == 0) {
+    *(char *)(profile + 0x1c) = 1;
+  } else if (*(short *)((char *)spinner + 0x3c) == 1) {
+    *(char *)(profile + 0x1c) = 0;
+  } else {
+    error(2, "unknown option selected in 'teams' option spinner list");
+  }
+
+  ui_widgets_pop_stack(*(unsigned short *)((char *)widget + 8));
   return true;
 }
 
@@ -6828,7 +8601,8 @@ bool FUN_000ecb60(void *widget)
 bool playlist_profile_initialize_game_engine(void *widget)
 {
   void *profile;
-  void *focused_child; /* name: PAL 2342 ui_widget_event_handler_functions.c:3353 */
+  void *
+    focused_child; /* name: PAL 2342 ui_widget_event_handler_functions.c:3353 */
 
   profile = player_ui_get_edit_playlist_profile();
 
@@ -6862,8 +8636,8 @@ bool playlist_profile_initialize_game_engine(void *widget)
       break;
     }
 
-    focused_child = widget_instance_get_nth_child(widget,
-                                                  *(int16_t *)((char *)widget + 0x3c));
+    focused_child = widget_instance_get_nth_child(
+      widget, *(int16_t *)((char *)widget + 0x3c));
     *(void **)((char *)widget + 0x38) = focused_child;
 
     return true;

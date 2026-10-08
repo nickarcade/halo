@@ -205,3 +205,6 @@ tools/analysis/cea_corpus.path
 # Raw decompiler dumps and symbol listings
 /halo_decompiled/
 /halo_2276_functions.txt
+
+# External reference repositories for workspace usage
+tools/references/
