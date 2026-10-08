@@ -35181,7 +35181,9 @@
       "functions": [
         {
           "addr": "0x1b4dc0",
-          "decl": "void FUN_001b4dc0(int handle, void *damage_data, unsigned int flags, float body_vitality, float shield_vitality, int param_6, int param_7);"
+          "decl": "void FUN_001b4dc0(int handle, void *damage_data, unsigned int flags, float body_vitality, float shield_vitality, int param_6, int param_7);",
+          "ported": true,
+          "name": "FUN_001b4dc0"
         },
         {
           "addr": "0x1b5400",
@@ -35348,8 +35350,10 @@
         },
         {
           "addr": "0x1b8570",
-          "decl": "void vehicle_update(void);",
-          "comment": "[NAME: vehicle_update \u2014 CEA PDB line-containment (high_confidence), cea-deferred 2026-09-03]"
+          "decl": "void update_alien_scout_physics(int vehicle_handle, float steering, void *state, void *mass_points);",
+          "comment": "[NAME: vehicle_update \u2014 CEA PDB line-containment (high_confidence), cea-deferred 2026-09-03]",
+          "ported": true,
+          "name": "update_alien_scout_physics"
         },
         {
           "addr": "0x1b8f10",
@@ -35359,7 +35363,9 @@
         },
         {
           "addr": "0x1b8f80",
-          "decl": "void FUN_001b8f80(void);"
+          "decl": "bool vehicle_update(int vehicle_handle);",
+          "ported": true,
+          "name": "vehicle_update"
         },
         {
           "addr": "0x1b5540",
