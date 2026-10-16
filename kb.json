@@ -23746,31 +23746,31 @@
         {
           "addr": "0xe1f70",
           "decl": "void this_is_awful(uint32_t *a0, uint32_t a1, int32_t a2);",
-          "ported": false,
+          "ported": true,
           "name": "this_is_awful"
         },
         {
           "addr": "0xe2180",
           "decl": "void __stdcall D3DTexture_UnlockRect_2(int param_1, int param_2);",
-          "ported": false,
+          "ported": true,
           "name": "D3DTexture_UnlockRect_2"
         },
         {
           "addr": "0xe2190",
           "decl": "void IDirect3DTexture8_Release(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DTexture8_Release"
         },
         {
           "addr": "0xe21a0",
           "decl": "uint32_t IDirect3DTexture8_GetLevelDesc(uint32_t a0, uint32_t a1, uint32_t a2);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DTexture8_GetLevelDesc"
         },
         {
           "addr": "0xe21d0",
           "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect_2(int param_1, int param_2);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DTexture8_UnlockRect_2"
         }
       ],
@@ -32603,163 +32603,163 @@
         {
           "addr": "0xe3b40",
           "decl": "void pool_alloc(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "pool_alloc"
         },
         {
           "addr": "0xe3b60",
           "decl": "void pool_free(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "pool_free"
         },
         {
           "addr": "0xe4490",
           "decl": "uint16_t sub_E4490(uint16_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "sub_E4490"
         },
         {
           "addr": "0xe47d0",
           "decl": "void dispose_widget_stack(void);",
-          "ported": false,
+          "ported": true,
           "name": "dispose_widget_stack"
         },
         {
           "addr": "0xe4a00",
           "decl": "int32_t widget_instance_can_handle_events(uint32_t *a0);",
-          "ported": false,
+          "ported": true,
           "name": "widget_instance_can_handle_events"
         },
         {
           "addr": "0xe4ed0",
           "decl": "void widget_instance_update_animation_parameters(int32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "widget_instance_update_animation_parameters"
         },
         {
           "addr": "0xe4f00",
           "decl": "void widget_instance_reload_recursive(void);",
-          "ported": false,
+          "ported": true,
           "name": "widget_instance_reload_recursive"
         },
         {
           "addr": "0xe4f10",
           "decl": "void ui_widget_reload_by_tag(void);",
-          "ported": false,
+          "ported": true,
           "name": "ui_widget_reload_by_tag"
         },
         {
           "addr": "0xe5160",
           "decl": "void play_sound_tag(int32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "play_sound_tag"
         },
         {
           "addr": "0xe5350",
           "decl": "void spinner_list_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "spinner_list_update"
         },
         {
           "addr": "0xe53c0",
           "decl": "void widget_instance_get_tail_child_widget(int32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "widget_instance_get_tail_child_widget"
         },
         {
           "addr": "0xe59a0",
           "decl": "void ui_widgets_delete_history(void);",
-          "ported": false,
+          "ported": true,
           "name": "ui_widgets_delete_history"
         },
         {
           "addr": "0xe5db0",
           "decl": "void widget_instance_find_by_tag_index(void);",
-          "ported": false,
+          "ported": true,
           "name": "widget_instance_find_by_tag_index"
         },
         {
           "addr": "0xe98a0",
           "decl": "char widget_event_function_null(void);",
-          "ported": false,
+          "ported": true,
           "name": "widget_event_function_null"
         },
         {
           "addr": "0xe9c30",
           "decl": "uint32_t start_new_game(void);",
-          "ported": false,
+          "ported": true,
           "name": "start_new_game"
         },
         {
           "addr": "0xe9c60",
           "decl": "char pause_game_restart_at_checkpoint(void);",
-          "ported": false,
+          "ported": true,
           "name": "pause_game_restart_at_checkpoint"
         },
         {
           "addr": "0xe9c70",
           "decl": "char pause_game_restart_level(void);",
-          "ported": false,
+          "ported": true,
           "name": "pause_game_restart_level"
         },
         {
           "addr": "0xe9c80",
           "decl": "char pause_game_quit_to_main_menu(void);",
-          "ported": false,
+          "ported": true,
           "name": "pause_game_quit_to_main_menu"
         },
         {
           "addr": "0xe9c90",
           "decl": "char clear_multiplayer_player_joins(void);",
-          "ported": false,
+          "ported": true,
           "name": "clear_multiplayer_player_joins"
         },
         {
           "addr": "0xe9d00",
           "decl": "char network_game_server_list_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "network_game_server_list_initialize"
         },
         {
           "addr": "0xe9ff0",
           "decl": "char network_game_cancel(void);",
-          "ported": false,
+          "ported": true,
           "name": "network_game_cancel"
         },
         {
           "addr": "0xea080",
           "decl": "char coop_game_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "coop_game_initialize"
         },
         {
           "addr": "0xea090",
           "decl": "char main_menu_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "main_menu_initialize"
         },
         {
           "addr": "0xea0d0",
           "decl": "void multiplayer_type_menu_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "multiplayer_type_menu_initialize"
         },
         {
           "addr": "0xea0e0",
           "decl": "char multiplayer_pick_quick_start_play_stage(void);",
-          "ported": false,
+          "ported": true,
           "name": "multiplayer_pick_quick_start_play_stage"
         },
         {
           "addr": "0xeb000",
           "decl": "char playlist_profile_end_editing(void);",
-          "ported": false,
+          "ported": true,
           "name": "playlist_profile_end_editing"
         },
         {
           "addr": "0xeb100",
           "decl": "uint32_t playlist_profile_change_name(void);",
-          "ported": false,
+          "ported": true,
           "name": "playlist_profile_change_name"
         }
       ],
@@ -33270,97 +33270,97 @@
         {
           "addr": "0xeee40",
           "decl": "char player_profile_end_editing(void);",
-          "ported": false,
+          "ported": true,
           "name": "player_profile_end_editing"
         },
         {
           "addr": "0xeee60",
           "decl": "uint32_t player_profile_change_name(void);",
-          "ported": false,
+          "ported": true,
           "name": "player_profile_change_name"
         },
         {
           "addr": "0xef950",
           "decl": "char switch_from_main_menu_to_single_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "switch_from_main_menu_to_single_player"
         },
         {
           "addr": "0xefbc0",
           "decl": "uint32_t delete_player_profile_final(void);",
-          "ported": false,
+          "ported": true,
           "name": "delete_player_profile_final"
         },
         {
           "addr": "0xefc10",
           "decl": "uint32_t delete_playlist_profile_final(void);",
-          "ported": false,
+          "ported": true,
           "name": "delete_playlist_profile_final"
         },
         {
           "addr": "0xefc50",
           "decl": "char cancel_profile_delete(void);",
-          "ported": false,
+          "ported": true,
           "name": "cancel_profile_delete"
         },
         {
           "addr": "0xf0010",
           "decl": "uint32_t network_game_server_accept_connections(void);",
-          "ported": false,
+          "ported": true,
           "name": "network_game_server_accept_connections"
         },
         {
           "addr": "0xf0030",
           "decl": "uint32_t network_game_server_defer_game_start(void);",
-          "ported": false,
+          "ported": true,
           "name": "network_game_server_defer_game_start"
         },
         {
           "addr": "0xf0050",
           "decl": "uint32_t network_game_server_allow_game_start(void);",
-          "ported": false,
+          "ported": true,
           "name": "network_game_server_allow_game_start"
         },
         {
           "addr": "0xf0090",
           "decl": "char run_xdemos(void);",
-          "ported": false,
+          "ported": true,
           "name": "run_xdemos"
         },
         {
           "addr": "0xf00a0",
           "decl": "char single_player_reset_controller_choices(void);",
-          "ported": false,
+          "ported": true,
           "name": "single_player_reset_controller_choices"
         },
         {
           "addr": "0xf0420",
           "decl": "char exit_to_xbox_dashboard(void);",
-          "ported": false,
+          "ported": true,
           "name": "exit_to_xbox_dashboard"
         },
         {
           "addr": "0xf0720",
           "decl": "char begin_music_fade_out(void);",
-          "ported": false,
+          "ported": true,
           "name": "begin_music_fade_out"
         },
         {
           "addr": "0xf0a90",
           "decl": "void widget_function_null(void);",
-          "ported": false,
+          "ported": true,
           "name": "widget_function_null"
         },
         {
           "addr": "0xf33d0",
           "decl": "void system_link_status_check(void);",
-          "ported": false,
+          "ported": true,
           "name": "system_link_status_check"
         },
         {
           "addr": "0xf3990",
           "decl": "void filter_invalid_list_indices(void);",
-          "ported": false,
+          "ported": true,
           "name": "filter_invalid_list_indices"
         }
       ],

@@ -1671,3 +1671,42 @@ int IDirect3DDevice8_End_11(unsigned int dev)
   return 0;
 }
 
+/* 0xe1f70 */
+void this_is_awful(uint32_t *a0, uint32_t a1, int32_t a2)
+{
+  (void)a1;
+  a0[0] = 0x40005;
+  a0[1] = *(uint32_t *)(a2 + 4);
+  a0[2] = 0;
+  a0[4] = 0x271df27f;
+  a0[3] = 0x11229;
+}
+
+/* 0xe2180 */
+void __stdcall D3DTexture_UnlockRect_2(int param_1, int param_2)
+{
+  (void)param_1;
+  (void)param_2;
+}
+
+/* 0xe2190 */
+void IDirect3DTexture8_Release(uint32_t a0)
+{
+  D3DResource_Release((void *)a0);
+}
+
+/* 0xe21a0 */
+uint32_t IDirect3DTexture8_GetLevelDesc(uint32_t a0, uint32_t a1, uint32_t a2)
+{
+  D3DTexture_GetLevelDesc((void *)a1, a2, (void *)a0);
+  return 0;
+}
+
+/* 0xe21d0 */
+uint32_t __stdcall IDirect3DTexture8_UnlockRect_2(int param_1, int param_2)
+{
+  (void)param_1;
+  (void)param_2;
+  return 0;
+}
+

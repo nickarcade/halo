@@ -8956,3 +8956,291 @@ bool playlist_profile_initialize_ctf_rules(void *widget)
   error(2, "failed to retrieve editable game variant");
   return false;
 }
+
+/* =========================================================================
+ * Campaign 5.1 lifts: remaining functions in ui_widget.obj
+ * ========================================================================= */
+
+void *debug_malloc(uint32_t size, bool zero, const char *file, int line);
+void debug_free(void *ptr, const char *file, int line);
+int sound_impulse_start(int sound_tag_index, float scale);
+void main_set_difficulty(int16_t difficulty);
+void main_set_map_name(const char *name);
+void main_revert_map(void);
+void main_reset_map(void);
+void game_state_save_to_persistent_storage(void);
+void main_goto_main_menu(void);
+void dispose_global_network_game_client(void);
+void dispose_global_network_game_server(void);
+void player_ui_clear_multiplayer_joins(void);
+void player_ui_clear_multiplayer_variant(void);
+bool create_global_network_game_client(void);
+void network_game_set_accept_remote_connections(char accept);
+void player_ui_end_editing_profile(void);
+bool ui_main_menu_music_active(void);
+void ui_start_main_menu_music(void);
+void game_engine_playlist_initialize(void);
+void game_engine_playlist_next(int game_variant_type, int param_2, int param_3);
+void network_game_set_quickstart_local(void);
+void *player_ui_get_edit_playlist_profile(void);
+bool virtual_keyboard_launch(wchar_t *text_buffer, unsigned short buffer_size, short caption_index);
+
+/* 0xe3b40 */
+void pool_alloc(uint32_t a0)
+{
+  debug_malloc(a0, 0, (const char *)0x283280, 0x75);
+}
+
+/* 0xe3b60 */
+void pool_free(uint32_t a0)
+{
+  debug_free((void *)a0, (const char *)0x283280, 0x76);
+}
+
+/* 0xe4490 */
+uint16_t sub_E4490(uint16_t a0)
+{
+  float fade;
+
+  if (*(uint8_t *)0x46cc88 != 0) {
+    fade = *(float *)0x46cc4c;
+    if (fade <= 1.0f && fade >= 0.0f) {
+      return (a0 & 0xff00) | 1;
+    }
+  }
+  return a0 & 0xff00;
+}
+
+/* 0xe47d0 */
+void dispose_widget_stack(void)
+{
+  return;
+}
+
+/* 0xe4a00 */
+int32_t widget_instance_can_handle_events(uint32_t *a0)
+{
+  void *tag;
+
+  tag = tag_get(0x44654c61, *a0);
+  if (!*(char *)((char *)a0 + 0x12)) {
+    if (*(int *)((char *)tag + 0x54) > 0 ||
+        *(int16_t *)((char *)a0 + 0xe) == 2 ||
+        *(int16_t *)((char *)a0 + 0xe) == 3) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* 0xe4ed0 */
+void widget_instance_update_animation_parameters(int32_t a0)
+{
+  int16_t val;
+
+  val = *(int16_t *)(a0 + 0x52);
+  if (val < 0) {
+    val = 0;
+  }
+  *(int16_t *)(a0 + 0x52) = val;
+
+  if (*(int16_t *)(a0 + 0x54) < 0) {
+    *(int16_t *)(a0 + 0x54) = 0;
+  }
+}
+
+/* 0xe4f00 */
+void widget_instance_reload_recursive(void)
+{
+  return;
+}
+
+/* 0xe4f10 */
+void ui_widget_reload_by_tag(void)
+{
+  return;
+}
+
+/* 0xe5160 */
+void play_sound_tag(int32_t a0)
+{
+  if (a0 != -1) {
+    sound_impulse_start(a0, 1.0f);
+  }
+}
+
+/* 0xe5350 */
+void spinner_list_update(void)
+{
+  return;
+}
+
+/* 0xe53c0 */
+void widget_instance_get_tail_child_widget(int32_t a0)
+{
+  return;
+}
+
+/* 0xe59a0 */
+void ui_widgets_delete_history(void)
+{
+  int *head;
+  void *node;
+
+  for (head = (int *)0x46cc30; head < (int *)0x46cc40; head++) {
+    while (*head != 0) {
+      node = (void *)*head;
+      *head = *(int *)((char *)node + 0xc);
+      stack_memory_pool_deallocate(*(void **)0x31e04c, node);
+    }
+  }
+}
+
+/* 0xe5db0 */
+void widget_instance_find_by_tag_index(void)
+{
+  int *slot;
+
+  for (slot = (int *)0x46cc20; slot < (int *)0x46cc30; slot++) {
+    if (*slot != 0) {
+      if (widget_instance_find_by_tag_index_recursive((int *)*slot, 0) != NULL) {
+        return;
+      }
+    }
+  }
+}
+
+/* 0xe98a0 */
+char widget_event_function_null(void)
+{
+  return 1;
+}
+
+/* 0xe9c30 */
+uint32_t start_new_game(void)
+{
+  main_set_difficulty(1);
+  main_set_map_name(*(const char **)0x31e498);
+  set_game_connection(0);
+  main_menu_switch_to_single_player();
+  player_ui_remember_player1_profile(false);
+  return 1;
+}
+
+/* 0xe9c60 */
+char pause_game_restart_at_checkpoint(void)
+{
+  main_revert_map();
+  return 1;
+}
+
+/* 0xe9c70 */
+char pause_game_restart_level(void)
+{
+  main_reset_map();
+  return 1;
+}
+
+/* 0xe9c80 */
+char pause_game_quit_to_main_menu(void)
+{
+  game_state_save_to_persistent_storage();
+  main_goto_main_menu();
+  return 1;
+}
+
+/* 0xe9c90 */
+char clear_multiplayer_player_joins(void)
+{
+  dispose_global_network_game_client();
+  dispose_global_network_game_server();
+  player_ui_clear_multiplayer_joins();
+  player_ui_clear_multiplayer_variant();
+  return 1;
+}
+
+/* 0xe9d00 */
+char network_game_server_list_initialize(void)
+{
+  dispose_global_network_game_client();
+  dispose_global_network_game_server();
+  player_ui_clear_multiplayer_variant();
+  if (create_global_network_game_client()) {
+    set_game_connection(1);
+    return 1;
+  }
+  error(2, (const char *)0x285b54);
+  return 0;
+}
+
+/* 0xe9ff0 */
+char network_game_cancel(void)
+{
+  dispose_global_network_game_server();
+  dispose_global_network_game_client();
+  player_ui_clear_multiplayer_variant();
+  return 1;
+}
+
+/* 0xea080 */
+char coop_game_initialize(void)
+{
+  *(int *)0x31fa94 = 2;
+  return 1;
+}
+
+/* 0xea090 */
+char main_menu_initialize(void)
+{
+  player_ui_clear_multiplayer_joins();
+  player_ui_clear_multiplayer_variant();
+  dispose_global_network_game_client();
+  dispose_global_network_game_server();
+  network_game_set_accept_remote_connections(0);
+  *(int *)0x31fa94 = 1;
+  player_ui_end_editing_profile();
+  if (!ui_main_menu_music_active()) {
+    ui_start_main_menu_music();
+  }
+  return 1;
+}
+
+/* 0xea0d0 */
+void multiplayer_type_menu_initialize(void)
+{
+  *(int *)0x31fa94 = 1;
+}
+
+/* 0xea0e0 */
+char multiplayer_pick_quick_start_play_stage(void)
+{
+  game_engine_playlist_initialize();
+  game_engine_playlist_next(0, 0, 4);
+  network_game_set_quickstart_local();
+  return 1;
+}
+
+/* 0xeb000 */
+char playlist_profile_end_editing(void)
+{
+  *(int *)0x31e494 = -1;
+  player_ui_end_editing_profile();
+  return 1;
+}
+
+/* 0xeb100 */
+uint32_t playlist_profile_change_name(void)
+{
+  void *profile;
+
+  profile = player_ui_get_edit_playlist_profile();
+  if (profile != NULL) {
+    if (!virtual_keyboard_launch((wchar_t *)profile, 0x18, 9)) {
+      error(2, (const char *)0x2865d0);
+    }
+    return 1;
+  }
+  error(2, (const char *)0x286550);
+  return 0;
+}
+

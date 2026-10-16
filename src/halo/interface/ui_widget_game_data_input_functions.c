@@ -6961,3 +6961,184 @@ void player_profile_1wide_list_update(int *widget)
     }
   }
 }
+
+/* =========================================================================
+ * Campaign 5.1 lifts: remaining functions in ui_widget_game_data_input_functions.obj
+ * ========================================================================= */
+
+void FUN_001c0d70(int param_1);
+void FUN_001c1f70(int param_1);
+void FUN_000e0570(void);
+void *global_network_game_server_get(void);
+void network_game_server_open_game(void *server);
+void network_game_server_pause_countdown(void *server, char flag);
+void main_run_demos(void);
+void player_ui_reset_single_player_local_player_controllers(void);
+bool ui_main_menu_music_active(void);
+void ui_stop_main_menu_music(void);
+bool transport_network_available(void);
+int network_game_is_splitscreen_local(void);
+void display_error_when_main_menu_loaded(int16_t);
+void main_goto_main_menu(void);
+void set_game_connection(short param);
+void main_menu_switch_to_single_player(void);
+void player_ui_remember_player1_profile(bool);
+void player_ui_end_editing_profile(void);
+void *player_ui_get_edit_player_profile(void);
+bool virtual_keyboard_launch(wchar_t *text_buffer, unsigned short buffer_size, short caption_index);
+
+/* 0xeee40 */
+char player_profile_end_editing(void)
+{
+  *(int *)0x31e494 = -1;
+  player_ui_end_editing_profile();
+  return 1;
+}
+
+/* 0xeee60 */
+uint32_t player_profile_change_name(void)
+{
+  void *profile;
+
+  profile = player_ui_get_edit_player_profile();
+  if (profile == NULL) {
+    error(2, (const char *)0x287e54);
+    return 0;
+  }
+  if (!virtual_keyboard_launch((wchar_t *)profile, 0x18, 8)) {
+    error(2, (const char *)0x287e80);
+    return 0;
+  }
+  return 1;
+}
+
+/* 0xef950 */
+char switch_from_main_menu_to_single_player(void)
+{
+  set_game_connection(0);
+  main_menu_switch_to_single_player();
+  player_ui_remember_player1_profile(false);
+  return 1;
+}
+
+/* 0xefbc0 */
+uint32_t delete_player_profile_final(void)
+{
+  if (*(uint32_t *)0x31e494 & 0x40000000) {
+    error(2, (const char *)0x288480);
+    return 0;
+  }
+  if ((*(uint32_t *)0x31e494 & 0xf) == 0) {
+    FUN_001c0d70(*(int *)0x31e494);
+    return 1;
+  }
+  error(2, (const char *)0x2884c0, *(int *)0x31e494);
+  return 0;
+}
+
+/* 0xefc10 */
+uint32_t delete_playlist_profile_final(void)
+{
+  if ((*(uint32_t *)0x31e494 & 0xf) == 1) {
+    FUN_001c1f70(*(int *)0x31e494);
+    return 1;
+  }
+  error(2, (const char *)0x2884e8, *(int *)0x31e494);
+  return 0;
+}
+
+/* 0xefc50 */
+char cancel_profile_delete(void)
+{
+  *(int *)0x31e494 = -1;
+  return 1;
+}
+
+/* 0xf0010 */
+uint32_t network_game_server_accept_connections(void)
+{
+  void *server;
+
+  server = global_network_game_server_get();
+  if (server != NULL) {
+    network_game_server_open_game(server);
+  }
+  return 1;
+}
+
+/* 0xf0030 */
+uint32_t network_game_server_defer_game_start(void)
+{
+  void *server;
+
+  server = global_network_game_server_get();
+  if (server != NULL) {
+    network_game_server_pause_countdown(server, 1);
+  }
+  return 1;
+}
+
+/* 0xf0050 */
+uint32_t network_game_server_allow_game_start(void)
+{
+  void *server;
+
+  server = global_network_game_server_get();
+  if (server != NULL) {
+    network_game_server_pause_countdown(server, 0);
+  }
+  return 1;
+}
+
+/* 0xf0090 */
+char run_xdemos(void)
+{
+  main_run_demos();
+  return 1;
+}
+
+/* 0xf00a0 */
+char single_player_reset_controller_choices(void)
+{
+  player_ui_reset_single_player_local_player_controllers();
+  return 1;
+}
+
+/* 0xf0420 */
+char exit_to_xbox_dashboard(void)
+{
+  FUN_000e0570();
+  return 0;
+}
+
+/* 0xf0720 */
+char begin_music_fade_out(void)
+{
+  if (ui_main_menu_music_active()) {
+    ui_stop_main_menu_music();
+  }
+  return 1;
+}
+
+/* 0xf0a90 */
+void widget_function_null(void)
+{
+  return;
+}
+
+/* 0xf33d0 */
+void system_link_status_check(void)
+{
+  if (!transport_network_available() && !network_game_is_splitscreen_local()) {
+    display_error_when_main_menu_loaded(6);
+    main_goto_main_menu();
+    error(2, (const char *)0x2893dc);
+  }
+}
+
+/* 0xf3990 */
+void filter_invalid_list_indices(void)
+{
+  return;
+}
+
