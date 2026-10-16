@@ -1,0 +1,5 @@
+{
+  "summary":  "Comprehensive reverse engineering report for unlabeled function sub_3FB00 (0x3fb00) in cachebeta.elf using extract_fn.py, Kuna, and REA. Covers decompilation, x86 disassembly, xref analysis, evidence-backed name resolution to compare_potentially_releasable_entities, struct definitions, and behavioral documentation.",
+  "updatedAt":  "2026-10-10T01:47:09.236724620Z",
+  "userFacing":  true
+}
