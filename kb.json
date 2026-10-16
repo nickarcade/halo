@@ -36124,11 +36124,13 @@
         {
           "addr": "0x1bef80",
           "decl": "void render_inverse_transform_screen_point(void);",
-          "comment": "[NAME: render_inverse_transform_screen_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: render_inverse_transform_screen_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x1bf080",
-          "decl": "void texture_cache_new(void);"
+          "decl": "void texture_cache_new(void);",
+          "ported": true
         },
         {
           "addr": "0x1bf130",
@@ -36137,30 +36139,31 @@
         },
         {
           "addr": "0x1bf260",
-          "decl": "void texture_cache_debug_render(void);"
+          "decl": "void texture_cache_debug_render(void);",
+          "ported": true
         },
         {
           "addr": "0x1becf0",
           "decl": "void __stdcall IDirect3DDevice8_IsBusy(int param_1);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DDevice8_IsBusy"
         },
         {
           "addr": "0x1bed00",
           "decl": "void __stdcall IDirect3DDevice8_KickPushBuffer(int param_1);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DDevice8_KickPushBuffer"
         },
         {
           "addr": "0x1bed10",
           "decl": "void IDirect3DBaseTexture8_IsBusy(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DBaseTexture8_IsBusy"
         },
         {
           "addr": "0x1bed20",
           "decl": "void IDirect3DBaseTexture8_Register_0(uint32_t a0, uint32_t a1, uint32_t a2);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DBaseTexture8_Register_0"
         }
       ],
