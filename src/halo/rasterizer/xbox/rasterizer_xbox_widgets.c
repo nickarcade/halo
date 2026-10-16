@@ -36,6 +36,18 @@
  *   - The assert tail at 0x17ae56 is system_exit(-1), not
  *     halt_and_catch_fire.
  */
+/* 0x17adb0 — IDirect3DDevice8_End
+ *
+ * D3D8 COM-wrapper for D3DDevice_End. Takes device pointer (ignored),
+ * calls D3DDevice_End(), returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DDevice8_End(int param_1)
+{
+  (void)param_1;
+  D3DDevice_End();
+  return 0;
+}
+
 unsigned int __rasterizer_widget_get_occlusion_test_result(unsigned int index)
 {
   unsigned int occlusion_test_result; /* [EBP-0x4] — also the return value */
@@ -741,5 +753,106 @@ void __rasterizer_widget_draw_sprite2d(float *point, float radius, float *scale,
                               y_scale * cos_minus_sin + point[1]);
 
     D3DDevice_End();
+  }
+}
+
+/* 0x17b7d0 — __rasterizer_widget_draw_sprite3d
+ *
+ * Emits one billboard quad in 3D (D3DPT_QUADLIST) around a world-space point,
+ * projected via rasterizer_widget_project_billboard. Supports scaling,
+ * rotation (theta converted to radians via 0x253d4c = pi/180), and vertex color.
+ */
+void __rasterizer_widget_draw_sprite3d(float *point, float radius, float *scale,
+                                       float theta, unsigned int color)
+{
+  float screen[3];
+  float extent[2];
+  float u_x;
+  float u_y;
+  float scale_x;
+  float scale_y;
+  float temp_x;
+  float temp_y;
+  float scale_y_u_x;
+  float scale_x_u_y;
+  float cos_theta;
+  float sin_theta;
+  float rad;
+
+  if (point == (float *)0) {
+    display_assert("point",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                   "widgets.c",
+                   0x1a9, 1);
+    system_exit(-1);
+  }
+
+  if (*(void **)0x476ab0 == (void *)0) {
+    display_assert("global_d3d_device",
+                   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                   "widgets.c",
+                   0x1aa, 1);
+    system_exit(-1);
+  }
+
+  if (radius > 0.0f) {
+    if (rasterizer_widget_project_billboard(point, radius, extent, screen)) {
+      if (theta != 0.0f) {
+        rad = theta * *(const float *)0x253d4c;
+        cos_theta = x87_fcos(rad);
+        sin_theta = x87_fsin(rad);
+
+        if (!(fabs((double)(cos_theta * cos_theta + sin_theta * sin_theta -
+                            1.0f)) < 0.0001f)) {
+          display_assert("fabs(cos_theta*cos_theta + sin_theta*sin_theta - "
+                         "1.0f)<_real_epsilon",
+                         "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_"
+                         "widgets.c",
+                         0x1b5, 1);
+          system_exit(-1);
+        }
+
+        u_x = extent[0] * cos_theta - extent[1] * sin_theta;
+        u_y = extent[0] * sin_theta + extent[1] * cos_theta;
+      } else {
+        u_x = extent[0];
+        u_y = extent[1];
+      }
+
+      if (scale != (float *)0) {
+        scale_x = scale[0];
+        scale_y = scale[1];
+      } else {
+        scale_x = 1.0f;
+        scale_y = 1.0f;
+      }
+
+      D3DDevice_Begin(7);
+      D3DDevice_SetVertexDataColor(9, color);
+
+      temp_y = scale_y * u_y;
+      temp_x = scale_x * u_x;
+
+      D3DDevice_SetVertexData2s(4, 0, 0);
+      D3DDevice_SetVertexData4f(0, screen[0] - temp_x, screen[1] - temp_y,
+                                screen[2], 1.0f);
+
+      scale_y_u_x = scale_y * u_x;
+      scale_x_u_y = scale_x * u_y;
+
+      D3DDevice_SetVertexData2s(4, 1, 0);
+      D3DDevice_SetVertexData4f(0, scale_x_u_y + screen[0],
+                                screen[1] - scale_y_u_x, screen[2], 1.0f);
+
+      D3DDevice_SetVertexData2s(4, 1, 1);
+      D3DDevice_SetVertexData4f(0, temp_x + screen[0], temp_y + screen[1],
+                                screen[2], 1.0f);
+
+      D3DDevice_SetVertexData2s(4, 0, 1);
+      D3DDevice_SetVertexData4f(0, screen[0] - scale_x_u_y,
+                                scale_y_u_x + screen[1], screen[2], 1.0f);
+
+      D3DDevice_End();
+    }
   }
 }

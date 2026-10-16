@@ -53691,13 +53691,17 @@
         },
         {
           "addr": "0x17b7d0",
-          "decl": "void __rasterizer_widget_draw_sprite3d(float *point, float radius, float *scale, float theta, unsigned int color);"
+          "decl": "void __rasterizer_widget_draw_sprite3d(float *point, float radius, float *scale, float theta, unsigned int color);",
+          "ported": true,
+          "name": "__rasterizer_widget_draw_sprite3d",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_widgets.c"
         },
         {
           "addr": "0x17adb0",
           "decl": "uint32_t __stdcall IDirect3DDevice8_End(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_End"
+          "ported": true,
+          "name": "IDirect3DDevice8_End",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_widgets.c"
         }
       ],
       "name": "rasterizer_xbox_widgets.obj",
