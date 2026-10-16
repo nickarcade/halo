@@ -832,3 +832,379 @@ bool collision_features_test_los(void *features, void *los_data, void *out_hit)
 
   return 1;
 }
+
+extern void point_from_line3d(const float *a0, const float *a1, float a2, float *a3);
+extern float dot_product3d(const float *a0, const float *a1);
+
+/* 0x14bdb0 — Ray-sphere intersection test against collision sphere feature.
+ * Tests ray (origin, vector) against sphere at feature + 0x0c, radius at feature + 0x18.
+ * Returns 1 if hit within t in [0, 1], writes out_t and out_plane (normal + d). */
+char collision_sphere_test_vector(void *feature, float *origin, float *vector, float *out_t, float *out_plane)
+{
+  char *sphere = (char *)feature;
+  float *center = (float *)(sphere + 0x0c);
+  float radius = *(float *)(sphere + 0x18);
+  float cx, cy, cz;
+  float dist_sq_minus_r2;
+  float proj;
+  float v_len_sq;
+  float disc;
+  float sqrt_disc;
+  float num;
+  float t;
+  float mag;
+
+  cx = center[0] - origin[0];
+  cy = center[1] - origin[1];
+  cz = center[2] - origin[2];
+
+  dist_sq_minus_r2 = (cz * cz + cx * cx + cy * cy) - radius * radius;
+
+  if (dist_sq_minus_r2 <= 0.0f) {
+    *out_t = 0.0f;
+  } else {
+    proj = cx * vector[0] + cz * vector[2] + cy * vector[1];
+    if (proj <= 0.0f) {
+      return 0;
+    }
+
+    v_len_sq = vector[2] * vector[2] + (vector[1] * vector[1] + vector[0] * vector[0]);
+    disc = proj * proj - v_len_sq * dist_sq_minus_r2;
+    if (disc < 0.0f) {
+      return 0;
+    }
+
+    sqrt_disc = sqrtf(disc);
+    num = proj - sqrt_disc;
+    if (num > v_len_sq) {
+      return 0;
+    }
+
+    *out_t = num / v_len_sq;
+  }
+
+  t = *out_t;
+  out_plane[0] = t * vector[0] - cx;
+  out_plane[1] = t * vector[1] - cy;
+  out_plane[2] = t * vector[2] - cz;
+
+  mag = normalize3d(out_plane);
+  if (mag == 0.0f) {
+    out_plane[0] = 0.0f;
+    out_plane[1] = 0.0f;
+    out_plane[2] = 1.0f;
+  }
+
+  out_plane[3] = center[2] * out_plane[2] + center[1] * out_plane[1] + center[0] * out_plane[0] + radius;
+  return 1;
+}
+
+/* 0x14bf30 — Ray-cylinder intersection test against cylinder collision feature.
+ * Tests ray (origin, vector) against cylinder with base at feature + 0x0c,
+ * axis at feature + 0x18, and radius at feature + 0x24.
+ * Returns 1 if hit within t in [0, 1], writes out_t and out_plane (normal + d). */
+char collision_cylinder_test_vector(void *feature, float *origin, float *vector, float *out_t, float *out_plane)
+{
+  char *cyl = (char *)feature;
+  float *axis = (float *)(cyl + 0x18);
+  float *cyl_origin = (float *)(cyl + 0x0c);
+  float radius = *(float *)(cyl + 0x24);
+  float axis_len_sq;
+  float axis_dot_v;
+  float v_len_sq;
+  float a;
+  float dx, dy, dz;
+  float axis_dot_d;
+  float d_dot_v;
+  float b;
+  float d_len_sq;
+  float c;
+  float disc;
+  float sqrt_disc;
+  float inv_a;
+  float t0, t1;
+  float inv_axis_dot_v;
+  float cap0, cap1;
+  float hit_rel[3];
+  float proj;
+  float mag;
+
+  axis_len_sq = axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2];
+  axis_dot_v = axis[2] * vector[2] + axis[1] * vector[1] + axis[0] * vector[0];
+  v_len_sq = vector[2] * vector[2] + vector[1] * vector[1] + vector[0] * vector[0];
+
+  a = v_len_sq * axis_len_sq - axis_dot_v * axis_dot_v;
+  if (a == 0.0f)
+    return 0;
+
+  dx = origin[0] - cyl_origin[0];
+  dy = origin[1] - cyl_origin[1];
+  dz = origin[2] - cyl_origin[2];
+
+  axis_dot_d = dy * axis[1] + dz * axis[2] + dx * axis[0];
+  d_dot_v = dy * vector[1] + dz * vector[2] + dx * vector[0];
+  b = axis_dot_d * axis_dot_v - d_dot_v * axis_len_sq;
+
+  d_len_sq = dy * dy + dz * dz + dx * dx;
+  c = (d_len_sq - radius * radius) * axis_len_sq - axis_dot_d * axis_dot_d;
+
+  disc = b * b - c * a;
+  if (disc < 0.0f)
+    return 0;
+
+  sqrt_disc = sqrtf(disc);
+  inv_a = 1.0f / a;
+  t0 = (b - sqrt_disc) * inv_a;
+  t1 = (b + sqrt_disc) * inv_a;
+
+  if (t0 >= 1.0f || t1 < 0.0f)
+    return 0;
+
+  if (t0 < 0.0f)
+    t0 = 0.0f;
+  if (t1 > 1.0f)
+    t1 = 1.0f;
+
+  if (axis_dot_v != 0.0f) {
+    inv_axis_dot_v = 1.0f / axis_dot_v;
+    cap0 = -axis_dot_d * inv_axis_dot_v;
+    cap1 = (axis_len_sq - axis_dot_d) * inv_axis_dot_v;
+    if (axis_dot_v < 0.0f) {
+      if (t0 < cap1)
+        t0 = cap1;
+      if (t1 > cap0)
+        t1 = cap0;
+    } else {
+      if (t0 < cap0)
+        t0 = cap0;
+      if (t1 > cap1)
+        t1 = cap1;
+    }
+    if (t0 >= t1)
+      return 0;
+  } else {
+    if (axis_dot_d < 0.0f || axis_dot_d >= axis_len_sq)
+      return 0;
+  }
+
+  *out_t = t0;
+
+  point_from_line3d(&dx, vector, t0, hit_rel);
+  proj = (hit_rel[1] * axis[1] + hit_rel[2] * axis[2] + hit_rel[0] * axis[0]) / axis_len_sq;
+  point_from_line3d(hit_rel, axis, -proj, out_plane);
+
+  mag = normalize3d(out_plane);
+  if (mag == 0.0f) {
+    out_plane[0] = 1.0f;
+    out_plane[1] = 0.0f;
+    out_plane[2] = 0.0f;
+  }
+
+  out_plane[3] = dot_product3d(cyl_origin, out_plane) + radius;
+  return 1;
+}
+
+/* 0x14c220 — Ray-prism intersection test against prism collision feature.
+ * Tests ray (origin, vector) against prism base plane and top plane,
+ * then clips the ray segment against the 2D polygon prism faces.
+ * Returns 1 if hit within t in [0, 1], writes out_t and out_plane (normal + d). */
+char collision_prism_test_vector(void *feature, float *origin, float *vector, float *out_t, float *out_plane)
+{
+  char *prism = (char *)feature;
+  float *normal = (float *)(prism + 0x0c);
+  float plane_dist = *(float *)(prism + 0x18);
+  float height = *(float *)(prism + 0x1c);
+  uint16_t proj_axis = *(uint16_t *)(prism + 0x20);
+  uint8_t proj_sign = *(uint8_t *)(prism + 0x22);
+  int edge_count = *(int *)(prism + 0x24);
+  float *vertices = (float *)(prism + 0x28);
+  float t_min;
+  float t_max;
+  float d0;
+  float dv;
+  float inv_dv;
+  float t_base;
+  float t_top;
+  float p0_proj[3];
+  float v_proj[3];
+  float p0_2d[2];
+  float v_2d[2];
+  int i;
+  int j;
+  float edge_dx, edge_dy;
+  float p_dx, p_dy;
+  float denom, num;
+  float t_edge;
+
+  t_min = 0.0f;
+  t_max = 1.0f;
+
+  d0 = normal[1] * origin[1] + normal[2] * origin[2] + normal[0] * origin[0] - plane_dist;
+  dv = normal[2] * vector[2] + normal[1] * vector[1] + normal[0] * vector[0];
+
+  if (dv != 0.0f) {
+    inv_dv = 1.0f / dv;
+    t_base = -d0 * inv_dv;
+    t_top = -(d0 - height) * inv_dv;
+
+    if (dv >= 0.0f) {
+      if (t_base > t_min)
+        t_min = t_base;
+      if (t_top < t_max)
+        t_max = t_top;
+    } else {
+      if (t_top > t_min)
+        t_min = t_top;
+      if (t_base < t_max)
+        t_max = t_base;
+    }
+
+    if (t_min >= t_max)
+      return 0;
+  } else {
+    if (d0 < 0.0f || d0 >= height)
+      return 0;
+  }
+
+  p0_proj[0] = -d0 * normal[0] + origin[0];
+  p0_proj[1] = -d0 * normal[1] + origin[1];
+  p0_proj[2] = -d0 * normal[2] + origin[2];
+
+  v_proj[0] = -dv * normal[0] + vector[0];
+  v_proj[1] = -dv * normal[1] + vector[1];
+  v_proj[2] = -dv * normal[2] + vector[2];
+
+  project_point3d(p0_proj, proj_axis, proj_sign, p0_2d);
+  project_point3d(v_proj, proj_axis, proj_sign, v_2d);
+
+  if (edge_count > 0) {
+    for (i = 0; i < edge_count; i++) {
+      j = (i + 1 >= edge_count) ? 0 : (i + 1);
+
+      edge_dx = vertices[j * 2 + 0] - vertices[i * 2 + 0];
+      edge_dy = vertices[j * 2 + 1] - vertices[i * 2 + 1];
+
+      p_dx = p0_2d[0] - vertices[i * 2 + 0];
+      p_dy = p0_2d[1] - vertices[i * 2 + 1];
+
+      denom = edge_dy * v_2d[0] - v_2d[1] * edge_dx;
+      num = p_dy * edge_dx - p_dx * edge_dy;
+
+      if (denom != 0.0f) {
+        t_edge = num / denom;
+        if (denom < 0.0f) {
+          if (t_edge > t_min)
+            t_min = t_edge;
+        } else {
+          if (t_edge < t_max)
+            t_max = t_edge;
+        }
+        if (t_min >= t_max)
+          return 0;
+      } else {
+        if (num < 0.0f)
+          return 0;
+      }
+    }
+  }
+
+  *out_t = t_min;
+  out_plane[0] = normal[0];
+  out_plane[1] = normal[1];
+  out_plane[2] = normal[2];
+  out_plane[3] = plane_dist + height;
+  return 1;
+}
+
+/* 0x14c4b0 — Test a vector/ray against all collision features in the buffer.
+ * Iterates spheres, cylinders, and prisms finding the closest intersection.
+ * Checks dot(normal, vector) < -0.0001f (0x26a810) to reject glancing/backface hits.
+ * Returns 1 if hit found, writing out_result. Returns 0 if no hit. */
+char collision_features_test_vector(void *features, float *origin, float *vector, void *out_result)
+{
+  char *base = (char *)features;
+  short best_type = -1;
+  short best_index = -1;
+  float best_t = 3.4028235e+38f;
+  float best_plane[4];
+  short type;
+  float *result_f = (float *)out_result;
+
+  for (type = 0; type < 3; type++) {
+    short count = *(short *)(base + type * 2);
+    short i;
+
+    for (i = 0; i < count; i++) {
+      float current_t;
+      float current_plane[4];
+      char hit = 0;
+
+      if (type == 0)
+        hit = collision_sphere_test_vector(base + 8 + i * 0x1c, origin, vector,
+                                           &current_t, current_plane);
+      else if (type == 1)
+        hit = collision_cylinder_test_vector(base + 0x1c08 + i * 0x28, origin, vector,
+                                             &current_t, current_plane);
+      else if (type == 2)
+        hit = collision_prism_test_vector(base + 0x4408 + i * 0x68, origin, vector,
+                                          &current_t, current_plane);
+
+      if (hit && current_t < best_t) {
+        float dot = current_plane[1] * vector[1] +
+                    current_plane[2] * vector[2] +
+                    current_plane[0] * vector[0];
+        if (dot < *(float *)0x26a810) {
+          best_t = current_t;
+          best_type = type;
+          best_index = i;
+          best_plane[0] = current_plane[0];
+          best_plane[1] = current_plane[1];
+          best_plane[2] = current_plane[2];
+          best_plane[3] = current_plane[3];
+        }
+      }
+    }
+  }
+
+  if (best_type == -1) {
+    result_f[0] = 1.0f;
+    result_f[1] = origin[0] + vector[0];
+    result_f[2] = origin[1] + vector[1];
+    result_f[3] = origin[2] + vector[2];
+    return 0;
+  }
+
+  result_f[0] = best_t;
+  result_f[1] = best_t * vector[0] + origin[0];
+  result_f[2] = best_t * vector[1] + origin[1];
+  result_f[3] = best_t * vector[2] + origin[2];
+  result_f[4] = best_plane[0];
+  result_f[5] = best_plane[1];
+  result_f[6] = best_plane[2];
+  result_f[7] = best_plane[3];
+
+  {
+    char *feature_data;
+    if (best_type == 0)
+      feature_data = base + 8 + best_index * 0x1c;
+    else if (best_type == 1)
+      feature_data = base + 0x1c08 + best_index * 0x28;
+    else if (best_type == 2)
+      feature_data = base + 0x4408 + best_index * 0x68;
+    else
+      return 1;
+
+    *(int *)((char *)out_result + 0x20) = *(int *)feature_data;
+    *(int *)((char *)out_result + 0x24) = *(int *)(feature_data + 4);
+    *((char *)out_result + 0x28) = *(feature_data + 8);
+    *((char *)out_result + 0x29) = *(feature_data + 9);
+    *(short *)((char *)out_result + 0x2a) = *(short *)(feature_data + 0xa);
+  }
+
+  return 1;
+}
+
+char FUN_0014c4b0(int arg1, float *arg2, float *arg3, void *out_result)
+{
+  return collision_features_test_vector((void *)arg1, arg2, arg3, out_result);
+}

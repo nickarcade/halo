@@ -44743,19 +44743,23 @@
         },
         {
           "addr": "0x14bdb0",
-          "decl": "void collision_sphere_test_vector(void);"
+          "decl": "void collision_sphere_test_vector(void);",
+          "ported": true
         },
         {
           "addr": "0x14bf30",
-          "decl": "void collision_cylinder_test_vector(void);"
+          "decl": "void collision_cylinder_test_vector(void);",
+          "ported": true
         },
         {
           "addr": "0x14c220",
-          "decl": "void collision_prism_test_vector(void);"
+          "decl": "void collision_prism_test_vector(void);",
+          "ported": true
         },
         {
           "addr": "0x14c4b0",
-          "decl": "char FUN_0014c4b0(int arg1, float *arg2, float *arg3, void *out_result);"
+          "decl": "char FUN_0014c4b0(int arg1, float *arg2, float *arg3, void *out_result);",
+          "ported": true
         }
       ],
       "name": "collision_features.obj",
