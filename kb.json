@@ -24956,26 +24956,30 @@
         {
           "addr": "0x178b00",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShader(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetVertexShader"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetVertexShader",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_vertex_shaders_runtime.c"
         },
         {
           "addr": "0x178b10",
           "decl": "uint32_t __stdcall IDirect3DDevice8_LoadVertexShader(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_LoadVertexShader"
+          "ported": true,
+          "name": "IDirect3DDevice8_LoadVertexShader",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_vertex_shaders_runtime.c"
         },
         {
           "addr": "0x178b20",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SelectVertexShader(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SelectVertexShader"
+          "ported": true,
+          "name": "IDirect3DDevice8_SelectVertexShader",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_vertex_shaders_runtime.c"
         },
         {
           "addr": "0x178b30",
           "decl": "uint32_t __stdcall IDirect3DDevice8_GetVertexShaderSize(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_GetVertexShaderSize"
+          "ported": true,
+          "name": "IDirect3DDevice8_GetVertexShaderSize",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_vertex_shaders_runtime.c"
         }
       ],
       "name": "rasterizer_xbox_vertex_shaders_runtime.obj",

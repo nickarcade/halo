@@ -111,6 +111,50 @@ typedef struct packed_vertex_shader {
   "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_vertex_shaders_" \
   "runtime.c"
 
+/* 0x178b00 — IDirect3DDevice8_SetVertexShader
+ *
+ * Dead D3D8 COM wrapper for D3DDevice_SetVertexShader. Takes device (param_1, ignored),
+ * returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DDevice8_SetVertexShader(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x178b10 — IDirect3DDevice8_LoadVertexShader
+ *
+ * Dead D3D8 COM wrapper for D3DDevice_LoadVertexShader. Takes device (param_1, ignored),
+ * returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DDevice8_LoadVertexShader(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x178b20 — IDirect3DDevice8_SelectVertexShader
+ *
+ * Dead D3D8 COM wrapper for D3DDevice_SelectVertexShader. Takes device (param_1, ignored),
+ * returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DDevice8_SelectVertexShader(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x178b30 — IDirect3DDevice8_GetVertexShaderSize
+ *
+ * Dead D3D8 COM wrapper for D3DDevice_GetVertexShaderSize. Takes device (param_1, ignored),
+ * returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DDevice8_GetVertexShaderSize(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
 /*
  * Selects the vertex shader for (vertex_shader_index, vertex_type,
  * permutation_index).  The three shaders in packed_shaders[] live in a single
