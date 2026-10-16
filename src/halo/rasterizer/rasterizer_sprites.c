@@ -80,6 +80,12 @@ void rasterizer_environment_specular_lightmap_draw(int arg1, int arg2, int arg3,
   __rasterizer_environment_specular_lightmap_draw((void *)arg1, arg2, arg3, arg4, arg5, (void *)arg6);
 }
 
+/* 0x17cdd0: bare JMP 0x160990. */
+void rasterizer_environment_specular_lightmap_end(void)
+{
+  __rasterizer_environment_specular_lightmap_end();
+}
+
 /* 0x17cde0: bare JMP 0x1609a0.  Reached by a single CALL at 0x195ca1. */
 void rasterizer_environment_specular_lightmaps_end(void)
 {
@@ -114,6 +120,12 @@ void rasterizer_environment_reflection_lightmap_mask_begin(int arg1)
 void rasterizer_environment_reflection_lightmap_mask_draw(int arg1, int arg2, int arg3, int arg4, int arg5, int arg6)
 {
   __rasterizer_environment_reflection_lightmap_mask_draw((void *)arg1, arg2, arg3, arg4, arg5, (void *)arg6);
+}
+
+/* 0x17ce20: bare JMP 0x160bb0. */
+void rasterizer_environment_reflection_lightmap_mask_end(void)
+{
+  __rasterizer_environment_reflection_lightmap_mask_end();
 }
 
 /* 0x17ce30: bare JMP 0x160bc0.  Reached by a single tail JMP at 0x195cec. */
@@ -2176,6 +2188,11 @@ void rasterizer_debug_dispose(void)
                "c:\\halo\\SOURCE\\rasterizer\\rasterizer_debug.c", 0x8f);
     *(char *)0x47e4d8 = 0;
   }
+}
+
+/* rasterizer_debug_test: debug test stub (0x17e120) */
+void rasterizer_debug_test(void)
+{
 }
 
 /* Record comparator (0x17e130), cdecl with two record pointers on the stack

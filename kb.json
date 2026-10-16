@@ -37242,20 +37242,23 @@
         {
           "addr": "0x17cdd0",
           "decl": "void rasterizer_environment_specular_lightmap_end(void);",
-          "ported": false,
-          "name": "rasterizer_environment_specular_lightmap_end"
+          "ported": true,
+          "name": "rasterizer_environment_specular_lightmap_end",
+          "src": "src/halo/rasterizer/rasterizer_sprites.c"
         },
         {
           "addr": "0x17ce20",
           "decl": "void rasterizer_environment_reflection_lightmap_mask_end(void);",
-          "ported": false,
-          "name": "rasterizer_environment_reflection_lightmap_mask_end"
+          "ported": true,
+          "name": "rasterizer_environment_reflection_lightmap_mask_end",
+          "src": "src/halo/rasterizer/rasterizer_sprites.c"
         },
         {
           "addr": "0x17e120",
           "decl": "void rasterizer_debug_test(void);",
-          "ported": false,
-          "name": "rasterizer_debug_test"
+          "ported": true,
+          "name": "rasterizer_debug_test",
+          "src": "src/halo/rasterizer/rasterizer_sprites.c"
         }
       ],
       "name": "rasterizer_sprites.obj",
