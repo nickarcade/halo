@@ -9592,3 +9592,818 @@ char race_engine_display_score(int player_index, int event_type,
   }
   return result;
 }
+
+/* =========================================================================
+ * Campaign 5.2 lifts: remaining 99 functions in game_engine.obj
+ * ========================================================================= */
+
+void delete_all_vehicles(void);
+void create_race_vehicles(void);
+bool race_team_can_win_game(void);
+void game_engine_end_game(void);
+void build_player_speeds(void);
+void oddball_add_score(void);
+void create_the_ball(void);
+void game_engine_state_message(void);
+void game_engine_set_goal_position(int a0, void *a1, int a2, const char *a3, int a4, int a5, int a6);
+void game_engine_clear_goal_position(int a0);
+int create_the_flag_at_position(void);
+int object_try_and_get_and_verify_type(void);
+int weapon_is_flag(void);
+void multiplayer_message(void);
+
+/* 0xa81e0 */
+void initialize_player_multiplayer_data(uint32_t a0)
+{
+  char *player;
+
+  player = (char *)datum_get(*(void **)0x5aa6d4, a0);
+  *(uint32_t *)(player + 0x74) = 0xffffffff;
+  *(uint32_t *)(player + 0x78) = 0xffffffff;
+  *(float *)(player + 0x6c) = 1.0f;
+  *(uint32_t *)(player + 0x70) = 0xffffffff;
+  *(uint32_t *)(player + 0x7c) = 0xffffffff;
+  csmemset(player + 0xc0, 0, 4);
+}
+
+/* 0xa8360 */
+void game_engine_game_ending(void)
+{
+  int engine;
+
+  engine = *(int *)0x456b60;
+  if (engine != 0 && *(void (**)(void))(engine + 0x18) != NULL) {
+    (*(void (**)(void))(engine + 0x18))();
+  }
+}
+
+/* 0xa84c0 */
+uint32_t is_place_tied(int32_t a0)
+{
+  return (*(uint32_t *)(a0 + 0x18) & 0x80000000) != 0;
+}
+
+/* 0xa84d0 */
+uint32_t place_get_position(int32_t a0)
+{
+  return *(uint32_t *)(a0 + 0x18) & 0x7fffffff;
+}
+
+/* 0xa84e0 */
+uint32_t get_place_string(int32_t a0)
+{
+  return *(uint32_t *)(0x2efe28 + (*(uint32_t *)(a0 + 0x18) & 0x7f) * 4);
+}
+
+/* 0xa8560 */
+void get_selected_color(uint32_t *a0)
+{
+  a0[0] = 0x3f800000;
+  a0[1] = 0x3f7ae148;
+  a0[2] = 0x3f75c28f;
+  a0[3] = 0x3f75c28f;
+}
+
+/* 0xa8650 */
+uint32_t can_delete_item(void)
+{
+  if (object_try_and_get_and_verify_type()) {
+    if (weapon_is_flag()) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+/* 0xa8eb0 */
+void game_engine_press_start_to_begin(void)
+{
+  return;
+}
+
+/* 0xacaf0 */
+uint32_t game_engine_get_type(void)
+{
+  int engine;
+
+  engine = *(int *)0x456b60;
+  if (engine == 0) {
+    return 0xffffffff;
+  }
+  return *(uint32_t *)(engine + 4);
+}
+
+/* 0xacf80 */
+void game_show_score_one_player(uint32_t a0, int32_t a1)
+{
+  if (a1 != -1) {
+    multiplayer_message();
+  }
+}
+
+/* 0xafeb0 */
+void ctf_engine_dispose(void)
+{
+  return;
+}
+
+/* 0xafec0 */
+void create_the_flag(void)
+{
+  int flag;
+
+  if (*(int *)(0x456b74) == 0) {
+    return;
+  }
+  flag = create_the_flag_at_position();
+  if (flag != -1) {
+    *(int16_t *)((char *)object_get_and_verify_type(flag, 4) + 0x68) = 0;
+    *(int *)0x456b7c = flag;
+  }
+}
+
+/* 0xaff60 */
+void ctf_engine_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0xaff90 */
+void ctf_engine_game_ending(void)
+{
+  return;
+}
+
+/* 0xaffa0 */
+void ctf_engine_game_starting(void)
+{
+  game_engine_play_multiplayer_sound(0x16);
+}
+
+/* 0xaffb0 */
+void ctf_engine_statistics_append(void)
+{
+  return;
+}
+
+/* 0xaffc0 */
+void ctf_engine_handle_client_message(void)
+{
+  return;
+}
+
+/* 0xaffd0 */
+void ctf_engine_handle_server_message(void)
+{
+  return;
+}
+
+/* 0xaffe0 */
+void ctf_engine_pregame_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xafff0 */
+void ctf_engine_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb01f0 */
+void ctf_engine_player_damaged_player(void)
+{
+  return;
+}
+
+/* 0xb0200 */
+void ctf_engine_player_killed_player(void)
+{
+  return;
+}
+
+/* 0xb0420 */
+void ctf_engine_prespawn_player_update(void)
+{
+  return;
+}
+
+/* 0xb0430 */
+void ctf_state_message_update_warning(void)
+{
+  return;
+}
+
+/* 0xb0440 */
+void ctf_sound_update_warning(void)
+{
+  if (*(char *)0x456b90 != 0) {
+    if (*(int *)0x456b94 >= 0x259) {
+      game_engine_play_multiplayer_sound(8);
+      *(int *)0x456b94 = 0;
+    }
+    *(int *)0x456b94 += 1;
+  }
+}
+
+/* 0xb0480 */
+void ctf_set_flag_warning(int32_t a0, uint32_t a1, char a2)
+{
+  *(char *)(0x456b90 + a0) = a2;
+  *(uint32_t *)(0x456b94 + a0 * 4) = 0;
+}
+
+/* 0xb0e50 */
+void ctf_engine_update(void)
+{
+  if (*(int *)0x456b8c <= *(int *)0x456b88 || *(int *)0x456b8c <= *(int *)0x456b84) {
+    game_engine_end_game();
+  }
+  if (*(char *)0x456b90 != 0) {
+    if (*(int *)0x456b94 >= 0x259) {
+      game_engine_play_multiplayer_sound(8);
+      *(int *)0x456b94 = 0;
+    }
+    *(int *)0x456b94 += 1;
+  }
+  if (*(char *)0x456b91 != 0) {
+    if (*(int *)0x456b98 >= 0x259) {
+      game_engine_play_multiplayer_sound(0xb);
+      *(int *)0x456b98 = 0;
+    }
+    *(int *)0x456b98 += 1;
+  }
+}
+
+/* 0xb1150 */
+void king_engine_dispose(void)
+{
+  return;
+}
+
+/* 0xb14d0 */
+void king_engine_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0xb1500 */
+void king_engine_game_ending(void)
+{
+  return;
+}
+
+/* 0xb1510 */
+void king_engine_game_starting(void)
+{
+  game_engine_play_multiplayer_sound(game_engine_has_teams() ? 0x20 : 0x24);
+}
+
+/* 0xb1530 */
+void king_engine_statistics_append(void)
+{
+  return;
+}
+
+/* 0xb1540 */
+void king_engine_handle_client_message(void)
+{
+  return;
+}
+
+/* 0xb1550 */
+void king_engine_handle_server_message(void)
+{
+  return;
+}
+
+/* 0xb1560 */
+void king_engine_pregame_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb1920 */
+void king_engine_player_damaged_player(void)
+{
+  return;
+}
+
+/* 0xb1930 */
+void king_engine_player_killed_player(void)
+{
+  return;
+}
+
+/* 0xb1a50 */
+void king_engine_prespawn_player_update(void)
+{
+  return;
+}
+
+/* 0xb2520 */
+void push_queued_sound(uint32_t a0, uint32_t a1, uint32_t a2)
+{
+  int count;
+
+  count = *(int *)0x456dd8;
+  if (count < 5) {
+    *(uint32_t *)(0x456ddc + count * 8) = a2;
+    *(uint32_t *)(0x456de0 + count * 8) = a1;
+    *(int *)0x456dd8 = count + 1;
+  }
+}
+
+/* 0xb2690 */
+void oddball_engine_dispose(void)
+{
+  return;
+}
+
+/* 0xb26a0 */
+void oddball_engine_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0xb26d0 */
+void oddball_engine_game_ending(void)
+{
+  return;
+}
+
+/* 0xb26e0 */
+void oddball_engine_game_starting(void)
+{
+  return;
+}
+
+/* 0xb26f0 */
+void oddball_engine_statistics_append(void)
+{
+  return;
+}
+
+/* 0xb2700 */
+void oddball_engine_handle_client_message(void)
+{
+  return;
+}
+
+/* 0xb2710 */
+void oddball_engine_handle_server_message(void)
+{
+  return;
+}
+
+/* 0xb2720 */
+void oddball_engine_pregame_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb2730 */
+void oddball_engine_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb2810 */
+void oddball_add_time_with_ball(void)
+{
+  char *player;
+
+  player = (char *)datum_get(*(void **)0x5aa6d4, *(int *)0x456ecc);
+  if (*(int *)((char *)game_engine_get_variant() + 0x5c) == 0) {
+    game_engine_state_message();
+  }
+  *(int16_t *)(player + 0xc0) += 1;
+  oddball_add_score();
+}
+
+/* 0xb2850 */
+int32_t player_ball_count(void)
+{
+  int32_t count;
+  int32_t max_balls;
+  int32_t i;
+
+  count = 0;
+  max_balls = *(int32_t *)((char *)game_engine_get_variant() + 0x60);
+  for (i = 0; i < max_balls; i++) {
+    if (*(int32_t *)(0x456ecc + i * 4) != -1) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/* 0xb2880 */
+void oddball_engine_player_damaged_player(void)
+{
+  return;
+}
+
+/* 0xb2af0 */
+void oddball_engine_prespawn_player_update(void)
+{
+  return;
+}
+
+/* 0xb2b80 */
+int32_t oddball_ball_transfer_by_killing(void)
+{
+  int32_t v;
+
+  v = *(int32_t *)((char *)game_engine_get_variant() + 0x5c);
+  if (v >= 1 && v <= 2) {
+    return 1;
+  }
+  return 0;
+}
+
+/* 0xb2ba0 */
+uint32_t accumulate_score_by_time(void)
+{
+  if (*(int32_t *)((char *)game_engine_get_variant() + 0x5c) != 2) {
+    return 1;
+  }
+  return 0;
+}
+
+/* 0xb2f00 */
+bool oddball_engine_initialize_for_new_map(void)
+{
+  int i;
+  int max_balls;
+  void *variant;
+
+  csmemset((void *)0x456e08, 0, 0x104);
+  variant = game_engine_get_variant();
+  *(int *)0x456e08 = *(int *)((char *)variant + 0x40);
+  if (*(int *)((char *)variant + 0x5c) != 2) {
+    *(int *)0x456e08 *= 0x708;
+  }
+
+  for (i = 0; i < 16; i++) {
+    *(int *)(0x456ecc + i * 4) = -1;
+  }
+
+  max_balls = *(int *)((char *)variant + 0x60);
+  if (*(int *)((char *)variant + 0x5c) >= 1 && *(int *)((char *)variant + 0x5c) <= 2) {
+    for (i = 0; i < max_balls; i++) {
+      *(int *)(0x456e8c + i * 4) = 0;
+      create_the_ball();
+    }
+  } else {
+    int timer;
+    timer = 0;
+    for (i = 0; i < max_balls; i++) {
+      timer += 0x1c2;
+      *(int *)(0x456e8c + i * 4) = timer;
+    }
+  }
+  return true;
+}
+
+/* 0xb33a0 */
+void oddball_engine_update(void)
+{
+  int i;
+  int max_balls;
+  void *variant;
+
+  if (game_time_get() == 0x3c) {
+    game_engine_play_multiplayer_sound(game_engine_has_teams() ? 0x21 : 0x13);
+  }
+
+  variant = game_engine_get_variant();
+  max_balls = *(int *)((char *)variant + 0x60);
+
+  for (i = 0; i < max_balls; i++) {
+    int timer;
+    timer = *(int *)(0x456e8c + i * 4);
+    if (timer >= 1) {
+      timer--;
+      *(int *)(0x456e8c + i * 4) = timer;
+      if (timer == 0) {
+        game_engine_play_multiplayer_sound(0);
+        create_the_ball();
+      }
+    }
+  }
+
+  if (*(int *)((char *)variant + 0x5c) >= 1 && *(int *)((char *)variant + 0x5c) <= 2) {
+    for (i = 0; i < max_balls; i++) {
+      int ball_player;
+      ball_player = *(int *)(0x456ecc + i * 4);
+      if (ball_player != -1) {
+        char *pl;
+        int obj_idx;
+
+        pl = (char *)datum_get(*(void **)0x5aa6d4, ball_player);
+        obj_idx = *(int *)(pl + 0x34);
+        if (obj_idx != -1) {
+          game_engine_set_goal_position(i, (char *)object_get_and_verify_type(obj_idx, 3) + 0x50, 0, (const char *)0x26d8b8, -1, -1, ball_player);
+        }
+      } else {
+        game_engine_clear_goal_position(i);
+      }
+    }
+  }
+}
+
+/* 0xb36e0 */
+void race_engine_dispose(void)
+{
+  return;
+}
+
+/* 0xb38f0 */
+void race_engine_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0xb3930 */
+void race_engine_game_ending(void)
+{
+  return;
+}
+
+/* 0xb3940 */
+void race_engine_game_starting(void)
+{
+  return;
+}
+
+/* 0xb3950 */
+void race_engine_statistics_append(void)
+{
+  return;
+}
+
+/* 0xb3960 */
+void race_engine_handle_client_message(void)
+{
+  return;
+}
+
+/* 0xb3970 */
+void race_engine_handle_server_message(void)
+{
+  return;
+}
+
+/* 0xb3980 */
+void race_engine_pregame_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb3990 */
+void race_engine_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb3c50 */
+void race_engine_weapon_update(void)
+{
+  return;
+}
+
+/* 0xb3dd0 */
+void race_engine_player_damaged_player(void)
+{
+  return;
+}
+
+/* 0xb3de0 */
+void race_engine_player_killed_player(void)
+{
+  return;
+}
+
+/* 0xb40e0 */
+void race_engine_prespawn_player_update(void)
+{
+  return;
+}
+
+/* 0xb48a0 */
+void race_engine_update(void)
+{
+  if (game_time_get() == 2) {
+    delete_all_vehicles();
+    create_race_vehicles();
+    game_engine_play_multiplayer_sound(game_engine_has_teams() ? 0x22 : 0x14);
+    if (*(int *)0x456fdc != 0) {
+      switch (*(uint32_t *)((char *)game_engine_get_variant() + 0x48)) {
+      case 0:
+        game_engine_play_multiplayer_sound(0x17);
+        game_engine_play_multiplayer_sound(0x18);
+        game_engine_play_multiplayer_sound(0x19);
+        break;
+      case 2:
+        game_engine_play_multiplayer_sound(0x17);
+        break;
+      case 3:
+        game_engine_play_multiplayer_sound(0x18);
+        break;
+      case 4:
+        game_engine_play_multiplayer_sound(0x19);
+        break;
+      default:
+        break;
+      }
+    }
+  }
+
+  if (game_engine_has_teams()) {
+    if (!race_team_can_win_game()) {
+      game_engine_end_game();
+    }
+    if (!race_team_can_win_game()) {
+      game_engine_end_game();
+    }
+  }
+  build_player_speeds();
+}
+
+/* 0xb4ac0 */
+void slayer_engine_dispose(void)
+{
+  return;
+}
+
+/* 0xb4ad0 */
+bool slayer_engine_initialize_for_new_map(void)
+{
+  csmemset((void *)0x456fe0, 0, 0x40);
+  csmemset((void *)0x457020, 0, 0x40);
+  return true;
+}
+
+/* 0xb4b00 */
+void slayer_engine_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0xb4b40 */
+void slayer_engine_game_ending(void)
+{
+  return;
+}
+
+/* 0xb4b50 */
+void slayer_engine_game_starting(void)
+{
+  game_engine_play_multiplayer_sound(game_engine_has_teams() ? 0x23 : 0x15);
+}
+
+/* 0xb4b70 */
+void slayer_engine_statistics_append(void)
+{
+  return;
+}
+
+/* 0xb4b80 */
+void slayer_engine_handle_client_message(void)
+{
+  return;
+}
+
+/* 0xb4b90 */
+void slayer_engine_handle_server_message(void)
+{
+  return;
+}
+
+/* 0xb4ba0 */
+void slayer_engine_pregame_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb4bb0 */
+void slayer_engine_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb4bc0 */
+void slayer_engine_update(void)
+{
+  return;
+}
+
+/* 0xb4bd0 */
+bool slayer_engine_allow_pick_up(void)
+{
+  return true;
+}
+
+/* 0xb4be0 */
+void slayer_engine_player_damaged_player(void)
+{
+  return;
+}
+
+/* 0xb4d40 */
+void slayer_engine_prespawn_player_update(void)
+{
+  return;
+}
+
+/* 0xb53a0 */
+void stub_engine_dispose(void)
+{
+  return;
+}
+
+/* 0xb53b0 */
+bool stub_engine_initialize_for_new_map(void)
+{
+  return true;
+}
+
+/* 0xb53c0 */
+void stub_engine_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0xb53d0 */
+void stub_engine_player_added(void)
+{
+  return;
+}
+
+/* 0xb53e0 */
+void stub_engine_game_ending(void)
+{
+  return;
+}
+
+/* 0xb53f0 */
+void stub_engine_game_starting(void)
+{
+  return;
+}
+
+/* 0xb5400 */
+void stub_engine_statistics_append(void)
+{
+  return;
+}
+
+/* 0xb5410 */
+void stub_engine_handle_client_message(void)
+{
+  return;
+}
+
+/* 0xb5420 */
+void stub_engine_handle_server_message(void)
+{
+  return;
+}
+
+/* 0xb5430 */
+void stub_engine_pregame_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb5440 */
+void stub_engine_post_rasterize(void)
+{
+  return;
+}
+
+/* 0xb5450 */
+void stub_engine_update(void)
+{
+  return;
+}
+
+/* 0xb5460 */
+bool stub_engine_allow_pick_up(void)
+{
+  return true;
+}
+
+/* 0xb5470 */
+void stub_engine_player_damaged_player(void)
+{
+  return;
+}
+
+/* 0xb5480 */
+void stub_engine_player_killed_player(void)
+{
+  return;
+}
+

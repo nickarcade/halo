@@ -10616,169 +10616,169 @@
         {
           "addr": "0xa81e0",
           "decl": "void initialize_player_multiplayer_data(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "initialize_player_multiplayer_data"
         },
         {
           "addr": "0xa8360",
           "decl": "void game_engine_game_ending(void);",
-          "ported": false,
+          "ported": true,
           "name": "game_engine_game_ending"
         },
         {
           "addr": "0xa84c0",
           "decl": "uint32_t is_place_tied(int32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "is_place_tied"
         },
         {
           "addr": "0xa84d0",
           "decl": "uint32_t place_get_position(int32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "place_get_position"
         },
         {
           "addr": "0xa84e0",
           "decl": "uint32_t get_place_string(int32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "get_place_string"
         },
         {
           "addr": "0xa8560",
           "decl": "void get_selected_color(uint32_t *a0);",
-          "ported": false,
+          "ported": true,
           "name": "get_selected_color"
         },
         {
           "addr": "0xa8650",
           "decl": "uint32_t can_delete_item(void);",
-          "ported": false,
+          "ported": true,
           "name": "can_delete_item"
         },
         {
           "addr": "0xa8eb0",
           "decl": "void game_engine_press_start_to_begin(void);",
-          "ported": false,
+          "ported": true,
           "name": "game_engine_press_start_to_begin"
         },
         {
           "addr": "0xacaf0",
           "decl": "uint32_t game_engine_get_type(void);",
-          "ported": false,
+          "ported": true,
           "name": "game_engine_get_type"
         },
         {
           "addr": "0xacf80",
           "decl": "void game_show_score_one_player(uint32_t a0, int32_t a1);",
-          "ported": false,
+          "ported": true,
           "name": "game_show_score_one_player"
         },
         {
           "addr": "0xafeb0",
           "decl": "void ctf_engine_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_dispose"
         },
         {
           "addr": "0xafec0",
           "decl": "void create_the_flag(void);",
-          "ported": false,
+          "ported": true,
           "name": "create_the_flag"
         },
         {
           "addr": "0xaff60",
           "decl": "void ctf_engine_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_dispose_from_old_map"
         },
         {
           "addr": "0xaff90",
           "decl": "void ctf_engine_game_ending(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_game_ending"
         },
         {
           "addr": "0xaffa0",
           "decl": "void ctf_engine_game_starting(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_game_starting"
         },
         {
           "addr": "0xaffb0",
           "decl": "void ctf_engine_statistics_append(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_statistics_append"
         },
         {
           "addr": "0xaffc0",
           "decl": "void ctf_engine_handle_client_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_handle_client_message"
         },
         {
           "addr": "0xaffd0",
           "decl": "void ctf_engine_handle_server_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_handle_server_message"
         },
         {
           "addr": "0xaffe0",
           "decl": "void ctf_engine_pregame_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_pregame_post_rasterize"
         },
         {
           "addr": "0xafff0",
           "decl": "void ctf_engine_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_post_rasterize"
         },
         {
           "addr": "0xb01f0",
           "decl": "void ctf_engine_player_damaged_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_player_damaged_player"
         },
         {
           "addr": "0xb0200",
           "decl": "void ctf_engine_player_killed_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_player_killed_player"
         },
         {
           "addr": "0xb0420",
           "decl": "void ctf_engine_prespawn_player_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_prespawn_player_update"
         },
         {
           "addr": "0xb0430",
           "decl": "void ctf_state_message_update_warning(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_state_message_update_warning"
         },
         {
           "addr": "0xb0440",
           "decl": "void ctf_sound_update_warning(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_sound_update_warning"
         },
         {
           "addr": "0xb0480",
           "decl": "void ctf_set_flag_warning(int32_t a0, uint32_t a1, char a2);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_set_flag_warning"
         },
         {
           "addr": "0xb0e50",
           "decl": "void ctf_engine_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "ctf_engine_update"
         },
         {
           "addr": "0xb1150",
           "decl": "void king_engine_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_dispose"
         },
         {
@@ -10790,427 +10790,427 @@
         {
           "addr": "0xb14d0",
           "decl": "void king_engine_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_dispose_from_old_map"
         },
         {
           "addr": "0xb1500",
           "decl": "void king_engine_game_ending(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_game_ending"
         },
         {
           "addr": "0xb1510",
           "decl": "void king_engine_game_starting(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_game_starting"
         },
         {
           "addr": "0xb1530",
           "decl": "void king_engine_statistics_append(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_statistics_append"
         },
         {
           "addr": "0xb1540",
           "decl": "void king_engine_handle_client_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_handle_client_message"
         },
         {
           "addr": "0xb1550",
           "decl": "void king_engine_handle_server_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_handle_server_message"
         },
         {
           "addr": "0xb1560",
           "decl": "void king_engine_pregame_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_pregame_post_rasterize"
         },
         {
           "addr": "0xb1920",
           "decl": "void king_engine_player_damaged_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_player_damaged_player"
         },
         {
           "addr": "0xb1930",
           "decl": "void king_engine_player_killed_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_player_killed_player"
         },
         {
           "addr": "0xb1a50",
           "decl": "void king_engine_prespawn_player_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "king_engine_prespawn_player_update"
         },
         {
           "addr": "0xb2520",
           "decl": "void push_queued_sound(uint32_t a0, uint32_t a1, uint32_t a2);",
-          "ported": false,
+          "ported": true,
           "name": "push_queued_sound"
         },
         {
           "addr": "0xb2690",
           "decl": "void oddball_engine_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_dispose"
         },
         {
           "addr": "0xb26a0",
           "decl": "void oddball_engine_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_dispose_from_old_map"
         },
         {
           "addr": "0xb26d0",
           "decl": "void oddball_engine_game_ending(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_game_ending"
         },
         {
           "addr": "0xb26e0",
           "decl": "void oddball_engine_game_starting(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_game_starting"
         },
         {
           "addr": "0xb26f0",
           "decl": "void oddball_engine_statistics_append(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_statistics_append"
         },
         {
           "addr": "0xb2700",
           "decl": "void oddball_engine_handle_client_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_handle_client_message"
         },
         {
           "addr": "0xb2710",
           "decl": "void oddball_engine_handle_server_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_handle_server_message"
         },
         {
           "addr": "0xb2720",
           "decl": "void oddball_engine_pregame_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_pregame_post_rasterize"
         },
         {
           "addr": "0xb2730",
           "decl": "void oddball_engine_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_post_rasterize"
         },
         {
           "addr": "0xb2810",
           "decl": "void oddball_add_time_with_ball(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_add_time_with_ball"
         },
         {
           "addr": "0xb2850",
           "decl": "int32_t player_ball_count(void);",
-          "ported": false,
+          "ported": true,
           "name": "player_ball_count"
         },
         {
           "addr": "0xb2880",
           "decl": "void oddball_engine_player_damaged_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_player_damaged_player"
         },
         {
           "addr": "0xb2af0",
           "decl": "void oddball_engine_prespawn_player_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_prespawn_player_update"
         },
         {
           "addr": "0xb2b80",
           "decl": "int32_t oddball_ball_transfer_by_killing(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_ball_transfer_by_killing"
         },
         {
           "addr": "0xb2ba0",
           "decl": "uint32_t accumulate_score_by_time(void);",
-          "ported": false,
+          "ported": true,
           "name": "accumulate_score_by_time"
         },
         {
           "addr": "0xb2f00",
           "decl": "bool oddball_engine_initialize_for_new_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_initialize_for_new_map"
         },
         {
           "addr": "0xb33a0",
           "decl": "void oddball_engine_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "oddball_engine_update"
         },
         {
           "addr": "0xb36e0",
           "decl": "void race_engine_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_dispose"
         },
         {
           "addr": "0xb38f0",
           "decl": "void race_engine_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_dispose_from_old_map"
         },
         {
           "addr": "0xb3930",
           "decl": "void race_engine_game_ending(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_game_ending"
         },
         {
           "addr": "0xb3940",
           "decl": "void race_engine_game_starting(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_game_starting"
         },
         {
           "addr": "0xb3950",
           "decl": "void race_engine_statistics_append(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_statistics_append"
         },
         {
           "addr": "0xb3960",
           "decl": "void race_engine_handle_client_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_handle_client_message"
         },
         {
           "addr": "0xb3970",
           "decl": "void race_engine_handle_server_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_handle_server_message"
         },
         {
           "addr": "0xb3980",
           "decl": "void race_engine_pregame_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_pregame_post_rasterize"
         },
         {
           "addr": "0xb3990",
           "decl": "void race_engine_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_post_rasterize"
         },
         {
           "addr": "0xb3c50",
           "decl": "void race_engine_weapon_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_weapon_update"
         },
         {
           "addr": "0xb3dd0",
           "decl": "void race_engine_player_damaged_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_player_damaged_player"
         },
         {
           "addr": "0xb3de0",
           "decl": "void race_engine_player_killed_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_player_killed_player"
         },
         {
           "addr": "0xb40e0",
           "decl": "void race_engine_prespawn_player_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_prespawn_player_update"
         },
         {
           "addr": "0xb48a0",
           "decl": "void race_engine_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "race_engine_update"
         },
         {
           "addr": "0xb4ac0",
           "decl": "void slayer_engine_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_dispose"
         },
         {
           "addr": "0xb4ad0",
           "decl": "bool slayer_engine_initialize_for_new_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_initialize_for_new_map"
         },
         {
           "addr": "0xb4b00",
           "decl": "void slayer_engine_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_dispose_from_old_map"
         },
         {
           "addr": "0xb4b40",
           "decl": "void slayer_engine_game_ending(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_game_ending"
         },
         {
           "addr": "0xb4b50",
           "decl": "void slayer_engine_game_starting(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_game_starting"
         },
         {
           "addr": "0xb4b70",
           "decl": "void slayer_engine_statistics_append(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_statistics_append"
         },
         {
           "addr": "0xb4b80",
           "decl": "void slayer_engine_handle_client_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_handle_client_message"
         },
         {
           "addr": "0xb4b90",
           "decl": "void slayer_engine_handle_server_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_handle_server_message"
         },
         {
           "addr": "0xb4ba0",
           "decl": "void slayer_engine_pregame_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_pregame_post_rasterize"
         },
         {
           "addr": "0xb4bb0",
           "decl": "void slayer_engine_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_post_rasterize"
         },
         {
           "addr": "0xb4bc0",
           "decl": "void slayer_engine_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_update"
         },
         {
           "addr": "0xb4bd0",
           "decl": "bool slayer_engine_allow_pick_up(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_allow_pick_up"
         },
         {
           "addr": "0xb4be0",
           "decl": "void slayer_engine_player_damaged_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_player_damaged_player"
         },
         {
           "addr": "0xb4d40",
           "decl": "void slayer_engine_prespawn_player_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "slayer_engine_prespawn_player_update"
         },
         {
           "addr": "0xb53a0",
           "decl": "void stub_engine_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_dispose"
         },
         {
           "addr": "0xb53b0",
           "decl": "bool stub_engine_initialize_for_new_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_initialize_for_new_map"
         },
         {
           "addr": "0xb53c0",
           "decl": "void stub_engine_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_dispose_from_old_map"
         },
         {
           "addr": "0xb53d0",
           "decl": "void stub_engine_player_added(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_player_added"
         },
         {
           "addr": "0xb53e0",
           "decl": "void stub_engine_game_ending(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_game_ending"
         },
         {
           "addr": "0xb53f0",
           "decl": "void stub_engine_game_starting(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_game_starting"
         },
         {
           "addr": "0xb5400",
           "decl": "void stub_engine_statistics_append(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_statistics_append"
         },
         {
           "addr": "0xb5410",
           "decl": "void stub_engine_handle_client_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_handle_client_message"
         },
         {
           "addr": "0xb5420",
           "decl": "void stub_engine_handle_server_message(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_handle_server_message"
         },
         {
           "addr": "0xb5430",
           "decl": "void stub_engine_pregame_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_pregame_post_rasterize"
         },
         {
           "addr": "0xb5440",
           "decl": "void stub_engine_post_rasterize(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_post_rasterize"
         },
         {
           "addr": "0xb5450",
           "decl": "void stub_engine_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_update"
         },
         {
           "addr": "0xb5460",
           "decl": "bool stub_engine_allow_pick_up(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_allow_pick_up"
         },
         {
           "addr": "0xb5470",
           "decl": "void stub_engine_player_damaged_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_player_damaged_player"
         },
         {
           "addr": "0xb5480",
           "decl": "void stub_engine_player_killed_player(void);",
-          "ported": false,
+          "ported": true,
           "name": "stub_engine_player_killed_player"
         }
       ],
