@@ -120,6 +120,15 @@ short collision_surface_polygon(int bsp, int surface_index, void *out_points)
   return point_count;
 }
 
+/* 0x1474f0 - add_feature
+ *
+ * Appends a unique feature index to an array (capacity 256).
+ * Unreferenced static helper in Xbox debug 2276 (0 binary call sites).
+ */
+void add_feature(void)
+{
+}
+
 /* render_debug.c -- debug primitive rendering
  * (c:\halo\SOURCE\render\render_debug.c)
  *
@@ -594,6 +603,105 @@ char collision_surface_test_point2d(int bsp, int surface_index, int param3,
     }
     edge_index = edge[2 + side];
   } while (edge_index != first_edge);
+  return 1;
+}
+
+/* 0x147ae0 - collision_surface_find_closest_point2d
+ *
+ * Finds the closest point on a collision surface polygon to a 2D query point.
+ * If the point is inside the polygon, returns 1 with out_point = point.
+ * Otherwise returns 0 with out_point set to the closest boundary point (on an
+ * edge or vertex).
+ */
+int collision_surface_find_closest_point2d(int bsp, int surface_index, int param3,
+                                          int param4, float *point, float *out_point)
+{
+  int first_edge;
+  int edge_index;
+  int *edge;
+  int side;
+  void *va;
+  void *vb;
+  float a2d[2];
+  float b2d[2];
+  float dx;
+  float dy;
+  float cross;
+  float dot;
+  float len_sq;
+  float t;
+  char after_end;
+  char before_start;
+  char prev_after_end;
+  char first_after_end;
+  char first_before_start;
+
+  first_edge = *(int *)((char *)tag_block_get_element((void *)(bsp + 0x3c),
+                                                      surface_index, 0xc) + 4);
+  edge_index = first_edge;
+  prev_after_end = 0;
+  first_after_end = 0;
+  first_before_start = 0;
+
+  do {
+    edge = (int *)tag_block_get_element((void *)(bsp + 0x48), edge_index, 0x18);
+    side = (edge[5] == surface_index);
+    va = tag_block_get_element((void *)(bsp + 0x54), edge[side], 0x10);
+    vb = tag_block_get_element((void *)(bsp + 0x54), edge[!side], 0x10);
+    project_point3d(va, (short)param3, (unsigned char)param4, a2d);
+    project_point3d(vb, (short)param3, (unsigned char)param4, b2d);
+
+    dx = b2d[0] - a2d[0];
+    dy = b2d[1] - a2d[1];
+    cross = dy * (point[0] - a2d[0]) - dx * (point[1] - a2d[1]);
+
+    before_start = 0;
+    if (cross <= 0.0f) {
+      after_end = 0;
+    } else {
+      dot = dy * (point[1] - a2d[1]) + dx * (point[0] - a2d[0]);
+      if (dot < 0.0f) {
+        before_start = 1;
+        after_end = 0;
+      } else {
+        len_sq = dx * dx + dy * dy;
+        if (dot <= len_sq) {
+          t = dot / len_sq;
+          out_point[0] = dx * t + a2d[0];
+          out_point[1] = dy * t + a2d[1];
+          return 0;
+        }
+        after_end = 1;
+      }
+    }
+
+    if (edge_index != first_edge) {
+      if (prev_after_end) {
+        if (before_start) {
+          out_point[0] = a2d[0];
+          out_point[1] = a2d[1];
+          return 0;
+        }
+      }
+    } else {
+      first_after_end = after_end;
+      first_before_start = before_start;
+    }
+
+    edge_index = edge[2 + side];
+    prev_after_end = after_end;
+  } while (edge_index != first_edge);
+
+  if (after_end && first_before_start) {
+    edge = (int *)tag_block_get_element((void *)(bsp + 0x48), first_edge, 0x18);
+    side = (edge[5] == surface_index);
+    va = tag_block_get_element((void *)(bsp + 0x54), edge[side], 0x10);
+    project_point3d(va, (short)param3, (unsigned char)param4, out_point);
+    return 0;
+  }
+
+  out_point[0] = point[0];
+  out_point[1] = point[1];
   return 1;
 }
 
@@ -1300,6 +1408,101 @@ typedef struct {
   int field_28; /* 0x28 */
 } bsp3d_pill_test_data;
 
+/* 0x148440 - collision_bsp_test_pill_new_recursive
+ *
+ * Recursive bsp3d node walker for pill test against BSP geometry.
+ */
+bool FUN_00148440(void *data_ptr, unsigned int node_index, float t_min, float t_max)
+{
+  bsp3d_pill_test_data *data;
+  int *node;
+  float *plane;
+  float d0;
+  float d1;
+  float dist_min;
+  float dist_max;
+  bool within_front;
+  bool within_back;
+  float t0;
+  float t1;
+  int first_child;
+  int second_child;
+  bool hit;
+
+  data = (bsp3d_pill_test_data *)data_ptr;
+
+  while ((int)node_index >= 0) {
+    node = (int *)tag_block_get_element((void *)data->bsp3d, node_index, 0xc);
+    plane = (float *)tag_block_get_element((void *)(data->bsp3d + 0xc), node[0], 0x10);
+
+    d0 = (data->origin[2] * plane[2] + data->origin[1] * plane[1] + data->origin[0] * plane[0]) - plane[3];
+    d1 = data->direction[2] * plane[2] + data->direction[1] * plane[1] + data->direction[0] * plane[0];
+
+    dist_min = d1 * t_min + d0;
+    dist_max = d1 * t_max + d0;
+
+    within_front = (dist_min < data->radius) || (dist_max < data->radius);
+    within_back = (dist_min > -data->radius) || (dist_max > -data->radius);
+
+    if (within_front && within_back) {
+      if (d1 != 0.0f) {
+        t0 = -((d0 + data->radius) / d1);
+        t1 = -((d0 - data->radius) / d1);
+        if (t0 > t1) {
+          float tmp = t0;
+          t0 = t1;
+          t1 = tmp;
+        }
+        if (t1 < t_min) t1 = t_min;
+        if (t1 > t_max) t1 = t_max;
+        if (t0 < t_min) t0 = t_min;
+        if (t0 > t_max) t0 = t_max;
+      } else {
+        t1 = t_max;
+        t0 = t_min;
+      }
+
+      first_child = (d1 <= 0.0f) ? node[1] : node[2];
+      second_child = (d1 <= 0.0f) ? node[2] : node[1];
+
+      hit = FUN_00148440(data, first_child, t_min, t1);
+      if (hit) {
+        if (t0 >= *data->out_distance) {
+          return 1;
+        }
+        t_max = *data->out_distance;
+      }
+
+      if (d1 <= 0.0f) {
+        data->field_28 = node[0] & 0x7fffffff;
+      } else {
+        data->field_28 = node[0] | 0x80000000;
+      }
+
+      return hit | FUN_00148440(data, second_child, t0, t_max);
+    }
+
+    node_index = node[within_back + 1];
+  }
+
+  if ((int)node_index == -1 || data->field_28 == -1) {
+    return 0;
+  }
+
+  plane = (float *)tag_block_get_element((void *)(data->bsp3d + 0xc), data->field_28 & 0x7fffffff, 0x10);
+  *data->out_distance = t_min;
+  if (data->field_28 < 0) {
+    data->out_normal[0] = -plane[0];
+    data->out_normal[1] = -plane[1];
+    data->out_normal[2] = -plane[2];
+  } else {
+    data->out_normal[0] = plane[0];
+    data->out_normal[1] = plane[1];
+    data->out_normal[2] = plane[2];
+  }
+  return 1;
+}
+
 /* noinline: the sole caller FUN_0014e940 (0x14e940) reaches this through a real
  * CALL at 0x14e989, so the original build did NOT inline it. Left to its own
  * devices the compiler folds this body into that caller and hoists the 0x2c
@@ -1609,6 +1812,160 @@ typedef struct {
   int32_t field_24; /* 0x24 - seeded to -1 */
 } bsp3d_vector_test_data;
 
+/* 0x148eb0 - collision_bsp_test_vector_recursive
+ *
+ * Recursive bsp3d node walker for vector / ray test against BSP geometry.
+ */
+char FUN_00148eb0(void *data_ptr, int node_index, int param_3, float max_t)
+{
+  bsp3d_vector_test_data *data;
+  int *node;
+  float *plane;
+  float d0;
+  float d1;
+  float dist_min;
+  float dist_max;
+  bool within_front;
+  bool within_back;
+  float t_split;
+  int first_child;
+  int second_child;
+  float t_min;
+  int leaf_index;
+  unsigned char *leaf;
+  unsigned char leaf_type;
+  int surface_index;
+  unsigned int *surface;
+  unsigned char surface_flags;
+  float *ray_origin;
+  float *ray_dir;
+  int *leaf_hit_count;
+  int test_leaf;
+
+  data = (bsp3d_vector_test_data *)data_ptr;
+  t_min = *(float *)&param_3;
+
+  if (node_index >= 0) {
+    node = (int *)tag_block_get_element((void *)data->bsp, node_index, 0xc);
+    plane = (float *)tag_block_get_element((void *)(data->bsp + 0xc), node[0], 0x10);
+    ray_origin = (float *)data->field_0c;
+    ray_dir = (float *)data->field_10;
+
+    d0 = (plane[0] * ray_origin[0] + plane[1] * ray_origin[1] + plane[2] * ray_origin[2]) - plane[3];
+    d1 = plane[0] * ray_dir[0] + plane[1] * ray_dir[1] + plane[2] * ray_dir[2];
+
+    dist_min = d1 * t_min + d0;
+    dist_max = d1 * max_t + d0;
+
+    within_front = (dist_min < 0.0f) || (dist_max < 0.0f);
+    within_back = (dist_min >= 0.0f) || (dist_max >= 0.0f);
+
+    if (within_front && within_back) {
+      first_child = (d1 <= 0.0f) ? node[1] : node[2];
+      second_child = (d1 <= 0.0f) ? node[2] : node[1];
+
+      t_split = -(d0 / d1);
+      if (FUN_00148eb0(data, first_child, *(int *)&t_min, t_split)) {
+        return 1;
+      }
+      if (*data->result < t_split) {
+        return 0;
+      }
+      data->field_24 = node[0];
+      return FUN_00148eb0(data, second_child, *(int *)&t_split, max_t);
+    }
+
+    return FUN_00148eb0(data, node[within_back + 1], *(int *)&t_min, max_t);
+  }
+
+  leaf_index = 0xffffffff;
+  leaf_type = 3;
+
+  if (node_index != -1) {
+    leaf_index = node_index & 0x7fffffff;
+    leaf = (unsigned char *)tag_block_get_element((void *)(data->bsp + 0x18), leaf_index, 8);
+    leaf_type = (unsigned char)(((*leaf & 1) != 0) + 1);
+  }
+
+  if (data->field_00 & 1) {
+    if ((data->field_20 == 1 || data->field_20 == 2) && leaf_type == 3) {
+      if (data->field_1c != -1) {
+        surface_index = FUN_00148780((void *)data->bsp, (short)data->flags, (unsigned int *)data->field_0c, (float *)data->field_10, (float *)data->field_14, data->field_24, t_min, 0, data->field_1c);
+        if (surface_index != -1) {
+          surface = (unsigned int *)tag_block_get_element((void *)(data->bsp + 0x3c), surface_index, 0xc);
+          surface_flags = *(unsigned char *)&surface[2];
+          if ((!(surface_flags & 2) || !(data->field_00 & 8)) &&
+              (!(surface_flags & 8) || !(data->field_00 & 0x10))) {
+            *data->result = t_min;
+            data->result[1] = *(float *)tag_block_get_element((void *)(data->bsp + 0xc), data->field_24, 0x10);
+            *(int *)(data->result + 2) = surface_index;
+            *(int *)(data->result + 3) = surface[0];
+            *(char *)((char *)data->result + 0x10) = *(char *)&surface[2];
+            *(char *)((char *)data->result + 0x11) = *((char *)surface + 9);
+            *(short *)((char *)data->result + 0x12) = *(short *)((char *)surface + 10);
+            return 1;
+          }
+        }
+      }
+    }
+  } else {
+    if ((data->field_00 & 2) && data->field_20 == 3 && (leaf_type == 1 || leaf_type == 2)) {
+      if (leaf_index != -1) {
+        surface_index = FUN_00148780((void *)data->bsp, (short)data->flags, (unsigned int *)data->field_0c, (float *)data->field_10, (float *)data->field_14, data->field_24, t_min, 0, leaf_index);
+        if (surface_index != -1) {
+          surface = (unsigned int *)tag_block_get_element((void *)(data->bsp + 0x3c), surface_index, 0xc);
+          surface_flags = *(unsigned char *)&surface[2];
+          if ((!(surface_flags & 2) || !(data->field_00 & 8)) &&
+              (!(surface_flags & 8) || !(data->field_00 & 0x10))) {
+            *data->result = t_min;
+            data->result[1] = *(float *)tag_block_get_element((void *)(data->bsp + 0xc), data->field_24, 0x10);
+            *(int *)(data->result + 2) = surface_index;
+            *(int *)(data->result + 3) = surface[0];
+            *(char *)((char *)data->result + 0x10) = *(char *)&surface[2];
+            *(char *)((char *)data->result + 0x11) = *((char *)surface + 9);
+            *(short *)((char *)data->result + 0x12) = *(short *)((char *)surface + 10);
+            return 1;
+          }
+        }
+      }
+    } else if (!(data->field_00 & 4) && data->field_20 == 2 && leaf_type == 2) {
+      test_leaf = (data->field_00 & 1) ? data->field_1c : leaf_index;
+      if (test_leaf != -1) {
+        surface_index = FUN_00148780((void *)data->bsp, (short)data->flags, (unsigned int *)data->field_0c, (float *)data->field_10, (float *)data->field_14, data->field_24, t_min, 1, test_leaf);
+        if (surface_index != -1) {
+          surface = (unsigned int *)tag_block_get_element((void *)(data->bsp + 0x3c), surface_index, 0xc);
+          surface_flags = *(unsigned char *)&surface[2];
+          if ((!(surface_flags & 2) || !(data->field_00 & 8)) &&
+              (!(surface_flags & 8) || !(data->field_00 & 0x10))) {
+            *data->result = t_min;
+            data->result[1] = *(float *)tag_block_get_element((void *)(data->bsp + 0xc), data->field_24, 0x10);
+            *(int *)(data->result + 2) = surface_index;
+            *(int *)(data->result + 3) = surface[0];
+            *(char *)((char *)data->result + 0x10) = *(char *)&surface[2];
+            *(char *)((char *)data->result + 0x11) = *((char *)surface + 9);
+            *(short *)((char *)data->result + 0x12) = *(short *)((char *)surface + 10);
+            return 1;
+          }
+        }
+      }
+    }
+  }
+
+  if (leaf_index != -1) {
+    leaf_hit_count = (int *)((char *)data->result + 0x14);
+    if (*leaf_hit_count <= 255) {
+      *(int *)((char *)data->result + 0x18 + *leaf_hit_count * 4) = leaf_index;
+      *leaf_hit_count += 1;
+    } else {
+      *(int *)((char *)data->result + 0x414) = leaf_index;
+    }
+  }
+
+  data->field_1c = leaf_index;
+  data->field_20 = leaf_type;
+  return 0;
+}
+
 char collision_bsp_test_vector(int param_1, int bsp, short flags, int origin,
                                int direction, int radius, float max_t,
                                float *result)
@@ -1669,13 +2026,389 @@ char collision_bsp_test_vector(int param_1, int bsp, short flags, int origin,
  */
 typedef struct {
   int *block_ptr; /* 0x00 */
-  void *transformed_2c; /* 0x04 */
-  void *transformed_20; /* 0x08 */
+  float *origin; /* 0x04 */
+  float *direction; /* 0x08 */
   float scale; /* 0x0c */
   float *result; /* 0x10 */
-  int32_t field_14; /* 0x14 - seeded to 0 */
-  char pad_18[0x214]; /* 0x18 - not written by the builder */
+  int32_t stack_depth; /* 0x14 - seeded to 0 */
+  int32_t plane_stack[0x80]; /* 0x18 - 128 planes */
+  short projection_axis; /* 0x218 */
+  char projection_sign; /* 0x21a */
+  char pad_21b; /* 0x21b */
+  float pt1[2]; /* 0x21c */
+  float pt2[2]; /* 0x224 */
 } collision_bsp_pill_query_data;
+
+/* 0x148910 - pill_test_vector
+ *
+ * Tests swept sphere / pill against a line segment (cylinder body + endpoint spheres).
+ */
+char pill_test_vector(float *origin, float *ray_dir, float *v0, float radius,
+                      float *edge_dir, float *out_t, float *out_edge_t)
+{
+  float rel[3];
+  float edge_len_sq;
+  float edge_dot_ray;
+  float ray_len_sq;
+  float cross_sq;
+  float rel_dot_edge;
+  float rel_dot_ray;
+  float b;
+  float c;
+  float disc;
+  float sqrt_disc;
+  float t;
+  float t2;
+  float u;
+  float v1[3];
+
+  rel[0] = origin[0] - v0[0];
+  rel[1] = origin[1] - v0[1];
+  rel[2] = origin[2] - v0[2];
+
+  edge_len_sq = edge_dir[0] * edge_dir[0] + edge_dir[1] * edge_dir[1] + edge_dir[2] * edge_dir[2];
+  edge_dot_ray = edge_dir[0] * ray_dir[0] + edge_dir[1] * ray_dir[1] + edge_dir[2] * ray_dir[2];
+  ray_len_sq = ray_dir[0] * ray_dir[0] + ray_dir[1] * ray_dir[1] + ray_dir[2] * ray_dir[2];
+
+  cross_sq = ray_len_sq * edge_len_sq - edge_dot_ray * edge_dot_ray;
+  if (cross_sq != 0.0f) {
+    rel_dot_edge = rel[0] * edge_dir[0] + rel[1] * edge_dir[1] + rel[2] * edge_dir[2];
+    rel_dot_ray = rel[0] * ray_dir[0] + rel[1] * ray_dir[1] + rel[2] * ray_dir[2];
+
+    b = rel_dot_edge * edge_dot_ray - rel_dot_ray * edge_len_sq;
+    c = (rel[0] * rel[0] + rel[1] * rel[1] + rel[2] * rel[2] - radius * radius) * edge_len_sq - rel_dot_edge * rel_dot_edge;
+
+    disc = b * b - c * cross_sq;
+    if (disc >= 0.0f) {
+      sqrt_disc = (float)sqrt(disc);
+      t = -(sqrt_disc + b) / cross_sq;
+      if (t < 1.0f) {
+        t2 = (sqrt_disc - b) / cross_sq;
+        if (t2 >= 0.0f) {
+          if (t < 0.0f) {
+            t = 0.0f;
+          }
+          u = (edge_dot_ray * t + rel_dot_edge);
+          if (u >= 0.0f) {
+            if (u <= edge_len_sq) {
+              *out_t = t;
+              *out_edge_t = u / edge_len_sq;
+              return 1;
+            }
+            v1[0] = v0[0] + edge_dir[0];
+            v1[1] = v0[1] + edge_dir[1];
+            v1[2] = v0[2] + edge_dir[2];
+            if (FUN_00148370(v1, origin, ray_dir, out_t, radius)) {
+              *out_edge_t = 1.0f;
+              return 1;
+            }
+          } else {
+            if (FUN_00148370(v0, origin, ray_dir, out_t, radius)) {
+              *out_edge_t = 0.0f;
+              return 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return 0;
+}
+
+/* 0x1491d0 - collision_surface_test_pill
+ *
+ * Tests a pill query against a single collision-BSP surface's bounding edges.
+ * `state` arrives in ESI.
+ */
+bool collision_surface_test_pill(void *state /* @<esi> */, int surface_index)
+{
+  collision_bsp_pill_query_data *data;
+  int bsp;
+  int *surface;
+  int first_edge;
+  int edge_index;
+  int *edge;
+  int side;
+  float *v0;
+  float *v1;
+  float edge_dir[3];
+  float t_hit;
+  float edge_t;
+  bool hit_any;
+  float pt_ray[3];
+  float pt_edge[3];
+  float *normal;
+  float norm_len;
+
+  data = (collision_bsp_pill_query_data *)state;
+  bsp = *(int *)data->block_ptr;
+  surface = (int *)tag_block_get_element((void *)(bsp + 0x3c), surface_index, 0xc);
+  first_edge = surface[1];
+  edge_index = first_edge;
+  hit_any = 0;
+
+  do {
+    edge = (int *)tag_block_get_element((void *)(bsp + 0x48), edge_index, 0x18);
+    side = (edge[5] == surface_index);
+    v0 = (float *)tag_block_get_element((void *)(bsp + 0x54), edge[side], 0x10);
+    v1 = (float *)tag_block_get_element((void *)(bsp + 0x54), edge[!side], 0x10);
+
+    edge_dir[0] = v1[0] - v0[0];
+    edge_dir[1] = v1[1] - v0[1];
+    edge_dir[2] = v1[2] - v0[2];
+
+    if (pill_test_vector(data->origin, data->direction, v0, data->scale, edge_dir, &t_hit, &edge_t) &&
+        t_hit < data->result[0]) {
+      data->result[0] = t_hit;
+
+      pt_ray[0] = data->origin[0] + t_hit * data->direction[0];
+      pt_ray[1] = data->origin[1] + t_hit * data->direction[1];
+      pt_ray[2] = data->origin[2] + t_hit * data->direction[2];
+
+      pt_edge[0] = v0[0] + edge_t * edge_dir[0];
+      pt_edge[1] = v0[1] + edge_t * edge_dir[1];
+      pt_edge[2] = v0[2] + edge_t * edge_dir[2];
+
+      normal = &data->result[1];
+      normal[0] = pt_ray[0] - pt_edge[0];
+      normal[1] = pt_ray[1] - pt_edge[1];
+      normal[2] = pt_ray[2] - pt_edge[2];
+
+      norm_len = (float)sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+      if (norm_len >= 0.0001f) {
+        normal[0] /= norm_len;
+        normal[1] /= norm_len;
+        normal[2] /= norm_len;
+      }
+
+      *(unsigned int *)&data->result[4] = 0x7f7fffff;
+      *(int *)&data->result[5] = surface_index;
+      *(short *)((char *)data->result + 0x1a) = *(short *)((char *)surface + 10);
+      hit_any = 1;
+    }
+
+    edge_index = edge[2 + side];
+  } while (edge_index != first_edge);
+
+  return hit_any;
+}
+
+/* 0x149570 - bsp2d_test_pill_recursive
+ *
+ * Traverses a 2D BSP tree to find surfaces hit by the pill test.
+ */
+bool bsp2d_test_pill_recursive(void *state, int node_index)
+{
+  collision_bsp_pill_query_data *data;
+  float *node2d;
+  float d0;
+  float d1;
+  float tol;
+  bool within_front;
+  bool within_back;
+
+  data = (collision_bsp_pill_query_data *)state;
+
+  if (node_index < 0) {
+    return collision_surface_test_pill(data, node_index & 0x7fffffff);
+  }
+
+  node2d = (float *)tag_block_get_element((void *)(*(int *)data->block_ptr + 0x30), node_index, 0x14);
+
+  d0 = (node2d[0] * data->pt1[0] + node2d[1] * data->pt1[1]) - node2d[2];
+  d1 = (node2d[0] * data->pt2[0] + node2d[1] * data->pt2[1]) + d0;
+
+  tol = data->scale + 0.0001f;
+
+  within_front = (d0 <= tol) || (d1 <= tol);
+  within_back = (d0 >= -tol) || (d1 >= -tol);
+
+  if (within_front && bsp2d_test_pill_recursive(data, *(int *)&node2d[3])) {
+    return 1;
+  }
+  if (within_back && bsp2d_test_pill_recursive(data, *(int *)&node2d[4])) {
+    return 1;
+  }
+
+  return 0;
+}
+
+/* 0x149680 - collision_bsp_test_pill / bsp3d_test_pill_recursive
+ *
+ * Recursive bsp3d walker for pill collision against BSP surfaces.
+ */
+char collision_bsp_test_pill(void *data_ptr, int node_index)
+{
+  collision_bsp_pill_query_data *data;
+  int bsp;
+  int *node;
+  float *plane;
+  float d0;
+  float d1;
+  float dist_end;
+  float tol;
+  bool within_front;
+  bool within_back;
+  int plane_flag;
+  char hit_any;
+  int leaf_index;
+  int *leaf;
+  int count;
+  int first_ref;
+  int i;
+  int ref_idx;
+  int *bsp3d_ref;
+  int sp;
+  float t;
+  short axis;
+  char sign;
+  float pt[3];
+  float offset;
+  float pt_proj[3];
+  float point2d[2];
+  int surface_idx;
+  int *surface;
+  int *leaf_hit_count;
+
+  data = (collision_bsp_pill_query_data *)data_ptr;
+  bsp = *(int *)data->block_ptr;
+  hit_any = 0;
+
+  if (node_index >= 0) {
+    node = (int *)tag_block_get_element((void *)bsp, node_index, 0xc);
+    plane = (float *)tag_block_get_element((void *)(bsp + 0xc), node[0], 0x10);
+
+    d0 = (data->origin[0] * plane[0] + data->origin[1] * plane[1] + data->origin[2] * plane[2]) - plane[3];
+    d1 = data->direction[0] * plane[0] + data->direction[1] * plane[1] + data->direction[2] * plane[2];
+    dist_end = d0 + d1;
+
+    tol = data->scale + 0.0001f;
+    within_front = (d0 < tol) || (dist_end < tol);
+    within_back = (d0 >= -tol) || (dist_end >= -tol);
+
+    if (!within_front || !within_back) {
+      return collision_bsp_test_pill(data, node[within_back + 1]);
+    }
+
+    if (data->stack_depth < 0 || data->stack_depth >= 0x80) {
+      display_assert("data->stack_depth>=0 && data->stack_depth<MAXIMUM_BSP3D_DEPTH",
+                     "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x498, 1);
+      system_exit(-1);
+    }
+
+    plane_flag = (d1 <= 0.0f) ? (node[0] & 0x7fffffff) : (node[0] | 0x80000000);
+    data->plane_stack[data->stack_depth++] = plane_flag;
+
+    if (collision_bsp_test_pill(data, node[(d1 <= 0.0f) + 1])) {
+      hit_any = 1;
+    }
+    data->stack_depth--;
+
+    if (collision_bsp_test_pill(data, node[(d1 > 0.0f) + 1])) {
+      hit_any = 1;
+    }
+    return hit_any;
+  }
+
+  if (node_index == -1) {
+    return 0;
+  }
+
+  leaf_index = node_index & 0x7fffffff;
+  leaf = (int *)tag_block_get_element((void *)(bsp + 0x18), leaf_index, 8);
+  count = (int)*(short *)((char *)leaf + 2);
+  first_ref = leaf[1];
+
+  for (i = 0; i < count; i++) {
+    ref_idx = first_ref + i;
+    bsp3d_ref = (int *)tag_block_get_element((void *)(bsp + 0x24), ref_idx, 8);
+
+    for (sp = 0; sp < data->stack_depth; sp++) {
+      if (data->plane_stack[sp] == bsp3d_ref[0]) {
+        plane = (float *)tag_block_get_element((void *)(bsp + 0xc), bsp3d_ref[0] & 0x7fffffff, 0x10);
+
+        d0 = (data->origin[0] * plane[0] + data->origin[1] * plane[1] + data->origin[2] * plane[2]) - plane[3];
+        d1 = data->direction[0] * plane[0] + data->direction[1] * plane[1] + data->direction[2] * plane[2];
+
+        t = 0.0f;
+        if (d1 != 0.0f) {
+          t = -(d0 / d1) - (float)fabs(1.0f / d1) * data->scale;
+          if (t < 0.0f) t = 0.0f;
+          if (t > 1.0f) t = 1.0f;
+        }
+
+        if (t < data->result[0]) {
+          if (fabs(plane[2]) < fabs(plane[1]) || fabs(plane[2]) < fabs(plane[0])) {
+            axis = (fabs(plane[1]) < fabs(plane[0])) ? 0 : 1;
+          } else {
+            axis = 2;
+          }
+          data->projection_axis = axis;
+
+          sign = (plane[axis] > 0.0f) != ((bsp3d_ref[0] & 0x80000000) != 0);
+          data->projection_sign = sign;
+
+          pt[0] = t * data->direction[0] + data->origin[0];
+          pt[1] = t * data->direction[1] + data->origin[1];
+          pt[2] = t * data->direction[2] + data->origin[2];
+
+          offset = -((pt[0] * plane[0] + pt[1] * plane[1] + pt[2] * plane[2]) - plane[3]);
+          pt_proj[0] = offset * plane[0] + pt[0];
+          pt_proj[1] = offset * plane[1] + pt[1];
+          pt_proj[2] = offset * plane[2] + pt[2];
+
+          project_point3d(pt_proj, axis, sign, point2d);
+          surface_idx = bsp2d_test_point((void *)(bsp + 0x30), point2d, bsp3d_ref[1]);
+
+          if (collision_surface_test_point2d(bsp, surface_idx, axis, sign, point2d)) {
+            surface = (int *)tag_block_get_element((void *)(bsp + 0x3c), surface_idx, 0xc);
+            data->result[0] = t;
+            if (bsp3d_ref[0] >= 0) {
+              data->result[1] = plane[0];
+              data->result[2] = plane[1];
+              data->result[3] = plane[2];
+              data->result[4] = plane[3];
+            } else {
+              data->result[1] = -plane[0];
+              data->result[2] = -plane[1];
+              data->result[3] = -plane[2];
+              data->result[4] = -plane[3];
+            }
+            *(int *)&data->result[5] = surface_idx;
+            *(short *)((char *)data->result + 0x1a) = *(short *)((char *)surface + 10);
+            hit_any = 1;
+          }
+
+          pt[0] = -d0 * plane[0] + data->origin[0];
+          pt[1] = -d0 * plane[1] + data->origin[1];
+          pt[2] = -d0 * plane[2] + data->origin[2];
+          project_point3d(pt, axis, sign, data->pt1);
+
+          pt[0] = -d1 * plane[0] + data->direction[0];
+          pt[1] = -d1 * plane[1] + data->direction[1];
+          pt[2] = -d1 * plane[2] + data->direction[2];
+          project_point3d(pt, axis, sign, data->pt2);
+
+          if (bsp2d_test_pill_recursive(data, bsp3d_ref[1])) {
+            hit_any = 1;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  leaf_hit_count = (int *)((char *)data->result + 0x1c);
+  if (*leaf_hit_count <= 255) {
+    *(int *)((char *)data->result + 0x20 + *leaf_hit_count * 4) = leaf_index;
+    *leaf_hit_count += 1;
+  } else {
+    *(int *)((char *)data->result + 0x41c) = leaf_index;
+  }
+
+  return hit_any;
+}
 
 char FUN_00149c60(int *block_ptr, void *transformed_2c, void *transformed_20,
                   float scale, float best_dist, float *result)
@@ -1683,16 +2416,46 @@ char FUN_00149c60(int *block_ptr, void *transformed_2c, void *transformed_20,
   collision_bsp_pill_query_data data;
 
   data.block_ptr = block_ptr;
-  data.transformed_2c = transformed_2c;
-  data.transformed_20 = transformed_20;
+  data.origin = (float *)transformed_2c;
+  data.direction = (float *)transformed_20;
   data.scale = scale;
   data.result = result;
-  data.field_14 = 0;
+  data.stack_depth = 0;
 
   *result = (best_dist < 0.0f) ? 0.0f : best_dist;
   result[7] = 0.0f;
 
   return collision_bsp_test_pill(&data, 0);
+}
+
+/* 0x149ce0 - FUN_00149ce0 / collision_debug_render
+ *
+ * Debug render callback called from render_debug (0x18ac50).
+ */
+void FUN_00149ce0(void)
+{
+  short *depth_ptr;
+
+  depth_ptr = (short *)0x4761d8;
+  if (*depth_ptr >= 32) {
+    display_assert("stack_depth<MAXIMUM_DEBUG_RENDER_DEPTH",
+                   "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x4ea, 1);
+    system_exit(-1);
+  }
+
+  *(short *)(0x5a8c80 + *depth_ptr * 2) = 0x15;
+  *depth_ptr += 1;
+
+  if (*(char *)0x5a8d1f || *(char *)0x5a8d1e || *(char *)0x5a8d1d || *(char *)0x4761c0) {
+    /* Collision debug visualizers active */
+  }
+
+  if (*depth_ptr <= 0) {
+    display_assert("stack_depth>0",
+                   "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x5a6, 1);
+    system_exit(-1);
+  }
+  *depth_ptr -= 1;
 }
 /* 0x14dc30 - Point-vs-world collision test. If any of the collision-type
  * flags (0xE0) are set, locate the BSP3D leaf containing `pos`; a leaf of -1

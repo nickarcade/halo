@@ -35,6 +35,10 @@ import subprocess
 import sys
 import shutil
 
+KUNA_REPO = "https://github.com/Noelo-Lab/kuna.git"
+REA_REPO = "https://github.com/morluto/rea.git"
+REA_KUNA_REPO = "https://github.com/nickarcade/rea-kuna.git"
+
 def log(msg):
     print(f"\n[+] {msg}", flush=True)
 
@@ -78,12 +82,11 @@ if os.path.exists("/content/kuna"):
 else:
     run(f"git clone --depth 1 {KUNA_REPO} /content/kuna")
 
-log("Building Kuna in release mode (cargo build --release)...")
-run("cargo build --release", cwd="/content/kuna")
-kuna_bin = "/content/kuna/target/release/kuna"
+log("Building Kuna in release mode (cargo build --release -p kuna-cli)...")
+run("cargo build --release -p kuna-cli", cwd="/content/kuna/decompiler")
+kuna_bin = "/content/kuna/decompiler/target/release/kuna"
 if not os.path.exists(kuna_bin):
-    # fallback to root target if multi-crate
-    found = subprocess.getoutput("find /content/kuna/target/release -maxdepth 2 -type f -name kuna | head -n 1").strip()
+    found = subprocess.getoutput("find /content/kuna -type f -name kuna -perm -111 | head -n 1").strip()
     if found:
         kuna_bin = found
 run(f"cp {kuna_bin} /usr/local/bin/kuna && chmod +x /usr/local/bin/kuna")
