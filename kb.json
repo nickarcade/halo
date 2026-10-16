@@ -46810,14 +46810,16 @@
         {
           "addr": "0x170080",
           "decl": "void D3DDevice_SetTextureStageState_4(uint32_t a0, int32_t a1, uint32_t a2);",
-          "ported": false,
-          "name": "D3DDevice_SetTextureStageState_4"
+          "ported": true,
+          "name": "D3DDevice_SetTextureStageState_4",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_screen_effect.c"
         },
         {
           "addr": "0x170160",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_4(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetRenderState_4"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetRenderState_4",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_screen_effect.c"
         }
       ],
       "name": "rasterizer_xbox_screen_effect.obj",

@@ -1,3 +1,4 @@
+#include "nv097.h"
 /*
  * rasterizer_xbox_screen_effect.c
  *
@@ -30,6 +31,17 @@
  *   0x255e94  float   - -1.0f
  *   0x25eeac  float   - texture-coordinate scale constant
  */
+
+/* 0x170080
+ *
+ * D3DDevice_SetTextureStageState_4
+ *
+ * Dead inline-wrapper instantiation of D3DDevice_SetTextureStageState.
+ */
+void D3DDevice_SetTextureStageState_4(uint32_t a0, int32_t a1, uint32_t a2)
+{
+  D3DDevice_SetTextureStageState(a0, a1, a2);
+}
 
 /* 0x1700d0
  *
@@ -79,6 +91,19 @@ real_vector2d ___reciprocal_vector2d(real_vector2d *v)
   out.i = 1.0f / v->i;
   out.j = 1.0f / v->j;
   return out;
+}
+
+/* 0x170160
+ *
+ * IDirect3DDevice8_SetRenderState_4
+ *
+ * Dead D3D8 inline-wrapper instantiation of IDirect3DDevice8::SetRenderState.
+ * Takes device pointer (ignored), returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DDevice8_SetRenderState_4(int param_1)
+{
+  (void)param_1;
+  return 0;
 }
 
 /* 0x171bc0
