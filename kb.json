@@ -7704,49 +7704,49 @@
         {
           "addr": "0x86160",
           "decl": "int32_t director_get(void);",
-          "ported": false,
+          "ported": true,
           "name": "director_get"
         },
         {
           "addr": "0x877e0",
           "decl": "void director_initialize_for_saved_game(void);",
-          "ported": false,
+          "ported": true,
           "name": "director_initialize_for_saved_game"
         },
         {
           "addr": "0x87a70",
           "decl": "void editor_camera_bump_speed(void);",
-          "ported": false,
+          "ported": true,
           "name": "editor_camera_bump_speed"
         },
         {
           "addr": "0x87ab0",
           "decl": "void editor_camera_get_speed(void);",
-          "ported": false,
+          "ported": true,
           "name": "editor_camera_get_speed"
         },
         {
           "addr": "0x87af0",
           "decl": "uint32_t editor_camera_get_unit_focus(void);",
-          "ported": false,
+          "ported": true,
           "name": "editor_camera_get_unit_focus"
         },
         {
           "addr": "0x87be0",
           "decl": "uint16_t editor_camera_get_mode(void);",
-          "ported": false,
+          "ported": true,
           "name": "editor_camera_get_mode"
         },
         {
           "addr": "0x87bf0",
           "decl": "char editor_camera_get_scripted(void);",
-          "ported": false,
+          "ported": true,
           "name": "editor_camera_get_scripted"
         },
         {
           "addr": "0x87c70",
           "decl": "float editor_camera_get_field_of_view(void);",
-          "ported": false,
+          "ported": true,
           "name": "editor_camera_get_field_of_view"
         }
       ],
@@ -19573,37 +19573,37 @@
         {
           "addr": "0x85380",
           "decl": "uint16_t scripted_camera_next_camera_point(void);",
-          "ported": false,
+          "ported": true,
           "name": "scripted_camera_next_camera_point"
         },
         {
           "addr": "0x85390",
           "decl": "uint32_t scripted_camera_object_relative_to(void);",
-          "ported": false,
+          "ported": true,
           "name": "scripted_camera_object_relative_to"
         },
         {
           "addr": "0x132f40",
           "decl": "void glow_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "glow_dispose"
         },
         {
           "addr": "0x132f50",
           "decl": "void glow_initialize_for_new_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "glow_initialize_for_new_map"
         },
         {
           "addr": "0x132f80",
           "decl": "void glow_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "glow_dispose_from_old_map"
         },
         {
           "addr": "0x133750",
           "decl": "void glow_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "glow_initialize"
         },
         {
@@ -19633,139 +19633,139 @@
         {
           "addr": "0x135320",
           "decl": "void lightnings_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "lightnings_initialize"
         },
         {
           "addr": "0x135360",
           "decl": "void lightnings_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "lightnings_dispose"
         },
         {
           "addr": "0x135370",
           "decl": "void lightnings_initialize_for_new_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "lightnings_initialize_for_new_map"
         },
         {
           "addr": "0x135390",
           "decl": "void lightnings_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "lightnings_dispose_from_old_map"
         },
         {
           "addr": "0x135410",
           "decl": "void lightning_render(void);",
-          "ported": false,
+          "ported": true,
           "name": "lightning_render"
         },
         {
           "addr": "0x135f50",
           "decl": "int32_t widget_type_definition_get(void);",
-          "ported": false,
+          "ported": true,
           "name": "widget_type_definition_get"
         },
         {
           "addr": "0x139740",
           "decl": "void lights_disconnect_from_structure_bsp(void);",
-          "ported": false,
+          "ported": true,
           "name": "lights_disconnect_from_structure_bsp"
         },
         {
           "addr": "0x1398f0",
           "decl": "void light_marker_begin(void);",
-          "ported": false,
+          "ported": true,
           "name": "light_marker_begin"
         },
         {
           "addr": "0x1399f0",
           "decl": "void light_marker_end(void);",
-          "ported": false,
+          "ported": true,
           "name": "light_marker_end"
         },
         {
           "addr": "0x13c020",
           "decl": "void build_collision_model_shadow(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "build_collision_model_shadow"
         },
         {
           "addr": "0x13cf30",
           "decl": "void object_types_reconnect_to_structure_bsp(void);",
-          "ported": false,
+          "ported": true,
           "name": "object_types_reconnect_to_structure_bsp"
         },
         {
           "addr": "0x13e4f0",
           "decl": "void object_add_to_list(void);",
-          "ported": false,
+          "ported": true,
           "name": "object_add_to_list"
         },
         {
           "addr": "0x13ef00",
           "decl": "void object_name_list_allocate(void);",
-          "ported": false,
+          "ported": true,
           "name": "object_name_list_allocate"
         },
         {
           "addr": "0x13ef40",
           "decl": "void object_name_list_free(void);",
-          "ported": false,
+          "ported": true,
           "name": "object_name_list_free"
         },
         {
           "addr": "0x13ef50",
           "decl": "void object_name_list_clear(void);",
-          "ported": false,
+          "ported": true,
           "name": "object_name_list_clear"
         },
         {
           "addr": "0x13f040",
           "decl": "uint32_t object_name_list_lookup(int16_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "object_name_list_lookup"
         },
         {
           "addr": "0x140b50",
           "decl": "void object_create_attachments(void);",
-          "ported": false,
+          "ported": true,
           "name": "object_create_attachments"
         },
         {
           "addr": "0x144730",
           "decl": "void object_delete_attachments(void);",
-          "ported": false,
+          "ported": true,
           "name": "object_delete_attachments"
         },
         {
           "addr": "0x1454b0",
           "decl": "void placeholder_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "placeholder_initialize"
         },
         {
           "addr": "0x1454c0",
           "decl": "void placeholder_initialize_for_new_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "placeholder_initialize_for_new_map"
         },
         {
           "addr": "0x1454d0",
           "decl": "void placeholder_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "placeholder_dispose_from_old_map"
         },
         {
           "addr": "0x1454e0",
           "decl": "void placeholder_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "placeholder_dispose"
         },
         {
           "addr": "0x1454f0",
           "decl": "void placeholder_place(void);",
-          "ported": false,
+          "ported": true,
           "name": "placeholder_place"
         }
       ],
@@ -19981,7 +19981,7 @@
         {
           "addr": "0x8a300",
           "decl": "int32_t observer_get(void);",
-          "ported": false,
+          "ported": true,
           "name": "observer_get"
         }
       ],
@@ -33977,31 +33977,31 @@
         {
           "addr": "0x1a0780",
           "decl": "void bipeds_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "bipeds_initialize"
         },
         {
           "addr": "0x1a0790",
           "decl": "void bipeds_initialize_for_new_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "bipeds_initialize_for_new_map"
         },
         {
           "addr": "0x1a07a0",
           "decl": "void bipeds_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "bipeds_dispose_from_old_map"
         },
         {
           "addr": "0x1a07b0",
           "decl": "void bipeds_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "bipeds_dispose"
         },
         {
           "addr": "0x1a07f0",
           "decl": "void biped_delete(void);",
-          "ported": false,
+          "ported": true,
           "name": "biped_delete"
         }
       ],
@@ -35171,25 +35171,25 @@
         {
           "addr": "0x1a7f00",
           "decl": "void units_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "units_initialize"
         },
         {
           "addr": "0x1a7f40",
           "decl": "void units_initialize_for_new_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "units_initialize_for_new_map"
         },
         {
           "addr": "0x1a7f60",
           "decl": "void units_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "units_dispose_from_old_map"
         },
         {
           "addr": "0x1a7f70",
           "decl": "void units_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "units_dispose"
         }
       ],
@@ -35389,49 +35389,49 @@
         {
           "addr": "0x1b5540",
           "decl": "void vehicles_initialize(void);",
-          "ported": false,
+          "ported": true,
           "name": "vehicles_initialize"
         },
         {
           "addr": "0x1b5550",
           "decl": "void vehicles_initialize_for_new_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "vehicles_initialize_for_new_map"
         },
         {
           "addr": "0x1b5560",
           "decl": "void vehicles_dispose_from_old_map(void);",
-          "ported": false,
+          "ported": true,
           "name": "vehicles_dispose_from_old_map"
         },
         {
           "addr": "0x1b5570",
           "decl": "void vehicles_dispose(void);",
-          "ported": false,
+          "ported": true,
           "name": "vehicles_dispose"
         },
         {
           "addr": "0x1b55b0",
           "decl": "void vehicle_delete(void);",
-          "ported": false,
+          "ported": true,
           "name": "vehicle_delete"
         },
         {
           "addr": "0x1b55f0",
           "decl": "char vehicle_build_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "vehicle_build_update"
         },
         {
           "addr": "0x1b5600",
           "decl": "char vehicle_parse_update(void);",
-          "ported": false,
+          "ported": true,
           "name": "vehicle_parse_update"
         },
         {
           "addr": "0x1b5660",
           "decl": "void update_turret_physics(uint32_t a0, uint32_t a1, uint32_t a2);",
-          "ported": false,
+          "ported": true,
           "name": "update_turret_physics"
         }
       ],

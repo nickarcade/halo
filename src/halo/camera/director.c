@@ -2347,3 +2347,54 @@ void editor_camera_orbiting_update(void *camera, const void *controls, void *res
   res[18] = *(float *)0x2670d0;
 }
 
+/* 0x86160 */
+int32_t director_get(void)
+{
+  return (int32_t)0x3352b0;
+}
+
+/* 0x877e0 */
+void director_initialize_for_saved_game(void)
+{
+  director_initialize_for_new_map();
+  director_script_camera(*(int16_t *)0x5ab200);
+}
+
+/* 0x87a70 */
+void editor_camera_bump_speed(void)
+{
+  *(int32_t *)0x335710 = (*(int32_t *)0x335710 + 1) % 5;
+  *(float *)0x2ee668 = *(float *)(0x2670b4 + *(int32_t *)0x335710 * 4);
+}
+
+/* 0x87ab0 */
+void editor_camera_get_speed(void)
+{
+  return;
+}
+
+/* 0x87af0 */
+uint32_t editor_camera_get_unit_focus(void)
+{
+  return *(uint32_t *)0x2ee66c;
+}
+
+/* 0x87be0 */
+uint16_t editor_camera_get_mode(void)
+{
+  return *(uint16_t *)0x3356c4;
+}
+
+/* 0x87bf0 */
+char editor_camera_get_scripted(void)
+{
+  return *(char *)0x335698;
+}
+
+/* 0x87c70 */
+float editor_camera_get_field_of_view(void)
+{
+  return *(float *)(0x2670dc + (int)*(int16_t *)0x3356c4 * 4);
+}
+
+

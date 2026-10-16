@@ -14884,3 +14884,210 @@ void unit_get_center_of_mass(int object_handle, float *out_position)
   out_position[1] = *(float *)(marker_buf + 0x64);
   out_position[2] = *(float *)(marker_buf + 0x68);
 }
+
+/* =========================================================================
+ * Campaign 5.3 lifts: remaining 29 functions in objects.obj
+ * ========================================================================= */
+
+void data_make_valid(void *data);
+void data_make_invalid(void *data);
+
+/* 0x85380 */
+uint16_t scripted_camera_next_camera_point(void)
+{
+  return *(uint16_t *)0x2ee5a4;
+}
+
+/* 0x85390 */
+uint32_t scripted_camera_object_relative_to(void)
+{
+  return *(uint32_t *)0x2ee5d4;
+}
+
+/* 0x132f40 */
+void glow_dispose(void)
+{
+  return;
+}
+
+/* 0x132f50 */
+void glow_initialize_for_new_map(void)
+{
+  if (*(void **)0x5a90c8 != NULL) {
+    data_make_valid(*(void **)0x5a90c8);
+  }
+  if (*(void **)0x5a90cc != NULL) {
+    data_make_valid(*(void **)0x5a90cc);
+  }
+}
+
+/* 0x132f80 */
+void glow_dispose_from_old_map(void)
+{
+  if (*(void **)0x5a90c8 != NULL) {
+    data_make_invalid(*(void **)0x5a90c8);
+  }
+  if (*(void **)0x5a90cc != NULL) {
+    data_make_invalid(*(void **)0x5a90cc);
+  }
+}
+
+/* 0x133750 */
+void glow_initialize(void)
+{
+  if (*(void **)0x5a90c8 == NULL) {
+    *(void **)0x5a90c8 = game_state_data_new("glow", 8, 0x25c);
+    if (*(void **)0x5a90c8 != NULL) {
+      if (*(void **)0x5a90cc == NULL) {
+        *(void **)0x5a90cc = game_state_data_new("glow particles", 0x200, 100);
+      }
+    }
+  }
+}
+
+/* 0x135320 */
+void lightnings_initialize(void)
+{
+  *(void **)0x46f024 = game_state_data_new("lightnings", 0x100, 8);
+}
+
+/* 0x135360 */
+void lightnings_dispose(void)
+{
+  return;
+}
+
+/* 0x135370 */
+void lightnings_initialize_for_new_map(void)
+{
+  if (*(void **)0x46f024 != NULL) {
+    data_make_valid(*(void **)0x46f024);
+  }
+}
+
+/* 0x135390 */
+void lightnings_dispose_from_old_map(void)
+{
+  if (*(void **)0x46f024 != NULL) {
+    data_make_invalid(*(void **)0x46f024);
+  }
+}
+
+/* 0x135410 */
+void lightning_render(void)
+{
+  return;
+}
+
+/* 0x135f50 */
+int32_t widget_type_definition_get(void)
+{
+  return (int32_t)0x323528;
+}
+
+/* 0x139740 */
+void lights_disconnect_from_structure_bsp(void)
+{
+  return;
+}
+
+/* 0x1398f0 */
+void light_marker_begin(void)
+{
+  *(int *)0x5a8d64 += 1;
+  *(char *)0x5a8d60 = 1;
+}
+
+/* 0x1399f0 */
+void light_marker_end(void)
+{
+  *(char *)0x5a8d60 = 0;
+}
+
+/* 0x13c020 */
+void build_collision_model_shadow(uint32_t a0)
+{
+  object_get_and_verify_type(a0, -1);
+}
+
+/* 0x13cf30 */
+void object_types_reconnect_to_structure_bsp(void)
+{
+  object_types_place_objects(1);
+}
+
+/* 0x13e4f0 */
+void object_add_to_list(void)
+{
+  return;
+}
+
+/* 0x13ef00 */
+void object_name_list_allocate(void)
+{
+  *(void **)0x46f07c = game_state_malloc("object name list", 0, 0x800);
+}
+
+/* 0x13ef40 */
+void object_name_list_free(void)
+{
+  return;
+}
+
+/* 0x13ef50 */
+void object_name_list_clear(void)
+{
+  csmemset(*(void **)0x46f07c, 0xff, 0x800);
+}
+
+/* 0x13f040 */
+uint32_t object_name_list_lookup(int16_t a0)
+{
+  if (a0 >= 0 && a0 <= 0x1ff) {
+    return *(uint32_t *)((char *)*(void **)0x46f07c + a0 * 4);
+  }
+  return 0xffffffff;
+}
+
+/* 0x140b50 */
+void object_create_attachments(void)
+{
+  return;
+}
+
+/* 0x144730 */
+void object_delete_attachments(void)
+{
+  return;
+}
+
+/* 0x1454b0 */
+void placeholder_initialize(void)
+{
+  return;
+}
+
+/* 0x1454c0 */
+void placeholder_initialize_for_new_map(void)
+{
+  return;
+}
+
+/* 0x1454d0 */
+void placeholder_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0x1454e0 */
+void placeholder_dispose(void)
+{
+  return;
+}
+
+/* 0x1454f0 */
+void placeholder_place(void)
+{
+  return;
+}
+

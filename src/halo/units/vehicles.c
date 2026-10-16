@@ -3324,3 +3324,52 @@ animate:
   return 1;
 }
 
+/* 0x1b5540 */
+void vehicles_initialize(void)
+{
+  return;
+}
+
+/* 0x1b5550 */
+void vehicles_initialize_for_new_map(void)
+{
+  return;
+}
+
+/* 0x1b5560 */
+void vehicles_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0x1b5570 */
+void vehicles_dispose(void)
+{
+  return;
+}
+
+/* 0x1b55b0 */
+void vehicle_delete(void)
+{
+  return;
+}
+
+/* 0x1b55f0 */
+char vehicle_build_update(void)
+{
+  return 1;
+}
+
+/* 0x1b5600 */
+char vehicle_parse_update(void)
+{
+  return 1;
+}
+
+/* 0x1b5660 */
+void update_turret_physics(uint32_t a0, uint32_t a1, uint32_t a2)
+{
+  physics_update(a2, NULL, a0, NULL, NULL);
+}
+
+

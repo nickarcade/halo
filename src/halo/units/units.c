@@ -14521,3 +14521,28 @@ label_flashlight_done:
 
   return 1;
 }
+
+/* 0x1a7f00 */
+void units_initialize(void)
+{
+  *(void **)0x4e4cf8 = game_state_malloc("units", 0, 8);
+}
+
+/* 0x1a7f40 */
+void units_initialize_for_new_map(void)
+{
+  csmemset(*(void **)0x4e4cf8, 0, 4);
+}
+
+/* 0x1a7f60 */
+void units_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0x1a7f70 */
+void units_dispose(void)
+{
+  return;
+}
+

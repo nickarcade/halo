@@ -4930,3 +4930,34 @@ label_crouch_physics:
     *(float *)(biped + 0x44) = global_zero_vector_ptr[2];
   }
 }
+
+/* 0x1a0780 */
+void bipeds_initialize(void)
+{
+  return;
+}
+
+/* 0x1a0790 */
+void bipeds_initialize_for_new_map(void)
+{
+  return;
+}
+
+/* 0x1a07a0 */
+void bipeds_dispose_from_old_map(void)
+{
+  return;
+}
+
+/* 0x1a07b0 */
+void bipeds_dispose(void)
+{
+  return;
+}
+
+/* 0x1a07f0 */
+void biped_delete(void)
+{
+  return;
+}
+

@@ -2206,3 +2206,10 @@ void static_camera_new(void *camera, const vector3_t *position,
   *(uint32_t *)(block + 0x30) = flags;
   *(uint8_t *)(block + 0x34) = 0;
 }
+
+/* 0x8a300 */
+int32_t observer_get(void)
+{
+  return (int32_t)0x33571c;
+}
+
