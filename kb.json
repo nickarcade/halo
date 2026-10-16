@@ -30141,7 +30141,9 @@
         },
         {
           "addr": "0x1baa50",
-          "decl": "void *FUN_001baa50(void *request@<eax>);"
+          "decl": "void *FUN_001baa50(void *request@<eax>);",
+          "ported": true,
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1bab60",
@@ -30176,99 +30178,118 @@
         },
         {
           "addr": "0x1bafa0",
-          "decl": "void FUN_001bafa0(void);"
+          "decl": "void FUN_001bafa0(void);",
+          "ported": true,
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1bb190",
           "decl": "void FUN_001bb190(char *self /* @<edi> */, void *buffer, unsigned int size, int current_read_offset, short read_buffer_index);",
           "reg_args": {
             "self": "edi"
-          }
+          },
+          "ported": true,
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1bb2d0",
           "decl": "void FUN_001bb2d0(char *self /* @<edi> */, void *buffer, unsigned int size, int param_3, int param_4);",
           "reg_args": {
             "self": "edi"
-          }
+          },
+          "ported": true,
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1b99e0",
           "decl": "void cache_files_enable_writes(void);",
-          "ported": false,
-          "name": "cache_files_enable_writes"
+          "ported": true,
+          "name": "cache_files_enable_writes",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1ba230",
           "decl": "bool copy_should_stop(void);",
-          "ported": false,
-          "name": "copy_should_stop"
+          "ported": true,
+          "name": "copy_should_stop",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1ba2d0",
           "decl": "bool cache_copy_compressed_file_complete(void);",
-          "ported": false,
-          "name": "cache_copy_compressed_file_complete"
+          "ported": true,
+          "name": "cache_copy_compressed_file_complete",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1ba600",
           "decl": "void cache_copy_initialize_zlib(int32_t a0);",
-          "ported": false,
-          "name": "cache_copy_initialize_zlib"
+          "ported": true,
+          "name": "cache_copy_initialize_zlib",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1ba630",
           "decl": "void cache_copy_dispose_zlib(void);",
-          "ported": false,
-          "name": "cache_copy_dispose_zlib"
+          "ported": true,
+          "name": "cache_copy_dispose_zlib",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1baa40",
           "decl": "uint32_t get_read_request_size(void);",
-          "ported": false,
-          "name": "get_read_request_size"
+          "ported": true,
+          "name": "get_read_request_size",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1baaa0",
           "decl": "uint32_t get_write_buffer(void);",
-          "ported": false,
-          "name": "get_write_buffer"
+          "ported": true,
+          "name": "get_write_buffer",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1baaf0",
           "decl": "uint32_t get_write_buffer_size_1baaf0(int16_t a0);",
-          "ported": false,
-          "name": "get_write_buffer_size_1baaf0"
+          "ported": true,
+          "name": "get_write_buffer_size_1baaf0",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1bab30",
           "decl": "void any_bit_vector_flag_set(void);",
-          "ported": false,
-          "name": "any_bit_vector_flag_set"
+          "ported": true,
+          "name": "any_bit_vector_flag_set",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1bac30",
           "decl": "uint32_t get_copy_error_flags(void);",
-          "ported": false,
-          "name": "get_copy_error_flags"
+          "ported": true,
+          "name": "get_copy_error_flags",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1bac40",
           "decl": "void initialize_timing(void);",
-          "ported": false,
-          "name": "initialize_timing"
+          "ported": true,
+          "name": "initialize_timing",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1bac60",
           "decl": "void begin_timing(int32_t a0);",
-          "ported": false,
-          "name": "begin_timing"
+          "ported": true,
+          "name": "begin_timing",
+          "src": "src/halo/cache/tags.c"
         },
         {
           "addr": "0x1bada0",
           "decl": "void give_up_time_if_necessary(void);",
-          "ported": false,
-          "name": "give_up_time_if_necessary"
+          "ported": true,
+          "name": "give_up_time_if_necessary",
+          "src": "src/halo/cache/tags.c"
         }
       ],
       "name": "tags.obj",

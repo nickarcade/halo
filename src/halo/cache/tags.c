@@ -1200,3 +1200,227 @@ void FUN_001baf50(void)
     FUN_001baca0();
   }
 }
+
+/* 0x1b99e0 — cache_files_enable_writes */
+void cache_files_enable_writes(void)
+{
+  physical_memory_protect((void *)0x803a6000, 0x1600000, 4);
+}
+
+/* 0x1ba230 — copy_should_stop */
+bool copy_should_stop(void)
+{
+  return WaitForSingleObject(*(int *)(*(unsigned char **)0x32ea98 + 0x950), 0) == 0;
+}
+
+/* 0x1ba2d0 — cache_copy_compressed_file_complete */
+bool cache_copy_compressed_file_complete(void)
+{
+  return WaitForSingleObject(*(int *)(*(unsigned char **)0x32ea98 + 0x954), 0) == 0;
+}
+
+/* 0x1ba600 — cache_copy_initialize_zlib */
+void cache_copy_initialize_zlib(int32_t a0)
+{
+  *(uint32_t *)(a0 + 0x908) = 0;
+  *(uint32_t *)(a0 + 0x90c) = 0;
+  *(uint32_t *)(a0 + 0x914) = 0;
+  *(uint32_t *)(a0 + 0x918) = 0;
+  inflateInit_((void *)(a0 + 0x908), (const char *)0x28ce40, 0x38);
+}
+
+/* 0x1ba630 — cache_copy_dispose_zlib */
+void cache_copy_dispose_zlib(void)
+{
+  unsigned char *self;
+
+  self = *(unsigned char **)0x32ea98;
+  if (self != NULL) {
+    inflateEnd((void *)(self + 0x908));
+    *(uint32_t *)(self + 0x908) = 0;
+    *(uint32_t *)(self + 0x90c) = 0;
+    *(uint32_t *)(self + 0x914) = 0;
+    *(uint32_t *)(self + 0x918) = 0;
+  }
+}
+
+/* 0x1baa40 — get_read_request_size */
+uint32_t get_read_request_size(void)
+{
+  return 0x20000;
+}
+
+/* 0x1baa50 — FUN_001baa50 (cache_copy_get_read_buffer) */
+void *FUN_001baa50(void *request)
+{
+  unsigned char *globals;
+  short read_buffer_index;
+
+  globals = *(unsigned char **)0x32ea98;
+  read_buffer_index = (short)(((char *)request - (char *)globals - 0xa78) / 2);
+  if (read_buffer_index < 0 || read_buffer_index >= 8) {
+    display_assert("read_buffer_index>=0 && read_buffer_index<NUMBER_OF_READ_BUFFERS",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x646, true);
+    system_exit(-1);
+  }
+  return *(void **)(globals + 0x964 + (int)read_buffer_index * 4);
+}
+
+/* 0x1baaa0 — get_write_buffer */
+uint32_t get_write_buffer(void)
+{
+  unsigned char *globals;
+
+  globals = *(unsigned char **)0x32ea98;
+  return *(uint32_t *)(globals + 0x984);
+}
+
+/* 0x1baaf0 — get_write_buffer_size_1baaf0 */
+uint32_t get_write_buffer_size_1baaf0(int16_t a0)
+{
+  if (a0 < 0 || a0 > 0) {
+    display_assert("write_buffer_index>=0 && write_buffer_index<NUMBER_OF_WRITE_BUFFERS",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x66a, true);
+    system_exit(-1);
+  }
+  return 0x400000;
+}
+
+/* 0x1bab30 — any_bit_vector_flag_set */
+void any_bit_vector_flag_set(void)
+{
+  return;
+}
+
+/* 0x1bac30 — get_copy_error_flags */
+uint32_t get_copy_error_flags(void)
+{
+  return *(uint32_t *)(*(unsigned char **)0x32ea98 + 0x904);
+}
+
+/* 0x1bac40 — initialize_timing */
+void initialize_timing(void)
+{
+  csmemset((void *)0x4e5610, 0, 0x24);
+}
+
+/* 0x1bac60 — begin_timing */
+void begin_timing(int32_t a0)
+{
+  QueryPerformanceCounter((void *)(a0 * 8 + 0x4e5638));
+}
+
+/* 0x1bada0 — give_up_time_if_necessary */
+void give_up_time_if_necessary(void)
+{
+  if (*(char *)(*(unsigned char **)0x32ea98 + 0x988) == 0) {
+    SwitchToThread();
+  }
+}
+
+/* 0x1bafa0 — FUN_001bafa0 (cache_copy_FileIOCompletionRoutine) */
+void FUN_001bafa0(void)
+{
+  return;
+}
+
+/* 0x1bb190 — FUN_001bb190 (cache_copy_issue_read) */
+void FUN_001bb190(char *self /* @<edi> */, void *buffer, unsigned int size, int current_read_offset, short read_buffer_index)
+{
+  int file;
+  int overlapped_index;
+  unsigned char *overlapped;
+  int error;
+  int issued;
+  uint32_t mask;
+  uint32_t *flag_word;
+  int (__stdcall *read_fn)(void *, void *, unsigned int, void *, void *);
+
+  QueryPerformanceCounter((void *)0x4e5640);
+
+  overlapped_index = (int)read_buffer_index;
+  file = *(int *)(self + 0x990);
+  overlapped = (unsigned char *)(self + 0x99c + overlapped_index * 0x14);
+
+  mask = 1u << (overlapped_index & 0x1f);
+  flag_word = (uint32_t *)(self + 0x994 + (overlapped_index >> 5) * 4);
+  if ((*flag_word & mask) != 0) {
+    display_assert("!BIT_VECTOR_TEST_FLAG(self->overlapped_in_use_flags, overlapped_index)",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x536, true);
+    system_exit(-1);
+  }
+  *flag_word |= mask;
+
+  *(int *)(overlapped + 0x10) = overlapped_index;
+  *(int *)(overlapped + 0x8) = current_read_offset;
+  *(int *)(overlapped + 0xc) = 0;
+
+  QueryPerformanceCounter((void *)(self + 0xac8 + overlapped_index * 8));
+
+  read_fn = (int (__stdcall *)(void *, void *, unsigned int, void *, void *))FUN_001d19e7;
+  do {
+    SleepEx(0, 1);
+    SetLastError(0);
+    issued = read_fn((void *)file, buffer, size, overlapped, (void *)FUN_001bafa0);
+    error = xapi_GetLastError();
+  } while (!issued && (error == 1784 || error == 8 || error == 1450));
+
+  if (!issued) {
+    display_assert("couldn't issue an asynchronous read",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x559, true);
+    *(uint32_t *)(self + 0x904) |= 1;
+  }
+
+  QueryPerformanceCounter((void *)0x4e5640);
+}
+
+/* 0x1bb2d0 — FUN_001bb2d0 (cache_copy_issue_write) */
+void FUN_001bb2d0(char *self /* @<edi> */, void *buffer, unsigned int size, int param_3, int param_4)
+{
+  int file;
+  int overlapped_index;
+  unsigned char *overlapped;
+  int error;
+  int issued;
+  uint32_t mask;
+  uint32_t *flag_word;
+  int (__stdcall *write_fn)(void *, void *, unsigned int, void *, void *);
+
+  QueryPerformanceCounter((void *)0x4e5648);
+
+  overlapped_index = 9 + (int)(short)param_4;
+  file = *(int *)(self + 0x98c);
+  overlapped = (unsigned char *)(self + 0x99c + overlapped_index * 0x14);
+
+  mask = 1u << (overlapped_index & 0x1f);
+  flag_word = (uint32_t *)(self + 0x994 + (overlapped_index >> 5) * 4);
+  if ((*flag_word & mask) != 0) {
+    display_assert("!BIT_VECTOR_TEST_FLAG(self->overlapped_in_use_flags, overlapped_index)",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x583, true);
+    system_exit(-1);
+  }
+  *flag_word |= mask;
+
+  *(int *)(overlapped + 0x10) = overlapped_index;
+  *(int *)(overlapped + 0x8) = param_3;
+  *(int *)(overlapped + 0xc) = 0;
+
+  QueryPerformanceCounter((void *)(self + 0xac8 + overlapped_index * 8));
+
+  write_fn = (int (__stdcall *)(void *, void *, unsigned int, void *, void *))FUN_001d1a38;
+  do {
+    SleepEx(0, 1);
+    SetLastError(0);
+    issued = write_fn((void *)file, buffer, size, overlapped, (void *)FUN_001bafa0);
+    error = xapi_GetLastError();
+  } while (!issued && (error == 1784 || error == 8 || error == 1450));
+
+  if (!issued) {
+    display_assert("couldn't issue an asynchronous write",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x5a1, true);
+    *(uint32_t *)(self + 0x904) |= 2;
+  }
+
+  QueryPerformanceCounter((void *)0x4e5648);
+}
+
