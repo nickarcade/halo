@@ -142,6 +142,52 @@ void acquire_read_request(char *self, short *request)
   FUN_001bb430(self, request, (short)read_buffer_index);
 }
 
+/* cache_copy_issue_read_raw @ 0x1bb410 — issue an unbuffered raw read of 8 blocks */
+void cache_copy_issue_read_raw(uint32_t a0, uint32_t a1, uint32_t a2)
+{
+  FUN_001bb190(*(char **)0x32ea98, (void *)a1, a2, (int)a0, 8);
+}
+
+/* cache_copy_issue_write_raw @ 0x1bb420 — issue an unbuffered raw write of 1 block */
+void cache_copy_issue_write_raw(uint32_t a0, uint32_t a1, uint32_t a2)
+{
+  FUN_001bb2d0(*(char **)0x32ea98, (void *)a1, a2, (int)a0, 1);
+}
+
+/* cache_copy_issue_read_request @ 0x1bb530 — issue read request by pointer */
+void cache_copy_issue_read_request(int32_t a0, uint32_t a1, int32_t a2)
+{
+  char *self;
+  short *request;
+  short read_buffer_index;
+
+  (void)a2;
+  self = (char *)a0;
+  request = (short *)a1;
+  read_buffer_index = (short)(((char *)request - self - 0xa78) >> 1);
+  FUN_001bb430(self, request, read_buffer_index);
+}
+
+/* cache_copy_issue_read @ 0x1bb550 — issue read for active buffer */
+void cache_copy_issue_read(void)
+{
+  char *self;
+  short *request;
+  short read_buffer_index;
+
+  self = *(char **)0x32ea98;
+  read_buffer_index = *(short *)(self + 0xaba);
+  if (read_buffer_index < 0 || read_buffer_index >= 8) {
+    display_assert(
+      "read_buffer_index>=0 && read_buffer_index<NUMBER_OF_READ_BUFFERS",
+      "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x619, 1);
+    system_exit(-1);
+  }
+
+  request = (short *)(self + 0xa78 + ((int)read_buffer_index * 2));
+  FUN_001bb430(self, request, read_buffer_index);
+}
+
 /* cache_copy_issue_write — issue the current write buffer, then advance the
  * write window. The index and state-block pointer are @<eax> and @<ecx>.
  * State offsets are accessed but their meanings remain unproven. */
@@ -1320,6 +1366,20 @@ void *FUN_001bc580(short request_index)
   return (void *)(*(int *)0x4e9250 + (int)request_index * 0x20);
 }
 
+/* cached_map_block_on_async_request @ 0x1bc550 — alertable wait for async request completion */
+int32_t cached_map_block_on_async_request(int32_t a0)
+{
+  volatile char *completion_flag;
+
+  completion_flag = (volatile char *)a0;
+  while (!*completion_flag) {
+    if (SleepEx(5000, 1) != 0xc0) {
+      break;
+    }
+  }
+  return (int32_t)*completion_flag;
+}
+
 /* scenario_name_to_cache_file_path (0x1bc960)
  * Formats "d:\\maps\\%s.map" with the given map name into path buffer.
  */
@@ -1388,6 +1448,37 @@ void cache_file_block_until_not_busy(void)
       offset = offset + 0x20;
     } while (i < 0x200);
   } while (active);
+}
+
+/* IDirect3DVertexBuffer8_IsBusy @ 0x1bc970 */
+void IDirect3DVertexBuffer8_IsBusy(uint32_t a0)
+{
+  D3DResource_IsBusy((void *)a0);
+}
+
+/* IDirect3DVertexBuffer8_BlockUntilNotBusy @ 0x1bc980 */
+void IDirect3DVertexBuffer8_BlockUntilNotBusy(uint32_t a0)
+{
+  D3DResource_BlockUntilNotBusy((void *)a0);
+}
+
+/* IDirect3DVertexBuffer8_Register @ 0x1bc990 */
+void IDirect3DVertexBuffer8_Register(uint32_t a0, uint32_t a1, uint32_t a2)
+{
+  (void)a1;
+  D3DResource_Register((void *)a2, a0);
+}
+
+/* IDirect3DIndexBuffer8_IsBusy @ 0x1bc9a0 */
+void IDirect3DIndexBuffer8_IsBusy(uint32_t a0)
+{
+  D3DResource_IsBusy((void *)a0);
+}
+
+/* IDirect3DIndexBuffer8_BlockUntilNotBusy @ 0x1bc9b0 */
+void IDirect3DIndexBuffer8_BlockUntilNotBusy(uint32_t a0)
+{
+  D3DResource_BlockUntilNotBusy((void *)a0);
 }
 
 /* tags_header_register_vertex_and_index_buffers — register D3D vertex and index

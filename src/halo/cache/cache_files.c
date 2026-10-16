@@ -32,7 +32,30 @@ void scenario_tags_unload(void)
  * build string, the scenario name and the difficulty). Whether the value is a
  * checksum, a map id or something else is NOT established by the binary, so the
  * name stays mechanical. No kb.json entry exists for this address. */
-#define global_4e4d68 (*(int *)0x4e4d68)
+extern void cache_files_initialize(void);
+extern void cache_files_dispose(void);
+
+/* 0x1b98c0: tag_files_open — initialize cache file system */
+void tag_files_open(void)
+{
+  cache_files_initialize();
+}
+
+/* 0x1b98d0: tag_files_close — dispose cache file system */
+void tag_files_close(void)
+{
+  cache_files_dispose();
+}
+
+/* 0x1b98e0: tag_groups_checksum — returns cache tag groups checksum */
+uint32_t tag_groups_checksum(void)
+{
+  if (!cache_tags_available) {
+    display_assert("cache_files_globals.open", "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x114, 1);
+    system_exit(-1);
+  }
+  return *(uint32_t *)((char *)tags_header + 8);
+}
 
 /* Body is exactly `MOV EAX,[0x4e4d68]; RET` -- no frame, no callees. */
 int FUN_001b9920(void)
@@ -56,6 +79,39 @@ int FUN_001b9920(void)
 /* Longest accepted scenario name in the header's +0x20 field, tested with an
  * UNSIGNED compare (`CMP EAX,0x1f / JA fail`). */
 #define CACHE_FILE_MAXIMUM_NAME_LENGTH 0x1f
+
+/* 0x1b9bf0: tag_instance_resolve — resolve tag datum index to instance pointer */
+int *tag_instance_resolve(int tag_index /* @<edi> */)
+{
+  int short_index;
+  char *instance;
+
+  if (!cache_tags_available) {
+    display_assert("cache_files_globals.open", "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x1d3, 1);
+    system_exit(-1);
+  }
+
+  if (tag_instances == NULL) {
+    display_assert("cache_files_globals.tags", "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x1d4, 1);
+    system_exit(-1);
+  }
+
+  short_index = (short)tag_index;
+  if (short_index < 0 || short_index >= *(int *)((char *)tags_header + 0xc)) {
+    display_assert(csprintf(error_string_buffer, "i don't think %08x is a tag index", tag_index),
+                   "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x1d7, 1);
+    system_exit(-1);
+  }
+
+  instance = (char *)tag_instances + short_index * 0x20;
+  if ((tag_index & 0xffff0000) != 0 && *(int *)(instance + 0xc) != tag_index) {
+    display_assert(csprintf(error_string_buffer, "i don't think %08x is a tag index", tag_index),
+                   "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x1db, 1);
+    system_exit(-1);
+  }
+
+  return (int *)instance;
+}
 
 /* 0x1b9ce0 -- validate a cache file header that has already been read into
  * memory. `path` names the file for the diagnostics; the build-mismatch

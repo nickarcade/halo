@@ -5265,11 +5265,15 @@
       "functions": [
         {
           "addr": "0x1bb430",
-          "decl": "void FUN_001bb430(char *self@<eax>, short *request, short read_buffer_index);"
+          "decl": "void FUN_001bb430(char *self@<eax>, short *request, short read_buffer_index);",
+          "ported": true,
+          "name": "FUN_001bb430"
         },
         {
           "addr": "0x1bb5a0",
-          "decl": "void acquire_read_request(char *self, short *request);"
+          "decl": "void acquire_read_request(char *self, short *request);",
+          "ported": true,
+          "name": "acquire_read_request"
         },
         {
           "addr": "0x1bb640",
@@ -5568,31 +5572,31 @@
         {
           "addr": "0x1bb410",
           "decl": "void cache_copy_issue_read_raw(uint32_t a0, uint32_t a1, uint32_t a2);",
-          "ported": false,
+          "ported": true,
           "name": "cache_copy_issue_read_raw"
         },
         {
           "addr": "0x1bb420",
           "decl": "void cache_copy_issue_write_raw(uint32_t a0, uint32_t a1, uint32_t a2);",
-          "ported": false,
+          "ported": true,
           "name": "cache_copy_issue_write_raw"
         },
         {
           "addr": "0x1bb530",
           "decl": "void cache_copy_issue_read_request(int32_t a0, uint32_t a1, int32_t a2);",
-          "ported": false,
+          "ported": true,
           "name": "cache_copy_issue_read_request"
         },
         {
           "addr": "0x1bb550",
           "decl": "void cache_copy_issue_read(void);",
-          "ported": false,
+          "ported": true,
           "name": "cache_copy_issue_read"
         },
         {
           "addr": "0x1bc550",
           "decl": "int32_t cached_map_block_on_async_request(int32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "cached_map_block_on_async_request"
         },
         {
@@ -5612,31 +5616,31 @@
         {
           "addr": "0x1bc970",
           "decl": "void IDirect3DVertexBuffer8_IsBusy(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DVertexBuffer8_IsBusy"
         },
         {
           "addr": "0x1bc980",
           "decl": "void IDirect3DVertexBuffer8_BlockUntilNotBusy(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DVertexBuffer8_BlockUntilNotBusy"
         },
         {
           "addr": "0x1bc990",
           "decl": "void IDirect3DVertexBuffer8_Register(uint32_t a0, uint32_t a1, uint32_t a2);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DVertexBuffer8_Register"
         },
         {
           "addr": "0x1bc9a0",
           "decl": "void IDirect3DIndexBuffer8_IsBusy(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DIndexBuffer8_IsBusy"
         },
         {
           "addr": "0x1bc9b0",
           "decl": "void IDirect3DIndexBuffer8_BlockUntilNotBusy(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "IDirect3DIndexBuffer8_BlockUntilNotBusy"
         }
       ],
@@ -6057,7 +6061,8 @@
         },
         {
           "addr": "0x150550",
-          "decl": "int FUN_00150550(void *out_point, float *direction, float *origin, int arg4, int arg5, int arg6, float *out_point2, void *out_arg8, int max_results, void *results);"
+          "decl": "int FUN_00150550(void *out_point, float *direction, float *origin, int arg4, int arg5, int arg6, float *out_point2, void *out_arg8, int max_results, void *results);",
+          "ported": true
         },
         {
           "addr": "0x1506d0",
@@ -6066,18 +6071,19 @@
         },
         {
           "addr": "0x150ac0",
-          "decl": "char FUN_00150ac0(int *data, int *point);"
+          "decl": "char FUN_00150ac0(int *data, int *point);",
+          "ported": true
         },
         {
           "addr": "0x14ee30",
           "decl": "void clip_position_to_plane(real *a0, real *a1, real *a2);",
-          "ported": false,
+          "ported": true,
           "name": "clip_position_to_plane"
         },
         {
           "addr": "0x14ee70",
           "decl": "void clip_velocity_to_plane(real *a0, real *a1, real *a2);",
-          "ported": false,
+          "ported": true,
           "name": "clip_velocity_to_plane"
         }
       ],
@@ -30012,19 +30018,19 @@
         {
           "addr": "0x1b9a00",
           "decl": "void cache_files_disable_writes(void);",
-          "ported": false,
+          "ported": true,
           "name": "cache_files_disable_writes"
         },
         {
           "addr": "0x1b9af0",
           "decl": "void tag_block_delete_element(void);",
-          "ported": false,
+          "ported": true,
           "name": "tag_block_delete_element"
         },
         {
           "addr": "0x1b9b20",
           "decl": "void tag_unload(void);",
-          "ported": false,
+          "ported": true,
           "name": "tag_unload"
         }
       ],
@@ -37920,7 +37926,9 @@
         },
         {
           "addr": "0x11cfd0",
-          "decl": "void FUN_0011cfd0(int *ptr, int value);"
+          "decl": "void FUN_0011cfd0(int *ptr, int value);",
+          "ported": true,
+          "name": "lru_default_new_block_proc"
         },
         {
           "addr": "0x11cfe0",
@@ -38083,13 +38091,13 @@
         {
           "addr": "0x11cff0",
           "decl": "int32_t get_lru_cache_block_offset(void);",
-          "ported": false,
+          "ported": true,
           "name": "get_lru_cache_block_offset"
         },
         {
           "addr": "0x11d530",
           "decl": "int32_t lruv_cache_bytes_to_pages(int32_t a0, uint32_t a1);",
-          "ported": false,
+          "ported": true,
           "name": "lruv_cache_bytes_to_pages"
         }
       ],
@@ -44858,7 +44866,9 @@
         {
           "addr": "0x1b9bf0",
           "comment": "Validate and resolve a tag index to its tag_instance record pointer. Asserts if tags not loaded or index out of range. Source: cache/cache_files.c",
-          "decl": "int *tag_instance_resolve(int tag_index@<edi>);"
+          "decl": "int *tag_instance_resolve(int tag_index@<edi>);",
+          "ported": true,
+          "name": "tag_instance_resolve"
         },
         {
           "addr": "0x1b9de0",
@@ -44873,12 +44883,14 @@
         {
           "addr": "0x1b98c0",
           "decl": "void tag_files_open(void);",
-          "name": "tag_files_open"
+          "name": "tag_files_open",
+          "ported": true
         },
         {
           "addr": "0x1b98d0",
           "decl": "void tag_files_close(void);",
-          "name": "tag_files_close"
+          "name": "tag_files_close",
+          "ported": true
         },
         {
           "addr": "0x1b9ce0",
@@ -44893,7 +44905,7 @@
         {
           "addr": "0x1b98e0",
           "decl": "uint32_t tag_groups_checksum(void);",
-          "ported": false,
+          "ported": true,
           "name": "tag_groups_checksum"
         }
       ],
@@ -45695,11 +45707,15 @@
         {
           "addr": "0x1be6b0",
           "decl": "void render_inverse_transform_screen_point_0(void);",
-          "comment": "[NAME: render_inverse_transform_screen_point_0 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: render_inverse_transform_screen_point_0 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true,
+          "name": "render_inverse_transform_screen_point_0"
         },
         {
           "addr": "0x1be7b0",
-          "decl": "void FUN_001be7b0(void);"
+          "decl": "void FUN_001be7b0(void);",
+          "ported": true,
+          "name": "sound_cache_debug_render"
         }
       ],
       "name": "xbox_sound_cache.obj",

@@ -218,6 +218,25 @@ void FUN_0019b3b0(void)
   return;
 }
 
+/* 0x1b9a00: cache_files_disable_writes — protect tag cache memory ranges */
+void cache_files_disable_writes(void)
+{
+  char *tags;
+  char *bsp;
+
+  physical_memory_protect((void *)0x803a6000, 0x1600000, 2);
+  tags = *(char **)0x4e5504;
+  if (tags != NULL) {
+    physical_memory_protect(*(void **)(tags + 0x14), *(int *)(tags + 0x10) * 0xc, 4);
+    physical_memory_protect(*(void **)(tags + 0x1c), *(int *)(tags + 0x18) * 0xc, 4);
+  }
+  bsp = *(char **)0x4e5508;
+  if (bsp != NULL) {
+    physical_memory_protect(*(void **)(bsp + 8), *(int *)(bsp + 4) * 0xc, 4);
+    physical_memory_protect(*(void **)(bsp + 0x10), *(int *)(bsp + 0xc) * 0xc, 4);
+  }
+}
+
 /* Stub: tag_block_resize is not supported when running from a cache file
  * (the map is memory-mapped read-only). Logs an error and returns false.
  * In the tools build this would perform actual reallocation. */
@@ -245,6 +264,12 @@ int16_t tag_block_add_element(void *tag_block)
   return -1;
 }
 
+/* Stub: tag_block_delete_element is not supported when running from a cache file. */
+void tag_block_delete_element(void)
+{
+  error(2, "tag_block_delete_element() is not supported with a cache file active");
+}
+
 /* Stub: tag_load is not supported when running from a cache file.
  * Logs an error and returns an invalid tag handle (-1).
  * All three parameters are intentionally unused in this stub. */
@@ -255,6 +280,12 @@ int FUN_001b9b00(int tag_class, const char *name, int flags)
   (void)flags;
   error(2, "tag_load() is not supported with a cache file active");
   return -1;
+}
+
+/* Stub: tag_unload is not supported when running from a cache file. */
+void tag_unload(void)
+{
+  error(2, "tag_unload() is not supported with a cache file active");
 }
 
 /* Stub: tag_file_get_path is not supported when running from a cache file.

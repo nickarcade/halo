@@ -2354,6 +2354,80 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
   return (short)collision_count;
 }
 
+extern void real_matrix3x3_transform_point(const void *matrix, const void *in_point, void *out_point);
+extern void *tag_block_get_element(const void *block, int index, int element_size);
+
+/* 0x14ee30: clip_position_to_plane — project 3D position onto plane */
+void clip_position_to_plane(const float *plane, float *out_pos, const float *in_pos)
+{
+  float dist;
+  dist = -((plane[2] * in_pos[2] + (in_pos[1] * plane[1] + in_pos[0] * plane[0])) - plane[3]);
+  out_pos[0] = dist * plane[0] + in_pos[0];
+  out_pos[1] = dist * plane[1] + in_pos[1];
+  out_pos[2] = dist * plane[2] + in_pos[2];
+}
+
+/* 0x14ee70: clip_velocity_to_plane — project 3D velocity onto plane */
+void clip_velocity_to_plane(const float *plane, float *out_vel, const float *in_vel)
+{
+  float dot;
+  dot = -(plane[2] * in_vel[2] + (in_vel[1] * plane[1] + in_vel[0] * plane[0]));
+  out_vel[0] = dot * plane[0] + in_vel[0];
+  out_vel[1] = dot * plane[1] + in_vel[1];
+  out_vel[2] = dot * plane[2] + in_vel[2];
+}
+
+/* FUN_00150550 / collision_move_pill @ 0x150550 */
+int FUN_00150550(void *out_point, float *direction, float *origin, int arg4,
+                 int arg5, int arg6, float *out_point2, void *out_arg8,
+                 int max_results, void *results)
+{
+  short features[22004];
+  float search_radius;
+  float dir_len;
+  float height;
+  float center[3];
+  int result;
+
+  (void)out_point;
+  if (*(int16_t *)0x4761d8 >= 0x20) {
+    display_assert("collision_depth<MAXIMUM_COLLISION_DEPTH",
+                   "c:\\halo\\SOURCE\\physics\\collision_usage.c", 0x4be, 1);
+    system_exit(-1);
+  }
+
+  *(int16_t *)(*(int16_t *)0x4761d8 * 2 + 0x5a8c80) = 7;
+  *(int16_t *)0x4761d8 += 1;
+
+  dir_len = x87_sqrt(direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2]);
+  height = *(float *)&arg4;
+  search_radius = dir_len * 0.5f + height * 0.5f + *(float *)&arg5;
+
+  center[0] = origin[0] + direction[0] * 0.5f;
+  center[1] = origin[1] + direction[1] * 0.5f;
+  center[2] = origin[2] + direction[2] * 0.5f;
+
+  if (FUN_0014ec30((int)out_point, center, search_radius, *(float *)&arg4, *(float *)&arg5, arg6, (void *)features)) {
+    result = (int)FUN_0014f2c0(origin, direction, features, out_point2, (float *)out_arg8, max_results, (void *)results);
+  } else {
+    out_point2[0] = origin[0] + direction[0];
+    out_point2[1] = origin[1] + direction[1];
+    out_point2[2] = origin[2] + direction[2];
+    ((float *)out_arg8)[0] = direction[0];
+    ((float *)out_arg8)[1] = direction[1];
+    ((float *)out_arg8)[2] = direction[2];
+    result = 0;
+  }
+
+  if (*(int16_t *)0x4761d8 <= 0) {
+    display_assert("collision_depth>0",
+                   "c:\\halo\\SOURCE\\physics\\collision_usage.c", 0x4d5, 1);
+    system_exit(-1);
+  }
+  *(int16_t *)0x4761d8 -= 1;
+
+  return result;
+}
 
 /* FUN_001506d0 — thin forwarder to the 10-arg collision/line-of-sight query
  * FUN_00150550, supplying a literal 0 for that callee's 4th parameter
@@ -2374,3 +2448,35 @@ int FUN_001506d0(void *out_point, float *direction, float *origin, int arg5,
   return FUN_00150550(out_point, direction, origin, 0, arg5, arg6, out_point2,
                       out_arg8, max_results, results);
 }
+
+/* 0x150ac0: FUN_00150ac0 / physics_test_point — test if 3D point is inside model collision spheres */
+char FUN_00150ac0(int *data, int *point)
+{
+  float local_point[3];
+  char *collision_model;
+  int count;
+  int i;
+  char *sphere;
+  float dx, dy, dz;
+  float dist_sq;
+  float radius_sq;
+
+  real_matrix3x3_transform_point((void *)(data + 2), (void *)point, local_point);
+  collision_model = *(char **)(data + 1);
+  count = *(int *)(collision_model + 0x74);
+
+  for (i = 0; i < count; i++) {
+    sphere = (char *)tag_block_get_element((void *)(collision_model + 0x74), i, 0x80);
+    dx = *(float *)(sphere + 0x38) - local_point[0];
+    dy = *(float *)(sphere + 0x3c) - local_point[1];
+    dz = *(float *)(sphere + 0x40) - local_point[2];
+    dist_sq = dx * dx + dy * dy + dz * dz;
+    radius_sq = *(float *)(sphere + 0x68) * *(float *)(sphere + 0x68);
+    if (dist_sq <= radius_sq) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
