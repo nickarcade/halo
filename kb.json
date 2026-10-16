@@ -9179,7 +9179,7 @@
         {
           "addr": "0xb4150",
           "decl": "int32_t count_bits_32(uint32_t a0, uint32_t a1);",
-          "ported": false,
+          "ported": true,
           "name": "count_bits_32"
         }
       ],
@@ -11511,19 +11511,19 @@
         {
           "addr": "0x1bf770",
           "decl": "void game_state_call_before_save_procs(void);",
-          "ported": false,
+          "ported": true,
           "name": "game_state_call_before_save_procs"
         },
         {
           "addr": "0x1bf780",
           "decl": "void game_state_call_before_load_procs(void);",
-          "ported": false,
+          "ported": true,
           "name": "game_state_call_before_load_procs"
         },
         {
           "addr": "0x1bfbd0",
           "decl": "void game_state_set_revert_time(void);",
-          "ported": false,
+          "ported": true,
           "name": "game_state_set_revert_time"
         }
       ],
@@ -11706,7 +11706,7 @@
         {
           "addr": "0x1c0730",
           "decl": "uint32_t game_state_get_persistent_storage_path(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "game_state_get_persistent_storage_path"
         }
       ],
@@ -28308,19 +28308,19 @@
         {
           "addr": "0x1c36e0",
           "decl": "void saved_game_files_take_mapfile_mutex(void);",
-          "ported": false,
+          "ported": true,
           "name": "saved_game_files_take_mapfile_mutex"
         },
         {
           "addr": "0x1c3700",
           "decl": "void saved_game_files_release_mapfile_mutex(void);",
-          "ported": false,
+          "ported": true,
           "name": "saved_game_files_release_mapfile_mutex"
         },
         {
           "addr": "0x1c4f10",
           "decl": "int32_t enumerate_default_profiles(void);",
-          "ported": false,
+          "ported": true,
           "name": "enumerate_default_profiles"
         }
       ],

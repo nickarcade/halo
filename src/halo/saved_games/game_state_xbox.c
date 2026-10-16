@@ -1191,3 +1191,10 @@ void FUN_001c19e0(void)
     }
   }
 }
+
+/* 0x1c0730 */
+uint32_t game_state_get_persistent_storage_path(uint32_t a0)
+{
+  return player_ui_get_path_to_local_player_profile_directory(0, (char *)a0) ? 1 : 0;
+}
+

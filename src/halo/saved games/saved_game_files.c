@@ -3158,3 +3158,23 @@ void FUN_001c58f0(void)
 {
   FUN_001c5010();
 }
+
+/* 0x1c36e0 */
+void saved_game_files_take_mapfile_mutex(void)
+{
+  take_mutex(*(int **)0x4eacc0, 3600000);
+}
+
+/* 0x1c3700 */
+void saved_game_files_release_mapfile_mutex(void)
+{
+  release_mutex(*(int **)0x4eacc0);
+}
+
+/* 0x1c4f10 */
+int32_t enumerate_default_profiles(void)
+{
+  int32_t count = enumerate_default_playlist_profiles();
+  return count + enumerate_default_player_profiles();
+}
+

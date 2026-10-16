@@ -1856,3 +1856,18 @@ float FUN_000b55b0(short value_type, int team)
     return game_globals_difficulty_scale(override, difficulty);
   }
 }
+
+/* 0xb4150 */
+int32_t count_bits_32(uint32_t a0, uint32_t a1)
+{
+  int32_t count = 0;
+  int32_t i;
+
+  for (i = 0; i < 32; i++) {
+    if (a1 & (1U << i)) {
+      count++;
+    }
+  }
+  return count;
+}
+

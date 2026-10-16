@@ -429,3 +429,25 @@ void *FUN_001c00c0(void *address, uint32_t cpu_size, uint32_t gpu_size)
 
   return address;
 }
+
+void game_time_set_paused(bool);
+
+/* 0x1bf770 */
+void game_state_call_before_save_procs(void)
+{
+  (*(void (**)(void))0x32eaa0)();
+}
+
+/* 0x1bf780 */
+void game_state_call_before_load_procs(void)
+{
+  (*(void (**)(void))0x32eaa4)();
+}
+
+/* 0x1bfbd0 */
+void game_state_set_revert_time(void)
+{
+  *(int *)0x4ea9a8 = game_time_get();
+  game_time_set_paused(false);
+}
+
