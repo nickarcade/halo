@@ -2,35 +2,139 @@
 
 You are an evidence-driven reverse-engineering assistant working on the repository **`stianeklund/halo`** (decompilation and C89 recovery of Halo: Combat Evolved for the original Xbox, debug build `01.10.12.2276`, Oct 12 2001, target `cachebeta.xbe`, MD5 `c7869590a1c64ad034e49a5ee0c02465`).
 
-You operate inside a modern Linux environment paired with **Kuna** (a high-performance CLI decompiler powered by Ghidra 11.2 and SLEIGH x86 32-bit little-endian) and native Xbox binary verification tooling.
+You operate inside a modern Linux environment paired with an integrated reverse-engineering triad — **`rea-kuna`** (the hybrid analysis tool integrating `kuna` into `rea`), **`kuna`** (a high-performance CLI decompiler powered by Ghidra 11.2 and SLEIGH x86 32-bit little-endian), and **`rea`** (Reverse Engineer Anything framework and native MCP server) — operating in conjunction with the modern Linux terminal search stack and native Xbox binary verification tooling.
 
 ---
 
 ## 1. Mandatory Tooling & Search Directives
 
-### 1.1 Kuna Decompilation Engine & Pre-Decompiled Corpus
-- **Pre-Decompiled Binary Corpus:** The entire `.text` segment of the pristine Xbox debug binary (`build/cachebeta.elf`) has **already been decompiled via Kuna/Ghidra SLEIGH and fully indexed** in [`halo_decompiled/`](file:///storage/1F34-EBBE/halo/halo_decompiled/).
-- **Primary Access via `tools/extract_fn.py`:** You **MUST** use **`tools/extract_fn.py`** (Section 1.4) as your primary tool to pull up decompiled functions, addresses, symbols, keywords, disassembly, and metadata instantly.
-- **Live Kuna CLI (Fallback / Deep Inspection):** When custom AST slicing, type redefinition, or dynamic block inspection is required beyond the pre-indexed corpus:
-  - **Binary Path:** `/data/data/com.termux/files/home/kuna/decompiler/target/release/kuna` (accessible as `kuna` on `$PATH`).
-  - **Target Image:** ELF wrapper at **`build/cachebeta.elf`**.
-  - **Decompilation Command:**
-    ```bash
-    kuna decompile build/cachebeta.elf 0x<address> --addr
-    ```
-    This produces live C pseudo-code directly from the pristine Xbox `.text` machine code.
+### 1.1 Integrated Triad Decompilation & Binary Analysis Engine: `rea-kuna`, `kuna`, and `rea`
 
-### 1.2 Search Tooling: `ripgrep` (`rg`) and `fd` (Strict Requirement)
-- **Always use `rg` (ripgrep) and `fd` instead of bare `grep` or `find`.**
-- Search text across source and headers:
+The reverse engineering workflow uses **`kuna`**, **`rea`**, and **`rea-kuna`** in conjunction with each other to provide end-to-end binary triage, deep SLEIGH decompilation, and cross-reference auditing:
+
+- **Role Division & Tool Strengths:**
+  - **`rea-kuna` (Unified Hybrid CLI):** The primary hybrid interface integrating `kuna`'s embedded SLEIGH engine into `rea`'s multi-format architecture (`~/.local/bin/rea-kuna`). Use for combined triage, decompilation, and xrefs:
+    ```bash
+    # Decompile function or address to C pseudocode
+    rea-kuna kuna-decompile build/cachebeta.elf 0x<address> --addr
+    rea-kuna kuna-decompile build/cachebeta.elf <func_name>
+
+    # Disassemble raw x86 instructions / p-code
+    rea-kuna kuna-disassemble build/cachebeta.elf 0x<address> --addr
+
+    # Trace callers (--to) or callees (--from)
+    rea-kuna kuna-xrefs build/cachebeta.elf --to <func_name> --json
+    rea-kuna kuna-xrefs build/cachebeta.elf --from <func_name> --json
+
+    # Inventory functions and runtime detection
+    rea-kuna kuna-functions build/cachebeta.elf --summary --json
+
+    # Scan cryptographic constants and string references
+    rea-kuna kuna-crypto build/cachebeta.elf --json
+    rea-kuna kuna-strings build/cachebeta.elf --min-length 6 --json
+
+    # Structural binary and raw byte analysis
+    rea-kuna analyze build/cachebeta.elf
+    rea-kuna read-bytes build/cachebeta.elf 0x<address> --length <size>
+    rea-kuna search-bytes build/cachebeta.elf '<byte_pattern>'
+    ```
+  - **`kuna` (High-Performance Standalone SLEIGH CLI):** Direct native SLEIGH engine (`~/.local/bin/kuna`) for fast batch or targeted decompilation:
+    ```bash
+    # Targeted live C decompilation directly from machine code
+    kuna decompile build/cachebeta.elf 0x<address> --addr
+    kuna decompile build/cachebeta.elf <func_name>
+
+    # Disassembly with opcode bytes and operands
+    kuna disassemble build/cachebeta.elf 0x<address> --addr
+
+    # Cross-references to/from target
+    kuna xrefs build/cachebeta.elf --to <func_name> --json
+    kuna xrefs build/cachebeta.elf --from <func_name> --json
+
+    # Function inventory & project decompilation
+    kuna functions build/cachebeta.elf --summary --json
+    kuna decompile-project build/cachebeta.elf --stream --jobs auto -o <output_dir>
+    ```
+  - **`rea` (Framework CLI & Interactive MCP Server):** High-level binary inspection, address space navigation, and native MCP tools (`inspect_native_instruction`, `resolve_native_call_targets`, `read_bytes`, `search_bytes`, `xrefs`, `batch_decompile`):
+    ```bash
+    rea analyze build/cachebeta.elf
+    rea read-bytes build/cachebeta.elf 0x<address>
+    rea search-bytes build/cachebeta.elf '<hex_pattern>'
+    ```
+
+- **Pre-Decompiled Binary Corpus:** The entire `.text` segment of the pristine Xbox debug binary (`build/cachebeta.elf`) has **already been decompiled via Kuna/Ghidra SLEIGH and fully indexed** in [`halo_decompiled/`](file:///storage/1F34-EBBE/halo/halo_decompiled/).
+- **Primary Access via `tools/extract_fn.py`:** You **MUST** use **`tools/extract_fn.py`** (Section 1.4) as your primary tool to pull up decompiled functions, addresses, symbols, keywords, disassembly, and metadata instantly ($O(1)$ sub-5ms lookup).
+
+- **Conjunction RE Workflow:**
+  1. **Instant Corpus Lookup:** Query `python3 tools/extract_fn.py <symbol_or_address>` for immediate authoritative C pseudocode and x86 frame layout.
+  2. **Live SLEIGH Decompilation & AST Slicing:** When custom AST slicing, type redefinition, or dynamic block inspection is needed, invoke `kuna decompile` or `rea-kuna kuna-decompile`.
+  3. **Call-Site & ABI Cross-Check:** Trace incoming register arguments (`@<reg>`) and callers using `rea-kuna kuna-xrefs` / `kuna xrefs` and `rea resolve-native-call-targets`.
+  4. **Byte-Level & Instruction Verification:** Verify jump tables, struct alignment, float bit patterns, and raw opcodes using `rea-kuna read-bytes` / `rea read-bytes` and REA MCP tools.
+
+### 1.2 Modern Terminal Search & Text Processing Stack (Strict Requirement)
+
+> [!IMPORTANT]
+> **No `rtk` Prefix:** Do NOT use `rtk` on shell commands (it is not installed). Run all commands directly.
+> **No Legacy Commands:** Never invoke legacy Unix tools (`grep`, `find`, `sed`, `awk`, `cut`, `cat`, `ls`). Use the modern terminal search and text-processing stack from `/learn`.
+
+- **`rg` (ripgrep) — Fast Code & Text Search:**
+  Blazingly fast recursive text & regex search respecting `.gitignore`. Primary tool for broad code scans across `src/` and headers:
   ```bash
-  rtk rg '<pattern>' src/
+  rg '<pattern>' src/
+  rg -t c -t h '<symbol>' src/
   ```
-- Find files and paths:
+
+- **`ugrep` — Advanced Pattern, Boolean & Fuzzy Search:**
+  Ultra-fast pattern search supporting boolean queries (`AND`, `OR`, `NOT`), fuzzy distance matching (`-Z`), binary search (`-z`), and structured context:
   ```bash
-  rtk fd '<filename_or_pattern>' src/
+  # Boolean query: find lines/blocks matching both patterns
+  ugrep -e '<pattern1> AND <pattern2>' src/
+
+  # Fuzzy search with edit distance (e.g. up to 2 typos/variants)
+  ugrep -Z2 '<pattern>' src/
+
+  # Search binary, compressed, or archive files
+  ugrep -z '<pattern>' <target_file>
   ```
-- Prefix shell tool calls with `rtk`. Never invoke bare `grep` or `find`. Bare `grep -rn` is permitted only if `rg` fails due to unsupported platform flags.
+
+- **`fd` — Fast Path & File Discovery:**
+  Modern replacement for `find` with intuitive globbing, regex support, and `.gitignore` awareness:
+  ```bash
+  fd '<filename_or_pattern>' src/
+  fd -e c -e h '<name>' src/
+  ```
+
+- **`fzf` — Interactive Fuzzy Filtering:**
+  Interactive fuzzy finder for quickly narrowing file lists, symbols, and paths:
+  ```bash
+  fd -e c src/ | fzf
+  ```
+
+- **`choose` — Fast Column & Field Slicing:**
+  Modern, clean replacement for legacy `cut` and `awk` for extracting delimited fields or columns (0-indexed):
+  ```bash
+  # Extract specific fields from tabular CLI output
+  python3 tools/extract_fn.py --info "ui_widget" | choose 0 1 2
+  git status -s | choose 1
+  ```
+
+- **`sd` — Intuitive Find & Replace:**
+  Modern regex find-and-replace tool replacing legacy `sed`:
+  ```bash
+  sd 'old_pattern' 'new_replacement' src/halo/path/file.c
+  ```
+
+- **`bat` — Syntax-Highlighted File Inspection:**
+  Modern replacement for `cat` with syntax highlighting and line numbers (always use `--paging=never` for direct terminal output):
+  ```bash
+  bat --paging=never -r 10:50 src/halo/path/file.c
+  ```
+
+- **`eza` — Modern Directory & Tree Listing:**
+  Modern replacement for `ls` and `tree` with file icons and directory grouping:
+  ```bash
+  eza --group-directories-first --icons=auto src/halo/interface/
+  ```
 
 ### 1.3 Neural & Semantic Code Retrieval (BGE-M3 + BGE-Reranker-v2)
 - **Purpose:** When lifting complex subsystems in Phase 5, exact symbol names or string references may be stripped, obscured, or not yet ported into `kb.json`. The neural code retrieval pipeline indexes all **11,137 decompiled functions** of the pristine Xbox debug binary (`cachebeta.elf.c`) into high-dimensional semantic vector space, enabling instant behavioral and algorithmic queries across the entire engine.
@@ -92,36 +196,42 @@ You operate inside a modern Linux environment paired with **Kuna** (a high-perfo
 - **Authoritative Command Reference:**
   - **Pull up by Memory Address (supports `0x1c4990`, `1c4990`, `0x001c4990`):**
     ```bash
-    rtk python3 tools/extract_fn.py 0x1c4990
+    python3 tools/extract_fn.py 0x1c4990
     ```
   - **Pull up by Exact Symbol or Function Name:**
     ```bash
-    rtk python3 tools/extract_fn.py playlist_profile_save
+    python3 tools/extract_fn.py playlist_profile_save
     ```
   - **Keyword & Substring Search across All 11,137 Cataloged Symbols:**
     ```bash
-    rtk python3 tools/extract_fn.py "playlist_profile"
-    rtk python3 tools/extract_fn.py -s "checkpoint"
+    python3 tools/extract_fn.py "playlist_profile"
+    python3 tools/extract_fn.py -s "checkpoint"
     ```
     *(If exactly 1 match, immediately dumps decompiled C source; if multiple matches, outputs an indexed tabular summary with VAs, sizes, and sequence IDs).*
-  - **Metadata Table Inspection Only (No Code Dump):**
+  - **Metadata Table Inspection Only (No Code Dump) & Field Slicing with `choose`:**
     ```bash
-    rtk python3 tools/extract_fn.py --info "checkpoint"
-    rtk python3 tools/extract_fn.py -i "game_engine"
+    python3 tools/extract_fn.py --info "checkpoint"
+    python3 tools/extract_fn.py -i "game_engine" | choose 0 1 2
     ```
   - **Include x86 Disassembly & Stack Frame Layout:**
     ```bash
-    rtk python3 tools/extract_fn.py 0x1c4990 --asm
-    rtk python3 tools/extract_fn.py playlist_profile_save --asm
+    python3 tools/extract_fn.py 0x1c4990 --asm
+    python3 tools/extract_fn.py playlist_profile_save --asm
     ```
   - **Find Semantically & Structurally Similar Functions (via BGE-M3 Embeddings):**
     ```bash
-    rtk python3 tools/extract_fn.py --similar playlist_profile_save -k 5
-    rtk python3 tools/extract_fn.py --similar 0x1c4990 -k 5
+    python3 tools/extract_fn.py --similar playlist_profile_save -k 5
+    python3 tools/extract_fn.py --similar 0x1c4990 -k 5
     ```
   - **Extract All Matching Functions when Multiple Match:**
     ```bash
-    rtk python3 tools/extract_fn.py --all "screen_flash"
+    python3 tools/extract_fn.py --all "screen_flash"
+    ```
+  - **Conjunction with `rea-kuna` / `kuna`:**
+    When deeper AST analysis or live call-site references are needed for an extracted symbol:
+    ```bash
+    rea-kuna kuna-decompile build/cachebeta.elf playlist_profile_save
+    rea-kuna kuna-xrefs build/cachebeta.elf --to playlist_profile_save --json
     ```
 
 ---
@@ -204,7 +314,7 @@ Lifts the entire visual presentation layer, player HUD feedback, menus, and UI i
 | `ui_widget_game_data_input_functions.obj` | `src/halo/interface/ui_widget_game_data_input_functions.c` | 73 | 5 | 78 | Data source adapters connecting engine state (network lobby, game settings) to UI widgets |
 
 > [!TIP]
-> Use `rtk python3 tools/extract_fn.py "ui_widget"` or `rtk python3 tools/extract_fn.py -i "game_data_input"` to inspect remaining unported function signatures and offsets.
+> Use `python3 tools/extract_fn.py "ui_widget"` or `python3 tools/extract_fn.py -i "game_data_input"` to inspect remaining unported function signatures and offsets.
 
 ### 4.1.3 Batch 5.1C: Shell & Messaging [100% COMPLETE]
 - `hud_messaging.obj` (`src/halo/interface/hud_messaging.c`): **94/94 ported (100.0%)** — HUD text queue, cinematic subtitle timing.
@@ -249,7 +359,7 @@ Completes entity management, damage calculation, vehicle handling, and camera di
 | **Total** | | **577** | **64** | **641** | **90.0%** | **64 functions remaining across 5 objects** |
 
 > [!TIP]
-> Extract camera, vehicle, and damage logic directly with `rtk python3 tools/extract_fn.py <symbol>` or `--asm`.
+> Extract camera, vehicle, and damage logic directly with `python3 tools/extract_fn.py <symbol>` or `--asm` (cross-checked with `rea-kuna kuna-decompile` or `kuna decompile`).
 
 ---
 
@@ -333,8 +443,8 @@ Halo: Combat Evolved (Xbox) was compiled with **MSVC 7.1** (Visual Studio .NET 2
    - Annotated register arguments (`@<reg>`) in `tools/kb_reg_baseline.json` are immutable. When declaring or porting functions with register inputs, preserve the exact register bindings.
 7. **Token Discipline & Decompiled Corpus Access (Strict Rule):**
    - **Never read the same file twice in one task.** Track files already read.
-   - **For `kb.json`:** `rtk jq` ONLY (0 lines direct view).
-   - **For `halo_decompiled/`:** **MANDATORY use of `tools/extract_fn.py`**. Never read `cachebeta.elf.c` (25MB), `cachebeta.elf.asm` (60MB), or `corpus_metadata.json` (1MB) directly into context. Query them via `rtk python3 tools/extract_fn.py <address_or_symbol_or_keyword>`.
+   - **For `kb.json`:** `jq` ONLY (0 lines direct view).
+   - **For `halo_decompiled/`:** **MANDATORY use of `tools/extract_fn.py`**. Never read `cachebeta.elf.c` (25MB), `cachebeta.elf.asm` (60MB), or `corpus_metadata.json` (1MB) directly into context. Query them via `python3 tools/extract_fn.py <address_or_symbol_or_keyword>`.
    - **For source files >300 lines:** use range reads capped at 100 lines.
 
 ---
@@ -344,32 +454,52 @@ Halo: Combat Evolved (Xbox) was compiled with **MSVC 7.1** (Visual Studio .NET 2
 Before committing any function in Phase 5, execute every step of the verification ladder:
 
 1. **Pre-edit Caller & Behavioral Research:**
-   - **Symbol & Text Search:** Locate existing callers, prototypes, and data structures:
+   - **Modern Search Stack:** Locate existing callers, prototypes, and data structures:
      ```bash
-     rtk rg '<function_name>' src/
+     # Fast regex search across C and header files
+     rg '<function_name>' src/
+
+     # Contextual boolean / fuzzy search
+     ugrep -e '<function_name> AND <context>' src/
+
+     # Find target files by glob/regex
+     fd -e c -e h '<keyword>' src/
      ```
    - **Decompiled Corpus Lookup via `tools/extract_fn.py` (Mandatory):** Pull up the authoritative decompiled implementation, symbol metadata, keywords, and sister functions:
      ```bash
-     rtk python3 tools/extract_fn.py <address_or_symbol>
-     rtk python3 tools/extract_fn.py "<keyword>"
-     rtk python3 tools/extract_fn.py --info "<keyword>"
-     rtk python3 tools/extract_fn.py --similar <address_or_symbol> -k 5
+     python3 tools/extract_fn.py <address_or_symbol>
+     python3 tools/extract_fn.py "<keyword>"
+     python3 tools/extract_fn.py --info "<keyword>"
+     python3 tools/extract_fn.py --similar <address_or_symbol> -k 5
      ```
    - **Neural Behavioral Code Discovery (GPU):** When identifying unknown subroutines by natural language query:
      ```bash
      colab exec -s halo-gpu -- 'results = search_halo("<behavior_query>", top_k=5)'
      ```
-2. **Decompilation & Disassembly Cross-Check:**
+2. **Decompilation, AST & Call-Site Audit (`kuna`, `rea-kuna`, `rea` in Conjunction):**
    - **Primary Extraction via `extract_fn.py`:** Pull up the full decompiled C source and x86 stack layout directly from `halo_decompiled/`:
      ```bash
-     rtk python3 tools/extract_fn.py 0x<address> --asm
+     python3 tools/extract_fn.py 0x<address> --asm
      ```
-   - **Targeted Live Decompilation via Kuna:** When custom AST slicing or instruction options are required:
+   - **Targeted Live Decompilation & Sleigh AST Analysis:** When custom AST slicing or instruction options are required:
      ```bash
      kuna decompile build/cachebeta.elf 0x<address> --addr
+     # Or via unified rea-kuna hybrid CLI:
+     rea-kuna kuna-decompile build/cachebeta.elf 0x<address> --addr
      ```
-3. **Disassembly Cross-Check:**
-   - Verify jump tables, push-then-fstp sequences, argument order, and stack frame sizes against the raw binary.
+   - **Cross-Reference & Register ABI Cross-Check:**
+     ```bash
+     kuna xrefs build/cachebeta.elf --to <function_name> --json
+     rea-kuna kuna-xrefs build/cachebeta.elf --from <function_name> --json
+     ```
+3. **Disassembly, Raw Byte & Memory Cross-Check (`rea-kuna` / `rea`):**
+   - Verify jump tables, push-then-fstp sequences, argument order, and stack frame sizes against the raw binary:
+     ```bash
+     rea-kuna kuna-disassemble build/cachebeta.elf 0x<address> --addr
+     rea-kuna read-bytes build/cachebeta.elf 0x<address> --length <size>
+     rea search-bytes build/cachebeta.elf '<hex_pattern>'
+     ```
+   - In interactive sessions, leverage REA MCP tools (`inspect_native_instruction`, `read_bytes`, `resolve_native_call_targets`).
 4. **C89 Implementation:**
    - Implement in the authentic owning file (`src/halo/...`).
    - Set `"ported": true` in `kb.json`.
@@ -379,27 +509,27 @@ Before committing any function in Phase 5, execute every step of the verificatio
    ```
 6. **Register ABI Audit:**
    ```bash
-   rtk python3 tools/audit/extract_reg_args.py --check
+   python3 tools/audit/extract_reg_args.py --check
    ```
    *Gate:* Must report `0 drift, 0 missing, 0 stale`.
 7. **Parameter & Return Type Audit:**
    ```bash
-   rtk python3 tools/audit/check_param_types.py --check
+   python3 tools/audit/check_param_types.py --check
    ```
    *Gate:* Must report `PASS: no new type mismatches`.
 8. **Lift Hazard Scan:**
    ```bash
-   rtk python3 tools/audit/check_lift_hazards.py --changed-only
+   python3 tools/audit/check_lift_hazards.py --changed-only
    ```
    *Gate:* Zero new warnings on modified lines.
 9. **XCALL Type Audit:**
    ```bash
-   rtk python3 tools/audit/check_xcall_types.py
+   python3 tools/audit/check_xcall_types.py
    ```
    *Gate:* Zero errors.
 10. **Full Build & Patch Verification:**
     ```bash
-    rtk python3 tools/build/build.py -q --target patched_xbe
+    python3 tools/build/build.py -q --target patched_xbe
     ```
     *Gate:* Must exit code 0 and produce valid `halo-patched/default.xbe`.
 11. **Documentation Report:**
@@ -414,14 +544,18 @@ With Campaign 5.2 (Game Engine, Session & Saved Games) **100% complete** and Bat
 1. **Target Translation Units (21 Functions Remaining):**
    - **`src/halo/interface/ui_widget.c` (16 unported):** Widget tree traversal, bounds calculation, widget focus management.
    - **`src/halo/interface/ui_widget_game_data_input_functions.c` (5 unported):** UI data binding adapter callbacks.
-2. **Workflow via `tools/extract_fn.py`:**
+2. **Workflow via `tools/extract_fn.py` & Search Stack:**
    ```bash
-   # Inspect remaining unported symbols and signatures
-   rtk python3 tools/extract_fn.py --info "ui_widget"
-   rtk python3 tools/extract_fn.py --info "game_data_input"
+   # Inspect remaining unported symbols and signatures (slice with choose)
+   python3 tools/extract_fn.py --info "ui_widget" | choose 0 1 2
+   python3 tools/extract_fn.py --info "game_data_input"
 
    # Extract full decompiled C and x86 stack layout for each target
-   rtk python3 tools/extract_fn.py <symbol_or_address> --asm
+   python3 tools/extract_fn.py <symbol_or_address> --asm
+
+   # Live Sleigh re-check & call-site xref audit with rea-kuna / kuna
+   rea-kuna kuna-decompile build/cachebeta.elf <symbol_or_address>
+   rea-kuna kuna-xrefs build/cachebeta.elf --to <symbol_or_address> --json
    ```
 3. **Execute Full Verification Ladder:**
    - Pass all 10 quality gates cleanly (Register ABI, Type Audit, Lift Hazards, XCALL types, and full XBE build).

@@ -4550,7 +4550,8 @@
         },
         {
           "addr": "0x416e0",
-          "decl": "int ai_test_line_of_sight(float *origin, int bsp, float *target, int param_4, short param_5, char param_6, int param_7, char param_8);"
+          "decl": "int ai_test_line_of_sight(float *origin, int bsp, float *target, int param_4, short param_5, char param_6, int param_7, char param_8);",
+          "ported": true
         },
         {
           "addr": "0x413c0",
@@ -4571,7 +4572,8 @@
         },
         {
           "addr": "0x3f350",
-          "decl": "int FUN_0003f350(int unit_handle, int spawn_tag, int16_t count, float radius);"
+          "decl": "int FUN_0003f350(int unit_handle, int spawn_tag, int16_t count, float radius);",
+          "ported": true
         },
         {
           "addr": "0x3f770",
@@ -4693,11 +4695,13 @@
         },
         {
           "addr": "0x41250",
-          "decl": "void ai_consider_major_upgrade(void);"
+          "decl": "void ai_consider_major_upgrade(void);",
+          "ported": true
         },
         {
           "addr": "0x41ad0",
-          "decl": "char ai_test_ballistic_line_of_fire(int actor_handle, int param_2, int target, float *impact_point, float accel, int param_6, char param_7);"
+          "decl": "char ai_test_ballistic_line_of_fire(int actor_handle, int param_2, int target, float *impact_point, float accel, int param_6, char param_7);",
+          "ported": true
         },
         {
           "addr": "0x41e80",
@@ -39802,7 +39806,8 @@
         {
           "addr": "0x22dc0",
           "decl": "void actor_combat_update(int actor_handle);",
-          "comment": "[NAME: actor_combat_update \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]"
+          "comment": "[NAME: actor_combat_update \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]",
+          "ported": true
         },
         {
           "addr": "0x20f80",
@@ -39832,7 +39837,8 @@
         {
           "addr": "0x21ae0",
           "decl": "char actor_combat_check_collateral_damage(int actor_handle, float range, float param3, float *encounter_pos, short *out_count);",
-          "comment": "[NAME: actor_combat_check_collateral_damage \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: actor_combat_check_collateral_damage \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x22010",
@@ -39871,7 +39877,8 @@
         },
         {
           "addr": "0x218d0",
-          "decl": "char actor_combat_build_grenade_trajectory(float *position @<eax>, float *out_aim_direction @<ebx>, int definition_index, int definition_field_190, float *point, int param_6, int param_7, float *out_speed, int *out_target, float *out_impact_point, float *out_acceleration);"
+          "decl": "char actor_combat_build_grenade_trajectory(float *position @<eax>, float *out_aim_direction @<ebx>, int definition_index, int definition_field_190, float *point, int param_6, int param_7, float *out_speed, int *out_target, float *out_impact_point, float *out_acceleration);",
+          "ported": true
         },
         {
           "addr": "0x219e0",
@@ -39880,12 +39887,14 @@
         },
         {
           "addr": "0x220c0",
-          "decl": "int actor_aim_projectile(int actor_index, float *forward, float *target_dir, int *out_target);"
+          "decl": "int actor_aim_projectile(int actor_index, float *forward, float *target_dir, int *out_target);",
+          "ported": true
         },
         {
           "addr": "0x22b40",
           "decl": "void actor_combat_retarget_grenade(int actor_handle @<ebx>, float *aim_vector @<esi>);",
-          "comment": "[NAME: actor_combat_retarget_grenade \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: actor_combat_retarget_grenade \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x22ba0",
@@ -39895,7 +39904,7 @@
         {
           "addr": "0x21310",
           "decl": "uint32_t actor_get_grenade_definition(int16_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "actor_get_grenade_definition"
         }
       ],
@@ -40118,7 +40127,8 @@
         },
         {
           "addr": "0x2f470",
-          "decl": "void actor_get_vision_distances(void);"
+          "decl": "void actor_get_vision_distances(void);",
+          "ported": true
         },
         {
           "addr": "0x2f5b0",
@@ -40197,7 +40207,8 @@
         },
         {
           "addr": "0x302b0",
-          "decl": "void actor_situation_combat_status_update(int actor_handle);"
+          "decl": "void actor_situation_combat_status_update(int actor_handle);",
+          "ported": true
         },
         {
           "addr": "0x303f0",
@@ -40216,7 +40227,8 @@
         },
         {
           "addr": "0x30b80",
-          "decl": "short actor_perception_aiming_vector_test_blockage(float *point, float *aiming_vector, int object_index, int param_4);"
+          "decl": "short actor_perception_aiming_vector_test_blockage(float *point, float *aiming_vector, int object_index, int param_4);",
+          "ported": true
         },
         {
           "addr": "0x30d10",
@@ -40248,11 +40260,13 @@
         },
         {
           "addr": "0x314f0",
-          "decl": "void actor_visibility_at_point(void);"
+          "decl": "void actor_visibility_at_point(void);",
+          "ported": true
         },
         {
           "addr": "0x31850",
-          "decl": "int actor_audibility_at_point(int actor_handle, void *input_block, float *position, void *location, short volume, int range_scale, short flags);"
+          "decl": "int actor_audibility_at_point(int actor_handle, void *input_block, float *position, void *location, short volume, int range_scale, short flags);",
+          "ported": true
         },
         {
           "addr": "0x31a90",
@@ -40261,21 +40275,25 @@
         },
         {
           "addr": "0x31c00",
-          "decl": "void actor_perception_unit_from_swarm(void);"
+          "decl": "void actor_perception_unit_from_swarm(void);",
+          "ported": true
         },
         {
           "addr": "0x31df0",
-          "decl": "void prop_position_refresh(int actor_handle, int prop_handle, void *out_data, int param_4, char refresh_status);"
+          "decl": "void prop_position_refresh(int actor_handle, int prop_handle, void *out_data, int param_4, char refresh_status);",
+          "ported": true
         },
         {
           "addr": "0x32170",
           "decl": "void actor_perception_assess_vehicle_danger(void);",
           "comment": "[NAME: actor_perception_assess_vehicle_danger \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
-          "name": "actor_perception_assess_vehicle_danger"
+          "name": "actor_perception_assess_vehicle_danger",
+          "ported": true
         },
         {
           "addr": "0x32380",
-          "decl": "void actor_perception_refresh_danger_zone(int actor_handle);"
+          "decl": "void actor_perception_refresh_danger_zone(int actor_handle);",
+          "ported": true
         },
         {
           "addr": "0x32940",
@@ -40314,19 +40332,23 @@
         },
         {
           "addr": "0x33440",
-          "decl": "void prop_status_refresh(int actor_handle, int prop_handle, void *out_data);"
+          "decl": "void prop_status_refresh(int actor_handle, int prop_handle, void *out_data);",
+          "ported": true
         },
         {
           "addr": "0x342a0",
-          "decl": "void actor_perception_refresh_test_object(void);"
+          "decl": "void actor_perception_refresh_test_object(void);",
+          "ported": true
         },
         {
           "addr": "0x34970",
-          "decl": "void actor_perception_create_orphan_from_friend(int param_1, int encounter_team, int actor_handle, int encounter_handle);"
+          "decl": "void actor_perception_create_orphan_from_friend(int param_1, int encounter_team, int actor_handle, int encounter_handle);",
+          "ported": true
         },
         {
           "addr": "0x34c80",
-          "decl": "void actor_perception_refresh(int actor_handle);"
+          "decl": "void actor_perception_refresh(int actor_handle);",
+          "ported": true
         },
         {
           "addr": "0x355f0",
@@ -40338,7 +40360,7 @@
         {
           "addr": "0x30ee0",
           "decl": "char actor_emotion_assess_unopposable_danger(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "actor_emotion_assess_unopposable_danger"
         }
       ],
@@ -40386,7 +40408,8 @@
         },
         {
           "addr": "0x42d20",
-          "decl": "void ai_communication_packet_new(void *packet);"
+          "decl": "void ai_communication_packet_new(void *packet);",
+          "ported": true
         },
         {
           "addr": "0x42d80",
@@ -40474,7 +40497,8 @@
         },
         {
           "addr": "0x433b0",
-          "decl": "int16_t ai_conversation_status(int16_t param_1);"
+          "decl": "int16_t ai_conversation_status(int16_t param_1);",
+          "ported": true
         },
         {
           "addr": "0x434c0",
@@ -40537,7 +40561,8 @@
         },
         {
           "addr": "0x441c0",
-          "decl": "void ai_communication_get_player_rating(void);"
+          "decl": "void ai_communication_get_player_rating(void);",
+          "ported": true
         },
         {
           "addr": "0x44500",
@@ -40558,20 +40583,24 @@
         },
         {
           "addr": "0x447d0",
-          "decl": "char ai_conversation_find_participant(int16_t participant_index, char *param_2, char *param_3, char *param_4, float *param_5, int conversation_handle @<eax>);"
+          "decl": "char ai_conversation_find_participant(int16_t participant_index, char *param_2, char *param_3, char *param_4, float *param_5, int conversation_handle @<eax>);",
+          "ported": true
         },
         {
           "addr": "0x44fd0",
-          "decl": "void ai_communication_started(int unit_handle, uint16_t priority, uint16_t type, void *comm_data);"
+          "decl": "void ai_communication_started(int unit_handle, uint16_t priority, uint16_t type, void *comm_data);",
+          "ported": true
         },
         {
           "addr": "0x45290",
-          "decl": "void ai_communication_notify(int unit_handle, uint16_t priority, uint16_t type, void *comm_data);"
+          "decl": "void ai_communication_notify(int unit_handle, uint16_t priority, uint16_t type, void *comm_data);",
+          "ported": true
         },
         {
           "addr": "0x454a0",
           "decl": "float ai_communication_actor_talk_weight(int object_handle @<eax>, int actor_handle, float *param_3, int param_4, float *param_5, int param_6, int param_7, int param_8, int param_9, int param_10, int param_11, int param_12);",
-          "name": "ai_communication_actor_talk_weight"
+          "name": "ai_communication_actor_talk_weight",
+          "ported": true
         },
         {
           "addr": "0x45830",
@@ -40600,7 +40629,8 @@
         },
         {
           "addr": "0x46530",
-          "decl": "void ai_communication_finished(int unit_handle, uint16_t priority, uint16_t type, int unk, int unk2, void *comm_data);"
+          "decl": "void ai_communication_finished(int unit_handle, uint16_t priority, uint16_t type, int unk, int unk2, void *comm_data);",
+          "ported": true
         },
         {
           "addr": "0x46b60",
@@ -40616,7 +40646,8 @@
         {
           "addr": "0x46f10",
           "decl": "void ai_communication_event(int type, int unit_handle, int param3, int param4, int param5, int param6, int param7);",
-          "comment": "[NAME: FUN_00046f10 \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03] [NAME: ai_communication_event \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]"
+          "comment": "[NAME: FUN_00046f10 \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03] [NAME: ai_communication_event \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]",
+          "ported": true
         },
         {
           "addr": "0x48e90",
@@ -40628,7 +40659,7 @@
         {
           "addr": "0x43cb0",
           "decl": "void ai_conversation_line_end(uint32_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "ai_conversation_line_end"
         }
       ],
@@ -42026,7 +42057,8 @@
         },
         {
           "addr": "0x59dd0",
-          "decl": "void encounter_determine_pursuit_availability(int encounter_index, int actor_handle, int param_3, char param_4, char *out_5, char *out_6, char *out_7, char *out_8, char *out_9, char *out_10, char *out_11, char *out_12);"
+          "decl": "void encounter_determine_pursuit_availability(int encounter_index, int actor_handle, int param_3, char param_4, char *out_5, char *out_6, char *out_7, char *out_8, char *out_9, char *out_10, char *out_11, char *out_12);",
+          "ported": true
         },
         {
           "addr": "0x5a050",
@@ -42180,7 +42212,8 @@
         {
           "addr": "0x5c3a0",
           "decl": "bool encounter_place_actor(int platoon_index, int delay, int flag, int encounter_handle /* @<ebx> */);",
-          "name": "encounter_place_actor"
+          "name": "encounter_place_actor",
+          "ported": true
         },
         {
           "addr": "0x5c510",
@@ -42207,7 +42240,8 @@
         {
           "addr": "0x5ca80",
           "decl": "void encounter_update_follow(int encounter_handle);",
-          "name": "encounter_update_follow"
+          "name": "encounter_update_follow",
+          "ported": true
         },
         {
           "addr": "0x5d200",
@@ -42273,7 +42307,7 @@
         {
           "addr": "0x5a490",
           "decl": "void encounterless_deactivate(void);",
-          "ported": false,
+          "ported": true,
           "name": "encounterless_deactivate"
         }
       ],
@@ -42358,7 +42392,8 @@
         {
           "addr": "0x63e90",
           "decl": "char structure_test_pill2d(int scenario, unsigned char bsp_idx, float *origin, int node_handle, float *target, int flags, float param_7, int param_8, unsigned int *result);",
-          "name": "structure_test_pill2d"
+          "name": "structure_test_pill2d",
+          "ported": true
         },
         {
           "addr": "0x64170",
@@ -42380,7 +42415,8 @@
         {
           "addr": "0x647c0",
           "decl": "void prop_setup_orphan(int parent_prop_handle@<eax>, int actor_handle, int orphan_prop_handle);",
-          "name": "prop_setup_orphan"
+          "name": "prop_setup_orphan",
+          "ported": true
         },
         {
           "addr": "0x648a0",
@@ -42466,7 +42502,7 @@
         {
           "addr": "0x64f80",
           "decl": "uint32_t findScheme(void);",
-          "ported": false,
+          "ported": true,
           "name": "findScheme"
         }
       ],
@@ -46420,25 +46456,30 @@
         {
           "addr": "0x62ba0",
           "decl": "void find_tangent_point(void);",
-          "comment": "[NAME: find_tangent_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: find_tangent_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x62cf0",
           "decl": "void find_avoidance_point(void);",
-          "comment": "[NAME: find_avoidance_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: find_avoidance_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x62e10",
           "decl": "void choose_turning_point(void);",
-          "comment": "[NAME: choose_turning_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: choose_turning_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true
         },
         {
           "addr": "0x63030",
-          "decl": "void find_turning_point(void);"
+          "decl": "void find_turning_point(void);",
+          "ported": true
         },
         {
           "addr": "0x633b0",
-          "decl": "void FUN_000633b0(unsigned int param_1, int param_2, void *param_3, int *param_4, void *param_5, char *param_6);"
+          "decl": "void FUN_000633b0(unsigned int param_1, int param_2, void *param_3, int *param_4, void *param_5, char *param_6);",
+          "ported": true
         },
         {
           "addr": "0x63710",
@@ -46457,7 +46498,8 @@
         },
         {
           "addr": "0x639e0",
-          "decl": "int FUN_000639e0(int scenario, unsigned char bsp_idx, float *origin, int node_handle, float *target, int flags, char *result_buf);"
+          "decl": "int FUN_000639e0(int scenario, unsigned char bsp_idx, float *origin, int node_handle, float *target, int flags, char *result_buf);",
+          "ported": true
         }
       ],
       "name": "path_smoothing.obj",

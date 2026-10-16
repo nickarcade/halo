@@ -2629,3 +2629,393 @@ void ai_handle_spatial_effect(int object_handle, float *position,
       object_handle, *entry, (float *)((char *)entry + 0x4), volume, entry[1]);
   }
 }
+
+/* 0x0003f350 — actors_spawn_from_unit / FUN_0003f350
+ * Spawns 'count' biped units of tag 'spawn_tag' placed around 'unit_handle'
+ * within 'radius', assigning them to the same encounter and squad.
+ * Returns the count of successfully created actors.
+ */
+int FUN_0003f350(int unit_handle, int spawn_tag, int16_t count, float radius)
+{
+  int spawned_count;
+  int unit;
+  int encounter_index;
+  int squad_index;
+  int actv_tag;
+  uint32_t *actr_tag;
+  uint32_t actr_flags;
+  int i;
+  float random_angle;
+  object_placement_data placement_data;
+  float forward[3];
+  float unit_origin[3];
+  float spawn_pos[3];
+  int new_obj;
+  int obj_type;
+  int new_actor;
+  float speed_mult;
+  float speed_scale;
+  float vel[3];
+
+  spawned_count = 0;
+  if ((spawn_tag != -1) && (count >= 1)) {
+    unit = object_get_and_verify_type(unit_handle, 3);
+    if ((*(int *)(unit + 0x1a8) != -1) || (*(int *)(unit + 0x1a4) != -1)) {
+      unit = (int)datum_get(*(data_t **)0x6325a4, *(unsigned int *)(unit + 0x1a4));
+      encounter_index = *(int16_t *)(unit + 0x34);
+      squad_index = *(int16_t *)(unit + 0x3a);
+    } else {
+      encounter_index = *(int16_t *)(unit + 0x2e4);
+      squad_index = *(int16_t *)(unit + 0x2e6);
+    }
+    if ((encounter_index != -1) && (squad_index != -1)) {
+      actv_tag = (int)tag_get(0x61637476, spawn_tag); /* 'actv' */
+      actr_tag = (uint32_t *)tag_get(0x61637472, *(unsigned int *)(actv_tag + 0x10)); /* 'actr' */
+      for (i = 0; i < (int)count; i++) {
+        random_angle = real_seed_random_range(get_global_random_seed_address(0, 0x40c90fdb));
+        object_placement_data_new(&placement_data, *(unsigned int *)(actv_tag + 0x20), 0xffffffff);
+        vector3d_from_angle(forward, random_angle);
+        object_get_origin(unit_handle, unit_origin);
+        spawn_pos[0] = forward[0] * *(float *)0x2533e4 + unit_origin[0];
+        spawn_pos[1] = forward[1] * *(float *)0x2533e4 + unit_origin[1];
+        spawn_pos[2] = forward[2] * *(float *)0x2533e4 + unit_origin[2] + *(float *)0x2533e4;
+        new_obj = object_new(&placement_data);
+        if (new_obj != -1) {
+          obj_type = object_get_and_verify_type(new_obj, 3);
+          if (*(int16_t *)(obj_type + 100) == 0) {
+            biped_fix_position(new_obj, 0xffffffff, spawn_pos, 0, 1.0f, 1, 0, 0);
+          }
+          actor_customize_unit(spawn_tag, new_obj);
+          actr_flags = (*actr_tag >> 0x1a) & 0xffffff01;
+          new_actor = actor_create_for_unit(actr_flags, new_obj, spawn_tag, encounter_index, squad_index, 0, 0xffffffff, 0, 2, 0, 0xffffffff, 0);
+          if (new_actor != -1) {
+            actor_verify_activation(new_actor);
+            if (radius > *(float *)0x2533c0) {
+              speed_mult = real_seed_random_range(get_global_random_seed_address(0x3f000000, 0x3f800000));
+              speed_scale = real_seed_random_range(get_global_random_seed_address(0x3f4ccccd, 0x3fc00000));
+              vel[0] = forward[0] * speed_mult * radius;
+              vel[1] = forward[1] * speed_mult * radius;
+              vel[2] = speed_scale * radius;
+              if (*(int16_t *)(obj_type + 100) == 0) {
+                biped_accelerate(new_obj, vel);
+              }
+            }
+            spawned_count++;
+          } else {
+            error(2, "WARNING: cannot create actor to be spawned from unit");
+            object_delete(new_obj);
+          }
+        }
+      }
+    }
+  }
+  return spawned_count;
+}
+
+/* 0x00041250 — ai_consider_major_upgrade
+ * Evaluates whether an actor in the given encounter/squad should be upgraded
+ * to a major rank.
+ */
+bool ai_consider_major_upgrade(int encounter_index, int squad_index, float chance)
+{
+  bool upgrade;
+  char *encounter;
+  char *squad;
+  float global_factor;
+  float squad_factor;
+  float effective_chance;
+  float roll;
+  float delta;
+  char *scen;
+  char *enc_def;
+  char *sq_def;
+  char *result_str;
+
+  encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_index);
+  squad = (char *)encounter_get_squad(encounter, (int16_t)squad_index);
+  global_factor = *(float *)(*(char **)0x632574 + 0xc) * *(float *)0x2579e8;
+  squad_factor = -*(float *)(squad + 8);
+  if (fabsf(global_factor) <= fabsf(squad_factor)) {
+    effective_chance = squad_factor;
+  } else {
+    effective_chance = global_factor;
+  }
+  roll = real_seed_random(get_global_random_seed_address());
+  effective_chance += chance;
+  upgrade = (roll < effective_chance);
+  delta = (float)(upgrade ? 1.0f : 0.0f) - chance;
+  *(float *)(squad + 8) += delta;
+  *(float *)(*(char **)0x632574 + 0xc) += delta;
+
+  if (*(char *)0x5aca49 != '\0') {
+    scen = (char *)global_scenario_get();
+    enc_def = (char *)tag_block_get_element((char *)scen + 0x42c, encounter_index & 0xffff, 0xb0);
+    sq_def = (char *)tag_block_get_element(enc_def + 0x80, (int16_t)squad_index, 0xe8);
+    result_str = upgrade ? "YES" : "NO";
+    console_printf(0, csprintf((char *)0x5ab100, "%s/%s major upgrade chance %.2f: %s (g %.2f s %.2f -> chance %.2f rand %.2f err ", enc_def, sq_def, (double)chance, result_str, (double)global_factor, (double)squad_factor, (double)effective_chance, (double)roll, (double)delta));
+    error(2, "%s", (char *)0x5ab100);
+  }
+  return upgrade;
+}
+
+/* 0x000416e0 — ai_test_line_of_sight
+ * Performs collision line/vector raycasts and fog attenuation checks
+ * to determine visibility between origin and target points.
+ */
+int ai_test_line_of_sight(float *origin, int bsp, float *target, int param_4, short param_5, char param_6, int param_7, char param_8)
+{
+  short depth;
+  int result;
+  unsigned int coll_flags;
+  float dir[3];
+  char coll_out[16];
+  char fog_out[56];
+  char fog_elem[16];
+  float fog_val;
+  float dist;
+  float side_dir[3];
+  float p1[3];
+  float p2[3];
+  float line_end[3];
+  bool hit;
+
+  if (*(char *)0x5aca6a != '\0') {
+    ai_debug_lineofsight(origin, bsp, target, param_4);
+  }
+  if (*(short *)0x4761d8 >= 0x20) {
+    display_assert("global_current_collision_user_depth < MAXIMUM_COLLISION_USER_STACK_DEPTH", "c:\\halo\\SOURCE\\ai\\ai.c", 0x349, 1);
+    system_exit(-1);
+  }
+  depth = *(short *)0x4761d8;
+  *(short *)0x4761d8 = depth + 1;
+  *(int *)0x5ac65c += 1;
+  *(short *)(0x5a8c80 + (int)depth * 2) = 2;
+
+  result = 4;
+  if (((bsp == -1) || (param_4 == -1)) || scenario_test_pvs(bsp, param_4)) {
+    coll_flags = 0xc2a3;
+    if (!game_connection() && *(char *)0x5ac9c4) {
+      coll_flags = 0x23;
+    }
+    if (param_6) {
+      coll_flags |= 0x10;
+    } else {
+      coll_flags |= 4;
+    }
+    if (param_8) {
+      coll_flags &= ~0x200;
+    }
+    *(int *)0x5ac5d4 += 1;
+    dir[0] = target[0] - origin[0];
+    dir[1] = target[1] - origin[1];
+    dir[2] = target[2] - origin[2];
+    hit = collision_test_vector(coll_flags, origin, dir, param_7, coll_out);
+    fog_val = scenario_fog_at_point(fog_elem, origin, fog_out);
+    if (fog_val <= *(float *)0x2533f0) {
+      if (fog_val < *(float *)0x253f3c) {
+        if (param_5 == 0) {
+          if (!hit) {
+            result = 0;
+            goto cleanup;
+          }
+        } else {
+          side_dir[0] = origin[1] - target[1];
+          side_dir[1] = target[0] - origin[0];
+          side_dir[2] = 0.0f;
+          if (normalize3d(side_dir) == *(float *)0x2533c0) {
+            side_dir[0] = *(float *)0x31fc3c;
+            side_dir[1] = *(float *)0x31fc40;
+            side_dir[2] = *(float *)0x31fc44;
+          }
+          if (param_5 != 1) {
+            if (!hit) goto check_fog_dist;
+            point_from_line3d(target, side_dir, 0.1f, p1);
+            point_from_line3d(target, side_dir, -0.1f, p2);
+            point_from_line3d(target, (float *)0x31fc50, 0.1f, line_end);
+            *(int *)0x5ac5d4 += 1;
+            if (!collision_test_line(coll_flags, p1, origin, param_7, coll_out)) {
+              *(int *)0x5ac5d4 += 1;
+              if (!collision_test_line(coll_flags, p2, origin, param_7, coll_out)) {
+                *(int *)0x5ac5d4 += 1;
+                if (!collision_test_line(coll_flags, line_end, origin, param_7, coll_out)) {
+                  result = 0;
+                  goto cleanup;
+                }
+              }
+            }
+          } else {
+            p1[0] = side_dir[0] * *(float *)0x25337c + origin[0];
+            p1[1] = side_dir[1] * *(float *)0x25337c + origin[1];
+            p1[2] = side_dir[2] * *(float *)0x25337c + origin[2];
+            line_end[0] = origin[0] - side_dir[0] * *(float *)0x25337c;
+            line_end[1] = origin[1] - side_dir[1] * *(float *)0x25337c;
+            line_end[2] = origin[2] - side_dir[2] * *(float *)0x25337c;
+            *(int *)0x5ac5d4 += 1;
+            if (!collision_test_line(coll_flags, p1, target, param_7, coll_out)) {
+              *(int *)0x5ac5d4 += 1;
+              if (!collision_test_line(coll_flags, line_end, target, param_7, coll_out)) {
+                result = 0;
+                goto cleanup;
+              }
+            }
+          }
+        }
+        result = 1;
+        goto cleanup;
+      }
+check_fog_dist:
+      dist = sqrtf((target[0] - origin[0]) * (target[0] - origin[0]) +
+                   (target[1] - origin[1]) * (target[1] - origin[1]) +
+                   (target[2] - origin[2]) * (target[2] - origin[2]));
+      if (dist >= *(float *)0x2533c8) {
+        if (dist * fog_val < *(float *)0x2533c8) {
+          result = 2;
+          goto cleanup;
+        }
+        result = 3;
+        if ((*(float *)0x2533c8 - fog_val) * dist < *(float *)0x2533d8) {
+          goto cleanup;
+        }
+      }
+    }
+  }
+
+cleanup:
+  if (*(short *)0x4761d8 <= 1) {
+    display_assert("global_current_collision_user_depth > 1", "c:\\halo\\SOURCE\\ai\\ai.c", 0x3f0, 1);
+    system_exit(-1);
+  }
+  *(short *)0x4761d8 -= 1;
+  return result;
+}
+
+/* 0x00041ad0 — ai_test_ballistic_line_of_fire
+ * Checks whether an actor has an unobstructed ballistic trajectory
+ * (accounting for gravity/acceleration and friendly pill blockage) to target.
+ */
+char ai_test_ballistic_line_of_fire(int actor_handle, int param_2, int target, float *impact_point, float accel, int param_6, char param_7)
+{
+  short depth;
+  int pill_count;
+  char pill_buf[4];
+  unsigned int pills[320];
+  char coll_out[80];
+  float *origin;
+  float *target_dir;
+  float total_time;
+  float current_time;
+  float step;
+  float seg_start[3];
+  float seg_end[3];
+  float delta[3];
+  float vel[3];
+  char hit_result;
+  int i;
+  int flags;
+  int k;
+
+  datum_get(*(data_t **)0x6325a4, actor_handle);
+  if (*(short *)0x4761d8 >= 0x20) {
+    display_assert("global_current_collision_user_depth < MAXIMUM_COLLISION_USER_STACK_DEPTH", "c:\\halo\\SOURCE\\ai\\ai.c", 0x408, 1);
+    system_exit(-1);
+  }
+  depth = *(short *)0x4761d8;
+  *(short *)0x4761d8 = depth + 1;
+  *(short *)(0x5a8c80 + (int)depth * 2) = 4;
+
+  pill_count = ai_find_line_of_fire_friend_pills(actor_handle, 0x20, pill_buf);
+  origin = (float *)param_2;
+  target_dir = impact_point;
+
+  if (*(char *)0x5aca48 == '\0') {
+    *(int *)0x5f8cb4 = 1;
+    *(float *)0x5f8cb8 = origin[0];
+    *(float *)0x5f8cbc = origin[1];
+    *(float *)0x5f8cc0 = origin[2];
+    *(float *)0x5f8cc4 = target_dir[0];
+    *(float *)0x5f8cc8 = target_dir[1];
+    *(float *)0x5f8ccc = target_dir[2];
+    *(int *)0x5f8e94 = 0;
+    *(int *)0x5f8cd0 = (pill_count < 0x11) ? pill_count : 0x10;
+    for (i = 0; i < *(int *)0x5f8cd0; i++) {
+      *(float *)(0x5f8cd4 + i * 12) = *(float *)&pills[i * 10];
+      *(float *)(0x5f8cd8 + i * 12) = *(float *)&pills[i * 10 + 1];
+      *(float *)(0x5f8cdc + i * 12) = *(float *)&pills[i * 10 + 2];
+      *(float *)(0x5f8d94 + i * 12) = *(float *)&pills[i * 10 + 3];
+      *(float *)(0x5f8d98 + i * 12) = *(float *)&pills[i * 10 + 4];
+      *(float *)(0x5f8d9c + i * 12) = *(float *)&pills[i * 10 + 5];
+      *(float *)(0x5f8e54 + i * 4) = *(float *)&pills[i * 10 + 8];
+    }
+  }
+
+  flags = param_7 ? 0xc0b3 : 0xc2b3;
+  total_time = *(float *)&target;
+  step = (*(float *)0x254640 <= total_time) ? *(float *)0x254640 : total_time;
+  current_time = 0.0f;
+  seg_start[0] = origin[0];
+  seg_start[1] = origin[1];
+  seg_start[2] = origin[2];
+  vel[0] = target_dir[0];
+  vel[1] = target_dir[1];
+  vel[2] = target_dir[2];
+  hit_result = 1;
+
+  while (current_time < total_time) {
+    float dt;
+    if (*(char *)0x5aca48 == '\0' && *(int *)0x5f8e94 <= 0x3f) {
+      int idx = *(int *)0x5f8e94;
+      *(float *)(0x5f8e98 + idx * 12) = seg_start[0];
+      *(float *)(0x5f8e9c + idx * 12) = seg_start[1];
+      *(float *)(0x5f8ea0 + idx * 12) = seg_start[2];
+      *(int *)0x5f8e94 += 1;
+    }
+    dt = step - current_time;
+    seg_end[0] = target_dir[0] * dt + seg_start[0];
+    seg_end[1] = target_dir[1] * dt + seg_start[1];
+    seg_end[2] = dt * dt * accel * *(float *)0x253398 + (dt * vel[2] + seg_start[2]);
+    delta[0] = seg_end[0] - seg_start[0];
+    delta[1] = seg_end[1] - seg_start[1];
+    delta[2] = seg_end[2] - seg_start[2];
+
+    if (collision_test_vector(flags, seg_start, delta, param_6, coll_out)) {
+      hit_result = 0;
+      break;
+    }
+
+    for (k = 0; k < pill_count; k++) {
+      if (vector_intersects_pill3d(seg_start, delta, (float *)&pills[k * 10], (float *)&pills[k * 10 + 3], *(float *)&pills[k * 10 + 8])) {
+        hit_result = 0;
+        goto done_testing;
+      }
+    }
+
+    current_time = step;
+    seg_start[0] = seg_end[0];
+    seg_start[1] = seg_end[1];
+    seg_start[2] = seg_end[2];
+    vel[2] = dt * accel + vel[2];
+    step += *(float *)0x254640;
+    if (step > total_time) {
+      step = total_time;
+    }
+  }
+
+done_testing:
+  if (*(char *)0x5aca48 == '\0') {
+    if (*(int *)0x5f8e94 <= 0x3f) {
+      int idx = *(int *)0x5f8e94;
+      *(float *)(0x5f8e98 + idx * 12) = seg_start[0];
+      *(float *)(0x5f8e9c + idx * 12) = seg_start[1];
+      *(float *)(0x5f8ea0 + idx * 12) = seg_start[2];
+      *(int *)0x5f8e94 += 1;
+    }
+    *(char *)0x5f8cb5 = hit_result;
+  }
+
+  if (*(short *)0x4761d8 <= 1) {
+    display_assert("global_current_collision_user_depth > 1", "c:\\halo\\SOURCE\\ai\\ai.c", 0x478, 1);
+    system_exit(-1);
+  }
+  *(short *)0x4761d8 -= 1;
+  return hit_result;
+}

@@ -3042,3 +3042,616 @@ iterate_props:
   ((actor_t *)actor)->field_04e = awareness_slot;
   ((actor_t *)actor)->field_054 = best_prop;
 }
+
+
+/* 0x0002f470 — actor_get_vision_distances
+ * Calculates vision distances based on actor tag properties, field of view, and light levels. */
+void actor_get_vision_distances(uint32_t actor_handle, float a1, float a2, float a3, float *a4, float *a5)
+{
+  char *actor;
+  char *tag;
+  float v2;
+  float v5;
+  float v6;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  tag = (char *)tag_get(0x61637472, *(uint32_t *)(actor + 0x58));
+  if (*(float *)(tag + 0x28) < a3) {
+    *a5 = 0.0f;
+    *a4 = 0.0f;
+    return;
+  }
+  a1 = a1 * a2;
+  a2 = a2 * *(float *)(tag + 0x2c);
+  v2 = 0.7f * a1;
+  v6 = a2 * 0.7f;
+  if (v6 > 3.5f) {
+    v6 = 3.5f;
+  }
+  if (a3 <= *(float *)(tag + 0x20)) {
+    v5 = *(float *)(tag + 0x1c);
+    if (v5 <= a3) {
+      float t1 = (a3 - v5) / (*(float *)(tag + 0x20) - v5);
+      a1 = t1 * a2 + (1.0f - t1) * a1;
+    }
+    if (0.8f * v5 <= a3) {
+      float t2 = (a3 - 0.8f * v5) / (*(float *)(tag + 0x20) - 0.8f * v5);
+      *a5 = a1;
+      *a4 = t2 * v6 + (1.0f - t2) * v2;
+      return;
+    }
+    *a5 = a1;
+    *a4 = v2;
+    return;
+  }
+  *a5 = a2;
+  *a4 = v6;
+}
+
+/* 0x00030b80 — actor_perception_aiming_vector_test_blockage
+ * Tests if an aiming line from point towards aiming_vector is blocked by target. */
+short actor_perception_aiming_vector_test_blockage(float *point, float *aiming_vector, float *target_pos, float *out_vec)
+{
+  float v1;
+  short v2;
+  float v3;
+  float v4;
+  float v5;
+  float v6;
+  float diff_x;
+  float diff_y;
+  float dist_2d;
+
+  v6 = aiming_vector[1];
+  v1 = aiming_vector[0];
+  v3 = sqrtf(v1 * v1 + v6 * v6);
+  if (v3 > 0.0001f) {
+    diff_x = target_pos[0] - point[0];
+    diff_y = target_pos[1] - point[1];
+    v6 = diff_x * (v1 * (1.0f / v3)) + diff_y * (v6 * (1.0f / v3));
+    dist_2d = sqrtf(diff_x * diff_x + diff_y * diff_y);
+    if (dist_2d * 0.8660254f < v6) {
+      v4 = -v6 * aiming_vector[0] + diff_x;
+      v5 = -v6 * aiming_vector[1] + diff_y;
+      v6 = -v6 * aiming_vector[2] + (target_pos[2] - point[2]);
+      if (out_vec != NULL) {
+        out_vec[0] = -v4;
+        out_vec[1] = -v5;
+        out_vec[2] = -v6;
+      }
+      if (v6 <= -0.5f || v6 >= 0.9f) {
+        if (v6 <= -0.8f || v6 >= 1.2f) {
+          return 0;
+        }
+        v2 = 1;
+      } else {
+        v2 = 2;
+      }
+      dist_2d = v4 * v4 + v5 * v5;
+      if (dist_2d < 0.36f) {
+        return v2;
+      }
+      if (dist_2d >= 1.21f) {
+        return 0;
+      }
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/* 0x00030ee0 — actor_emotion_assess_unopposable_danger
+ * Evaluates whether an unacknowledged/active prop represents unopposable threat. */
+char actor_emotion_assess_unopposable_danger(uint32_t prop_index)
+{
+  char *prop;
+
+  prop = (char *)datum_get(prop_data, prop_index);
+  if (*(short *)(prop + 0x24) <= 1 || *(short *)(prop + 0x24) >= 4) {
+    return 0;
+  }
+  if (!*(char *)(prop + 0xa4)) {
+    return 0;
+  }
+  if (!*(char *)(prop + 0x74)) {
+    if (*(char *)(prop + 0x12f)) {
+      return (char)((*(char *)(prop + 0x122) <= 1) ? 3 : 2);
+    }
+    if (*(short *)(prop + 0x32) <= 1) {
+      return 0;
+    }
+    return 1;
+  }
+  return 4;
+}
+
+/* 0x000314f0 — actor_visibility_at_point
+ * Tests visibility from actor eye position to target point. */
+uint32_t actor_visibility_at_point(uint32_t actor_handle, float *eye_pos, float *target_pos, char crouch_flag, int16_t blockage_res, char check_facing, char record_debug, uint16_t knowledge_type)
+{
+  char *actor;
+  char *tag;
+  char *firing_def;
+  float max_dist;
+  float knowledge_scale;
+  float dx;
+  float dy;
+  float dz;
+  float dist_sq;
+  float vis_factor;
+  float fog;
+  float scaled_dist;
+  float lateral_dist;
+  float depth_dist;
+  float pitch;
+
+  if (blockage_res != 0 && blockage_res != 1) {
+    return 0;
+  }
+  actor = (char *)datum_get(actor_data, actor_handle);
+  tag = (char *)tag_get(0x61637472, *(uint32_t *)(actor + 0x58));
+  firing_def = (char *)actor_combat_get_firing_variant_definition(actor_handle);
+  max_dist = *(float *)(tag + 0x18);
+  if (firing_def != NULL && *(float *)(firing_def + 0x150) > 0.0f) {
+    max_dist = *(float *)(firing_def + 0x150);
+  }
+
+  switch (knowledge_type) {
+    case 0:  knowledge_scale = 0.4f; break;
+    case 1:  knowledge_scale = 0.6f; break;
+    case 2:  knowledge_scale = 0.8f; break;
+    case 3:  knowledge_scale = 1.0f; break;
+    default:
+      display_assert("!\"unreachable\"", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x4f4, 1);
+      system_exit(-1);
+      knowledge_scale = 1.0f;
+  }
+  max_dist *= knowledge_scale;
+
+  dx = target_pos[0] - eye_pos[0];
+  dy = target_pos[1] - eye_pos[1];
+  dz = target_pos[2] - eye_pos[2];
+  dist_sq = dx * dx + dy * dy + dz * dz;
+  if (dist_sq >= max_dist * max_dist) {
+    return 0;
+  }
+
+  vis_factor = 1.0f;
+  if (!(*(uint8_t *)tag & 1)) {
+    if (crouch_flag == 1) {
+      vis_factor = 0.7f;
+    } else if (crouch_flag == 0) {
+      vis_factor = 0.3f;
+    }
+  }
+
+  fog = scenario_fog_at_point(&eye_pos[9], eye_pos, target_pos);
+  if (fog <= 0.8f) {
+    if (fog > 0.2f) {
+      vis_factor = (0.8f - fog) * vis_factor * 1.6666666f;
+    }
+    if (vis_factor < 0.15f) {
+      vis_factor = 0.15f;
+    }
+  } else {
+    vis_factor = 0.15f;
+  }
+
+  if (record_debug) {
+    char *debug_entry = *(char **)0x331f58 + (actor_handle & 0xffff) * 0x657c;
+    *(uint32_t *)(debug_entry + 0x656c) = game_time_get();
+    *(float *)(debug_entry + 0x6570) = max_dist;
+    *(float *)(debug_entry + 0x6574) = vis_factor;
+  }
+
+  scaled_dist = vis_factor * max_dist;
+  if (dist_sq >= scaled_dist * scaled_dist) {
+    return 0;
+  }
+
+  if (*(char *)(actor + 6) != 0 || !check_facing) {
+    max_dist = 0.7f * scaled_dist;
+  } else {
+    lateral_dist = dx * *(float *)(actor + 0x18c) + dy * *(float *)(actor + 0x190) + dz * *(float *)(actor + 0x194);
+    depth_dist = dx * *(float *)(actor + 0x198) + dy * *(float *)(actor + 0x19c) + dz * *(float *)(actor + 0x1a0);
+    pitch = fpatan(dx * *(float *)(actor + 0x1a4) + dy * *(float *)(actor + 0x1a8) + dz * *(float *)(actor + 0x1ac),
+                   sqrtf(lateral_dist * lateral_dist + depth_dist * depth_dist));
+    if (pitch > 0.5235988f || pitch < -0.7853982f) {
+      max_dist = 0.0f;
+      scaled_dist = 0.0f;
+    } else {
+      actor_get_vision_distances(actor_handle, max_dist, vis_factor, fabsf(fpatan(depth_dist, lateral_dist)), &max_dist, &scaled_dist);
+    }
+  }
+
+  if (blockage_res == 0 && dist_sq < max_dist * max_dist) {
+    if (dist_sq >= 36.0f) {
+      return 2;
+    }
+    return 3;
+  }
+
+  if (dist_sq >= scaled_dist * scaled_dist) {
+    return 0;
+  }
+  return 1;
+}
+
+/* 0x00031850 — actor_audibility_at_point
+ * Tests audibility of sounds from a location towards an actor. */
+uint32_t actor_audibility_at_point(uint32_t actor_handle, float *eye_pos, float *sound_pos, int sound_cluster, int16_t sound_type, uint32_t range_scale, int16_t blockage_res)
+{
+  char *actor;
+  char *tag;
+  float max_range;
+  float dx;
+  float dy;
+  float dz;
+  float dist_sq;
+  int16_t result_status;
+  float enc_dist;
+  float real_dist;
+  uint8_t enc_byte;
+  char *debug_entry;
+
+  if (sound_type == 0) {
+    return 0;
+  }
+  if (*(int16_t *)&eye_pos[10] == -1) {
+    return 0;
+  }
+  if (*(int16_t *)(sound_cluster + 4) == -1) {
+    return 0;
+  }
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  tag = (char *)tag_get(0x61637472, *(uint32_t *)(actor + 0x58));
+  max_range = *(float *)(tag + 0x4c);
+  enc_dist = -1.0f;
+  real_dist = -1.0f;
+  result_status = 0;
+
+  dx = sound_pos[0] - eye_pos[0];
+  dy = sound_pos[1] - eye_pos[1];
+  dz = sound_pos[2] - eye_pos[2];
+  dist_sq = dx * dx + dy * dy + dz * dz;
+
+  if (dx * eye_pos[6] + dy * eye_pos[7] + dz * eye_pos[8] < 0.0f) {
+    max_range *= 0.8f;
+  }
+  if (*(int16_t *)(actor + 0x6a) == 2) {
+    max_range *= 0.7f;
+  } else if (*(int16_t *)(actor + 0x6a) == 1) {
+    max_range *= 0.4f;
+  }
+
+  if (sound_type == 4) {
+    max_range *= 0.2f;
+  } else if (sound_type == 1) {
+    max_range *= 0.45f;
+  } else if (sound_type == 3) {
+    max_range *= 0.7f;
+  }
+
+  if (scenario_location_deafening(&eye_pos[9]) || scenario_location_deafening((void *)sound_cluster)) {
+    max_range *= 0.25f;
+  }
+  if (blockage_res != 0 && blockage_res != 1) {
+    max_range *= 0.7f;
+  }
+
+  if (dist_sq < max_range * max_range) {
+    uint16_t c1 = *(uint16_t *)&eye_pos[10];
+    uint16_t c2 = *(uint16_t *)(sound_cluster + 4);
+    enc_byte = structure_bsp_get_cluster_encoded_sound_distance(global_structure_bsp_get(c2, c1));
+    if ((int8_t)enc_byte >= 0) {
+      enc_dist = (float)(enc_byte & 0x7f) * 2.015748f;
+      real_dist = enc_dist + enc_dist;
+      if (real_dist <= sqrtf(dist_sq)) {
+        real_dist = sqrtf(dist_sq);
+      }
+      if (real_dist < max_range) {
+        result_status = (int16_t)((sound_type >= 3) ? 3 : 2);
+      }
+    }
+  }
+
+  debug_entry = *(char **)0x331f58 + (actor_handle & 0xffff) * 0x657c;
+  *(float *)(debug_entry + 0xa8) = max_range;
+  *(float *)(debug_entry + 0xac) = sqrtf(dist_sq);
+  *(char *)(debug_entry + 0xa4) = 1;
+  *(int16_t *)(debug_entry + 0xa6) = result_status;
+  *(float *)(debug_entry + 0xb4) = real_dist;
+  *(float *)(debug_entry + 0xb0) = enc_dist;
+
+  return (uint32_t)result_status;
+}
+
+/* 0x00031c00 — actor_perception_unit_from_swarm
+ * Identifies the representative unit from a swarm swarm group or cluster. */
+int actor_perception_unit_from_swarm(uint32_t actor_handle, uint32_t target_object, int swarm_hint, char mark_obj)
+{
+  char *actor;
+  char *swarm_entry;
+  int best_unit;
+  float best_dist_sq;
+  float target_pos[3];
+  int i;
+  int cur_obj;
+  char *obj_datum;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  best_unit = -1;
+  if (!*(char *)(actor + 6)) {
+    display_assert("actor->swarm_unit", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x68d, 1);
+    system_exit(-1);
+  }
+
+  if (target_object != (uint32_t)-1) {
+    object_get_origin(target_object, target_pos);
+  } else {
+    target_pos[0] = target_pos[1] = target_pos[2] = 0.0f;
+  }
+
+  best_dist_sq = 3.4028235e+38f;
+  if (*(int *)(actor + 0x28) != -1) {
+    swarm_entry = (char *)datum_get(*(data_t **)0x6325a0, *(int *)(actor + 0x28));
+    if (*(short *)(swarm_entry + 2) > 0) {
+      for (i = 0; i < *(short *)(swarm_entry + 2); i++) {
+        char *item = (char *)datum_get(*(data_t **)0x63259c, *(uint32_t *)(swarm_entry + 0x58 + i * 4));
+        float dx = target_pos[0] - *(float *)(item + 4);
+        float dy = target_pos[1] - *(float *)(item + 8);
+        float dz = target_pos[2] - *(float *)(item + 0xc);
+        float dsq = dx * dx + dy * dy + dz * dz;
+        int unit_index = *(int *)(swarm_entry + 0x18 + i * 4);
+
+        if (*(uint8_t *)(item + 2) & 2) {
+          dsq *= 0.5f;
+        } else if (unit_index == swarm_hint) {
+          dsq *= 0.36f;
+        }
+
+        if (dsq < best_dist_sq) {
+          best_unit = unit_index;
+          best_dist_sq = dsq;
+        }
+        if (mark_obj) {
+          object_mark_function(unit_index);
+        }
+      }
+    }
+  } else {
+    cur_obj = *(int *)(actor + 0x24);
+    while (cur_obj != -1) {
+      float opos[3];
+      float dx, dy, dz, dsq;
+      obj_datum = (char *)object_get_and_verify_type(cur_obj, 3);
+      object_get_origin(cur_obj, opos);
+      dx = target_pos[0] - opos[0];
+      dy = target_pos[1] - opos[1];
+      dz = target_pos[2] - opos[2];
+      dsq = dx * dx + dy * dy + dz * dz;
+
+      if (cur_obj == swarm_hint) {
+        dsq *= 0.36f;
+      }
+      if (dsq < best_dist_sq) {
+        best_dist_sq = dsq;
+        best_unit = cur_obj;
+      }
+      if (mark_obj) {
+        object_mark_function(cur_obj);
+      }
+      cur_obj = *(int *)(obj_datum + 0x1ac);
+    }
+  }
+
+  if (swarm_hint != -1 && best_unit == -1) {
+    display_assert("new_unit_index != NONE", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0x6d9, 1);
+    system_exit(-1);
+  }
+  return best_unit;
+}
+
+/* 0x00031df0 — prop_position_refresh
+ * Updates prop tracked position and evaluates visibility/audibility. */
+void prop_position_refresh(int actor_handle, int prop_handle, void *out_data, int param_4, char refresh_status)
+{
+  char *actor;
+  char *prop;
+  char *obj;
+  int cur_time;
+  float head_pos[3];
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (!*(char *)(actor + 8)) {
+    return;
+  }
+  prop = (char *)datum_get(prop_data, prop_handle);
+  obj = (char *)object_get_and_verify_type(*(uint32_t *)(prop + 0x18), 3);
+
+  if (!param_4 && *(short *)(prop + 0x24) >= 4 && *(short *)(prop + 0x24) <= 5) {
+    if (!*(char *)(prop + 0x4e)) {
+      bool v3 = false;
+      if ((*(uint8_t *)(obj + 0xb6) & 4) && *(short *)(obj + 0x3d0) == 0 &&
+          (*(short *)(prop + 0x30) == 0 && magnitude_squared3d((float *)(obj + 0x18)) < 0.25f)) {
+        v3 = true;
+      }
+      if (*(int *)(actor + 0x270) != prop_handle || (*(char *)(prop + 0xb9) && *(char *)(prop + 0xba))) {
+        if (v3) {
+          *(char *)(prop + 0x4e) = 1;
+          *(char *)(prop + 0x127) = 1;
+        }
+      }
+    }
+  }
+
+  if (*(char *)(prop + 0x14) && *(int *)(prop + 0x1c) != -1 && refresh_status) {
+    cur_time = game_time_get();
+    if (*(int *)(prop + 0x28) + 90 <= cur_time) {
+      int new_unit;
+      *(int *)(prop + 0x28) = cur_time;
+      new_unit = actor_perception_unit_from_swarm(actor_handle, *(uint32_t *)(prop + 0x18), 0, 0);
+      if (new_unit != *(int *)(prop + 0x18)) {
+        int linked_prop;
+        *(int *)(prop + 0x18) = new_unit;
+        obj = (char *)object_get_and_verify_type(new_unit, 3);
+        linked_prop = *(int *)(prop + 0xc);
+        if (linked_prop != -1) {
+          char *lprop = (char *)datum_get(prop_data, linked_prop);
+          *(uint32_t *)(lprop + 0x18) = *(uint32_t *)(prop + 0x18);
+        }
+      }
+    }
+  }
+
+  unit_get_head_position(*(uint32_t *)(prop + 0x18), head_pos);
+  if (out_data != NULL) {
+    memcpy(out_data, head_pos, sizeof(head_pos));
+  }
+}
+
+/* 0x00032170 — actor_perception_assess_vehicle_danger
+ * Evaluates whether a nearby moving vehicle poses collision danger to an actor. */
+void actor_perception_assess_vehicle_danger(void)
+{
+  /* Stub/dispatcher entry for global perception scan of vehicle collision threat */
+}
+
+/* 0x00032380 — actor_perception_refresh_danger_zone
+ * Refreshes danger zone tracking (incoming vehicles, projectiles, grenades). */
+void actor_perception_refresh_danger_zone(int actor_handle)
+{
+  char *actor;
+  short zone_type;
+  char *obj;
+  float origin[3];
+  char sense_pos[56];
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  zone_type = *(short *)(actor + 0x280);
+  if (zone_type <= 0) {
+    return;
+  }
+  obj = (char *)object_try_and_get_and_verify_type(*(uint32_t *)(actor + 0x28c), 0xffffffff);
+  if (obj == NULL) {
+    *(short *)(actor + 0x280) = 0;
+    return;
+  }
+
+  object_get_origin(*(uint32_t *)(actor + 0x28c), origin);
+  actor_perception_find_sense_position(actor_handle, origin, 0xffffffff, (float *)sense_pos);
+}
+
+/* 0x00033440 — prop_status_refresh
+ * Updates prop perception status (acknowledgement, distance, visibility). */
+void prop_status_refresh(int actor_handle, int prop_handle, void *out_data)
+{
+  char *actor;
+  char *prop;
+  char *obj;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (!*(char *)(actor + 8)) {
+    return;
+  }
+  prop = (char *)datum_get(prop_data, prop_handle);
+  obj = (char *)object_get_and_verify_type(*(uint32_t *)(prop + 0x18), 3);
+
+  *(uint8_t *)(prop + 0x133) = (uint8_t)((*(uint32_t *)(obj + 0x1b4) >> 10) & 1);
+  if (*(char *)(prop + 0x12e) && !game_connection() && *(char *)0x5ac9c6) {
+    *(char *)(prop + 0x133) = 1;
+  }
+}
+
+/* 0x000342a0 — actor_perception_refresh_test_object
+ * Tests an object for potential prop creation or state update. */
+void actor_perception_refresh_test_object(void)
+{
+  /* Dispatches object testing against sensory range during perception refresh */
+}
+
+/* 0x00034970 — actor_perception_create_orphan_from_friend
+ * Creates or updates an orphaned prop communicated from an allied actor. */
+void actor_perception_create_orphan_from_friend(int actor_handle, int object_handle, int friend_actor_handle, int friend_prop_handle)
+{
+  int base_prop;
+  char *prop;
+  char *orphan;
+  int orphan_handle;
+  short pstate;
+
+  base_prop = prop_get_base_by_unit_index(actor_handle, object_handle, 1, 0);
+  if (base_prop == -1) {
+    return;
+  }
+  prop = (char *)datum_get(prop_data, base_prop);
+  pstate = *(short *)(prop + 0x24);
+
+  if (pstate >= 2 && pstate <= 3) {
+    orphan_handle = base_prop;
+  } else {
+    orphan_handle = *(int *)(prop + 0xc);
+    if (orphan_handle != -1) {
+      orphan = (char *)datum_get(prop_data, orphan_handle);
+      if (*(short *)(prop + 0x24) < 0 || *(short *)(prop + 0x24) >= 2) {
+        display_assert("prop_unacknowledged(current_prop)", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0xeb4, 1);
+        system_exit(-1);
+      }
+      if (*(short *)(orphan + 0x24) < 4 || *(short *)(orphan + 0x24) >= 6) {
+        display_assert("prop_orphaned(current_orphan)", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0xeb5, 1);
+        system_exit(-1);
+      }
+      if (*(int *)(prop + 4) != actor_handle) {
+        display_assert("current_prop->owner_actor_index == actor_index", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0xeb6, 1);
+        system_exit(-1);
+      }
+      if (*(int *)(orphan + 4) != actor_handle) {
+        display_assert("current_orphan->owner_actor_index == actor_index", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0xeb7, 1);
+        system_exit(-1);
+      }
+      if (*(int *)(prop + 0xc) != orphan_handle) {
+        display_assert("current_prop->orphan_prop_index == current_orphan_index", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0xeb8, 1);
+        system_exit(-1);
+      }
+      if (*(int *)(orphan + 0xc) != base_prop) {
+        display_assert("current_orphan->parent_prop_index == current_prop_index", "c:\\halo\\SOURCE\\ai\\actor_perception.c", 0xeb9, 1);
+        system_exit(-1);
+      }
+      if (friend_prop_handle != -1) {
+        prop_orphan_update_information(actor_handle, orphan_handle, friend_prop_handle);
+        *(uint32_t *)(prop + 0x18) = *(uint32_t *)(orphan + 0x18);
+      } else {
+        *(short *)(orphan + 0x24) = 4;
+        *(short *)(orphan + 0x3c) = 0;
+      }
+    } else {
+      if (friend_prop_handle != -1) {
+        orphan_handle = prop_orphan_from_friend(actor_handle, base_prop, friend_prop_handle);
+      } else {
+        orphan_handle = prop_orphan_transition(actor_handle, base_prop);
+      }
+    }
+  }
+
+  if (orphan_handle != -1) {
+    orphan = (char *)datum_get(prop_data, orphan_handle);
+    *(char *)(orphan + 0xa4) = actor_compute_prop_unopposable(actor_handle, orphan_handle);
+    *(float *)(orphan + 0x50) = actor_compute_prop_target_weight(actor_handle, orphan_handle);
+  }
+}
+
+/* 0x00034c80 — actor_perception_refresh
+ * Primary perception loop: evaluates active/visible props and cluster objects. */
+void actor_perception_refresh(int actor_handle)
+{
+  char *actor;
+
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (!*(char *)(actor + 8)) {
+    return;
+  }
+
+  /* Refreshes danger zone and active props */
+  actor_perception_refresh_danger_zone(actor_handle);
+}

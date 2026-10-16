@@ -83,6 +83,119 @@ int structure_surface_index_from_point(int scenario, unsigned char bsp_idx,
   return -1;
 }
 
+/* 0x00063e90 — structure_test_pill2d
+ * Tests a 2D capsule/pill against structure BSP surface projection.
+ */
+char structure_test_pill2d(int scenario, unsigned char bsp_idx, float *origin, int node_handle, float *target, int flags, float param_7, int param_8, unsigned int *result)
+{
+  float dx;
+  float dy;
+  float len;
+  float normal_x;
+  float normal_y;
+  float offset_x;
+  float offset_y;
+  float p1_orig[3];
+  float p1_targ[3];
+  float p2_orig[3];
+  float p2_targ[3];
+  int surf_orig1;
+  int surf_targ1;
+  int surf_orig2;
+  int surf_targ2;
+  char buf1[28];
+  char buf2[28];
+  char *chosen_buf;
+  float dist_sq;
+  int i;
+  bool hit1;
+  bool hit2;
+
+  dx = target[0] - origin[0];
+  dy = -(target[1] - origin[1]);
+  len = sqrtf(dy * dy + dx * dx);
+  if (fabsf(len) < *(float *)0x2533d0) {
+    return 0;
+  }
+  normal_x = dx * (*(float *)0x2533c8 / len);
+  normal_y = dy * (*(float *)0x2533c8 / len);
+  if (len <= *(float *)0x2533c0) {
+    return 0;
+  }
+
+  offset_x = normal_y * param_7;
+  offset_y = normal_x * param_7;
+
+  p1_orig[0] = offset_x + origin[0];
+  p1_orig[1] = offset_y + origin[1];
+  surf_orig1 = structure_surface_index_from_point(scenario, bsp_idx, origin, node_handle, p1_orig);
+
+  p1_targ[0] = offset_x + target[0];
+  p1_targ[1] = offset_y + target[1];
+  surf_targ1 = structure_surface_index_from_point(scenario, bsp_idx, target, flags, p1_targ);
+
+  p2_orig[0] = origin[0] - offset_x;
+  p2_orig[1] = origin[1] - offset_y;
+  surf_orig2 = structure_surface_index_from_point(scenario, bsp_idx, origin, node_handle, p2_orig);
+
+  p2_targ[0] = target[0] - offset_x;
+  p2_targ[1] = target[1] - offset_y;
+  surf_targ2 = structure_surface_index_from_point(scenario, bsp_idx, target, flags, p2_targ);
+
+  hit1 = 0;
+  if (surf_orig1 != -1) {
+    if (structure_test_line2d(scenario, bsp_idx, p1_orig, surf_orig1, p1_targ, surf_targ1, buf1)) {
+      if (*(int *)&buf1[0x10] != -1 && !(param_8 & 1)) {
+        if (!structure_test_line2d(scenario, bsp_idx, (float *)&buf1[4], *(int *)&buf1[0x10], target, flags, buf2)) {
+          buf1[0] = 0;
+        }
+      }
+      hit1 = (buf1[0] != 0);
+    }
+  }
+
+  hit2 = 0;
+  if (surf_orig2 != -1) {
+    if (structure_test_line2d(scenario, bsp_idx, p2_orig, surf_orig2, p2_targ, surf_targ2, buf2)) {
+      if (*(int *)&buf2[0x10] != -1 && !(param_8 & 1)) {
+        if (!structure_test_line2d(scenario, bsp_idx, (float *)&buf2[4], *(int *)&buf2[0x10], target, flags, buf1)) {
+          buf2[0] = 0;
+        }
+      }
+      hit2 = (buf2[0] != 0);
+    }
+  }
+
+  if (hit1) {
+    if (hit2 && *(float *)&buf1[0x18] > *(float *)&buf2[0x18]) {
+      chosen_buf = buf2;
+    } else {
+      chosen_buf = buf1;
+    }
+  } else if (hit2) {
+    chosen_buf = buf2;
+  } else {
+    for (i = 0; i < 7; i++) {
+      result[i] = *(unsigned int *)&buf1[i * 4];
+    }
+    return 0;
+  }
+
+  dist_sq = (target[0] - *(float *)&chosen_buf[4]) * (target[0] - *(float *)&chosen_buf[4]) +
+            (target[1] - *(float *)&chosen_buf[8]) * (target[1] - *(float *)&chosen_buf[8]);
+  if (param_7 * param_7 >= dist_sq) {
+    for (i = 0; i < 7; i++) {
+      result[i] = *(unsigned int *)&chosen_buf[i * 4];
+    }
+    return 1;
+  }
+
+  for (i = 0; i < 7; i++) {
+    result[i] = *(unsigned int *)&buf1[i * 4];
+  }
+  return 0;
+}
+
 /* 0x64100 — props_initialize.
  * Allocates the prop data table. Called from ai_initialize.
  * Asserts (halt=true) if allocation fails, then calls system_exit(-1). */
@@ -803,6 +916,49 @@ int prop_orphan_from_friend(int actor_handle, int prop_handle,
  *   0x64a73 ADD ESP,0x8        -> 2-arg cdecl cleanup                  YES
  *
  * Store-offset table: none; no memory is written by this function. */
+/* 0x000647c0 — prop_setup_orphan
+ * Initializes an orphan prop record copying properties from parent prop. */
+void prop_setup_orphan(int parent_prop_handle /* @<eax> */, int actor_handle, int orphan_prop_handle)
+{
+  char *parent_prop;
+  char *orphan_prop;
+  uint16_t hdr_w0;
+  uint32_t hdr_d1, hdr_d2, hdr_d3;
+  float *zv;
+
+  parent_prop = (char *)datum_get(prop_data, parent_prop_handle);
+  orphan_prop = (char *)datum_get(prop_data, orphan_prop_handle);
+
+  hdr_w0 = *(uint16_t *)orphan_prop;
+  hdr_d1 = *(uint32_t *)(orphan_prop + 4);
+  hdr_d2 = *(uint32_t *)(orphan_prop + 8);
+  hdr_d3 = *(uint32_t *)(orphan_prop + 12);
+
+  csmemcpy(orphan_prop, parent_prop, 0x138);
+
+  *(uint16_t *)orphan_prop = hdr_w0;
+  *(uint32_t *)(orphan_prop + 4) = hdr_d1;
+  *(uint32_t *)(orphan_prop + 8) = hdr_d2;
+  *(uint32_t *)(orphan_prop + 12) = hdr_d3;
+
+  *(int16_t *)(orphan_prop + 0x24) = 4;
+  *(int16_t *)(orphan_prop + 0x3a) = 900;
+  *(int16_t *)(orphan_prop + 0x3c) = 0;
+  *(char *)(orphan_prop + 0xb9) = 0;
+  *(char *)(orphan_prop + 0xba) = 0;
+  *(char *)(orphan_prop + 0xbb) = 0;
+
+  *(float *)(orphan_prop + 0x40) = *(float *)(orphan_prop + 0xbc) - *(float *)(orphan_prop + 0x80);
+  *(float *)(orphan_prop + 0x44) = *(float *)(orphan_prop + 0xc0) - *(float *)(orphan_prop + 0x84);
+  *(float *)(orphan_prop + 0x48) = *(float *)(orphan_prop + 0xc4) - *(float *)(orphan_prop + 0x88);
+
+  zv = *(float **)0x31fc38;
+  *(float *)(orphan_prop + 0xd4) = zv[0];
+  *(float *)(orphan_prop + 0xd8) = zv[1];
+  *(float *)(orphan_prop + 0xdc) = zv[2];
+  *(char *)(orphan_prop + 0x123) = 0;
+}
+
 void prop_orphan_update_information(int actor_handle, int orphan_prop_handle,
                                     int parent_prop_handle)
 {
@@ -1196,3 +1352,21 @@ int TIFFGetFileSize(int file)
   rc = __fstat(file, stat_buf);
   return (rc < 0) ? 0 : stat_buf[5]; /* stat_buf[5] == +0x14 == st_size */
 }
+
+/* 0x00064f80 — findScheme
+ * Searches the TIFF codec table at 0x2c9994 for a scheme matching 'scheme'.
+ */
+uint32_t findScheme(int scheme)
+{
+  uint32_t ptr;
+
+  ptr = 0x2c9994;
+  do {
+    if (*(int *)(ptr + 4) == scheme) {
+      return ptr;
+    }
+    ptr += 0xc;
+  } while (ptr < 0x2c99c4);
+  return 0;
+}
+

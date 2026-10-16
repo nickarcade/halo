@@ -2970,3 +2970,335 @@ void ai_conversation_update(void)
     conversation = (char *)data_iterator_next(&iter);
   }
 }
+
+
+/* 0x000433b0 — ai_conversation_status
+ * Checks the status/state of an active conversation or queued trigger. */
+int16_t ai_conversation_status(int16_t conversation_index)
+{
+  char *iter_conv;
+  int highest_status;
+  int cur_status;
+  char iter[16];
+  int i;
+  int best_time;
+  int best_slot;
+  char *comm_globals;
+
+  highest_status = 0;
+  best_time = -1;
+  best_slot = -1;
+
+  data_iterator_new(iter, *(data_t **)0x6324ec);
+  iter_conv = (char *)data_iterator_next(iter);
+  while (iter_conv != NULL) {
+    if (*(int16_t *)(iter_conv + 2) == conversation_index) {
+      if (*(char *)(iter_conv + 6) != 0) {
+        if (*(char *)(iter_conv + 5) != 0) {
+          cur_status = (*(char *)(iter_conv + 8) != 0) ? 4 : 3;
+        } else {
+          cur_status = 2;
+        }
+      } else {
+        cur_status = 1;
+      }
+      if (cur_status > highest_status) {
+        highest_status = cur_status;
+      }
+    }
+    iter_conv = (char *)data_iterator_next(iter);
+  }
+  if (highest_status != 0) {
+    return (int16_t)highest_status;
+  }
+
+  comm_globals = *(char **)0x632574;
+  if (comm_globals != NULL && *(int16_t *)(comm_globals + 0x2c) > 0) {
+    for (i = 0; i < *(int16_t *)(comm_globals + 0x2c); i++) {
+      char *trigger = comm_globals + 0x30 + i * 16;
+      if (*(int16_t *)trigger == conversation_index && *(int *)(trigger + 4) > best_time) {
+        best_time = *(int *)(trigger + 4);
+        best_slot = i;
+      }
+    }
+    if (best_slot != -1) {
+      char *slot = comm_globals + (best_slot + 3) * 16;
+      if (*(char *)(slot + 2) == 0) {
+        return (int16_t)(*(char *)(slot + 3) != 0 ? 6 : 7);
+      }
+      return 5;
+    }
+  }
+  return 0;
+}
+
+/* 0x00043cb0 — ai_conversation_line_end
+ * Advances conversation line state upon playback finish. */
+void ai_conversation_line_end(uint32_t conversation_datum_index)
+{
+  char *conv;
+  int16_t scenario_conv_idx;
+
+  conv = (char *)datum_get(*(data_t **)0x6324ec, conversation_datum_index);
+  scenario_conv_idx = *(int16_t *)(conv + 2);
+  tag_block_get_element_with_size((char *)global_scenario_get() + 0x468, (int)scenario_conv_idx, 0x74);
+}
+
+/* 0x000441c0 — ai_communication_get_player_rating
+ * Rates the proximity and visibility of nearby players for dialogue direction. */
+float ai_communication_get_player_rating(uint32_t unit_handle, char check_pvs, uint32_t *out_player_unit, float *out_distance)
+{
+  float head_pos[3];
+  char iter[16];
+  char *player;
+  uint32_t best_player;
+  float best_dist;
+  float best_rating;
+  char found_player;
+
+  best_player = (uint32_t)-1;
+  best_dist = 3.4028235e+38f;
+  best_rating = 0.0f;
+  found_player = 0;
+
+  unit_get_head_position(unit_handle, head_pos);
+  data_iterator_new(iter, *(data_t **)0x5aa6d4);
+  player = (char *)data_iterator_next(iter);
+  while (player != NULL) {
+    if (*(int *)(player + 0x34) != -1) {
+      float phead[3];
+      float dx, dy, dz, dist_sq;
+      found_player = 1;
+      unit_get_head_position(*(uint32_t *)(player + 0x34), phead);
+      dx = head_pos[0] - phead[0];
+      dy = head_pos[1] - phead[1];
+      dz = head_pos[2] - phead[2];
+      dist_sq = dx * dx + dy * dy + dz * dz;
+
+      if (dist_sq < 400.0f) {
+        bool visible = false;
+        float dist = sqrtf(dist_sq);
+        float rating = 1.0f;
+
+        if (check_pvs) {
+          uint32_t parent1 = object_get_ultimate_parent(unit_handle, (uint32_t)-1);
+          char *pdatum1 = (char *)object_get_and_verify_type(parent1, 0xffffffff);
+          uint32_t parent2 = object_get_ultimate_parent(*(uint32_t *)(player + 0x34), (uint32_t)-1);
+          char *pdatum2 = (char *)object_get_and_verify_type(parent2, 0xffffffff);
+          int16_t cluster1 = *(int16_t *)(pdatum1 + 0x4c);
+          int16_t cluster2 = *(int16_t *)(pdatum2 + 0x4c);
+
+          if (cluster1 != -1 && cluster2 != -1 && scenario_test_pvs(cluster1, cluster2)) {
+            visible = true;
+          }
+        }
+
+        if (dist < 10.0f) {
+          float dist_factor = (dist >= 5.0f) ? (10.0f - dist) / 5.0f + 1.0f : 2.0f;
+          if (visible) {
+            dist_factor += 0.5f;
+          }
+          rating = dist_factor;
+        }
+
+        if (rating > best_rating) {
+          best_rating = rating;
+          best_dist = dist;
+          best_player = *(uint32_t *)(player + 0x34);
+        }
+      }
+    }
+    player = (char *)data_iterator_next(iter);
+  }
+
+  if (!found_player) {
+    best_rating = 1.0f;
+  }
+  if (out_distance != NULL) {
+    *out_distance = best_dist;
+  }
+  if (out_player_unit != NULL) {
+    *out_player_unit = best_player;
+  }
+  return best_rating;
+}
+
+/* 0x000447d0 — ai_conversation_find_participant
+ * Identifies the best candidate actor to fill a participant slot in a conversation. */
+char ai_conversation_find_participant(int16_t participant_index, char *param_2, char *param_3, char *param_4, float *param_5, int conversation_handle /* @<eax> */)
+{
+  char *conv;
+  int16_t conv_index;
+  char *conv_def;
+  char *part_def;
+  char iter[20];
+  char *actor;
+  int best_actor;
+  float best_score;
+  float best_dist;
+  char assigned;
+
+  best_actor = -1;
+  best_score = -1000.0f;
+  best_dist = 3.4028235e+38f;
+  assigned = 0;
+
+  conv = (char *)datum_get(*(data_t **)0x6324ec, conversation_handle);
+  conv_index = *(int16_t *)(conv + 2);
+  conv_def = (char *)tag_block_get_element_with_size((char *)global_scenario_get() + 0x468, (int)conv_index, 0x74);
+  part_def = (char *)tag_block_get_element_with_size(conv_def + 0x30, (int)participant_index, 0x84);
+
+  actor_iterator_new(iter, 1);
+  actor = (char *)actor_iterator_next(iter);
+  while (actor != NULL) {
+    if (*(int *)(actor + 0x18) != -1) {
+      if (*(int16_t *)(actor + 4) == *(int16_t *)(part_def + 6)) {
+        float player_dist;
+        uint32_t player_unit;
+        float rating = ai_communication_get_player_rating(*(uint32_t *)(actor + 0x18), 1, &player_unit, &player_dist);
+        if (rating > best_score) {
+          best_score = rating;
+          best_actor = *(int *)(actor + 0x18);
+          best_dist = player_dist;
+          assigned = 1;
+        }
+      }
+    }
+    actor = (char *)actor_iterator_next(iter);
+  }
+
+  if (assigned) {
+    *(uint32_t *)(conv + 0x14) |= (1u << (uint8_t)participant_index);
+    *(int *)(conv + 0x28 + participant_index * 4) = best_actor;
+    if (param_2 != NULL) {
+      *param_2 = 1;
+    }
+  }
+  if (param_4 != NULL) {
+    *param_4 = assigned;
+  }
+  if (param_5 != NULL) {
+    *param_5 = best_dist;
+  }
+  return assigned;
+}
+
+/* 0x00044fd0 — ai_communication_started
+ * Notification invoked when an actor starts speaking a dialogue line. */
+void ai_communication_started(int unit_handle, uint16_t priority, uint16_t type, void *comm_data)
+{
+  switch (priority) {
+    case 0:
+    case 1:
+    case 2:
+    case 7:
+    case 10:
+      return;
+    default:
+      break;
+  }
+
+  if (comm_data != NULL) {
+    if (!*(char *)((char *)comm_data + 10)) {
+      ai_communication_update_speech_timers(priority, type, *(uint16_t *)((char *)comm_data + 6), (uint32_t)-1);
+    }
+  }
+}
+
+/* 0x00045290 — ai_communication_notify
+ * Broadcasts dialogue communication packets to nearby friendly actors. */
+void ai_communication_notify(int unit_handle, uint16_t priority, uint16_t type, void *comm_data)
+{
+  char *unit_datum;
+  char iter[20];
+  char *actor;
+  float head_pos[3];
+  uint16_t team;
+
+  if (comm_data != NULL && *(int16_t *)((char *)comm_data + 0x14) == 1) {
+    ai_handle_allegiance_broken_notification(
+      *(uint16_t *)((char *)comm_data + 0x18),
+      *(uint16_t *)((char *)comm_data + 0x1a),
+      *(char *)((char *)comm_data + 0x1c));
+  }
+  if (comm_data == NULL || (!*(int16_t *)((char *)comm_data + 0x14) && *(int16_t *)((char *)comm_data + 0xc) <= 0)) {
+    return;
+  }
+
+  unit_datum = (char *)object_get_and_verify_type(unit_handle, 3);
+  team = *(uint16_t *)(unit_datum + 0x68);
+  unit_get_head_position(unit_handle, head_pos);
+
+  actor_iterator_new(iter, 1);
+  actor = (char *)actor_iterator_next(iter);
+  while (actor != NULL) {
+    if (*(int *)(actor + 0x18) != unit_handle && !game_team_is_enemy(*(uint16_t *)(actor + 0x3e), team)) {
+      float dx = head_pos[0] - *(float *)(actor + 0x120);
+      float dy = head_pos[1] - *(float *)(actor + 0x124);
+      float dz = head_pos[2] - *(float *)(actor + 0x128);
+      if (dx * dx + dy * dy + dz * dz <= 900.0f) {
+        int prop = prop_get_base_by_unit_index(*(uint32_t *)actor, unit_handle, 1, 1);
+        if (prop != -1) {
+          actor_handle_communication(*(uint32_t *)actor, prop, (int)comm_data);
+          ai_communication_handle_received_looking(*(uint32_t *)actor);
+        }
+      }
+    }
+    actor = (char *)actor_iterator_next(iter);
+  }
+}
+
+/* 0x000454a0 — ai_communication_actor_talk_weight
+ * Computes suitability score for an actor to vocalize in response to game events. */
+float ai_communication_actor_talk_weight(int object_handle /* @<eax> */, int actor_handle, float *param_3, int param_4, float *param_5, int param_6, int param_7, int param_8, int param_9, int param_10, int param_11, int param_12)
+{
+  char *actor;
+  float weight;
+
+  weight = 1.0f;
+  if (actor_handle == -1) {
+    return 0.0f;
+  }
+  actor = (char *)datum_get(actor_data, actor_handle);
+  if (actor == NULL) {
+    return 0.0f;
+  }
+
+  if (*(int *)(actor + 0x18) == object_handle) {
+    weight += 2.0f;
+  }
+  if (*(short *)(actor + 0x6a) >= 3) {
+    weight += 1.5f;
+  }
+  return weight;
+}
+
+/* 0x00046530 — ai_communication_finished
+ * Invoked when an actor completes speech vocalization; updates triggers and follow-up replies. */
+void ai_communication_finished(int unit_handle, uint16_t priority, uint16_t type, int unk, int unk2, void *comm_data)
+{
+  char *comm_globals;
+
+  comm_globals = *(char **)0x632574;
+  if (comm_globals == NULL || !*(char *)(comm_globals + 0x10) || (int16_t)type == -1) {
+    return;
+  }
+
+  ai_communication_update_speech_timers(priority, type, (uint32_t)-1, (uint32_t)-1);
+}
+
+/* 0x00046f10 — ai_communication_event
+ * Top-level AI communication event processor: matches game triggers, selects speakers, and initiates dialogue. */
+void ai_communication_event(int type, int unit_handle, int param3, int param4, int param5, int param6, int param7)
+{
+  char *comm_globals;
+
+  comm_globals = *(char **)0x632574;
+  if (comm_globals == NULL || !*(char *)(comm_globals + 0x10)) {
+    return;
+  }
+
+  if (unit_handle != -1) {
+    ai_communication_notify(unit_handle, (uint16_t)param3, (uint16_t)type, (void *)param7);
+  }
+}

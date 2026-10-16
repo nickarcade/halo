@@ -369,3 +369,575 @@ int FUN_00063970(float *a, float *b, float lo, float hi)
     *b = t_lo;
   return (*a > *b) ? 1 : 0;
 }
+
+/* 0x00062ba0 — find_tangent_point
+ * Computes a 2D tangent point from point_a to a circle of radius 'radius'
+ * around point_b, selecting between left/right tangent based on 'side_flag'.
+ */
+void find_tangent_point(float radius, bool side_flag, float *point_a, float *point_b, float *out_tangent)
+{
+  float dx;
+  float dy;
+  float dist_sq;
+  float inv_dist_sq;
+  float discr;
+  float sqrt_discr;
+  float t_x;
+  float t_y;
+  float tangents[4];
+  bool select;
+  float dir[2];
+
+  dx = point_a[0] - point_b[0];
+  dy = point_a[1] - point_b[1];
+  dist_sq = dy * dy + dx * dx;
+  inv_dist_sq = radius / dist_sq;
+  discr = dist_sq - radius * radius;
+  if (discr > *(float *)0x2533c0) {
+    sqrt_discr = sqrtf(discr);
+    t_x = dy * sqrt_discr;
+    t_y = dx * sqrt_discr;
+    tangents[0] = (dx * radius + t_x) * inv_dist_sq + point_b[0];
+    tangents[1] = (dy * radius - t_y) * inv_dist_sq + point_b[1];
+    tangents[2] = (dx * radius - t_x) * inv_dist_sq + point_b[0];
+    tangents[3] = (t_y + dy * radius) * inv_dist_sq + point_b[1];
+    select = (((tangents[3] - point_a[1]) * (tangents[0] - point_a[0]) - (tangents[2] - point_a[0]) * (tangents[1] - point_a[1])) > *(float *)0x2533c0) != side_flag;
+    out_tangent[0] = tangents[select ? 2 : 0];
+    out_tangent[1] = tangents[select ? 3 : 1];
+    return;
+  }
+  dir[0] = dx;
+  dir[1] = dy;
+  if (normalize2d(dir) == *(float *)0x2533c0) {
+    dir[0] = *(float *)0x31fc10;
+    dir[1] = *(float *)0x31fc14;
+  }
+  out_tangent[0] = dir[0] * radius + point_b[0];
+  out_tangent[1] = dir[1] * radius + point_b[1];
+}
+
+/* 0x00062cf0 — find_avoidance_point
+ * Computes an avoidance point around an obstacle from tangent/bounding points.
+ */
+void find_avoidance_point(float radius, float *tangents, float *center, float *out_point)
+{
+  float cross;
+  float scale;
+  float dx;
+  float dy;
+  float dist;
+
+  cross = (tangents[3] - center[1]) * (tangents[0] - center[0]) - (tangents[1] - center[1]) * (tangents[2] - center[0]);
+  if (fabsf(cross) >= *(float *)0x2533d0) {
+    scale = (radius * radius) / cross;
+    out_point[0] = center[0] - ((tangents[1] - center[1]) - (tangents[3] - center[1])) * scale;
+    out_point[1] = ((tangents[0] - center[0]) - (tangents[2] - center[0])) * scale + center[1];
+    if ((out_point[0] - center[0]) * (out_point[0] - center[0]) + (out_point[1] - center[1]) * (out_point[1] - center[1]) <= radius * radius * *(float *)0x2533d8) {
+      return;
+    }
+  }
+  dx = tangents[0] - center[0];
+  dy = tangents[1] - center[1];
+  dist = sqrtf(dx * dx + dy * dy);
+  if (fabsf(dist) >= *(float *)0x2533d0) {
+    dx = dx * (*(float *)0x2533c8 / dist);
+    dy = dy * (*(float *)0x2533c8 / dist);
+  } else {
+    dx = *(float *)0x31fc10;
+    dy = *(float *)0x31fc14;
+  }
+  out_point[0] = dx * radius + tangents[0];
+  out_point[1] = dy * radius + tangents[1];
+}
+
+/* 0x00062e10 — choose_turning_point
+ * Chooses between two turning points by comparing turn angles.
+ */
+int choose_turning_point(float *turn_a, float *turn_b, float *start, float *dest, float *out_chosen)
+{
+  float d_dest_a[2];
+  float d_start_a[2];
+  float d_turn_a[2];
+  float d_dest_b[2];
+  float d_start_b[2];
+  float d_turn_b[2];
+  float len;
+  float angle_a1;
+  float angle_a2;
+  float total_angle_a;
+  float angle_b1;
+  float angle_b2;
+  float total_angle_b;
+
+  d_dest_a[0] = dest[0] - turn_a[0];
+  d_dest_a[1] = dest[1] - turn_a[1];
+  len = sqrtf(d_dest_a[0] * d_dest_a[0] + d_dest_a[1] * d_dest_a[1]);
+  if (fabsf(len) >= *(float *)0x2533d0) {
+    d_dest_a[0] *= (*(float *)0x2533c8 / len);
+    d_dest_a[1] *= (*(float *)0x2533c8 / len);
+  }
+  d_start_a[0] = start[0] - turn_a[0];
+  d_start_a[1] = start[1] - turn_a[1];
+  len = sqrtf(d_start_a[0] * d_start_a[0] + d_start_a[1] * d_start_a[1]);
+  if (fabsf(len) >= *(float *)0x2533d0) {
+    d_start_a[0] *= (*(float *)0x2533c8 / len);
+    d_start_a[1] *= (*(float *)0x2533c8 / len);
+  }
+  d_turn_a[0] = turn_b[0] - turn_a[0];
+  d_turn_a[1] = turn_b[1] - turn_a[1];
+  len = sqrtf(d_turn_a[0] * d_turn_a[0] + d_turn_a[1] * d_turn_a[1]);
+  if (fabsf(len) >= *(float *)0x2533d0) {
+    d_turn_a[0] *= (*(float *)0x2533c8 / len);
+    d_turn_a[1] *= (*(float *)0x2533c8 / len);
+  }
+
+  d_dest_b[0] = dest[0] - turn_b[0];
+  d_dest_b[1] = dest[1] - turn_b[1];
+  len = sqrtf(d_dest_b[0] * d_dest_b[0] + d_dest_b[1] * d_dest_b[1]);
+  if (fabsf(len) >= *(float *)0x2533d0) {
+    d_dest_b[0] *= (*(float *)0x2533c8 / len);
+    d_dest_b[1] *= (*(float *)0x2533c8 / len);
+  }
+  d_start_b[0] = start[0] - turn_b[0];
+  d_start_b[1] = start[1] - turn_b[1];
+  len = sqrtf(d_start_b[0] * d_start_b[0] + d_start_b[1] * d_start_b[1]);
+  if (fabsf(len) >= *(float *)0x2533d0) {
+    d_start_b[0] *= (*(float *)0x2533c8 / len);
+    d_start_b[1] *= (*(float *)0x2533c8 / len);
+  }
+  d_turn_b[0] = turn_a[0] - turn_b[0];
+  d_turn_b[1] = turn_a[1] - turn_b[1];
+  len = sqrtf(d_turn_b[0] * d_turn_b[0] + d_turn_b[1] * d_turn_b[1]);
+  if (fabsf(len) >= *(float *)0x2533d0) {
+    d_turn_b[0] *= (*(float *)0x2533c8 / len);
+    d_turn_b[1] *= (*(float *)0x2533c8 / len);
+  }
+
+  angle_a1 = signed_angle_between_vectors2d(d_start_a, d_turn_a);
+  angle_a2 = signed_angle_between_vectors2d(d_dest_a, d_start_a);
+  total_angle_a = angle_a1 + angle_a2;
+
+  angle_b1 = signed_angle_between_vectors2d(d_start_b, d_turn_b);
+  angle_b2 = signed_angle_between_vectors2d(d_dest_b, d_start_b);
+  total_angle_b = -(angle_b1 + angle_b2);
+
+  if (total_angle_b < total_angle_a) {
+    out_chosen[0] = turn_a[0];
+    out_chosen[1] = turn_a[1];
+    return 1;
+  }
+  out_chosen[0] = turn_b[0];
+  out_chosen[1] = turn_b[1];
+  return 0;
+}
+
+/* 0x00063030 — find_turning_point
+ * Finds a turning point along structure collision surface boundaries.
+ */
+uint32_t find_turning_point(int scenario, float *origin, float radius, uint32_t edge_index, uint8_t side, char bsp_idx, unsigned int *out_pt)
+{
+  int surf_block;
+  int path_flags;
+  int breakable_flags;
+  uint32_t *edge;
+  uint8_t flags;
+  bool is_breakable;
+  float *v1;
+  float *v2;
+  float dx;
+  float dy;
+  float perp_x;
+  float perp_y;
+  float len;
+  float normal_x;
+  float normal_y;
+  float d_orig_x;
+  float d_orig_y;
+  bool flag;
+  uint32_t next_edge;
+  uint32_t first_edge;
+  uint32_t current_edge;
+
+  surf_block = (int)tag_block_get_element_with_size((void *)(scenario + 0xb0), 0, 0x60);
+  path_flags = *(int *)(scenario + 0x1e8);
+  breakable_flags = breakable_surface_flags_get();
+  first_edge = 0xffffffff;
+  current_edge = 0xffffffff;
+
+  if (side != 0 && side != 1) {
+    display_assert("side==0 || side==1", "c:\\halo\\SOURCE\\ai\\path_smoothing.c", 0x1ff, 1);
+    system_exit(-1);
+  }
+
+  while (1) {
+    edge = (uint32_t *)tag_block_get_element_with_size((void *)(surf_block + 0x48), edge_index, 0x18);
+    flags = *(uint8_t *)(edge[4] + path_flags);
+    is_breakable = (bool)((flags >> 6) & 1);
+    if (!bsp_idx && is_breakable && (flags <= 0xff)) {
+      int s_elem = (int)tag_block_get_element_with_size((void *)(surf_block + 0x3c), edge[4], 0xc);
+      if (!(*(uint8_t *)(s_elem + 8) & 8)) {
+        display_assert("TEST_FLAG(surface->flags, _collision_surface_breakable_bit)", "c:\\halo\\SOURCE\\ai\\path_smoothing.c", 0x1e2, 1);
+        system_exit(-1);
+      }
+      is_breakable = (*(uint32_t *)(breakable_flags + ((uint32_t)(*(uint8_t *)(s_elem + 9) >> 5) * 4)) & (1 << (*(uint8_t *)(s_elem + 9) & 0x1f))) != 0;
+    }
+
+    v1 = (float *)tag_block_get_element_with_size((void *)(surf_block + 0x54), edge[is_breakable ? 1 : 0], 0x10);
+    v2 = (float *)tag_block_get_element_with_size((void *)(surf_block + 0x54), edge[!is_breakable ? 1 : 0], 0x10);
+    dx = v2[0] - v1[0];
+    dy = v2[1] - v1[1];
+    perp_x = dy;
+    perp_y = -dx;
+    len = sqrtf(perp_x * perp_x + perp_y * perp_y);
+    if (fabsf(len) < *(float *)0x2533d0) {
+      normal_x = perp_x;
+      normal_y = perp_y;
+    } else {
+      normal_x = perp_x * (*(float *)0x2533c8 / len);
+      normal_y = perp_y * (*(float *)0x2533c8 / len);
+    }
+    d_orig_x = v1[0] - (normal_x * radius + origin[0]);
+    d_orig_y = v1[1] - (normal_y * radius + origin[1]);
+    flag = 0;
+    if (((d_orig_x * dx + d_orig_y * dy < *(float *)0x2533c0) == (bool)side) && (d_orig_x * dy - d_orig_y * dx < *(float *)0x2533c0)) {
+      flag = 1;
+    }
+    if ((v1[0] - (-radius * normal_x + origin[0])) * dy - (v1[1] - (normal_y * -radius + origin[1])) * dx < *(float *)0x2533c0) {
+      flag = 1;
+    }
+    if (first_edge == 0xffffffff) {
+      flag = 1;
+    }
+    next_edge = edge[(flag != is_breakable) == (bool)side ? 1 : 0];
+    if (next_edge == current_edge) {
+      unsigned int *pt = (unsigned int *)tag_block_get_element_with_size((void *)(surf_block + 0x54), next_edge, 0x10);
+      out_pt[0] = pt[0];
+      out_pt[1] = pt[1];
+      return 1;
+    }
+    if (next_edge == first_edge) {
+      break;
+    }
+    if (first_edge == 0xffffffff) {
+      first_edge = next_edge;
+    }
+    while (1) {
+      uint32_t opp_v = edge[1];
+      flags = *(uint8_t *)(edge[(next_edge != opp_v ? 1 : 0) + 4] + path_flags);
+      is_breakable = (bool)((flags >> 6) & 1);
+      if (!bsp_idx && is_breakable && (flags <= 0xff)) {
+        int s_elem = (int)tag_block_get_element_with_size((void *)(surf_block + 0x3c), edge[(next_edge != opp_v ? 1 : 0) + 4], 0xc);
+        if (!(*(uint8_t *)(s_elem + 8) & 8)) {
+          display_assert("TEST_FLAG(surface->flags, _collision_surface_breakable_bit)", "c:\\halo\\SOURCE\\ai\\path_smoothing.c", 0x1e2, 1);
+          system_exit(-1);
+        }
+        is_breakable = (*(uint32_t *)(breakable_flags + ((uint32_t)(*(uint8_t *)(s_elem + 9) >> 5) * 4)) & (1 << (*(uint8_t *)(s_elem + 9) & 0x1f))) != 0;
+      }
+      if (is_breakable == (bool)side) {
+        break;
+      }
+      edge_index = edge[(next_edge != opp_v ? 1 : 0) + 2];
+      edge = (uint32_t *)tag_block_get_element_with_size((void *)(surf_block + 0x48), edge_index, 0x18);
+      if (edge[0] != next_edge && edge[1] != next_edge) {
+        display_assert("vertex==edge->vertex_indices[0] || vertex==edge->vertex_indices[1]", "c:\\halo\\SOURCE\\ai\\path_smoothing.c", 0x277, 1);
+        system_exit(-1);
+      }
+    }
+    current_edge = next_edge;
+  }
+  return 0;
+}
+
+/* 0x000633b0 — path_smooth / FUN_000633b0
+ * Smooths raw AI navigation path steps into a collision-free smoothed path.
+ */
+void FUN_000633b0(unsigned int param_1, int param_2, void *param_3, int *param_4, void *param_5, char *param_6)
+{
+  unsigned int *raw_steps;
+  unsigned short *out_count;
+  unsigned int *out_steps;
+  int smooth_count;
+  char finish_path;
+  int curr_step;
+  int raw_count;
+  unsigned int cur_pt[3];
+  unsigned int cur_surf;
+  int raw_idx;
+  int blocked_step;
+  int blocked_edge;
+  bool is_blocked;
+  char test_result[20];
+  float turn_pt_left[2];
+  float turn_pt_right[2];
+  float chosen_turn[2];
+  float tangent_left[2];
+  float tangent_right[2];
+  float avoid_pt[2];
+  int next_surf;
+  unsigned int *curr_out;
+  float proj_in[3];
+
+  raw_count = param_2;
+  raw_steps = (unsigned int *)param_3;
+  out_count = (unsigned short *)param_4;
+  out_steps = (unsigned int *)param_5;
+
+  if (raw_count <= 0) {
+    display_assert("raw_step_count > 0", "c:\\halo\\SOURCE\\ai\\path_smoothing.c", 0x21, 1);
+    system_exit(-1);
+  }
+  if (!raw_steps) {
+    display_assert("raw_steps", "c:\\halo\\SOURCE\\ai\\path_smoothing.c", 0x22, 1);
+    system_exit(-1);
+  }
+  if (!out_count) {
+    display_assert("smoothed_step_count", "c:\\halo\\SOURCE\\ai\\path_smoothing.c", 0x23, 1);
+    system_exit(-1);
+  }
+  if (!out_steps) {
+    display_assert("smoothed_steps", "c:\\halo\\SOURCE\\ai\\path_smoothing.c", 0x24, 1);
+    system_exit(-1);
+  }
+  if (!param_6) {
+    display_assert("steps_finish_path", "c:\\halo\\SOURCE\\ai\\path_smoothing.c", 0x25, 1);
+    system_exit(-1);
+  }
+
+  if (raw_count <= 1) {
+    *out_count = 1;
+    out_steps[0] = raw_steps[0];
+    out_steps[1] = raw_steps[1];
+    out_steps[2] = raw_steps[2];
+    out_steps[3] = raw_steps[3];
+    return;
+  }
+
+  cur_pt[0] = *(unsigned int *)(param_1 + 0x14);
+  cur_pt[1] = *(unsigned int *)(param_1 + 0x18);
+  cur_surf = *(unsigned int *)(param_1 + 0x20);
+  smooth_count = 0;
+  finish_path = 0;
+  curr_step = 1;
+
+  while (1) {
+    blocked_edge = -1;
+    is_blocked = 0;
+    blocked_step = -1;
+
+    if (raw_count <= curr_step) {
+      break;
+    }
+
+    for (raw_idx = curr_step; raw_idx < raw_count; raw_idx++) {
+      unsigned int *step_data = &raw_steps[raw_idx * 4];
+      if (structure_test_pill2d(*(unsigned int *)(param_1 + 100), *(unsigned char *)(param_1 + 4), cur_pt, cur_surf, &step_data[1], step_data[0], 0.3f, 1, (unsigned int *)test_result)) {
+        if (!is_blocked) {
+          blocked_step = raw_idx;
+          is_blocked = 1;
+          blocked_edge = *(int *)&test_result[16];
+        }
+      } else if (is_blocked) {
+        blocked_edge = -1;
+        blocked_step = -1;
+        is_blocked = 0;
+      }
+    }
+
+    if (!is_blocked || blocked_edge == -1) {
+      break;
+    }
+
+    if (!find_turning_point(*(int *)(param_1 + 100), (float *)cur_pt, 0.3f, blocked_edge, 1, *(char *)(param_1 + 4), (unsigned int *)turn_pt_left) ||
+        !find_turning_point(*(int *)(param_1 + 100), (float *)cur_pt, 0.3f, blocked_edge, 0, *(char *)(param_1 + 4), (unsigned int *)turn_pt_right)) {
+      goto finish_up;
+    }
+
+    choose_turning_point(turn_pt_left, turn_pt_right, (float *)cur_pt, (float *)&raw_steps[blocked_step * 4 + 1], chosen_turn);
+    find_tangent_point(0.35f, 1, (float *)cur_pt, chosen_turn, tangent_left);
+    find_tangent_point(0.35f, 0, (float *)cur_pt, chosen_turn, tangent_right);
+    find_avoidance_point(0.35f, tangent_left, chosen_turn, avoid_pt);
+
+    proj_in[0] = cur_pt[0];
+    proj_in[1] = cur_pt[1];
+    cur_pt[0] = *(unsigned int *)&avoid_pt[0];
+    cur_pt[1] = *(unsigned int *)&avoid_pt[1];
+    next_surf = structure_surface_index_from_point(*(unsigned int *)(param_1 + 100), *(unsigned char *)(param_1 + 4), (float *)proj_in, cur_surf, (float *)cur_pt);
+    curr_out = &out_steps[smooth_count * 4];
+    cur_surf = next_surf;
+    smooth_count++;
+    collision_surface_project_point2d((int)tag_block_get_element_with_size((void *)(*(int *)(param_1 + 100) + 0xb0), 0, 0x60), next_surf, 2, 1, (float *)cur_pt, (float *)&curr_out[1]);
+    curr_out[0] = next_surf;
+
+    if (smooth_count >= 4) {
+      goto finish_up;
+    }
+    curr_step = blocked_step;
+  }
+
+  {
+    unsigned int *last_raw = &raw_steps[(raw_count - 1) * 4];
+    curr_out = &out_steps[smooth_count * 4];
+    curr_out[0] = last_raw[0];
+    curr_out[1] = last_raw[1];
+    curr_out[2] = last_raw[2];
+    curr_out[3] = last_raw[3];
+    smooth_count++;
+    finish_path = 1;
+  }
+
+finish_up:
+  *out_count = (unsigned short)smooth_count;
+  if (!finish_path) {
+    *param_6 = 0;
+  }
+}
+
+/* 0x000639e0 — structure_test_line2d / FUN_000639e0
+ * Tests a 2D line against structure BSP 2D surface projection.
+ */
+int FUN_000639e0(int scenario, unsigned char bsp_idx, float *origin, int node_handle, float *target, int flags, char *result_buf)
+{
+  int surf_block;
+  int path_flags;
+  int breakable_flags;
+  int current_surf;
+  char flag_35;
+  float dx;
+  float dy;
+  char *surf_elem;
+  int edge_idx;
+  float avg_x;
+  float avg_y;
+  float avg_z;
+  int vertex_count;
+  char has_intersection;
+  char reached_goal;
+  int i;
+  int next_edge;
+  float *v1;
+  float *v2;
+  float edge_dx;
+  float edge_dy;
+  float d1_x;
+  float d1_y;
+  float d2_x;
+  float d2_y;
+  float t;
+  float proj_pt[3];
+  char sub_buf[16];
+
+  surf_block = (int)tag_block_get_element_with_size((void *)(scenario + 0xb0), 0, 0x60);
+  path_flags = *(int *)(scenario + 0x1e8);
+  breakable_flags = breakable_surface_flags_get();
+  current_surf = node_handle;
+  flag_35 = 0;
+
+  if (!result_buf) {
+    display_assert("result", "c:\\halo\\SOURCE\\ai\\path_structure_bsp.c", 0xd9, 1);
+    system_exit(-1);
+  }
+
+  dx = target[0] - origin[0];
+  dy = target[1] - origin[1];
+
+start_search:
+  surf_elem = (char *)tag_block_get_element_with_size((void *)(surf_block + 0x3c), current_surf, 0xc);
+  edge_idx = *(int *)(surf_elem + 4);
+  avg_x = *(float *)0x31fc1c;
+  avg_y = *(float *)0x31fc20;
+  avg_z = *(float *)0x31fc24;
+  vertex_count = 0;
+  has_intersection = 0;
+  reached_goal = 0;
+
+  do {
+    uint32_t *edge = (uint32_t *)tag_block_get_element_with_size((void *)(surf_block + 0x48), edge_idx, 0x18);
+    bool match_surf = (current_surf == (int)edge[5]);
+    uint32_t v_idx1 = edge[!match_surf ? 1 : 0];
+    uint32_t v_idx2 = edge[match_surf ? 1 : 0];
+    v1 = (float *)tag_block_get_element_with_size((void *)(surf_block + 0x54), v_idx1, 0x10);
+    v2 = (float *)tag_block_get_element_with_size((void *)(surf_block + 0x54), v_idx2, 0x10);
+
+    edge_dx = v2[0] - v1[0];
+    edge_dy = v2[1] - v1[1];
+    d1_x = v1[0] - origin[0];
+    d1_y = v1[1] - origin[1];
+    d2_x = v2[0] - origin[0];
+    d2_y = v2[1] - origin[1];
+
+    if ((int)edge[4 + (!match_surf ? 1 : 0)] == flags) {
+      reached_goal = 1;
+    }
+
+    avg_x += v1[0];
+    avg_y += v1[1];
+    avg_z += v1[2];
+    vertex_count++;
+
+    if ((*(float *)0x2533c0 < edge_dx * (target[1] - v1[1]) - (target[0] - v1[0]) * edge_dy) &&
+        (has_intersection = 1, *(float *)0x2533c0 < d1_y * dx - dy * d1_x) &&
+        (*(float *)0x2533c0 < dy * d2_x - d2_y * dx)) {
+      int adj_surf = (int)edge[4 + (match_surf ? 1 : 0)];
+      uint8_t flags_byte = *(uint8_t *)(adj_surf + path_flags);
+      bool is_brk = (bool)((flags_byte >> 6) & 1);
+      if (!bsp_idx) {
+        if (is_brk && (flags_byte <= 0xff)) {
+          int s_elem = (int)tag_block_get_element_with_size((void *)(surf_block + 0x3c), adj_surf, 0xc);
+          if (!(*(uint8_t *)(s_elem + 8) & 8)) {
+            display_assert("TEST_FLAG(surface->flags, _collision_surface_breakable_bit)", "c:\\halo\\SOURCE\\ai\\path_structure_bsp.c", 0x112, 1);
+            system_exit(-1);
+          }
+          is_brk = (*(uint32_t *)(breakable_flags + ((uint32_t)(*(uint8_t *)(s_elem + 9) >> 5) * 4)) & (1 << (*(uint8_t *)(s_elem + 9) & 0x1f))) != 0;
+        }
+      }
+      if (!is_brk) {
+        t = ((d1_y * edge_dx - d1_x * edge_dy) - sqrtf(edge_dy * edge_dy + edge_dx * edge_dx) * *(float *)0x25f0d0) / (dy * edge_dx - dx * edge_dy);
+        proj_pt[0] = dx * t + origin[0];
+        proj_pt[1] = dy * t + origin[1];
+        collision_surface_project_point2d(surf_block, current_surf, 2, 1, proj_pt, (float *)&result_buf[4]);
+        *(int *)&result_buf[0x10] = current_surf;
+        *(int *)&result_buf[0x14] = edge_idx;
+        result_buf[0] = 1;
+        *(float *)&result_buf[0x18] = t;
+        return 1;
+      }
+      current_surf = adj_surf;
+      goto start_search;
+    }
+    edge_idx = (int)edge[2 + (match_surf ? 1 : 0)];
+    if (edge_idx == *(int *)(surf_elem + 4)) {
+      break;
+    }
+  } while (1);
+
+  if (has_intersection) {
+    if (current_surf < 0 || *(int *)(scenario + 0x1e4) <= current_surf) {
+      display_assert("surface_index>=0 && surface_index<structure_bsp->surfaces.count", "c:\\halo\\SOURCE\\ai\\path_structure_bsp.c", 0x13c, 1);
+      system_exit(-1);
+    }
+    avg_x *= (*(float *)0x2533c8 / (float)vertex_count);
+    avg_y *= (*(float *)0x2533c8 / (float)vertex_count);
+    if (!flag_35 && *(char *)(current_surf + path_flags)) {
+      proj_pt[0] = avg_x;
+      proj_pt[1] = avg_y;
+      if (!FUN_000639e0(scenario, bsp_idx, proj_pt, current_surf, origin, -1, sub_buf)) {
+        flag_35 = 1;
+        goto start_search;
+      }
+    }
+  } else if ((current_surf == flags) || reached_goal || (flags == -1)) {
+    collision_surface_project_point2d(surf_block, current_surf, 2, 1, target, (float *)&result_buf[4]);
+    *(int *)&result_buf[0x10] = current_surf;
+    *(unsigned int *)&result_buf[0x14] = 0xffffffff;
+    result_buf[0] = 0;
+    *(float *)&result_buf[0x18] = 1.0f;
+    return 0;
+  }
+
+  collision_surface_project_point2d(surf_block, node_handle, 2, 1, origin, (float *)&result_buf[4]);
+  *(unsigned int *)&result_buf[0x10] = 0xffffffff;
+  *(unsigned int *)&result_buf[0x14] = 0xffffffff;
+  result_buf[0] = 1;
+  *(float *)&result_buf[0x18] = 0.0f;
+  return 1;
+}

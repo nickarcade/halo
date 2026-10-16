@@ -976,3 +976,453 @@ int actor_aim_grenade(int actor_handle, void *aim_params, float *out_aim_vector)
   out_aim_vector[2] = speed * aim_z;
   return result;
 }
+
+/* 0x00021310 — actor_get_grenade_definition
+ * Resolves the projectile definition for a grenade index.
+ */
+uint32_t actor_get_grenade_definition(int16_t a0)
+{
+  int elem;
+
+  elem = (int)tag_block_get_element_with_size((void *)(scenario_get_game_globals(a0, 0x44) + 0x128), 0, 0x44);
+  if (!elem) {
+    return 0;
+  }
+  if (*(int *)(elem + 0x40) == -1) {
+    return 0;
+  }
+  return tag_get(0x70726f6a, *(int *)(elem + 0x40)); /* 'proj' */
+}
+
+/* 0x000218d0 — actor_combat_build_grenade_trajectory
+ * Computes the launch trajectory for an actor grenade throw.
+ */
+char actor_combat_build_grenade_trajectory(float *position /* @<eax> */, float *out_aim_direction /* @<ebx> */, int definition_index, int definition_field_190, float *point, int param_6, int param_7, float *out_speed, int *out_target, float *out_impact_point, float *out_acceleration)
+{
+  float spd;
+  int globals_elem;
+  int proj_tag;
+  char result;
+  char flag_v9;
+
+  if (!position || !point || !out_aim_direction || !out_speed) {
+    display_assert("position && point && out_aim_direction && out_speed", "c:\\halo\\SOURCE\\ai\\actor_combat.c", 0x6f4, 1);
+    system_exit(-1);
+  }
+
+  globals_elem = (int)tag_block_get_element_with_size((void *)(scenario_get_game_globals(definition_index, 0x44) + 0x128), 0, 0x44);
+  if (globals_elem != 0 && *(int *)(globals_elem + 0x40) != -1) {
+    proj_tag = (int)tag_get(0x70726f6a, *(int *)(globals_elem + 0x40)); /* 'proj' */
+    if (proj_tag != 0) {
+      flag_v9 = 0;
+      result = projectile_aim(proj_tag, (int)position, (int)point, (int *)&definition_field_190, 0, param_6, 0, 0);
+      if (result) {
+        if (out_impact_point) {
+          spd = *out_speed;
+          out_impact_point[0] = spd * out_aim_direction[0];
+          out_impact_point[1] = spd * out_aim_direction[1];
+          out_impact_point[2] = spd * out_aim_direction[2];
+        }
+        if (!out_acceleration) {
+          return 1;
+        }
+        if (!flag_v9) {
+          *out_acceleration = projectile_get_ballistic_acceleration(proj_tag);
+          return 1;
+        }
+        *out_acceleration = *(float *)0x2533c0;
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
+/* 0x00021ae0 — actor_combat_check_collateral_damage
+ * Evaluates whether friendly units or allies would suffer collateral damage.
+ */
+char actor_combat_check_collateral_damage(int actor_handle, float range, float param3, float *encounter_pos, short *out_count)
+{
+  char *actor;
+  int16_t hit_count;
+  char is_safe;
+  int prop;
+  char piter[8];
+  char aiter[4];
+  int other_actor;
+  float dx;
+  float dy;
+  float dz;
+  int friend_list[32];
+  int friend_count;
+  int i;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  tag_get(0x61637476, *(unsigned int *)(actor + 0x5c));
+  friend_count = 0;
+  is_safe = 1;
+  hit_count = 0;
+
+  prop_iterator_new(piter, actor_handle);
+  prop = (int)prop_iterator_next(piter);
+  while (prop != 0) {
+    char *p = (char *)prop;
+    int16_t pstate = *(int16_t *)(p + 0x24);
+    if ((pstate >= 2 && pstate <= 3) && (*(char *)(p + 0x127) == '\0')) {
+      if (*(char *)(p + 0x60) != '\0') {
+        dx = encounter_pos[0] - *(float *)(p + 0xbc);
+        dy = encounter_pos[1] - *(float *)(p + 0xc0);
+        dz = encounter_pos[2] - *(float *)(p + 0xc4);
+        if (dx * dx + dy * dy + dz * dz < range * range) {
+          if (*(char *)(p + 0x12e) != '\0') {
+            hit_count += 10;
+          } else if (*(int *)(p + 0x110) != -1) {
+            hit_count += 5;
+          } else {
+            int target_actor = *(int *)(p + 0x1c);
+            if (target_actor != -1) {
+              if (friend_count < 32) {
+                friend_list[friend_count++] = target_actor;
+              }
+              if (*(char *)(p + 0x14) != '\0') {
+                char *ta = (char *)datum_get(*(data_t **)0x6325a4, target_actor);
+                hit_count += *(int16_t *)(ta + 0x1e);
+              } else {
+                hit_count++;
+              }
+            }
+          }
+        }
+      } else if (param3 > *(float *)0x2533c0) {
+        dx = encounter_pos[0] - *(float *)(p + 0xbc);
+        dy = encounter_pos[1] - *(float *)(p + 0xc0);
+        dz = encounter_pos[2] - *(float *)(p + 0xc4);
+        if (dx * dx + dy * dy + dz * dz < param3 * param3) {
+          is_safe = 0;
+          break;
+        }
+      }
+    }
+    prop = (int)prop_iterator_next(piter);
+  }
+
+  if (range > *(float *)0x2533c0 && *(int *)(actor + 0x270) != -1) {
+    char *p270 = (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x270));
+    if (*(int *)(p270 + 0x1c) != -1) {
+      char *act270 = (char *)datum_get(*(data_t **)0x6325a4, *(int *)(p270 + 0x1c));
+      if (*(int *)(act270 + 0x34) != -1) {
+        encounter_actor_iterator_new(aiter, *(int *)(act270 + 0x34));
+        other_actor = (int)encounter_actor_iterator_next(aiter);
+        while (other_actor != 0) {
+          char *oa = (char *)other_actor;
+          bool already_counted = 0;
+          for (i = 0; i < friend_count; i++) {
+            if (friend_list[i] == *(int *)piter) {
+              already_counted = 1;
+              break;
+            }
+          }
+          if (!already_counted) {
+            dx = encounter_pos[0] - *(float *)(oa + 300);
+            dy = encounter_pos[1] - *(float *)(oa + 0x130);
+            dz = encounter_pos[2] - *(float *)(oa + 0x134);
+            if (dx * dx + dy * dy + dz * dz < range * range) {
+              if (*(char *)(oa + 6) != '\0') {
+                hit_count += *(int16_t *)(oa + 0x1e);
+              } else {
+                hit_count++;
+              }
+            }
+          }
+          other_actor = (int)encounter_actor_iterator_next(aiter);
+        }
+      }
+    }
+  }
+
+  if (is_safe && *(int *)(actor + 0x34) != -1 && param3 > *(float *)0x2533c0) {
+    encounter_actor_iterator_new(aiter, *(int *)(actor + 0x34));
+    other_actor = (int)encounter_actor_iterator_next(aiter);
+    while (other_actor != 0) {
+      char *oa = (char *)other_actor;
+      dx = encounter_pos[0] - *(float *)(oa + 300);
+      dy = encounter_pos[1] - *(float *)(oa + 0x130);
+      dz = encounter_pos[2] - *(float *)(oa + 0x134);
+      if (dx * dx + dy * dy + dz * dz < param3 * param3) {
+        is_safe = 0;
+        break;
+      }
+      other_actor = (int)encounter_actor_iterator_next(aiter);
+    }
+  }
+
+  if (out_count) {
+    *out_count = hit_count;
+  }
+  return is_safe;
+}
+
+/* 0x000220c0 — actor_aim_projectile
+ * Calculates ballistic or direct aim direction for projectile weapon.
+ */
+int actor_aim_projectile(int actor_index, float *forward, float *target_dir, int *out_target)
+{
+  char *actor;
+  char *ai_debug_actor;
+  int target_obj;
+  float wp_vec[3];
+  float perp[3];
+  float rot_axis[3];
+  float cos_angle;
+  bool can_rotate;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_index);
+  target_obj = -1;
+  if (*(int16_t *)(actor + 0x5f2) != 2) {
+    return -1;
+  }
+
+  ai_debug_actor = (char *)(*(int *)0x331f58 + (actor_index & 0xffff) * 0x657c);
+  *(uint32_t *)(ai_debug_actor + 0x5c) = game_time_get();
+
+  if (*(int16_t *)(actor + 0x60c) == 1 && *(int *)(actor + 0x610) != -1) {
+    char *prop = (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x610));
+    int16_t ptype = *(int16_t *)(prop + 0x24);
+    if (ptype >= 2 && ptype <= 3) {
+      target_obj = *(int *)(prop + 0x18);
+    }
+  }
+
+  if (!target_dir) {
+    display_assert("target_direction", "c:\\halo\\SOURCE\\ai\\actor_combat.c", 0x42f, 1);
+    system_exit(-1);
+  }
+
+  *(char *)(ai_debug_actor + 0x60) = *(char *)(actor + 0x688);
+  *(float *)(ai_debug_actor + 100) = forward[0];
+  *(float *)(ai_debug_actor + 0x68) = forward[1];
+  *(float *)(ai_debug_actor + 0x6c) = forward[2];
+
+  if (*(char *)(actor + 0x688) != '\0') {
+    target_dir[0] = *(float *)(actor + 0x68c);
+    target_dir[1] = *(float *)(actor + 0x690);
+    target_dir[2] = *(float *)(actor + 0x694);
+  } else {
+    *(float *)(ai_debug_actor + 0x7c) = *(float *)(actor + 0x67c);
+    *(float *)(ai_debug_actor + 0x80) = *(float *)(actor + 0x680);
+    *(float *)(ai_debug_actor + 0x84) = *(float *)(actor + 0x684);
+    target_dir[0] = *(float *)(actor + 0x67c) - forward[0];
+    target_dir[1] = *(float *)(actor + 0x680) - forward[1];
+    target_dir[2] = *(float *)(actor + 0x684) - forward[2];
+    normalize3d(target_dir);
+  }
+
+  if (!valid_real_normal3d(target_dir)) {
+    csprintf((char *)0x5ab100, "%s: assert_valid_real_normal3d(%f, %f, %f)", "target_direction", (double)target_dir[0], (double)target_dir[1], (double)target_dir[2]);
+    display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\ai\\actor_combat.c", 0x442, 1);
+    system_exit(-1);
+  }
+
+  *(float *)(ai_debug_actor + 0x70) = target_dir[0];
+  *(float *)(ai_debug_actor + 0x74) = target_dir[1];
+  *(float *)(ai_debug_actor + 0x78) = target_dir[2];
+
+  actor_get_weapon_vector(actor_index, wp_vec);
+  cos_angle = wp_vec[0] * target_dir[0] + wp_vec[1] * target_dir[1] + wp_vec[2] * target_dir[2];
+  if (cos_angle >= *(float *)0x2533dc) {
+    *(char *)(ai_debug_actor + 0x88) = 0;
+  } else {
+    can_rotate = 1;
+    rot_axis[0] = wp_vec[1] * target_dir[2] - wp_vec[2] * target_dir[1];
+    rot_axis[1] = wp_vec[2] * target_dir[0] - wp_vec[0] * target_dir[2];
+    rot_axis[2] = wp_vec[0] * target_dir[1] - wp_vec[1] * target_dir[0];
+    if (normalize3d(rot_axis) == *(float *)0x2533c0) {
+      perpendicular3d(wp_vec, rot_axis);
+      if (normalize3d(rot_axis) == *(float *)0x2533c0) {
+        can_rotate = 0;
+      }
+    }
+    target_dir[0] = wp_vec[0];
+    target_dir[1] = wp_vec[1];
+    target_dir[2] = wp_vec[2];
+    if (can_rotate) {
+      rotate_vector_about_axis(target_dir, rot_axis, *(float *)0x254924);
+    }
+    *(float *)(ai_debug_actor + 0x98) = wp_vec[0];
+    *(float *)(ai_debug_actor + 0x9c) = wp_vec[1];
+    *(float *)(ai_debug_actor + 0xa0) = wp_vec[2];
+    *(char *)(ai_debug_actor + 0x88) = 1;
+    *(float *)(ai_debug_actor + 0x8c) = target_dir[0];
+    *(float *)(ai_debug_actor + 0x90) = target_dir[1];
+    *(float *)(ai_debug_actor + 0x94) = target_dir[2];
+  }
+
+  if (out_target) {
+    *out_target = *(int *)(actor + 0x698);
+  }
+  return target_obj;
+}
+
+/* 0x00022b40 — actor_combat_retarget_grenade
+ * Checks collateral damage and retargets grenade aim vector if clear.
+ */
+void actor_combat_retarget_grenade(int actor_handle /* @<ebx> */, float *aim_vector /* @<esi> */)
+{
+  char *actor;
+  char is_safe;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  tag_get(0x61637476, *(unsigned int *)(actor + 0x5c));
+  is_safe = actor_combat_check_collateral_damage(actor_handle, *(float *)(actor + 0x6b8), *(float *)(actor + 0x6bc), aim_vector, NULL);
+  if (is_safe != '\0') {
+    *(float *)(actor + 0x6a8) = aim_vector[0];
+    *(float *)(actor + 0x6ac) = aim_vector[1];
+    *(float *)(actor + 0x6b0) = aim_vector[2];
+  }
+}
+
+/* 0x00022dc0 — actor_combat_update
+ * Per-tick update of actor combat state, aiming, weapon firing, and triggers.
+ */
+void actor_combat_update(int actor_handle)
+{
+  char *actor;
+  char *actv;
+  char *combat_globals;
+  int weapon_handle;
+  float aim_cam[3];
+  float aim_dir[3];
+  float offset[3];
+  float lead[3];
+  char fire_result;
+  bool trigger_primary;
+  bool trigger_secondary;
+  float trigger_rate;
+  int blocker_handle;
+  int fire_target_type;
+  char *prop;
+  float diff_val;
+  float dt;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  actv = (char *)tag_get(0x61637476, *(unsigned int *)(actor + 0x5c));
+  combat_globals = (char *)(*(int *)0x331f58 + (actor_handle & 0xffff) * 0x657c);
+  weapon_handle = actor_get_weapon(actor_handle);
+
+  trigger_primary = 0;
+  trigger_secondary = 0;
+  trigger_rate = 1.0f;
+  blocker_handle = -1;
+
+  if (*(int16_t *)(actor + 0x5f2) == 2) {
+    *(float *)(actor + 0x65c) = *(float *)(actor + 0x650);
+    *(float *)(actor + 0x660) = *(float *)(actor + 0x654);
+    *(float *)(combat_globals + 0x1c) = *(float *)(actor + 0x64c);
+    *(float *)(combat_globals + 0x20) = *(float *)(actor + 0x650);
+    *(float *)(combat_globals + 0x24) = *(float *)(actor + 0x654);
+    *(float *)(combat_globals + 0x28) = *(float *)0x31fc38;
+    *(float *)(combat_globals + 0x2c) = *(float *)0x31fc3c;
+    *(float *)(combat_globals + 0x30) = *(float *)0x31fc40;
+
+    fire_target_type = *(int16_t *)(actor + 0x60c);
+    if (fire_target_type == 1) {
+      prop = (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x610));
+      *(float *)(combat_globals + 0x10) = *(float *)(prop + 200);
+      *(float *)(combat_globals + 0x14) = *(float *)(prop + 0xcc);
+      *(float *)(combat_globals + 0x18) = *(float *)(prop + 0xd0);
+      blocker_handle = *(int *)(prop + 0x114);
+      diff_val = game_difficulty_get_team_value(16, *(int16_t *)(actor + 0x3e));
+      if ((diff_val + *(float *)(actv + 0xbc) > *(float *)0x2533c0) && (*(char *)(actor + 0x623) == '\0')) {
+        vector_from_points3d((float *)(actor + 0x64c), (float *)(prop + 200), offset);
+        point_from_line3d(offset, (float *)(actor + 0x64c), *(float *)(actv + 0xbc), (float *)(actor + 0x65c));
+      }
+      *(float *)(combat_globals + 0x1c) = *(float *)(actor + 0x65c);
+      *(float *)(combat_globals + 0x20) = *(float *)(actor + 0x660);
+      *(float *)(combat_globals + 0x24) = *(float *)(actor + 0x664);
+      diff_val = game_difficulty_get_team_value(16, *(int16_t *)(actor + 0x3e));
+      if (diff_val + *(float *)(actv + 0xc0) > *(float *)0x2533c0) {
+        dt = weapon_estimate_time_to_target(weapon_handle, *(char *)(actor + 0x603) != '\0', *(float *)(actor + 0x648));
+        lead[0] = dt * *(float *)(prop + 0xd4);
+        lead[1] = dt * *(float *)(prop + 0xd8);
+        lead[2] = dt * *(float *)(prop + 0xdc);
+        *(float *)(combat_globals + 0x28) = lead[0];
+        *(float *)(combat_globals + 0x2c) = lead[1];
+        *(float *)(combat_globals + 0x30) = lead[2];
+        point_from_line3d(lead, (float *)(actor + 0x65c), *(float *)(actv + 0xc0), (float *)(actor + 0x65c));
+      }
+    } else if (fire_target_type == 2) {
+      *(float *)(combat_globals + 0x10) = *(float *)(actor + 0x65c);
+      *(float *)(combat_globals + 0x14) = *(float *)(actor + 0x660);
+      *(float *)(combat_globals + 0x18) = *(float *)(actor + 0x664);
+    } else {
+      display_assert("actor->control.combat.current_fire_target.type == _actor_fire_target_prop || actor->control.combat.current_fire_target.type == _actor_fire_target_point", "c:\\halo\\SOURCE\\ai\\actor_combat.c", 0x2c3, 1);
+      system_exit(-1);
+    }
+
+    *(float *)(actor + 0x664) += *(float *)(actor + 0x670);
+    *(float *)(actor + 0x668) += *(float *)(actor + 0x674);
+    *(float *)(actor + 0x66c) += *(float *)(actor + 0x678);
+    *(float *)(actor + 0x67c) = *(float *)(actor + 0x65c) + *(float *)(actor + 0x664);
+    *(float *)(actor + 0x680) = *(float *)(actor + 0x660) + *(float *)(actor + 0x668);
+    *(float *)(actor + 0x684) = *(float *)(actor + 0x664) + *(float *)(actor + 0x66c);
+
+    if (*(int *)(actor + 0x158) != -1) {
+      unit_get_camera_position(*(int *)(actor + 0x18), aim_cam);
+    } else {
+      aim_cam[0] = *(float *)(actor + 0x120);
+      aim_cam[1] = *(float *)(actor + 0x124);
+      aim_cam[2] = *(float *)(actor + 0x128);
+    }
+
+    if (!weapon_aim(weapon_handle, (char *)(actor + 0x603) != '\0', aim_cam, (float *)(actor + 0x67c), (float *)(actor + 0x68c), *(uint8_t *)(actor + 0x622), 0, 0, &fire_result)) {
+      display_assert("weapon_aim()", "c:\\halo\\SOURCE\\ai\\actor_combat.c", 0x310, 1);
+      system_exit(-1);
+    }
+    if (!valid_real_normal3d((float *)(actor + 0x68c))) {
+      csprintf((char *)0x5ab100, "%s: assert_valid_real_normal3d(%f, %f, %f)", "aim_vector", (double)*(float *)(actor + 0x68c), (double)*(float *)(actor + 0x690), (double)*(float *)(actor + 0x694));
+      display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\ai\\actor_combat.c", 0x311, 1);
+      system_exit(-1);
+    }
+
+    *(bool *)(actor + 0x688) = (fire_result == 0);
+    aim_dir[0] = *(float *)(actor + 0x67c) - aim_cam[0];
+    aim_dir[1] = *(float *)(actor + 0x680) - aim_cam[1];
+    aim_dir[2] = *(float *)(actor + 0x684) - aim_cam[2];
+
+    if (ai_test_line_of_fire(actor_handle, blocker_handle, aim_cam, aim_dir, NULL)) {
+      *(int16_t *)(actor + 0x5fa) = 0;
+      if (*(char *)(actor + 0x603) != '\0') {
+        trigger_secondary = 1;
+      } else {
+        trigger_primary = 1;
+      }
+    } else {
+      *(int16_t *)(actor + 0x5fa) += 1;
+      *(int16_t *)(actor + 0x5f4) += 1;
+      if (*(int16_t *)(actor + 0x5fa) >= 45 && *(int16_t *)(actor + 0x268) >= 7) {
+        ai_communication_event(14, *(int *)(actor + 0x18), 2, blocker_handle, -1, -1, 0);
+        *(int16_t *)(actor + 0x5fa) = 0;
+      }
+    }
+  } else {
+    trigger_primary = 1;
+  }
+
+  if (trigger_primary) {
+    if (*(char *)(actor + 0x602) != '\0') {
+      *(char *)(actor + 0x602) = 0;
+    } else if (*(float *)(actv + 0x78) > *(float *)0x2533c0) {
+      if (*(int16_t *)(actor + 0x5f8) == 0) {
+        diff_val = game_difficulty_get_team_value(10, *(int16_t *)(actor + 0x3e));
+        trigger_rate = diff_val * *(float *)(actv + 0x78);
+        *(int16_t *)(actor + 0x5f8) = (int16_t)(*(float *)0x253394 / trigger_rate);
+        if (*(int16_t *)(actor + 0x5f8) < 2) {
+          *(int16_t *)(actor + 0x5f8) = 2;
+        }
+      }
+    }
+  }
+
+  actor_unit_control_primary_trigger(actor_handle, trigger_primary, trigger_rate);
+  actor_unit_control_secondary_trigger(actor_handle, trigger_secondary);
+}

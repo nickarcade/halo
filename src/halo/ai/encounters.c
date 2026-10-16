@@ -4120,6 +4120,22 @@ void encounterless_activate(int actor_handle)
   actor_set_active(actor_handle, 1);
 }
 
+/* 0x0005a490 — encounterless_deactivate
+ * Asserts the actor is encounterless, clears its timer, and deactivates it.
+ */
+void encounterless_deactivate(int actor_handle)
+{
+  char *actor;
+
+  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  if (*(char *)(actor + 9) == '\0') {
+    display_assert("actor->meta.encounterless", "c:\\halo\\SOURCE\\ai\\encounters.c", 0x72e, 1);
+    system_exit(-1);
+  }
+  *(int16_t *)(actor + 0x10) = 0;
+  actor_set_active(actor_handle, 0);
+}
+
 /* 0x5a4e0 — encounter_activate.
  * Activates an encounter if its BSP requirement is satisfied (enc_def+0x7e is
  * NONE or matches the current global_structure_bsp_index).  When the encounter
@@ -6426,6 +6442,64 @@ void encounter_post_combat(int encounter_handle)
  *
  * 0x5c510 / encounters.obj
  */
+/* 0x0005c3a0 — encounter_place_actor
+ * Places an individual actor belonging to a squad within an encounter. */
+bool encounter_place_actor(int squad_index, int delay, int flag, int encounter_handle /* @<ebx> */)
+{
+  char *encounter_def;
+  char *squad_def;
+  int start_loc_idx;
+  char *start_loc_def;
+  scenario_t *scenario;
+  int16_t variant_idx;
+  char *variant_def;
+  uint32_t variant_tag;
+  char *tag_def;
+  uint32_t upgrade_unit;
+  char upgrade_flag;
+  uint32_t upgrade_chance;
+  int placed_actor;
+
+  scenario = (scenario_t *)global_scenario_get();
+  encounter_def = (char *)tag_block_get_element_with_size(
+    (char *)scenario + 0x42c, (int)(encounter_handle & 0xffff), 0xb0);
+  squad_def = (char *)tag_block_get_element_with_size(
+    encounter_def + 0x80, (int)(int16_t)squad_index, 0xe8);
+
+  start_loc_idx = encounter_get_actor_starting_location();
+  if ((int16_t)start_loc_idx != -1) {
+    start_loc_def = (char *)tag_block_get_element_with_size(
+      squad_def + 0xd0, (int)(int16_t)start_loc_idx, 0x1c);
+    variant_idx = *(int16_t *)(start_loc_def + 0x18);
+    if (variant_idx == -1) {
+      variant_idx = *(int16_t *)(squad_def + 0x20);
+    }
+    if (variant_idx >= 0 && (int)variant_idx < *(int *)((char *)scenario + 0x420)) {
+      variant_def = (char *)tag_block_get_element_with_size(
+        (char *)scenario + 0x420, (int)variant_idx, 0x10);
+      variant_tag = *(uint32_t *)(variant_def + 0xc);
+      if (variant_tag != (uint32_t)-1) {
+        tag_def = (char *)tag_get(0x61637476, variant_tag); /* 'actv' */
+        upgrade_unit = 0;
+        if (*(int *)(tag_def + 0x30) != -1) {
+          upgrade_flag = 0;
+          upgrade_chance = 0;
+          ai_get_major_upgrade_chance(*(uint16_t *)(squad_def + 0x80), &upgrade_unit, &upgrade_flag, &upgrade_chance);
+          if (upgrade_flag) {
+            upgrade_unit = (uint32_t)ai_consider_major_upgrade();
+          }
+        }
+        placed_actor = actor_place(*(uint32_t *)(variant_def + 0xc));
+        return (placed_actor != -1);
+      }
+    } else {
+      error(2, "WARNING: cannot spawn actors in %s/%s because the actor variant specified for this squad is NONE or invalid",
+            encounter_def, squad_def);
+    }
+  }
+  return false;
+}
+
 bool encounter_spawn_actor(int profile_index, int squad_index)
 {
   char *encounter;
@@ -7708,6 +7782,347 @@ void encounters_update(void)
       encounter_update_platoons((int)iter.datum_handle);
       encounter_update_follow((int)iter.datum_handle);
       encounter_control_actors((int)iter.datum_handle);
+    }
+  }
+}
+
+/* 0x00059dd0 — encounter_determine_pursuit_availability
+ * Evaluates actor pursuit availability counters within the encounter.
+ */
+void encounter_determine_pursuit_availability(int encounter_index, int actor_handle, int param_3, char param_4, char *out_5, char *out_6, char *out_7, char *out_8, char *out_9, char *out_10, char *out_11, char *out_12)
+{
+  uint32_t iter_handle;
+  int16_t c_active;
+  int16_t c_state3;
+  int16_t c_state7;
+  int16_t c_state5;
+  int max_pursuit;
+  char *actor_rec;
+  char *curr_actor;
+  bool is_avail;
+
+  iter_handle = 0xffffffff;
+  if (*(char *)(*(char **)0x632574 + 1) != '\0') {
+    if (encounter_index != -1) {
+      char *enc = (char *)datum_get(*(data_t **)0x5ab270, encounter_index);
+      iter_handle = *(uint32_t *)(enc + 0x14);
+    } else {
+      iter_handle = *(uint32_t *)(*(char **)0x632574 + 8);
+    }
+  }
+
+  c_active = 0;
+  c_state3 = 0;
+  c_state7 = 0;
+  c_state5 = 0;
+
+  while (1) {
+    if ((*(char *)(*(char **)0x632574 + 1) == '\0') || (iter_handle == 0xffffffff)) {
+      if (param_3 != 1) {
+        if (param_3 != 2) {
+          max_pursuit = (int)c_state3 / 3;
+          if (max_pursuit <= 2) {
+            max_pursuit = 3;
+          }
+        } else {
+          max_pursuit = 999;
+        }
+      } else {
+        max_pursuit = 0;
+      }
+
+      actor_rec = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+      if (param_4 != '\0') {
+        is_avail = (actor_pursuit_find_nearby_actors(actor_handle, 1) >= 2);
+        if (out_9) *(bool *)out_9 = is_avail;
+        *(bool *)(actor_rec + 0x1cc) = is_avail;
+      } else {
+        actor_pursuit_find_nearby_actors(actor_handle, 0);
+        if (out_10) *(bool *)out_10 = (*(int *)(actor_rec + 0x1d0) != -1);
+        *(char *)(actor_rec + 0x1cc) = 0;
+      }
+
+      if (out_12) *out_12 = ((out_9 && *(bool *)out_9) || (out_10 && *(bool *)out_10));
+      if (out_5) *out_5 = (c_state5 < 6);
+      if (out_6) *out_6 = (c_state7 < 4);
+      if (out_8) *(bool *)out_8 = (c_active < (int16_t)max_pursuit);
+      if (out_7) *out_7 = (c_active < (int16_t)max_pursuit);
+
+      if ((*(char *)0x5aca4a != '\0') && (encounter_index == *(int *)0x5ac9f4) &&
+          ((actor_handle == *(int *)0x5ac9f8) || (*(int *)0x5ac9f8 == 0xffffffff))) {
+        char *name = (char *)actor_type_get_name(*(unsigned short *)(actor_rec + 4));
+        csprintf((char *)0x5ab100, "actor %s#%d pursuit: nearby=%d (active=%d/%d veh=%d/%d dis=%d/%d) avail=%s,%s,%s",
+                 name, actor_handle & 0xffff, param_4, (int)c_state5, 6, (int)c_state7, 4, (int)c_active, max_pursuit,
+                 (out_5 && *out_5) ? "YES" : "NO", (out_6 && *out_6) ? "YES" : "NO", (out_7 && *out_7) ? "YES" : "NO");
+        error(2, "%s", (char *)0x5ab100);
+        console_printf(0, (char *)0x5ab100);
+      }
+      return;
+    }
+
+    curr_actor = (char *)datum_get(*(data_t **)0x6325a4, iter_handle);
+    if ((iter_handle != (uint32_t)actor_handle) && (*(char *)(curr_actor + 0x1cc) == param_4)) {
+      if (*(int16_t *)(curr_actor + 0x6c) != 5) {
+        if (*(int16_t *)(curr_actor + 0x6c) == 7) {
+          if (*(int16_t *)(curr_actor + 0xa4)) {
+            c_active++;
+          } else {
+            c_state7++;
+          }
+        }
+      } else if (*(int16_t *)(curr_actor + 0xa4)) {
+        c_active++;
+      } else if (*(int16_t *)(curr_actor + 0x6e) <= 2) {
+        c_state5++;
+      }
+    }
+    iter_handle = *(uint32_t *)(curr_actor + 0x2c);
+    if (*(int16_t *)(curr_actor + 0x6a) == 3) {
+      c_state3++;
+    }
+  }
+}
+
+/* 0x0005ca80 — encounter_update_follow
+ * Updates squad following positions and targets for the encounter.
+ */
+void encounter_update_follow(int encounter_handle)
+{
+  char *encounter;
+  char *enc_def;
+  char *scenario;
+  int16_t follow_type;
+  int target_count;
+  int targets[8];
+  uint32_t squad_follow_mask[3];
+  uint32_t squad_active_mask[3];
+  uint32_t squad_alive_mask[3];
+  uint32_t squad_targets[64];
+  int16_t squad_count;
+  int i;
+  int j;
+  int active_squad_count;
+  uint32_t valid_target_bits;
+  float min_target_dist[8];
+  float target_pos[8][3];
+  float fp_dist[26];
+  float best_dist;
+  float worst_dist;
+  int best_squad;
+  int current_squad;
+  float follow_tol;
+  bool stay;
+
+  target_count = 0;
+  encounter = (char *)datum_get(*(data_t **)0x5ab270, encounter_handle);
+  scenario = (char *)global_scenario_get();
+  enc_def = (char *)tag_block_get_element(scenario + 0x42c, encounter_handle & 0xffff, 0xb0);
+  follow_type = *(int16_t *)(encounter + 0x62);
+
+  if (follow_type != 1) {
+    if (follow_type == 2) {
+      if (!object_try_and_get_and_verify_type(*(int *)(encounter + 100), 0)) {
+        *(int *)(encounter + 100) = -1;
+        return;
+      }
+      targets[0] = *(int *)(encounter + 100);
+      target_count = 1;
+    } else if (follow_type == 3) {
+      char iter[8];
+      int actor_handle = *(int *)(encounter + 100);
+      char *rec;
+      if (actor_handle == -1) return;
+      ai_index_actor_iterator_new(iter, actor_handle);
+      rec = (char *)ai_index_actor_iterator_next(iter);
+      while (rec != NULL) {
+        if (target_count >= 8) break;
+        targets[target_count++] = *(int *)(rec + 0x18);
+        rec = (char *)ai_index_actor_iterator_next(iter);
+      }
+    } else {
+      return;
+    }
+  } else {
+    char piter[8];
+    char *player_data = *(char **)0x5aa6d4;
+    char *prec;
+    data_iterator_new(piter, player_data);
+    prec = (char *)data_iterator_next(piter);
+    while (prec != NULL) {
+      if (*(int *)(prec + 0x34) != -1 && target_count < 8) {
+        targets[target_count++] = *(int *)(prec + 0x34);
+      }
+      prec = (char *)data_iterator_next(piter);
+    }
+  }
+
+  if (target_count <= 0) return;
+
+  valid_target_bits = 0;
+  active_squad_count = 0;
+  csmemset(squad_follow_mask, 0, sizeof(squad_follow_mask));
+  csmemset(squad_active_mask, 0, sizeof(squad_active_mask));
+  csmemset(squad_alive_mask, 0, sizeof(squad_alive_mask));
+
+  squad_count = *(int16_t *)(enc_def + 6);
+  for (i = 0; i < (int)squad_count; i++) {
+    char *sq_def = (char *)tag_block_get_element(enc_def + 0x80, i, 0xe8);
+    if (*(uint8_t *)(sq_def + 0x28) & 0x20) {
+      char *squad = (char *)encounter_get_squad(encounter, (int16_t)i);
+      uint32_t bit = 1 << (i & 0x1f);
+      int w_idx = i >> 5;
+      squad_follow_mask[w_idx] |= bit;
+      active_squad_count += *(int16_t *)(squad + 0x18);
+      if (*(char *)(squad + 0x10) != 0) {
+        squad_active_mask[w_idx] |= bit;
+        int16_t platoon_idx = *(int16_t *)(sq_def + 0x22);
+        uint32_t t_bits = 0;
+        if (platoon_idx >= 0 && platoon_idx < *(int *)(enc_def + 0x8c)) {
+          if (encounter_get_platoon(encounter, platoon_idx) != NULL) {
+            uint32_t *tb = (uint32_t *)(sq_def + 0x60);
+            t_bits = tb[0] | tb[1] | tb[2];
+          }
+        } else {
+          if (platoon_idx != -1) {
+            error(2, "WARNING: squad %s/%s has an invalid platoon - %d is outside range of [0, %d)", enc_def, sq_def, (int)platoon_idx, *(int *)(enc_def + 0x8c));
+          }
+          {
+            uint32_t *tb = (uint32_t *)(sq_def + 0x54);
+            t_bits = tb[0] | tb[1] | tb[2];
+          }
+        }
+        valid_target_bits |= t_bits;
+        squad_targets[i] = t_bits;
+        if (*(int16_t *)(squad + 0x18) >= 1) {
+          squad_alive_mask[w_idx] |= bit;
+        }
+      }
+    }
+  }
+
+  if (active_squad_count >= 1 && valid_target_bits != 0) {
+    float nearest_pos[3];
+    int nearest_target = -1;
+    if (target_count != 1) {
+      uint32_t a_handle;
+      for (j = 0; j < target_count; j++) {
+        min_target_dist[j] = 3.4028235e+38F;
+        object_get_origin(targets[j], target_pos[j]);
+      }
+      a_handle = 0xffffffff;
+      if (*(char *)(*(char **)0x632574 + 1) != '\0') {
+        if (encounter_handle != -1) {
+          a_handle = *(uint32_t *)(encounter + 0x14);
+        } else {
+          a_handle = *(uint32_t *)(*(char **)0x632574 + 8);
+        }
+      }
+      while (*(char *)(*(char **)0x632574 + 1) != '\0' && a_handle != 0xffffffff) {
+        char *act = (char *)datum_get(*(data_t **)0x6325a4, a_handle);
+        int16_t s_idx = *(int16_t *)(act + 0x3a);
+        if (squad_follow_mask[s_idx >> 5] & (1 << (s_idx & 0x1f))) {
+          float *act_pos = (float *)(act + 0x12c);
+          for (j = 0; j < target_count; j++) {
+            float d = (target_pos[j][0] - act_pos[0]) * (target_pos[j][0] - act_pos[0]) +
+                      (target_pos[j][1] - act_pos[1]) * (target_pos[j][1] - act_pos[1]) +
+                      (target_pos[j][2] - act_pos[2]) * (target_pos[j][2] - act_pos[2]);
+            if (d < min_target_dist[j]) {
+              min_target_dist[j] = d;
+            }
+          }
+        }
+        a_handle = *(uint32_t *)(act + 0x2c);
+      }
+      for (j = 0; j < target_count; j++) {
+        if (min_target_dist[j] < *(float *)0x2548fc) {
+          nearest_target = targets[j];
+          nearest_pos[0] = target_pos[j][0];
+          nearest_pos[1] = target_pos[j][1];
+          nearest_pos[2] = target_pos[j][2];
+        }
+      }
+    } else {
+      nearest_target = targets[0];
+      object_get_origin(nearest_target, nearest_pos);
+    }
+
+    if (nearest_target != -1) {
+      int fp_count = *(int *)(enc_def + 0x98);
+      for (j = 0; j < 26; j++) {
+        fp_dist[j] = 3.4028235e+38F;
+      }
+      for (j = 0; j < fp_count; j++) {
+        float *fp = (float *)tag_block_get_element(enc_def + 0x98, j, 0x18);
+        int16_t fp_idx = *(int16_t *)&fp[3];
+        if (valid_target_bits & (1 << (fp_idx & 0x1f))) {
+          float d = (nearest_pos[0] - fp[0]) * (nearest_pos[0] - fp[0]) +
+                    (nearest_pos[1] - fp[1]) * (nearest_pos[1] - fp[1]) +
+                    (nearest_pos[2] - fp[2]) * (nearest_pos[2] - fp[2]);
+          if (d < fp_dist[fp_idx]) {
+            fp_dist[fp_idx] = d;
+          }
+        }
+      }
+
+      best_dist = 3.4028235e+38F;
+      worst_dist = -3.4028235e+38F;
+      best_squad = -1;
+      current_squad = -1;
+
+      for (i = 0; i < (int)squad_count; i++) {
+        uint32_t bit = 1 << (i & 0x1f);
+        if (squad_active_mask[i >> 5] & bit) {
+          float min_d = *(float *)0x2548fc;
+          for (j = 0; j < 26; j++) {
+            if ((squad_targets[i] & (1 << (j & 0x1f))) && fp_dist[j] < min_d) {
+              min_d = fp_dist[j];
+            }
+          }
+          if (min_d < best_dist) {
+            best_dist = min_d;
+            best_squad = i;
+          }
+          if ((squad_alive_mask[i >> 5] & bit) && min_d > worst_dist) {
+            worst_dist = min_d;
+            current_squad = i;
+          }
+        }
+      }
+
+      if (best_squad != -1) {
+        if (current_squad != -1) {
+          float s_best = sqrtf(best_dist);
+          float s_worst = sqrtf(worst_dist);
+          follow_tol = (*(float *)(encounter + 0x68) <= *(float *)0x2533c0) ? 2.0f : *(float *)(encounter + 0x68);
+          stay = (s_worst - follow_tol <= s_best);
+          if (*(char *)0x5aca58 != '\0') {
+            char *best_sq_def = (char *)tag_block_get_element(enc_def + 0x80, best_squad, 0xe8);
+            char *curr_sq_def = (char *)tag_block_get_element(enc_def + 0x80, current_squad, 0xe8);
+            console_printf(0, "%s: current %s/%.1f best %s/%.1f tol %.1f -> %s", enc_def, curr_sq_def, (double)s_worst, best_sq_def, (double)s_best, (double)follow_tol, stay ? "STAY" : "MOVE");
+          }
+          if (stay) return;
+        }
+
+        {
+          uint32_t a_handle = 0xffffffff;
+          if (*(char *)(*(char **)0x632574 + 1) != '\0') {
+            if (encounter_handle != -1) {
+              a_handle = *(uint32_t *)(encounter + 0x14);
+            } else {
+              a_handle = *(uint32_t *)(*(char **)0x632574 + 8);
+            }
+          }
+          while (*(char *)(*(char **)0x632574 + 1) != '\0' && a_handle != 0xffffffff) {
+            char *act = (char *)datum_get(*(data_t **)0x6325a4, a_handle);
+            int16_t s_idx = *(int16_t *)(act + 0x3a);
+            uint32_t next_h = *(uint32_t *)(act + 0x2c);
+            if ((squad_follow_mask[s_idx >> 5] & (1 << (s_idx & 0x1f))) && s_idx != (int16_t)best_squad) {
+              actor_change_encounter(a_handle, encounter_handle, best_squad);
+            }
+            a_handle = next_h;
+          }
+        }
+      }
     }
   }
 }
