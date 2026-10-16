@@ -3644,3 +3644,313 @@ short rasterizer_transparent_geometry_get_group_presorted_index(
   }
   return index;
 }
+
+/* =========================================================================
+ * Campaign 5.6: Remaining functions for rasterizer_text.obj
+ * ========================================================================= */
+
+/* rasterizer_geometry_byte_swap_vertices: no-op on Xbox (0x1800a0) */
+void rasterizer_geometry_byte_swap_vertices(void)
+{
+}
+
+/* rasterizer_geometry_stripify: returns 1 (0x1804f0) */
+char rasterizer_geometry_stripify(void)
+{
+  return 1;
+}
+
+/* rasterizer_geometry_compress_vertices: compress vertex buffers for Xbox GPU (0x180d10) */
+void rasterizer_geometry_compress_vertices(
+  short type,
+  int count,
+  int compressed_out,
+  int compressed_size,
+  void *uncompressed,
+  int uncompressed_size)
+{
+  int i;
+  char *src;
+  unsigned int *dst;
+  unsigned short *dst_s;
+
+  if (uncompressed == (void *)0) {
+    display_assert("uncompressed",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xc2,
+                   1);
+    system_exit(-1);
+  }
+  if (compressed_out == 0) {
+    display_assert("compressed",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xc3,
+                   1);
+    system_exit(-1);
+  }
+
+  if (type == 0) {
+    if (count * 0x38 != uncompressed_size) {
+      display_assert(
+        "count*sizeof(struct environment_vertex_uncompressed)==uncompressed_size",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xc9, 1);
+      system_exit(-1);
+    }
+    if (count * 0x20 != compressed_size) {
+      display_assert(
+        "count*sizeof(struct environment_vertex_compressed)==compressed_size",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xca, 1);
+      system_exit(-1);
+    }
+    if (count <= 0) {
+      return;
+    }
+    src = (char *)uncompressed;
+    dst = (unsigned int *)compressed_out;
+    for (i = 0; i < count; i++) {
+      dst[0] = *(unsigned int *)(src + 0x00);
+      dst[1] = *(unsigned int *)(src + 0x04);
+      dst[2] = *(unsigned int *)(src + 0x08);
+      dst[3] = compress_real_vector3d_to_int32_clamp((float *)(src + 0x0c));
+      dst[4] = compress_real_vector3d_to_int32_clamp((float *)(src + 0x18));
+      dst[5] = compress_real_vector3d_to_int32_clamp((float *)(src + 0x24));
+      dst[6] = *(unsigned int *)(src + 0x30);
+      dst[7] = *(unsigned int *)(src + 0x34);
+      src += 0x38;
+      dst += 8;
+    }
+    return;
+  }
+
+  if (type != 2) {
+    if (type != 4) {
+      error(2, "### ERROR can't compress this type of vertex buffer");
+      return;
+    }
+    if (count * 0x44 != uncompressed_size) {
+      display_assert(
+        "count*sizeof(struct model_vertex_uncompressed)==uncompressed_size",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xef, 1);
+      system_exit(-1);
+    }
+    if (count * 0x20 != compressed_size) {
+      display_assert(
+        "count*sizeof(struct model_vertex_compressed)==compressed_size",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xf0, 1);
+      system_exit(-1);
+    }
+    if (count <= 0) {
+      return;
+    }
+    src = (char *)uncompressed;
+    dst = (unsigned int *)compressed_out;
+    for (i = 0; i < count; i++) {
+      dst[0] = *(unsigned int *)(src + 0x00);
+      dst[1] = *(unsigned int *)(src + 0x04);
+      dst[2] = *(unsigned int *)(src + 0x08);
+      dst[3] = compress_real_vector3d_to_int32_clamp((float *)(src + 0x0c));
+      dst[4] = compress_real_vector3d_to_int32_clamp((float *)(src + 0x18));
+      dst[5] = compress_real_vector3d_to_int32_clamp((float *)(src + 0x24));
+      *(unsigned short *)((char *)dst + 0x18) =
+        (unsigned short)compress_real_to_int16_clamp(*(float *)(src + 0x30));
+      *(unsigned short *)((char *)dst + 0x1a) =
+        (unsigned short)compress_real_to_int16_clamp(*(float *)(src + 0x34));
+      *((char *)dst + 0x1c) = (char)(*(char *)(src + 0x38) * 3);
+      *((char *)dst + 0x1d) = (char)(*(char *)(src + 0x3a) * 3);
+      *(unsigned short *)((char *)dst + 0x1e) =
+        (unsigned short)compress_real_to_int16_clamp(*(float *)(src + 0x3c));
+      src += 0x44;
+      dst += 8;
+    }
+    return;
+  }
+
+  /* type == 2 (environment lightmap) */
+  if (count * 0x14 != uncompressed_size) {
+    display_assert(
+      "count*sizeof(struct "
+      "environment_lightmap_vertex_uncompressed)==uncompressed_size",
+      "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xdd, 1);
+    system_exit(-1);
+  }
+  if (count * 8 != compressed_size) {
+    display_assert(
+      "count*sizeof(struct "
+      "environment_lightmap_vertex_compressed)==compressed_size",
+      "c:\\halo\\SOURCE\\rasterizer\\rasterizer_geometry.c", 0xde, 1);
+    system_exit(-1);
+  }
+  if (count <= 0) {
+    return;
+  }
+  src = (char *)uncompressed;
+  dst_s = (unsigned short *)compressed_out;
+  for (i = 0; i < count; i++) {
+    *(unsigned int *)dst_s =
+      compress_real_vector3d_to_int32_clamp((float *)src);
+    dst_s[2] =
+      (unsigned short)compress_real_to_int16_clamp(*(float *)(src + 0x0c));
+    dst_s[3] =
+      (unsigned short)compress_real_to_int16_clamp(*(float *)(src + 0x10));
+    src += 0x14;
+    dst_s += 4;
+  }
+}
+
+/* screenshot_in_progress: test whether screenshot / spectator mode is active (0x180ff0) */
+uint32_t screenshot_in_progress(void)
+{
+  if (*(short *)0x46e008 <= 1 && (*(short *)0x46e008 != 1 || *(short *)0x31fa98 <= 1)) {
+    return 0;
+  }
+  return 1;
+}
+
+/* lens_flare_occlusion_test_results_get: look up occlusion query result bytes (0x181060) */
+unsigned char *lens_flare_occlusion_test_results_get(void *lens_flare_params)
+{
+  short light_index;
+  short marker_index;
+  int structure_lens_flare_index;
+  int window_index;
+
+  if (lens_flare_params == (void *)0) {
+    display_assert("lens_flare_parameters",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x4c, 1);
+    system_exit(-1);
+  }
+
+  light_index = *(short *)((char *)lens_flare_params + 0x1e);
+  if (light_index < 0) {
+    marker_index = *(short *)((char *)lens_flare_params + 0x20);
+    window_index = (int)(*(unsigned char *)((char *)lens_flare_params + 0x22) & 0x7f);
+    structure_lens_flare_index = ((int)(light_index & 0x7fff) << 16) | (int)marker_index;
+
+    if (window_index < 0 || window_index >= 4) {
+      display_assert("window_index>=0 && window_index<MAXIMUM_WINDOWS",
+                     "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x57, 1);
+      system_exit(-1);
+    }
+    if (structure_lens_flare_index < 0 || structure_lens_flare_index >= 0x10008) {
+      display_assert(
+        "structure_lens_flare_index>=0 && structure_lens_flare_index<(MAXIMUM_LENS_FLARE_MARKERS_PER_STRUCTURE_BSP*MAXIMUM_STRUCTURE_BSPS_PER_MAP)",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x58, 1);
+      system_exit(-1);
+    }
+    return (unsigned char *)(0x47ed60 + structure_lens_flare_index * 4 + window_index);
+  }
+
+  if (light_index < 0 || light_index >= 0x380) {
+    display_assert(
+      "lens_flare_parameters->light_index>=0 && lens_flare_parameters->light_index<MAXIMUM_LIGHTS_PER_MAP",
+      "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x5e, 1);
+    system_exit(-1);
+  }
+
+  window_index = (int)(*(unsigned char *)((char *)lens_flare_params + 0x22) & 0x7f);
+  marker_index = *(short *)((char *)lens_flare_params + 0x20);
+  return (unsigned char *)(0x4bed82 + (int)light_index * 0x22 + (int)marker_index * 4 + window_index);
+}
+
+/* lens_flare_evaluate_corona_rotation_function: compute corona rotation angle (0x181420) */
+float lens_flare_evaluate_corona_rotation_function(
+  void *lens_flare_params,
+  short rotation_fn)
+{
+  float local_v2[3];
+  float *v1;
+  float v3[3];
+  float v15, v16, v14;
+  float diff[3];
+  float v9, v10;
+
+  if (lens_flare_params == (void *)0) {
+    display_assert("lens_flare_parameters",
+                   "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x76, 1);
+    system_exit(-1);
+  }
+
+  v1 = uncompress_int32_to_real_vector3d(
+    local_v2, *(unsigned int *)((char *)lens_flare_params + 0x10));
+  v3[0] = v1[0];
+  v3[1] = v1[1];
+  v3[2] = v1[2];
+
+  switch (rotation_fn) {
+    case 1:
+      cross_product3d(v3, (float *)0x5a5c64, local_v2);
+      cross_product3d(local_v2, v3, local_v2);
+      v9 = local_v2[0] * *(float *)0x5a5bd4 + local_v2[1] * *(float *)0x5a5bd8 + local_v2[2] * *(float *)0x5a5bdc;
+      v10 = -(v3[0] * *(float *)0x5a5bd4 + v3[1] * *(float *)0x5a5bd8 + v3[2] * *(float *)0x5a5bdc);
+      break;
+
+    case 2:
+      v15 = -v3[0];
+      v16 = -v3[1];
+      v14 = -v3[2];
+      v9 = *(float *)0x5a5c64 * v15 + *(float *)0x5a5c68 * v16 + *(float *)0x5a5c6c * v14;
+      v10 = -(*(float *)0x5a5c7c * v15 + *(float *)0x5a5c80 * v16 + *(float *)0x5a5c84 * v14);
+      break;
+
+    case 3:
+      cross_product3d(v3, (float *)0x5a5c64, local_v2);
+      cross_product3d(local_v2, v3, local_v2);
+      diff[0] = *(float *)((char *)lens_flare_params + 4) - *(float *)0x5a5bc8;
+      diff[1] = *(float *)((char *)lens_flare_params + 8) - *(float *)0x5a5bcc;
+      diff[2] = *(float *)((char *)lens_flare_params + 0xc) - *(float *)0x5a5bd0;
+      v9 = local_v2[0] * diff[0] + local_v2[1] * diff[1] + local_v2[2] * diff[2];
+      v10 = -(v3[0] * diff[0] + v3[1] * diff[1] + v3[2] * diff[2]);
+      break;
+
+    case 4:
+      diff[0] = *(float *)((char *)lens_flare_params + 4) - *(float *)0x5a5bc8;
+      diff[1] = *(float *)((char *)lens_flare_params + 8) - *(float *)0x5a5bcc;
+      diff[2] = *(float *)((char *)lens_flare_params + 0xc) - *(float *)0x5a5bd0;
+      v9 = *(float *)0x5a5c64 * diff[0] + *(float *)0x5a5c68 * diff[1] + *(float *)0x5a5c6c * diff[2];
+      v10 = -(*(float *)0x5a5c7c * diff[0] + *(float *)0x5a5c80 * diff[1] + *(float *)0x5a5c84 * diff[2]);
+      break;
+
+    case 0:
+      v9 = 0.0f;
+      v10 = 1.0f;
+      break;
+
+    default:
+      display_assert(
+        "### ERROR unsupported lens flare corona rotation function",
+        "c:\\halo\\SOURCE\\rasterizer\\rasterizer_lights.c", 0x97, 1);
+      system_exit(-1);
+      v9 = 0.0f;
+      v10 = 1.0f;
+      break;
+  }
+
+  if (rotation_fn != 0 && v9 != 0.0f) {
+    return (float)(atan2((double)v9, (double)v10) * (double)*(float *)0x29c120);
+  }
+  return 0.0f;
+}
+
+/* lock_rasterizer_text_data: lock text vertex buffer (no-op on Xbox) (0x183630) */
+void lock_rasterizer_text_data(void)
+{
+}
+
+/* unlock_rasterizer_text_data: unlock text vertex buffer (no-op on Xbox) (0x183640) */
+void unlock_rasterizer_text_data(void)
+{
+}
+
+/* hardware_character_cache_get_bitmap: return cache bitmap texture handle (0x183750) */
+uint32_t hardware_character_cache_get_bitmap(void)
+{
+  if (*(char *)0x4d04a0 != 0) {
+    return *(uint32_t *)0x4d04ac;
+  }
+  return 0;
+}
+
+/* rasterizer_transparent_geometry_get_groups: return base pointer to groups array (0x184450) */
+uint32_t rasterizer_transparent_geometry_get_groups(void)
+{
+  return *(uint32_t *)0x4d0cec;
+}
+

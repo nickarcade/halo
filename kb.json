@@ -36329,7 +36329,8 @@
         {
           "addr": "0x1807d0",
           "decl": "unsigned char compress_real_to_int8_clamp(float param_1);",
-          "ported": false
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x180820",
@@ -36344,7 +36345,8 @@
         {
           "addr": "0x1808f0",
           "decl": "uint32_t compress_real_vector3d_to_int32(real *param_1);",
-          "ported": false
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x180b10",
@@ -36355,7 +36357,8 @@
         {
           "addr": "0x180d10",
           "decl": "void rasterizer_geometry_compress_vertices(short type, int count, int compressed_out, int compressed_size, void *uncompressed, int uncompressed_size);",
-          "ported": false
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x181020",
@@ -36364,7 +36367,9 @@
         },
         {
           "addr": "0x181060",
-          "decl": "unsigned char *lens_flare_occlusion_test_results_get(void *lens_flare_params@<eax>);"
+          "decl": "unsigned char *lens_flare_occlusion_test_results_get(void *lens_flare_params@<eax>);",
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x181150",
@@ -36397,23 +36402,28 @@
         },
         {
           "addr": "0x181420",
-          "decl": "float lens_flare_evaluate_corona_rotation_function(void *lens_flare_params@<esi>, short rotation_fn@<di>);"
+          "decl": "float lens_flare_evaluate_corona_rotation_function(void *lens_flare_params@<esi>, short rotation_fn@<di>);",
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x181900",
           "decl": "void rasterizer_lens_flare_submit_for_cluster(short param_1);",
-          "ported": false
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x181a90",
           "decl": "void rasterizer_lens_flares_submit_occlusion_tests(void);",
-          "ported": false
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x181c20",
           "decl": "void rasterizer_lens_flares_draw(void);",
           "name": "FUN_00181c20",
-          "ported": false
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x1824e0",
@@ -36516,8 +36526,9 @@
         {
           "addr": "0x183390",
           "decl": "int rasterizer_xbox_bitmap_rebuild_hardware_format(int bitmap);",
-          "ported": false,
-          "comment": "[NAME: rasterizer_xbox_bitmap_rebuild_hardware_format \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]"
+          "ported": true,
+          "comment": "[NAME: rasterizer_xbox_bitmap_rebuild_hardware_format \u2014 name_source=cea-pdb method=line_containment tier=confirmed (T2), cea-apply-unified 2026-09-03]",
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x183650",
@@ -36584,13 +36595,15 @@
           "addr": "0x184260",
           "decl": "char rasterizer_transparent_geometry_initialize(void);",
           "name": "rasterizer_transparent_geometry_new",
-          "ported": false
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x184300",
           "decl": "void rasterizer_transparent_geometry_begin(void);",
           "name": "rasterizer_transparent_geometry_begin",
-          "ported": false
+          "ported": true,
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x184330",
@@ -36631,44 +36644,51 @@
         {
           "addr": "0x1800a0",
           "decl": "void rasterizer_geometry_byte_swap_vertices(void);",
-          "ported": false,
-          "name": "rasterizer_geometry_byte_swap_vertices"
+          "ported": true,
+          "name": "rasterizer_geometry_byte_swap_vertices",
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x1804f0",
           "decl": "char rasterizer_geometry_stripify(void);",
-          "ported": false,
-          "name": "rasterizer_geometry_stripify"
+          "ported": true,
+          "name": "rasterizer_geometry_stripify",
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x180ff0",
           "decl": "uint32_t screenshot_in_progress(void);",
-          "ported": false,
-          "name": "screenshot_in_progress"
+          "ported": true,
+          "name": "screenshot_in_progress",
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x183630",
           "decl": "void lock_rasterizer_text_data(void);",
-          "ported": false,
-          "name": "lock_rasterizer_text_data"
+          "ported": true,
+          "name": "lock_rasterizer_text_data",
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x183640",
           "decl": "void unlock_rasterizer_text_data(void);",
-          "ported": false,
-          "name": "unlock_rasterizer_text_data"
+          "ported": true,
+          "name": "unlock_rasterizer_text_data",
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x183750",
           "decl": "uint32_t hardware_character_cache_get_bitmap(void);",
-          "ported": false,
-          "name": "hardware_character_cache_get_bitmap"
+          "ported": true,
+          "name": "hardware_character_cache_get_bitmap",
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         },
         {
           "addr": "0x184450",
           "decl": "uint32_t rasterizer_transparent_geometry_get_groups(void);",
-          "ported": false,
-          "name": "rasterizer_transparent_geometry_get_groups"
+          "ported": true,
+          "name": "rasterizer_transparent_geometry_get_groups",
+          "src": "src/halo/rasterizer/rasterizer_text.c"
         }
       ],
       "name": "rasterizer_text.obj",
