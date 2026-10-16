@@ -1409,3 +1409,324 @@ __declspec(noinline) void __stdcall FUN_0020f081(void *stream)
   object = *(void **)((char *)stream + 0x24);
   ((dsound_stream_object_method4_t)(*(void ***)object)[4])(object, 0, 0, 0);
 }
+
+/* dsound_initialize_virtual_channel (0x1c93a0)
+ *
+ * Initialize a virtual sound channel. */
+uint16_t *dsound_initialize_virtual_channel(void)
+{
+  short *vchannel;
+
+  vchannel = (short *)sound_dsound_vchannel_get(0);
+  vchannel[1] = 0;
+  vchannel[0] = -1;
+  return (uint16_t *)1;
+}
+
+/* dsound_channel_stop (0x1c95d0)
+ *
+ * Stop sound playback on the channel and clear pending permutations. */
+void dsound_channel_stop(void)
+{
+  char *channel;
+
+  channel = (char *)sound_dsound_channel_get(0);
+  if (*(short *)channel != 0) {
+    FUN_0020f081(*(void **)(channel + 0x70));
+    *(char *)(channel + 6) = 1;
+    *(short *)channel = 0;
+  }
+  *(void **)(channel + 0x68) = NULL;
+  *(void **)(channel + 0x6c) = NULL;
+}
+
+/* dsound_channel_get_state (0x1c9660)
+ *
+ * Query playback state of a hardware channel. */
+uint32_t dsound_channel_get_state(void)
+{
+  short *channel;
+
+  channel = (short *)sound_dsound_channel_get(0);
+  return (uint32_t)(uint16_t)*channel;
+}
+
+/* dsound_channel_queue_packet (0x1c9670)
+ *
+ * Dequeue and submit the next audio packet to DirectSound. */
+void dsound_channel_queue_packet(void)
+{
+  char *channel;
+  void *sound;
+  uint32_t cache_base;
+  uint32_t sound_base;
+  int sample_offset;
+  int remaining_size;
+  int sound_size;
+  short type_flags;
+  int max_packet_size;
+  int packet_size;
+  int block_size;
+  void *stream;
+  int result;
+  struct {
+    void *pvBuffer;
+    unsigned long dwMaxSize;
+    unsigned long *pdwCompletedSize;
+    unsigned long *pdwStatus;
+    void *pContext;
+    int prtTimestamp_low;
+    int prtTimestamp_high;
+  } packet;
+
+  channel = (char *)sound_dsound_channel_get(0);
+  sound = *(void **)(channel + 0x68);
+  if (sound == NULL) {
+    sound_dsound_set_last_error(NULL, "trying to queue sound but sound is null.");
+    return;
+  }
+
+  sound_base = *(uint32_t *)((char *)sound + 0x30);
+  if (sound_base == 0) {
+    sound_dsound_set_last_error(NULL, "trying to queue sound but samples is null.");
+    return;
+  }
+
+  cache_base = (uint32_t)FUN_001bdd70();
+  sound_size = *(int *)((char *)sound + 0x40);
+  if (sound_base < cache_base || sound_base + (uint32_t)sound_size > cache_base + 0x400000) {
+    char temp[256];
+    crt_sprintf(temp, "trying to queue sound %.32s but it's outside the valid range. (%ld)",
+                (char *)sound, sound_base);
+    sound_dsound_set_last_error(NULL, temp);
+    return;
+  }
+
+  sample_offset = *(int *)(channel + 0x64);
+  remaining_size = sound_size - sample_offset;
+  *(short *)(channel + 8) += 1;
+
+  type_flags = *(short *)(channel + 0x38);
+  max_packet_size = ((type_flags & 8) ? 2304 : 8192) * ((type_flags & 2) ? 2 : 1) * ((type_flags & 4) ? 2 : 1);
+
+  if (remaining_size <= max_packet_size) {
+    if (sample_offset != 0) {
+      *(void **)(channel + 0x68) = *(void **)(channel + 0x6c);
+      *(void **)(channel + 0x6c) = NULL;
+      *(int *)(channel + 0x64) = 0;
+      packet_size = remaining_size;
+      if (*(short *)channel == 2) {
+        *(short *)channel = 1;
+      }
+    } else {
+      block_size = 36 * ((type_flags & 2) ? 2 : 1);
+      packet_size = (remaining_size / block_size / 2);
+      if (packet_size <= 1) {
+        packet_size = 1;
+      }
+      packet_size *= block_size;
+      *(int *)(channel + 0x64) = packet_size;
+    }
+  } else {
+    packet_size = max_packet_size;
+    *(int *)(channel + 0x64) += packet_size;
+  }
+
+  if (packet_size != 0) {
+    stream = *(void **)(channel + 0x70);
+    csmemset(&packet, 0, sizeof(packet));
+    packet.pvBuffer = (void *)(sound_base + sample_offset);
+    packet.dwMaxSize = packet_size;
+    packet.pContext = sound;
+    result = ((int (__stdcall *)(void *, void *, void *))(*(void ***)stream)[4])(stream, &packet, NULL);
+    if (result >= 0) {
+      FUN_001be100((int)sound);
+    } else {
+      sound_dsound_set_last_error(&result, "couldn't queue sound packet.");
+    }
+  }
+}
+
+/* dsound_virtual_update (0x1c9be0)
+ *
+ * Per-frame virtual channel update hook. */
+void dsound_virtual_update(void)
+{
+  return;
+}
+
+/* dsound_virtual_get_state (0x1c9c80)
+ *
+ * Query playback state of a virtual sound channel. */
+void dsound_virtual_get_state(void)
+{
+  short *vchannel;
+  char *channel;
+
+  vchannel = (short *)sound_dsound_vchannel_get(0);
+  if (vchannel[0] != -1) {
+    channel = (char *)sound_dsound_channel_get(vchannel[0]);
+    if (*(short *)(channel + 2) != 0) {
+      display_assert("channel_get(vchannel->channel_index)->virtual_channel_index==virtual_channel_index",
+                     "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x5f3, 1);
+      system_exit(-1);
+    }
+  }
+}
+
+/* dsound_begin_scene (0x1c9de0)
+ *
+ * Process asynchronous DirectSound work and flush deferred error messages. */
+void dsound_begin_scene(void)
+{
+  DirectSoundDoWork();
+
+  if (SOUND_DSOUND_ERROR_REASON[0] != '\0') {
+    sound_dsound_log_error(SOUND_DSOUND_LAST_HRESULT, SOUND_DSOUND_ERROR_REASON);
+  }
+
+  SOUND_DSOUND_ERROR_REASON[0] = '\0';
+  SOUND_DSOUND_LAST_HRESULT = 0;
+}
+
+/* FUN_001ca900 (0x1ca900)
+ *
+ * DirectSound channel packet fill loop.
+ *
+ * Takes channel_index in EAX (LTCG register argument). */
+void FUN_001ca900(short channel_index /* @<eax> */)
+{
+  char *channel;
+  void *stream;
+  unsigned long status;
+  int result;
+
+  channel = (char *)sound_dsound_channel_get(channel_index);
+  if (*(short *)(channel + 8) >= 4) {
+    return;
+  }
+
+  while (*(void **)(channel + 0x68) != NULL) {
+    stream = *(void **)(channel + 0x70);
+    result = ((int (__stdcall *)(void *, unsigned long *))(*(void ***)stream)[3])(stream, &status);
+    if (result < 0) {
+      sound_dsound_set_last_error(&result, "couldn't get channel status.");
+      return;
+    }
+    if ((status & 1) == 0) {
+      return;
+    }
+    dsound_channel_queue_packet();
+    if (*(short *)(channel + 8) >= 4) {
+      return;
+    }
+  }
+}
+
+/* FUN_001ca970 (0x1ca970)
+ *
+ * DirectSound channel stream callback entry point. */
+void FUN_001ca970(void)
+{
+  return;
+}
+
+typedef int (__stdcall *dsound_stream_set_mode_fn)(void *stream, int mode, int deferred);
+typedef int (__stdcall *dsound_stream_set_vec_fn)(void *stream, float x, float y, float z, int deferred);
+
+/* dsound_channel_set_location (0x1cadd0)
+ *
+ * Set 3D spatial position, orientation, and velocity for a channel.
+ *
+ * Takes location in EBX (LTCG register argument). */
+void dsound_channel_set_location(short channel_index, char flag_0c,
+                                 float *location /* @<ebx> */, float value_10,
+                                 float value_14, char flag_18)
+{
+  char *channel;
+  bool spatialization_changed;
+  void *stream;
+  int result;
+
+  channel = (char *)sound_dsound_channel_get(channel_index);
+  spatialization_changed = false;
+
+  if ((*(unsigned char *)(channel + 0x38) & 1) == 0) {
+    display_assert("TEST_FLAG(channel->type_flags, _sound_channel_3d_bit)",
+                   "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x38a, 1);
+    system_exit(-1);
+  }
+  if (*(void **)(channel + 0x70) == NULL) {
+    display_assert("channel->stream",
+                   "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x38b, 1);
+    system_exit(-1);
+  }
+
+  stream = *(void **)(channel + 0x70);
+
+  if (*(char *)(channel + 4) != flag_0c || *(char *)0x4fdbc0 == 0) {
+    result = ((dsound_stream_set_mode_fn)IDirectSoundStream_SetMode)(stream, flag_0c ? 0 : 2, 1);
+    *(char *)(channel + 4) = flag_0c;
+    spatialization_changed = true;
+    if (result < 0) {
+      sound_dsound_log_error(result, "couldn't set channel spatialization.");
+    }
+  }
+
+  if (fabsf(location[0] - *(float *)(channel + 0x0c)) >= 0.05f ||
+      fabsf(location[1] - *(float *)(channel + 0x10)) >= 0.05f ||
+      fabsf(location[2] - *(float *)(channel + 0x14)) >= 0.05f ||
+      *(char *)0x4fdbc0 == 0) {
+    /* DirectSound is left-handed Y-up; Halo is right-handed Z-up: X, Z, Y */
+    result = ((dsound_stream_set_vec_fn)IDirectSoundStream_SetPosition)(stream, location[0], location[2], location[1], 1);
+    if (result < 0) {
+      sound_dsound_log_error(result, "couldn't set channel position.");
+    }
+    *(float *)(channel + 0x0c) = location[0];
+    *(float *)(channel + 0x10) = location[1];
+    *(float *)(channel + 0x14) = location[2];
+  }
+
+  if (fabsf(location[3] - *(float *)(channel + 0x18)) >= 0.05f ||
+      fabsf(location[4] - *(float *)(channel + 0x1c)) >= 0.05f ||
+      fabsf(location[5] - *(float *)(channel + 0x20)) >= 0.05f ||
+      *(char *)0x4fdbc0 == 0) {
+    if (!valid_real_normal3d(&location[3])) {
+      display_assert("valid_real_normal3d(&location->forward)",
+                     "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x3a5, 1);
+      system_exit(-1);
+    }
+    result = ((dsound_stream_set_vec_fn)IDirectSoundStream_SetConeOrientation)(stream, location[3], location[5], location[4], 1);
+    if (result < 0) {
+      sound_dsound_log_error(result, "couldn't set channel orientation.");
+    }
+    *(float *)(channel + 0x18) = location[3];
+    *(float *)(channel + 0x1c) = location[4];
+    *(float *)(channel + 0x20) = location[5];
+  }
+
+  if (fabsf(location[6] - *(float *)(channel + 0x24)) >= 0.01f ||
+      fabsf(location[7] - *(float *)(channel + 0x28)) >= 0.01f ||
+      fabsf(location[8] - *(float *)(channel + 0x2c)) >= 0.01f ||
+      *(char *)0x4fdbc0 == 0) {
+    result = ((dsound_stream_set_vec_fn)IDirectSoundStream_SetVelocity)(stream, location[6], location[8], location[7], 1);
+    if (result < 0) {
+      sound_dsound_log_error(result, "couldn't set channel velocity.");
+    }
+    *(float *)(channel + 0x24) = location[6];
+    *(float *)(channel + 0x28) = location[7];
+    *(float *)(channel + 0x2c) = location[8];
+  }
+
+  if (fabsf(value_10 - *(float *)(channel + 0x44)) >= 0.001f ||
+      fabsf(value_14 - *(float *)(channel + 0x48)) >= 0.001f ||
+      *(char *)(channel + 5) != flag_18 ||
+      spatialization_changed ||
+      *(char *)0x4fdbc0 == 0) {
+    *(char *)(channel + 5) = flag_18;
+    *(float *)(channel + 0x44) = value_10;
+    *(float *)(channel + 0x48) = value_14;
+    sound_dsound_channel_update_3d((int)channel_index);
+  }
+}
+

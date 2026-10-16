@@ -29228,7 +29228,9 @@
         {
           "addr": "0x1c9670",
           "decl": "void dsound_channel_queue_packet(void);",
-          "comment": "[NAME: dsound_channel_queue_packet \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: dsound_channel_queue_packet \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true,
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         },
         {
           "addr": "0x1c9bf0",
@@ -29240,7 +29242,9 @@
         {
           "addr": "0x1c9c80",
           "decl": "void dsound_virtual_get_state(void);",
-          "comment": "[NAME: dsound_virtual_get_state \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: dsound_virtual_get_state \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true,
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         },
         {
           "addr": "0x1c9cf0",
@@ -29269,11 +29273,15 @@
         },
         {
           "addr": "0x1ca900",
-          "decl": "void FUN_001ca900(short channel_index@<eax>);"
+          "decl": "void FUN_001ca900(short channel_index@<eax>);",
+          "ported": true,
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         },
         {
           "addr": "0x1ca970",
-          "decl": "void FUN_001ca970(void);"
+          "decl": "void FUN_001ca970(void);",
+          "ported": true,
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         },
         {
           "addr": "0x1caab0",
@@ -29283,7 +29291,9 @@
         {
           "addr": "0x1cadd0",
           "decl": "void dsound_channel_set_location(short channel_index, char flag_0c, float *location@<ebx>, float value_10, float value_14, char flag_18);",
-          "comment": "[NAME: dsound_channel_set_location \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
+          "comment": "[NAME: dsound_channel_set_location \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "ported": true,
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         },
         {
           "addr": "0x1cb0c0",
@@ -29293,32 +29303,37 @@
         {
           "addr": "0x1c93a0",
           "decl": "uint16_t * dsound_initialize_virtual_channel(void);",
-          "ported": false,
-          "name": "dsound_initialize_virtual_channel"
+          "ported": true,
+          "name": "dsound_initialize_virtual_channel",
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         },
         {
           "addr": "0x1c95d0",
           "decl": "void dsound_channel_stop(void);",
-          "ported": false,
-          "name": "dsound_channel_stop"
+          "ported": true,
+          "name": "dsound_channel_stop",
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         },
         {
           "addr": "0x1c9660",
           "decl": "uint32_t dsound_channel_get_state(void);",
-          "ported": false,
-          "name": "dsound_channel_get_state"
+          "ported": true,
+          "name": "dsound_channel_get_state",
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         },
         {
           "addr": "0x1c9be0",
           "decl": "void dsound_virtual_update(void);",
-          "ported": false,
-          "name": "dsound_virtual_update"
+          "ported": true,
+          "name": "dsound_virtual_update",
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         },
         {
           "addr": "0x1c9de0",
           "decl": "void dsound_begin_scene(void);",
-          "ported": false,
-          "name": "dsound_begin_scene"
+          "ported": true,
+          "name": "dsound_begin_scene",
+          "src": "src/halo/sound/sound_dsound_xbox.c"
         }
       ],
       "name": "sound_dsound_xbox.obj",
