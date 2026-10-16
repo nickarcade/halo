@@ -1232,6 +1232,102 @@ bool FUN_001bcb80(const char *map_name /* @<eax> */,
   return ok;
 }
 
+/* FUN_001bc3b0 (0x1bc3b0) — cached_map_issue_async_request
+ * Issues an asynchronous read or write request via the function pointer in
+ * async_request_function (e.g. ReadFileEx or WriteFileEx). Sets up the
+ * OVERLAPPED structure, clearing it, setting Offset and hEvent (used as
+ * completion_flag pointer), then calls the async routine. Retries if the call
+ * fails with transient memory/resource errors (8, 0x5aa, 0x6f8).
+ * Source: c:\halo\SOURCE\cache\cache_files_windows.c line 0x17d-0x1a0.
+ */
+void FUN_001bc3b0(void *async_request_function, void *overlapped,
+                  unsigned int handle, int buffer, unsigned int size,
+                  int offset, char *completion_flag, void *completion_routine)
+{
+  int (__stdcall *req_fn)(unsigned int, void *, unsigned int, void *, void *);
+  char *ov;
+  unsigned int err;
+
+  req_fn = (int (__stdcall *)(unsigned int, void *, unsigned int, void *, void *))async_request_function;
+  ov = (char *)overlapped;
+
+  if (async_request_function == NULL) {
+    display_assert("async_request_function",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x17d, 1);
+    system_exit(-1);
+  }
+  if (handle == (unsigned int)-1) {
+    display_assert("handle!=INVALID_HANDLE_VALUE",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x17f, 1);
+    system_exit(-1);
+  }
+  if (overlapped == NULL) {
+    display_assert("overlapped",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x181, 1);
+    system_exit(-1);
+  }
+  if (buffer == 0) {
+    display_assert("buffer",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x183, 1);
+    system_exit(-1);
+  }
+  if (completion_flag == NULL) {
+    display_assert("completion_flag",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x185, 1);
+    system_exit(-1);
+  }
+  if (completion_routine == NULL) {
+    display_assert("completion_routine",
+                   "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x187, 1);
+    system_exit(-1);
+  }
+
+  csmemset(ov, 0, 0x14);
+  *(unsigned int *)(ov + 8) = (unsigned int)offset;
+  *(unsigned int *)(ov + 0xc) = 0;
+  *(char **)(ov + 0x10) = completion_flag;
+
+  SleepEx(0, 1);
+  SetLastError(0);
+
+  while (!req_fn(handle, (void *)buffer, size, ov, completion_routine)) {
+    err = GetLastError();
+    if (err != 8 && err != 0x5aa && err != 0x6f8) {
+      display_assert(
+        csprintf(error_string_buffer, (const char *)0x2b8cc4, err,
+                 (const char *)0x5ab100),
+        "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x1a0, 1);
+      system_exit(-1);
+    }
+    SleepEx(0, 1);
+    SetLastError(0);
+  }
+}
+
+/* FUN_001bc580 (0x1bc580) — cache_request_get
+ * Returns pointer to the request entry at index (0..511) in the global
+ * request array at DAT_004e9250.
+ * Source: c:\halo\SOURCE\cache\cache_files_windows.c line 0x260.
+ */
+void *FUN_001bc580(short request_index)
+{
+  if (request_index < 0 || request_index >= 0x200) {
+    display_assert(
+      "request_index>=0 && request_index<MAXIMUM_SIMULTANEOUS_CACHE_REQUESTS",
+      "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x260, 1);
+    system_exit(-1);
+  }
+  return (void *)(*(int *)0x4e9250 + (int)request_index * 0x20);
+}
+
+/* scenario_name_to_cache_file_path (0x1bc960)
+ * Formats "d:\\maps\\%s.map" with the given map name into path buffer.
+ */
+void scenario_name_to_cache_file_path(const char *name, char *path)
+{
+  crt_sprintf(path, "d:\\maps\\%s.map", name);
+}
+
 /* cached_map_issue_async_read (0x1bcc10) — forwards a cache read through
  * FUN_001bc3b0.  EDI is the fixed async request routine; ESI and EBX are
  * intentionally forwarded untouched as the overlapped and completion routine.
@@ -1525,6 +1621,69 @@ void FUN_001bcfb0(short map_file_index)
   SetFileTime(*(int *)entry, entry + 4, 0, 0);
 }
 
+/* cached_map_file_read_header (0x1bd020)
+ * Reads the 0x800-byte cache file header for slot map_file_index from z:\cacheNNN.map.
+ * Verifies the header using cache_file_header_verify. If invalid, zeroes the header
+ * and file time in the slot entry.
+ * Source: c:\halo\SOURCE\cache\cache_files_windows.c line 0x485, 0x42e.
+ */
+void cached_map_file_read_header(short map_file_index)
+{
+  unsigned int *entry;
+  char path[276];
+  volatile char completion_flag;
+  int offset_80c;
+  FILETIME *time_ptr;
+  void *header_buf;
+  unsigned int err;
+
+  if (map_file_index < 0 || map_file_index >= 6) {
+    display_assert(
+      "map_file_index>=0 && map_file_index<NUMBER_OF_CACHED_MAP_FILES",
+      "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x485, 1);
+    system_exit(-1);
+  }
+
+  offset_80c = (int)map_file_index * 0x80c;
+  entry = (unsigned int *)((char *)0x4e61d8 + offset_80c);
+  time_ptr = (FILETIME *)((char *)0x4e61dc + offset_80c);
+  header_buf = (void *)((char *)0x4e61e4 + offset_80c);
+
+  crt_sprintf(path, "z:\\cache%03d.map", (int)map_file_index);
+  GetFileTime((HANDLE)*entry, NULL, NULL, time_ptr);
+
+  completion_flag = 0;
+  FUN_001bc3b0((void *)0x1d19e7, (void *)0x4e9250, *entry, (int)header_buf,
+               0x800, 0, (char *)&completion_flag, (void *)FUN_001bc860);
+
+  while (!completion_flag) {
+    if (SleepEx(5000, 1) != 0xc0) {
+      break;
+    }
+  }
+
+  if (!completion_flag) {
+    err = GetLastError();
+    display_assert(
+      csprintf(error_string_buffer, (const char *)0x2b8f4c, err, path),
+      "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x42e, 1);
+    system_exit(-1);
+    if (map_file_index < 0 || map_file_index >= 6) {
+      display_assert(
+        "map_file_index>=0 && map_file_index<NUMBER_OF_CACHED_MAP_FILES",
+        "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x485, 1);
+      system_exit(-1);
+    }
+    *entry = 0xffffffff;
+    return;
+  }
+
+  if (!cache_file_header_verify(header_buf, path, 0)) {
+    csmemset(header_buf, 0, 0x800);
+    csmemset(time_ptr, 0, 8);
+  }
+}
+
 /* FUN_001bd1b0 — find the cache slot index whose stored map name matches
  * map_name (passed in EDI by the caller). Compares against the name field
  * at DAT_004e6204 + index*0x80c (DAT_004e61d8 + 0x2c, the name field within
@@ -1549,6 +1708,96 @@ int16_t FUN_001bd1b0(const char *map_name)
     map_file_index = map_file_index + 1;
   } while (map_file_index < 6);
   return -1;
+}
+
+/* FUN_001bd210 (0x1bd210) — cached_map_files_find_free_map
+ * Find an available cache map slot that fits a map of size `header_size`.
+ * Checks slots according to map_type:
+ *   0: slots 0..1
+ *   1: slots 3..5
+ *   2: slot 2
+ * Picks an available slot (not currently open as cache_file_globals.open_map_file_index).
+ * If multiple slots fit, selects by largest slot size, then by oldest FILETIME (LRU).
+ * Source: c:\halo\SOURCE\cache\cache_files_windows.c line 0x461, 0x47d, 0x485, 0x49d.
+ */
+int16_t FUN_001bd210(int16_t map_type, int header_size)
+{
+  int16_t min_slot;
+  int16_t max_slot;
+  int16_t slot;
+  int16_t best_slot;
+  char *best_entry;
+  char *curr_entry;
+  int slot_size;
+  int best_size;
+  int curr_size;
+
+  best_slot = -1;
+  best_entry = NULL;
+
+  if (map_type == 0) {
+    min_slot = 0;
+    max_slot = 1;
+  } else if (map_type == 1) {
+    min_slot = 3;
+    max_slot = 5;
+  } else if (map_type == 2) {
+    min_slot = 2;
+    max_slot = 2;
+  } else {
+    display_assert(0, "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x461, 1);
+    system_exit(-1);
+    min_slot = 0;
+    max_slot = 0;
+  }
+
+  for (slot = min_slot; slot <= max_slot; slot = (int16_t)(slot + 1)) {
+    if (slot == *(int16_t *)0x4e9244) {
+      continue;
+    }
+    if (slot < 0 || slot >= 6) {
+      display_assert(
+        "map_file_index>=0 && map_file_index<NUMBER_OF_CACHED_MAP_FILES",
+        "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x485, 1);
+      system_exit(-1);
+    }
+    if (slot < 0 || slot >= 6) {
+      display_assert(
+        "map_file_index>=0 && map_file_index<NUMBER_OF_CACHED_MAP_FILES",
+        "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x49d, 1);
+      system_exit(-1);
+    }
+
+    curr_entry = (char *)0x4e61d8 + (int)slot * 0x80c;
+    slot_size = FUN_001bc7e0(slot);
+
+    if (header_size < slot_size) {
+      if (best_slot != -1) {
+        best_size = FUN_001bc7e0(best_slot);
+        curr_size = slot_size;
+        if (best_size < curr_size) {
+          best_entry = curr_entry;
+          best_slot = slot;
+        } else if (CompareFileTime((const FILETIME *)(best_entry + 4),
+                                   (const FILETIME *)(curr_entry + 4)) >= 1) {
+          best_entry = curr_entry;
+          best_slot = slot;
+        }
+      } else {
+        best_entry = curr_entry;
+        best_slot = slot;
+      }
+    }
+  }
+
+  if (best_slot == *(int16_t *)0x4e9244) {
+    display_assert(
+      (const char *)0x2b8f78,
+      "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x47d, 1);
+    system_exit(-1);
+  }
+
+  return best_slot;
 }
 
 /* FUN_001bd3a0 — cache file I/O service thread proc. Waits on the cache
@@ -1827,26 +2076,23 @@ void FUN_001bd5f0(void)
   }
 }
 
+/* Forward declarations for cache copy and media functions */
+extern void FUN_001baf50(void);
+extern void xbox_texture_cache_return_memory(void);
+extern const char *tag_name_strip_path(const char *tag_name);
+extern void display_error_damaged_media(void);
+extern void *FUN_001ba250(char raise_priority);
+extern void FUN_001ba2f0(int buffer, int size, int dest_file, int dest_file_size, const char *source_path);
+
 /* Returns true if the named map has already been precached.
- * 0x1bd1b0 reads EDI as the canonical map name (set from 0x19b0d0). */
+ * 0x1bd1b0 reads EDI as the canonical map name (set from tag_name_strip_path). */
 bool cache_files_precache_map_loaded(char *map_name)
 {
-  int _edi = (int)((char *(*)(char *))0x19b0d0)(map_name);
+  const char *canonical;
   int16_t result;
-#if defined(_MSC_VER) && !defined(__clang__)
-  __asm {
-    mov edi, _edi
-    mov eax, 0x1bd1b0
-    call eax
-    mov result, ax
-  }
-#else
-  asm volatile("movl $0x1bd1b0, %%eax\n\t"
-               "call *%%eax"
-               : "+D"(_edi), "=a"(result)
-               :
-               : "ecx", "edx", "memory", "cc");
-#endif
+
+  canonical = tag_name_strip_path(map_name);
+  result = FUN_001bd1b0(canonical);
   return result != -1;
 }
 
@@ -1856,18 +2102,17 @@ bool cache_files_precache_map_begin(char *map_name, bool show_error)
 {
   char path[256];
   char header_buf[0x800];
-  char *canonical;
+  const char *canonical;
   int16_t cache_idx;
 
-  canonical = ((char *(*)(char *))0x19b0d0)(map_name);
-  ((char *(*)(char *))0x19b0d0)(map_name);
-  cache_idx = ((int16_t(*)(void))0x1bd1b0)();
+  canonical = tag_name_strip_path(map_name);
+  cache_idx = FUN_001bd1b0(canonical);
 
   if (cache_idx == -1) {
     if (!FUN_001bcb80(canonical, header_buf)) {
       error(2, "couldn't find map '%s' on the DVD", canonical);
       if (show_error)
-        ((void (*)(void))0xe8d20)();
+        display_error_damaged_media();
       return 0;
     }
 
@@ -1879,8 +2124,8 @@ bool cache_files_precache_map_begin(char *map_name, bool show_error)
       int file;
       int mapped;
 
-      copy_handle = ((int (*)(bool))0x1ba250)(show_error);
-      buffer = (int)xbox_texture_cache_steal_memory(copy_handle);
+      copy_handle = (int)FUN_001ba250((char)show_error);
+      buffer = (int)xbox_texture_cache_steal_memory((unsigned int)copy_handle);
       slot =
         FUN_001bd210(*(int16_t *)(header_buf + 0x60), *(int *)(header_buf + 8));
 
@@ -1892,8 +2137,7 @@ bool cache_files_precache_map_begin(char *map_name, bool show_error)
       csstrncpy((char *)0x4e9224, canonical, 0x1f);
       *(uint8_t *)0x4e9243 = 0;
 
-      ((int (*)(char *, const char *, ...))0x1d90f0)(path, "d:\\maps\\%s.map",
-                                                     canonical);
+      crt_sprintf(path, "d:\\maps\\%s.map", canonical);
       error(2, "starting precaching of map '%s'", canonical);
 
       file = FUN_001bc7e0(slot);
@@ -1915,10 +2159,10 @@ void cache_files_precache_map_end(void)
     system_exit(-1);
   }
 
-  ((void (*)(void))0x1baf50)();
-  ((void (*)(void))0x1beb10)();
+  FUN_001baf50();
+  xbox_texture_cache_return_memory();
   FUN_001bcfb0(*(int16_t *)0x4e9222);
-  ((void (*)(int16_t))0x1bd020)(*(int16_t *)0x4e9222);
+  cached_map_file_read_header(*(int16_t *)0x4e9222);
 
   *(uint8_t *)0x4e9220 = 0;
   *(int16_t *)0x4e9222 = -1;

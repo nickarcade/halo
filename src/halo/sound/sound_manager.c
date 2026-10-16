@@ -1103,6 +1103,112 @@ void dsound_virtual_set_location(int channel_index, char flag_0c,
   }
 }
 
+/* dsound_initialize_channel (0x1cb210)
+ *
+ * Configures an individual DirectSound channel stream, speaker mix bins,
+ * and location properties. */
+boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_index)
+{
+  void *channel;
+  struct DSSTREAMDESC desc;
+  struct tWAVEFORMATEX wfx;
+  int result;
+  float loc_params[11];
+  uint32_t speaker_config;
+  long bin_vols[6];
+  float properties[8];
+
+  channel = sound_dsound_channel_get(channel_index);
+  *(short *)((char *)channel + 0x38) = type_flags;
+  *(unsigned short *)((char *)channel + 0x2) = 0xffff;
+  *((char *)channel + 0x6) = 0;
+  *(uint32_t *)((char *)channel + 0x68) = 0;
+  *(uint32_t *)((char *)channel + 0x6c) = 0;
+
+  csmemset(&wfx, 0, sizeof(wfx));
+  if (type_flags & 8) {
+    wfx.wFormatTag = 0x69;
+    wfx.wBitsPerSample = 4;
+    wfx.nChannels = (unsigned short)(((type_flags & 2) != 0) + 1);
+    wfx.nBlockAlign = (unsigned short)(wfx.nChannels * 0x24);
+    wfx.nSamplesPerSec = sound_dsound_get_sample_rate((type_flags >> 2) & 1);
+    wfx.nAvgBytesPerSec = (wfx.nSamplesPerSec >> 6) * (uint32_t)wfx.nBlockAlign;
+    wfx.cbSize = 2;
+    *(unsigned short *)((char *)&wfx + sizeof(struct tWAVEFORMATEX)) = 0x40;
+  } else {
+    wfx.wFormatTag = 1;
+    wfx.wBitsPerSample = 16;
+    wfx.nChannels = 2;
+    wfx.nBlockAlign = 4;
+    wfx.nSamplesPerSec = *(uint32_t *)0x2bcc1c;
+    wfx.nAvgBytesPerSec = *(uint32_t *)0x2bcc1c << 2;
+    wfx.cbSize = 0;
+  }
+
+  csmemset(&desc, 0, 0x18);
+  desc.dwMaxAttachedPackets = 4;
+  desc.lpwfxFormat = (LPWAVEFORMATEX)&wfx;
+  desc.dwFlags = (type_flags & 1) ? 0x10 : 0;
+  desc.lpfnCallback = (LPFNSTREAMCALLBACK)0x1ca970;
+  desc.lpvContext = (LPVOID)(int)channel_index;
+
+  result = IDirectSound_CreateSoundStream(
+    *(void **)0x50545c, (DSSTREAMDESC *)&desc,
+    (CDirectSoundStream **)((char *)channel + 0x70), NULL);
+  if (result < 0) {
+    sound_dsound_log_error(result, "couldn't create sound stream.");
+    return false;
+  }
+
+  if (type_flags & 1) {
+    csmemset(loc_params, 0, sizeof(loc_params));
+    loc_params[3] = (*(const float **)0x31fc3c)[0];
+    loc_params[4] = (*(const float **)0x31fc3c)[1];
+    loc_params[5] = (*(const float **)0x31fc3c)[2];
+    dsound_channel_set_location(channel_index, 0, loc_params, 0.0f, 0.0f, 0);
+  } else {
+    speaker_config = 0;
+    IDirectSound_GetSpeakerConfig(*(void **)0x50545c, (DWORD *)&speaker_config);
+    if (speaker_config & 0x10000) {
+      if (type_flags & 2) {
+        bin_vols[0] = sound_dsound_gain_to_volume(1.0f, 0);
+        bin_vols[1] = sound_dsound_gain_to_volume(1.0f, 0);
+        bin_vols[2] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[3] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[4] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[5] = sound_dsound_gain_to_volume(0.5f, 0);
+        IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
+                                     (LPDSMIXBINS)(uintptr_t)0x1833);
+        CDirectSoundStream_SetMixBinVolumes_12(
+          *(void **)((char *)channel + 0x70), 0x1833, bin_vols);
+      } else {
+        bin_vols[0] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[1] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[2] = sound_dsound_gain_to_volume(0.5f, 0);
+        IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
+                                     (LPDSMIXBINS)(uintptr_t)7);
+        CDirectSoundStream_SetMixBinVolumes_12(
+          *(void **)((char *)channel + 0x70), 7, bin_vols);
+      }
+    } else {
+      if (!(type_flags & 2)) {
+        bin_vols[0] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[1] = sound_dsound_gain_to_volume(0.5f, 0);
+        IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
+                                     (LPDSMIXBINS)(uintptr_t)3);
+        CDirectSoundStream_SetMixBinVolumes_12(
+          *(void **)((char *)channel + 0x70), 3, bin_vols);
+      }
+    }
+  }
+
+  csmemset(properties, 0, sizeof(properties));
+  properties[0] = 1.0f;
+  properties[1] = 1.0f;
+  sound_dsound_update_channel_properties(properties, channel_index, 0);
+  return true;
+}
+
 /* dsound_initialize (0x1cb4c0)
  *
  * Binary: [EBP+8] is a pointer asserted non-NULL as "preferences"
@@ -1277,6 +1383,14 @@ bool sound_valid_for_channel(short compression, short encoding,
   return result;
 }
 
+/* current_platform_definition (0x1cb800)
+ *
+ * Returns the platform definition pointer from 0x4eaf48. */
+uint32_t current_platform_definition(void)
+{
+  return *(uint32_t *)0x4eaf48;
+}
+
 /* Empty on Xbox — no per-map sound initialization needed. */
 void sound_initialize_for_new_map(void)
 {
@@ -1310,6 +1424,17 @@ void FUN_001cb820(void)
     data_dispose(*(data_t **)0x4fdba0);
   }
   FUN_001bde90();
+}
+
+/* FUN_001cb880 (0x1cb880)
+ *
+ * Returns true if sound is active (both initialized at 0x4eaf40 and hardware ready at 0x4eaf41). */
+uint32_t FUN_001cb880(void)
+{
+  if (*(unsigned char *)0x4eaf40 != 0 && *(unsigned char *)0x4eaf41 != 0) {
+    return 1;
+  }
+  return 0;
 }
 
 /* Fade out all active sounds and then stop the sound manager for map unload.
@@ -1581,6 +1706,42 @@ int16_t sound_check_promotion(int sound_tag_index /* @<eax> */)
   }
 
   return result;
+}
+
+/* sound_manager_master_gain (0x1cbba0)
+ *
+ * Master gain scale for a sound class. If class is not 0x2c, 0x2e, or 0x2f,
+ * scales the class gain by the ducking multiplier at 0x4eb0b0. */
+float sound_manager_master_gain(void)
+{
+  short sound_class;
+  float gain;
+
+  sound_class = 0;
+  gain = sound_class_get_gain((int)sound_class);
+  if (sound_class != 0x2c && sound_class != 0x2e && sound_class != 0x2f) {
+    gain *= *(float *)0x4eb0b0;
+  }
+  return gain;
+}
+
+/* sound_delete (0x1cbbd0)
+ *
+ * Asserts that the sound datum is not currently assigned to a playing channel,
+ * then deletes the sound datum. */
+void sound_delete(void)
+{
+  int sound_index;
+  char *sound;
+
+  sound_index = 0;
+  sound = (char *)datum_get(*(data_t **)0x4fdba4, sound_index);
+  if (*(int16_t *)(sound + 0x8c) != -1) {
+    display_assert("sound->channel==NONE",
+                   "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x4cf, 1);
+    system_exit(-1);
+  }
+  datum_delete(*(data_t **)0x4fdba4, sound_index);
 }
 
 /* sound_travel_milliseconds (0x1cbc20)
@@ -2643,11 +2804,97 @@ void sound_stop_channel(int sound_handle /* @<ebx> */)
 
 /* Sound manager — low-level sound system lifecycle and rendering. */
 
-/* Compute listener distance squared for a channel/source pair. */
-extern float FUN_001ccbe0(int channel_index, void *source);
+/* FUN_001ccbe0 (0x1ccbe0)
+ *
+ * Compute listener distance squared for a channel/source pair.
+ * channel_index is passed in EAX, source in EDI. */
+float FUN_001ccbe0(int channel_index /* @<eax> */, void *source /* @<edi> */)
+{
+  short source_type;
+  char *listener;
+  float dx;
+  float dy;
+  float dz;
+  float dist_sq;
 
-/* Compute distance for random scale checks. */
-extern float FUN_001ccca0(int channel_index, void *source);
+  source_type = *(short *)source;
+  if (source_type == 0) {
+    return *(float *)0x2533c0;
+  }
+  if (source_type == 2) {
+    dx = *(float *)((char *)source + 0xc);
+    dy = *(float *)((char *)source + 0x10);
+    dz = *(float *)((char *)source + 0x14);
+    return dx * dx + dy * dy + dz * dz;
+  }
+  if (source_type != 1) {
+    display_assert(NULL, "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x57a, 1);
+    system_exit(-1);
+    return 0.0f;
+  }
+
+  listener = (char *)sound_listener_get((short)channel_index);
+  dx = *(float *)(listener + 0x2c) - *(float *)((char *)source + 0xc);
+  dy = *(float *)(listener + 0x30) - *(float *)((char *)source + 0x10);
+  dz = *(float *)(listener + 0x34) - *(float *)((char *)source + 0x14);
+  dist_sq = dx * dx + dy * dy + dz * dz;
+
+  listener = (char *)sound_listener_get((short)channel_index);
+  if (listener[0] != 0) {
+    return dist_sq;
+  }
+
+  display_assert("listener_get()->valid",
+                 "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x574, 1);
+  system_exit(-1);
+  return dist_sq;
+}
+
+/* FUN_001ccca0 (0x1ccca0)
+ *
+ * Compute distance for random scale checks.
+ * channel_index is passed in EAX, source in EDI. */
+float FUN_001ccca0(int channel_index /* @<eax> */, void *source /* @<edi> */)
+{
+  short source_type;
+  char *listener;
+  float dx;
+  float dy;
+  float dz;
+  float dist;
+
+  source_type = *(short *)source;
+  if (source_type == 0) {
+    return *(float *)0x2533c0;
+  }
+  if (source_type == 2) {
+    dx = *(float *)((char *)source + 0xc);
+    dy = *(float *)((char *)source + 0x10);
+    dz = *(float *)((char *)source + 0x14);
+    return xbox_sqrtf(dx * dx + dy * dy + dz * dz);
+  }
+  if (source_type != 1) {
+    display_assert(NULL, "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x593, 1);
+    system_exit(-1);
+    return 0.0f;
+  }
+
+  listener = (char *)sound_listener_get((short)channel_index);
+  dx = *(float *)(listener + 0x2c) - *(float *)((char *)source + 0xc);
+  dy = *(float *)(listener + 0x30) - *(float *)((char *)source + 0x10);
+  dz = *(float *)(listener + 0x34) - *(float *)((char *)source + 0x14);
+  dist = xbox_sqrtf(dx * dx + dy * dy + dz * dz);
+
+  listener = (char *)sound_listener_get((short)channel_index);
+  if (listener[0] != 0) {
+    return dist;
+  }
+
+  display_assert("listener_get()->valid",
+                 "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x58d, 1);
+  system_exit(-1);
+  return dist;
+}
 
 /* sound_find_oldest_channel (0x1ccd70)
  *
@@ -3287,6 +3534,110 @@ int16_t sound_allocate_channel(void *source /* @<eax> */, float priority)
     return -1;
 
   return (short)best_channel;
+}
+
+/* FUN_001cd690 (0x1cd690)
+ *
+ * Per-frame sound manager output update. Iterates all sounds in 0x4fdba4,
+ * checks playback status, spatial audibility, fade state, and ducking gain. */
+void FUN_001cd690(void)
+{
+  bool dead;
+  bool has_ducking;
+  int sound_index;
+  char *sound_entry;
+  char *sound_tag;
+  short channel;
+  short type;
+  float max_dist;
+  int16_t audible_best;
+  short sound_class;
+  float rate;
+  float delta;
+
+  dead = players_are_all_dead();
+  has_ducking = false;
+  sound_index = data_next_index(*(data_t **)0x4fdba4, -1);
+  if (sound_index != -1) {
+    do {
+      sound_entry = (char *)datum_get(*(data_t **)0x4fdba4, sound_index);
+      sound_tag = (char *)tag_get(0x736e6421, *(uint32_t *)(sound_entry + 8));
+
+      channel = *(short *)(sound_entry + 0x8c);
+      if (channel != -1) {
+        if (sound_channel_update_status(channel) == 0) {
+          type = *(short *)(sound_entry + 2);
+          if (type != 2 && type != 3) {
+            sound_stop_channel(sound_index);
+            goto next_sound;
+          }
+        }
+      }
+
+      if (!FUN_001cbc40(sound_index)) {
+        sound_stop_channel(sound_index);
+        goto next_sound;
+      }
+
+      max_dist = sound_definition_get_maximum_distance(*(uint32_t *)(sound_entry + 8));
+      audible_best = sound_allocate_channel((void *)(sound_entry + 0x14), max_dist);
+      FUN_001cc4f0(sound_index);
+
+      sound_class = *(short *)(sound_tag + 4);
+      if (sound_class == 0x2c || sound_class == 0x2e || sound_class == 0x2f) {
+        has_ducking = true;
+      }
+
+      if (audible_best != -1) {
+        *(short *)(sound_entry + 6) = audible_best;
+        if (*(uint8_t *)(sound_entry + 4) & 4) {
+          sound_start_fade(0, *(float *)0x2c1280, sound_index, -1);
+          *(uint8_t *)(sound_entry + 4) &= ~4;
+        }
+      } else if (!(*(uint8_t *)(sound_entry + 4) & 4)) {
+        sound_start_fade(0, *(float *)0x2c127c, -1, sound_index);
+        *(uint8_t *)(sound_entry + 4) |= 4;
+      }
+
+      if (dead) {
+        if (sound_class == 0x2c) {
+          if (*(short *)(sound_entry + 0x8c) != -1) {
+            sound_start_fade(0, *(float *)0x2c1284, -1, sound_index);
+          } else {
+            sound_stop_channel(sound_index);
+          }
+        } else if (sound_class == 0x2e && *(short *)(sound_entry + 0x8c) == -1) {
+          sound_stop_channel(sound_index);
+        }
+      }
+
+next_sound:
+      sound_index = data_next_index(*(data_t **)0x4fdba4, sound_index);
+    } while (sound_index != -1);
+
+    if (has_ducking) {
+      rate = *(float *)0x4eaf50 * *(float *)0x25bc08;
+      delta = *(float *)0x32f6d8 - *(float *)0x4eb0b0;
+      if (delta < -rate) {
+        *(float *)0x4eb0b0 -= rate;
+      } else if (delta <= rate) {
+        *(float *)0x4eb0b0 += delta;
+      } else {
+        *(float *)0x4eb0b0 += rate;
+      }
+      return;
+    }
+  }
+
+  rate = *(float *)0x4eaf50 * *(float *)0x2c16d0;
+  delta = *(float *)0x2533c8 - *(float *)0x4eb0b0;
+  if (delta < -rate) {
+    *(float *)0x4eb0b0 -= rate;
+  } else if (delta <= rate) {
+    *(float *)0x4eb0b0 += delta;
+  } else {
+    *(float *)0x4eb0b0 += rate;
+  }
 }
 
 /* sound_find_best_channel (0x1cd8b0)
@@ -4004,6 +4355,162 @@ int sound_start(int sound_tag_index, void *source, int object_handle,
   }
 
   return result;
+}
+
+/* sound_refresh_looping (0x1ce550)
+ *
+ * Updates or stops an active looping sound source, updating tracks, continuous
+ * player effects, permutations, and cross-fades. */
+bool sound_refresh_looping(int sound_tag_index, int looping_sound_index,
+                           void *source, int param_4, bool param_5,
+                           float param_6)
+{
+  bool is_stop;
+  int loop_index;
+  char *loop_entry;
+  char *lsnd_tag;
+  int track_count;
+  int track_idx;
+  char *track;
+  int snd_index;
+  int fade_sound_index;
+  int new_snd;
+  char *sound_entry;
+
+  is_stop = ((short)param_4 == 2);
+  if (*(short *)source != 0 && !valid_real_normal3d((real_vector3d *)((char *)source + 0x18))) {
+    display_assert("valid_real_normal3d(&source->forward)",
+                   "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x2f4, 1);
+    system_exit(-1);
+  }
+
+  render_debug_looping_sound(sound_tag_index, source);
+
+  if (*(unsigned char *)0x4eaf40 == 0 || *(unsigned char *)0x4eaf41 == 0) {
+    return is_stop;
+  }
+
+  loop_index = FUN_001cc440(looping_sound_index);
+  is_stop = false;
+
+  if (loop_index == -1) {
+    if ((short)param_4 == 2) {
+      return true;
+    }
+    loop_index = looping_sound_new(sound_tag_index, looping_sound_index, source);
+    is_stop = true;
+    if (loop_index == -1) {
+      return false;
+    }
+  }
+
+  loop_entry = (char *)datum_get(*(data_t **)0x4fdba0, loop_index);
+  lsnd_tag = (char *)tag_get(0x6c736e64, sound_tag_index);
+  if (*(int *)(loop_entry + 4) != sound_tag_index) {
+    display_assert("looping_sound->sound_tag_index==sound_tag_index",
+                   "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x30e, 1);
+    system_exit(-1);
+  }
+
+  csmemcpy(loop_entry + 0xc, source, 64);
+  loop_entry[0x4c] = *(char *)0x4eaf54;
+
+  if (((short)param_4 == 2 || loop_entry[0x4e] != 0) && *(short *)(loop_entry + 0x50) == 0) {
+    datum_delete(*(data_t **)0x4fdba0, loop_index);
+    return true;
+  }
+
+  if (*(int *)(lsnd_tag + 0x38) != -1) {
+    player_effect_continuous_refresh(*(int *)(lsnd_tag + 0x38), (void *)((char *)source + 0xc));
+  }
+
+  track_count = *(int *)(lsnd_tag + 0x3c);
+  if (track_count > 0) {
+    for (track_idx = 0; track_idx < track_count; track_idx++) {
+      track = (char *)tag_block_get_element_with_size((tag_block *)(lsnd_tag + 0x3c), track_idx, 0xa0);
+      if (is_stop) {
+        *(int *)(loop_entry + 0xd4 + track_idx * 4) = -1;
+      }
+
+      if ((short)param_4 == 0) {
+        if (*(int *)(track + 0x3c) != -1) {
+          *(int *)(loop_entry + 0xd4 + track_idx * 4) =
+            sound_create_looping_entry(*(int *)(track + 0x3c), loop_index, (short)track_idx, 1);
+        }
+      }
+
+      if ((short)param_4 == 2 || loop_entry[0x4e] != 0) {
+        if (*(short *)(loop_entry + 0x52) != 2) {
+          if (param_6 != *(float *)0x2533c0) {
+            sound_start_fade(0, param_6, -1, *(int *)(loop_entry + 0xd4 + track_idx * 4));
+          } else {
+            snd_index = *(int *)(loop_entry + 0xd4 + track_idx * 4);
+            if (snd_index != -1 && ((track[0] & 2) || (*(int *)(track + 0x5c) == -1 && !(lsnd_tag[0] & 2)))) {
+              sound_start_fade(0, *(float *)(track + 0xc), -1, snd_index);
+            }
+            if (*(int *)(track + 0x5c) != -1) {
+              fade_sound_index = *(int *)(track + 0x5c);
+              if (param_5 && *(int *)(track + 0x9c) != -1) {
+                fade_sound_index = *(int *)(track + 0x9c);
+              }
+              if (track[0] & 2) {
+                sound_create_looping_entry(fade_sound_index, loop_index, (short)track_idx, 4);
+              } else {
+                snd_index = *(int *)(loop_entry + 0xd4 + track_idx * 4);
+                if (snd_index != -1) {
+                  sound_entry = (char *)datum_get(*(data_t **)0x4fdba4, snd_index);
+                  if (*(short *)(sound_entry + 0x8c) != -1) {
+                    FUN_001cc2f0(snd_index, 0);
+                    *(short *)(sound_entry + 2) = 3;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else {
+        fade_sound_index = *(int *)(track + 0x4c);
+        if (param_5 && *(int *)(track + 0x8c) != -1) {
+          fade_sound_index = *(int *)(track + 0x8c);
+        }
+        if (fade_sound_index != -1) {
+          snd_index = *(int *)(loop_entry + 0xd4 + track_idx * 4);
+          if (snd_index != -1 && ((short)param_4 != 0 || !(track[0] & 1))) {
+            datum_get(*(data_t **)0x4fdba4, snd_index);
+            if (param_5 != (bool)loop_entry[0x4d] && (track[0] & 4)) {
+              new_snd = sound_create_looping_entry(fade_sound_index, loop_index, (short)track_idx, 2);
+              if (new_snd != -1) {
+                sound_start_fade(0, *(float *)(track + 0xc), new_snd, snd_index);
+                *(int *)(loop_entry + 0xd4 + track_idx * 4) = new_snd;
+              }
+            } else if (!is_stop) {
+              FUN_001cc2f0(snd_index, 0);
+            }
+          } else {
+            new_snd = sound_create_looping_entry(fade_sound_index, loop_index, (short)track_idx, 2);
+            if (new_snd != -1) {
+              datum_get(*(data_t **)0x4fdba4, new_snd);
+              if ((short)param_4 != 0) {
+                sound_start_fade(0, *(float *)0x2c127c, new_snd, -1);
+              } else if (track[0] & 1) {
+                sound_start_fade(0, *(float *)(track + 8), new_snd, -1);
+              }
+              *(int *)(loop_entry + 0xd4 + track_idx * 4) = new_snd;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (*(short *)(loop_entry + 0x50) == 0 &&
+      sound_allocate_channel(source, *(float *)(lsnd_tag + 0x20)) == -1) {
+    datum_delete(*(data_t **)0x4fdba0, loop_index);
+  }
+
+  loop_entry[0x4d] = (char)param_5;
+  *(short *)(loop_entry + 0x52) = (short)param_4;
+  return false;
 }
 
 /* FUN_001ce9c0 @ 0x1ce9c0 -- per-frame sound listener update.
@@ -4831,3 +5338,11 @@ void FUN_001cf820(void **out_data)
 {
   *out_data = (void *)0x32fce4;
 }
+
+/* write_sound_preferences (0x1cf830)
+ *
+ * Empty on Xbox: sound preferences are managed via configuration/dashboard. */
+void write_sound_preferences(void)
+{
+}
+
