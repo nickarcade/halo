@@ -1404,8 +1404,8 @@ void biped_export_function_values(int unit_handle)
   unit_obj = (char *)object_get_and_verify_type(unit_handle, 1);
   biped_tag = (char *)tag_get(0x62697064, *(int *)unit_obj);
 
-  type_ptr = (short *)(biped_tag + 0x30c);
   out_ptr = (float *)(unit_obj + 0xd4);
+  type_ptr = (short *)(biped_tag + 0x30c);
   count = 4;
   do {
     if (*type_ptr != 0) {
@@ -1876,7 +1876,8 @@ void biped_render_debug(int unit_handle)
       scaled[0] = height_offset * global_up_vector_ptr[0];
       scaled[1] = height_offset * global_up_vector_ptr[1];
       scaled[2] = height_offset * global_up_vector_ptr[2];
-      FUN_00189860(1, &out_pos, scaled, camera_height, *(void **)0x2ee6c4);
+      FUN_00189860(1, &out_pos, scaled, camera_height,
+                   global_real_argb_white_ptr);
     } else {
       FUN_00189540(1, &out_pos, camera_height, *(void **)0x2ee6c4);
     }
@@ -2272,18 +2273,15 @@ void biped_vehicle_speech(int unit_handle /* @eax */)
         scaled_vel[2] =
           *(float *)((char *)vehi_obj + 0x20) * *(float *)0x2b4ee4 -
           *(float *)0x32512c * *(float *)0x2b4ee0;
-        if (normalize3d(scaled_vel) <= *(float *)0x2533c0) {
-          ai_communication_event(0x28, unit_handle, -1, -1, -1, -1, 0);
-          return;
-        }
-        if ((biped_find_ground_surface(8.0f, (float *)0, probe_vec, scaled_vel,
+        if (!(normalize3d(scaled_vel) > *(float *)0x2533c0) ||
+            (biped_find_ground_surface(8.0f, (float *)0, probe_vec, scaled_vel,
                                        unit_handle) == -1) ||
-            (*(float *)&probe_vec[2] <= *(float *)0x2533e4)) {
+            !(*(float *)&probe_vec[2] > *(float *)0x2533e4)) {
           ai_communication_event(0x28, unit_handle, -1, -1, -1, -1, 0);
           return;
         }
       }
-      if (*(float *)0x253f3c < *(float *)((char *)vehi_obj + 0x38)) {
+      if (*(float *)((char *)vehi_obj + 0x38) > *(float *)0x253f3c) {
         if (FUN_00012fe0((float *)(vehi_obj + 0xf)) < *(float *)0x26e2ec) {
           ai_communication_event(0x26, unit_handle, -1, -1, -1, -1, 0);
           return;

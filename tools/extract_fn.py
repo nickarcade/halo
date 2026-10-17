@@ -51,8 +51,20 @@ def find_repo_root() -> Path:
     return Path.cwd()
 
 
+def find_decompiled_dir() -> Path:
+    if "HALO_DECOMPILED_DIR" in os.environ:
+        return Path(os.environ["HALO_DECOMPILED_DIR"])
+    local_dir = REPO_ROOT / "halo_decompiled"
+    if (local_dir / "index.jsonl").is_file():
+        return local_dir
+    roxum_dir = Path("/sdcard/Android/media/com.roxum/Files")
+    if (roxum_dir / "index.jsonl").is_file():
+        return roxum_dir
+    return local_dir
+
+
 REPO_ROOT = find_repo_root()
-DECOMPILED_DIR = REPO_ROOT / "halo_decompiled"
+DECOMPILED_DIR = find_decompiled_dir()
 INDEX_PATH = DECOMPILED_DIR / "index.jsonl"
 METADATA_PATH = DECOMPILED_DIR / "corpus_metadata.json"
 EMBEDDINGS_PATH = DECOMPILED_DIR / "bge_m3_embeddings.npy"
