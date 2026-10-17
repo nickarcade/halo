@@ -40667,7 +40667,7 @@
         },
         {
           "addr": "0x441c0",
-          "decl": "void ai_communication_get_player_rating(void);",
+          "decl": "float ai_communication_get_player_rating(uint32_t unit_handle, char check_pvs, uint32_t *out_player_unit, float *out_distance);",
           "ported": true
         },
         {

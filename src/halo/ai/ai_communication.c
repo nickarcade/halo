@@ -2979,7 +2979,7 @@ int16_t ai_conversation_status(int16_t conversation_index)
   char *iter_conv;
   int highest_status;
   int cur_status;
-  char iter[16];
+  data_iter_t iter;
   int i;
   int best_time;
   int best_slot;
@@ -2989,8 +2989,8 @@ int16_t ai_conversation_status(int16_t conversation_index)
   best_time = -1;
   best_slot = -1;
 
-  data_iterator_new(iter, *(data_t **)0x6324ec);
-  iter_conv = (char *)data_iterator_next(iter);
+  data_iterator_new(&iter, *(data_t **)0x6324ec);
+  iter_conv = (char *)data_iterator_next(&iter);
   while (iter_conv != NULL) {
     if (*(int16_t *)(iter_conv + 2) == conversation_index) {
       if (*(char *)(iter_conv + 6) != 0) {
@@ -3006,7 +3006,7 @@ int16_t ai_conversation_status(int16_t conversation_index)
         highest_status = cur_status;
       }
     }
-    iter_conv = (char *)data_iterator_next(iter);
+    iter_conv = (char *)data_iterator_next(&iter);
   }
   if (highest_status != 0) {
     return (int16_t)highest_status;
@@ -3049,7 +3049,7 @@ void ai_conversation_line_end(uint32_t conversation_datum_index)
 float ai_communication_get_player_rating(uint32_t unit_handle, char check_pvs, uint32_t *out_player_unit, float *out_distance)
 {
   float head_pos[3];
-  char iter[16];
+  data_iter_t iter;
   char *player;
   uint32_t best_player;
   float best_dist;
@@ -3062,8 +3062,8 @@ float ai_communication_get_player_rating(uint32_t unit_handle, char check_pvs, u
   found_player = 0;
 
   unit_get_head_position(unit_handle, head_pos);
-  data_iterator_new(iter, *(data_t **)0x5aa6d4);
-  player = (char *)data_iterator_next(iter);
+  data_iterator_new(&iter, *(data_t **)0x5aa6d4);
+  player = (char *)data_iterator_next(&iter);
   while (player != NULL) {
     if (*(int *)(player + 0x34) != -1) {
       float phead[3];
@@ -3081,14 +3081,14 @@ float ai_communication_get_player_rating(uint32_t unit_handle, char check_pvs, u
         float rating = 1.0f;
 
         if (check_pvs) {
-          uint32_t parent1 = object_get_ultimate_parent(unit_handle, (uint32_t)-1);
+          int parent1 = object_get_root_parent(unit_handle);
           char *pdatum1 = (char *)object_get_and_verify_type(parent1, 0xffffffff);
-          uint32_t parent2 = object_get_ultimate_parent(*(uint32_t *)(player + 0x34), (uint32_t)-1);
+          int parent2 = object_get_root_parent(*(int *)(player + 0x34));
           char *pdatum2 = (char *)object_get_and_verify_type(parent2, 0xffffffff);
           int16_t cluster1 = *(int16_t *)(pdatum1 + 0x4c);
           int16_t cluster2 = *(int16_t *)(pdatum2 + 0x4c);
 
-          if (cluster1 != -1 && cluster2 != -1 && scenario_test_pvs(cluster1, cluster2)) {
+          if (cluster1 != -1 && cluster2 != -1 && scenario_ensure_point_within_world(cluster1, cluster2)) {
             visible = true;
           }
         }
@@ -3108,7 +3108,7 @@ float ai_communication_get_player_rating(uint32_t unit_handle, char check_pvs, u
         }
       }
     }
-    player = (char *)data_iterator_next(iter);
+    player = (char *)data_iterator_next(&iter);
   }
 
   if (!found_player) {
@@ -3200,7 +3200,7 @@ void ai_communication_started(int unit_handle, uint16_t priority, uint16_t type,
 
   if (comm_data != NULL) {
     if (!*(char *)((char *)comm_data + 10)) {
-      ai_communication_update_speech_timers(priority, type, *(uint16_t *)((char *)comm_data + 6), (uint32_t)-1);
+      ai_communication_update_speech_timers(unit_handle, priority, type, *(uint16_t *)((char *)comm_data + 6), -1);
     }
   }
 }
@@ -3232,7 +3232,7 @@ void ai_communication_notify(int unit_handle, uint16_t priority, uint16_t type, 
   actor_iterator_new(iter, 1);
   actor = (char *)actor_iterator_next(iter);
   while (actor != NULL) {
-    if (*(int *)(actor + 0x18) != unit_handle && !game_team_is_enemy(*(uint16_t *)(actor + 0x3e), team)) {
+    if (*(int *)(actor + 0x18) != unit_handle && game_allegiance_get_team_is_friendly(*(int16_t *)(actor + 0x3e), team)) {
       float dx = head_pos[0] - *(float *)(actor + 0x120);
       float dy = head_pos[1] - *(float *)(actor + 0x124);
       float dz = head_pos[2] - *(float *)(actor + 0x128);
@@ -3240,7 +3240,7 @@ void ai_communication_notify(int unit_handle, uint16_t priority, uint16_t type, 
         int prop = prop_get_base_by_unit_index(*(uint32_t *)actor, unit_handle, 1, 1);
         if (prop != -1) {
           actor_handle_communication(*(uint32_t *)actor, prop, (int)comm_data);
-          ai_communication_handle_received_looking(*(uint32_t *)actor);
+          ai_communication_handle_received_looking(*(uint32_t *)actor, comm_data, prop);
         }
       }
     }
@@ -3284,7 +3284,7 @@ void ai_communication_finished(int unit_handle, uint16_t priority, uint16_t type
     return;
   }
 
-  ai_communication_update_speech_timers(priority, type, (uint32_t)-1, (uint32_t)-1);
+  ai_communication_update_speech_timers(unit_handle, priority, type, -1, -1);
 }
 
 /* 0x00046f10 — ai_communication_event
