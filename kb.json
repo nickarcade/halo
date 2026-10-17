@@ -53869,44 +53869,51 @@
         {
           "addr": "0x15e750",
           "decl": "void __stdcall D3DVertexBuffer_Unlock_1(int param_1);",
-          "ported": false,
-          "name": "D3DVertexBuffer_Unlock_1"
+          "ported": true,
+          "name": "D3DVertexBuffer_Unlock_1",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
         },
         {
           "addr": "0x15e760",
           "decl": "void IDirect3DVertexBuffer8_Release_1(uint32_t a0);",
-          "ported": false,
-          "name": "IDirect3DVertexBuffer8_Release_1"
+          "ported": true,
+          "name": "IDirect3DVertexBuffer8_Release_1",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
         },
         {
           "addr": "0x15e790",
           "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_1(int param_1);",
-          "ported": false,
-          "name": "IDirect3DVertexBuffer8_Unlock_1"
+          "ported": true,
+          "name": "IDirect3DVertexBuffer8_Unlock_1",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
         },
         {
           "addr": "0x15e7b0",
           "decl": "void __stdcall D3DIndexBuffer_Unlock_0(int param_1);",
-          "ported": false,
-          "name": "D3DIndexBuffer_Unlock_0"
+          "ported": true,
+          "name": "D3DIndexBuffer_Unlock_0",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
         },
         {
           "addr": "0x15e7c0",
           "decl": "void IDirect3DIndexBuffer8_Release_0(uint32_t a0);",
-          "ported": false,
-          "name": "IDirect3DIndexBuffer8_Release_0"
+          "ported": true,
+          "name": "IDirect3DIndexBuffer8_Release_0",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
         },
         {
           "addr": "0x15e7f0",
           "decl": "uint32_t __stdcall IDirect3DIndexBuffer8_Unlock_0(int param_1);",
-          "ported": false,
-          "name": "IDirect3DIndexBuffer8_Unlock_0"
+          "ported": true,
+          "name": "IDirect3DIndexBuffer8_Unlock_0",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
         },
         {
           "addr": "0x15eff0",
           "decl": "void D3DDevice_SetRenderState_11(void);",
-          "ported": false,
-          "name": "D3DDevice_SetRenderState_11"
+          "ported": true,
+          "name": "D3DDevice_SetRenderState_11",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_draw_primitives.c"
         }
       ]
     },

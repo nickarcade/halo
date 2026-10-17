@@ -749,6 +749,18 @@ void rasterizer_draw(const triangle_buffer *triangle_buffer,
   }
 }
 
+/* 0x15e750 — D3DVertexBuffer_Unlock_1 */
+void __stdcall D3DVertexBuffer_Unlock_1(int param_1)
+{
+  (void)param_1;
+}
+
+/* 0x15e760 — IDirect3DVertexBuffer8_Release_1 */
+void IDirect3DVertexBuffer8_Release_1(uint32_t a0)
+{
+  D3DResource_Release((void *)a0);
+}
+
 /* 0x15e770 -- out-of-line copy of the XDK IDirect3DVertexBuffer8_Lock inline.
  * MSVC kept size_to_lock/ppb_data/flags in EDX/ECX/EAX and passed only the
  * first two operands on the stack (RET 8); the forwarded call at 0x15e77e
@@ -758,6 +770,13 @@ int IDirect3DVertexBuffer8_Lock_1(void *vertex_buffer, uint32_t offset_to_lock,
 {
   D3DVertexBuffer_Lock(vertex_buffer, offset_to_lock, size_to_lock, ppb_data,
                        flags);
+  return 0;
+}
+
+/* 0x15e790 — IDirect3DVertexBuffer8_Unlock_1 */
+uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_1(int param_1)
+{
+  (void)param_1;
   return 0;
 }
 
@@ -773,6 +792,18 @@ void D3DIndexBuffer_Lock_0(void *index_buffer, uint32_t offset_to_lock,
   *ppb_data = (void *)((char *)((void **)index_buffer)[1] + offset_to_lock);
 }
 
+/* 0x15e7b0 — D3DIndexBuffer_Unlock_0 */
+void __stdcall D3DIndexBuffer_Unlock_0(int param_1)
+{
+  (void)param_1;
+}
+
+/* 0x15e7c0 — IDirect3DIndexBuffer8_Release_0 */
+void IDirect3DIndexBuffer8_Release_0(uint32_t a0)
+{
+  D3DResource_Release((void *)a0);
+}
+
 /* 0x15e7d0 -- same shape as 0x15e7a0 but returns D3D_OK in EAX. */
 int IDirect3DIndexBuffer8_Lock_0(void *index_buffer, uint32_t offset_to_lock,
                  uint32_t size_to_lock, void **ppb_data, uint32_t flags)
@@ -780,6 +811,13 @@ int IDirect3DIndexBuffer8_Lock_0(void *index_buffer, uint32_t offset_to_lock,
   (void)size_to_lock;
   (void)flags;
   *ppb_data = (void *)((char *)((void **)index_buffer)[1] + offset_to_lock);
+  return 0;
+}
+
+/* 0x15e7f0 — IDirect3DIndexBuffer8_Unlock_0 */
+uint32_t __stdcall IDirect3DIndexBuffer8_Unlock_0(int param_1)
+{
+  (void)param_1;
   return 0;
 }
 
@@ -1134,4 +1172,12 @@ void __rasterizer_dynamic_vertices_unlock(int dynamic_vertex_buffer_index)
   } else {
     error(2, "### WARNING tried to unlock dynamic vertices with index=NONE");
   }
+}
+
+/* 0x15eff0 — D3DDevice_SetRenderState_11
+ *
+ * Dead inline-wrapper instantiation of D3DDevice_SetRenderState in rasterizer_xbox_draw_primitives.
+ */
+void D3DDevice_SetRenderState_11(void)
+{
 }
