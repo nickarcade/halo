@@ -43291,7 +43291,8 @@
         },
         {
           "addr": "0x6d500",
-          "decl": "void FUN_0006d500(void *tif@<eax>, int magic@<edx>, int bigendian@<ecx>);"
+          "decl": "void FUN_0006d500(void *tif@<eax>, int magic@<edx>, int bigendian@<ecx>);",
+          "ported": true
         },
         {
           "addr": "0x6d590",

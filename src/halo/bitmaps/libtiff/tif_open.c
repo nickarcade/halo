@@ -557,7 +557,8 @@ typedef struct tiff_s {
    * the same `int`-narrowed-to-`short` pattern as tif_fd. Declaring it `int`
    * produces a plain dword MOV and does not match. */
   short tif_mode; /* 0x06 */
-  char pad_008[2];
+  char tif_fillorder; /* 0x08 */
+  char pad_009; /* 0x09 */
   /* Flags byte. TIFFIsTiled (0x6d880) reads it with `movsx eax, byte ptr
    * [eax+0xa]` and tests bit 7 (`and eax,0x80 / shr eax,7`), so this offset IS
    * accessed and cannot stay padding. The load is a SIGNED byte, hence `char`
@@ -667,7 +668,8 @@ typedef struct tiff_s {
   /* 0xc4..0xcb -- the on-disk file header, read whole at 0x6d675 and written
    * whole at 0x6d6bf. Was inside pad_0c4[0x10] until TIFFFdOpen proved it. */
   tiff_header_t tif_header;
-  char pad_0cc[8];
+  const int *tif_typeshift; /* 0xcc */
+  const long *tif_typemask; /* 0xd0 */
   /* Current scanline. TIFFCurrentRow (0x6d8a0) reads it with a plain dword
    * `mov eax,[eax+0xd4]` -- no MOVSX/MOVZX, so this is a full 32-bit field and
    * no narrower spelling is admissible. Upstream libtiff types the member
@@ -2158,6 +2160,30 @@ int FUN_0006d4d0(void *tif_)
  * only 0x13c (0x6d621): the extra byte is the NUL of the name string, which is
  * copied into the tail at tif+0x13c and pointed at by tif_name.
  *
+/* 0x6d500 -- upstream libtiff's InitOrder.
+ * Initializes byte-order flag and bit-fill order dispatch tables on an open
+ * TIFF handle. Register ABI: EAX=tif, EDX=magic, ECX=bigendian. */
+void FUN_0006d500(void *tif_ptr, int magic, int bigendian)
+{
+  tiff_t *tif;
+
+  tif = (tiff_t *)tif_ptr;
+  tif->tif_fillorder = 1;
+  tif->tif_typemask = (const long *)0x2ec8f8;
+  if (magic != TIFF_BIGENDIAN) {
+    tif->tif_typeshift = (const int *)0x334100;
+    if (bigendian) {
+      tif->field_0a.b |= TIFF_SWAB;
+    }
+  } else {
+    tif->tif_typeshift = (const int *)0x2ec92c;
+    if (!bigendian) {
+      tif->field_0a.b |= TIFF_SWAB;
+    }
+  }
+}
+
+/**
  * FUN_0006d500 (upstream's TIFFInitOrder) is a register-argument callee: both
  * call sites, 0x6d6e9 and 0x6d740, set EAX=tif, ECX=0 and EDX=the header magic
  * with no PUSH and no stack cleanup. Its kb.json prototype is corrected to
