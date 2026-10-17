@@ -1,3 +1,19 @@
+/* overhead_map_initialize (0xe05f0) */
+void overhead_map_initialize(void)
+{
+}
+
+/* overhead_map_initialize_for_new_map (0xe0600) */
+void overhead_map_initialize_for_new_map(void)
+{
+}
+
+/* overhead_map_dispose_from_old_map (0xe0610) */
+void overhead_map_dispose_from_old_map(void)
+{
+  *(char *)0x46beb0 = 0;
+}
+
 /* 0xe0620. No xrefs found; the first two stack arguments are never read, so
  * their types are unknown. The third argument is a pointer to two floats that
  * are cached verbatim and also converted to a halved, registration-relative
@@ -1138,6 +1154,35 @@ void set_local_player_controls_from_player_profile(short local_player_index)
     input_abstraction_update_local_player_preferences(local_player_index,
                                                       &preferences);
   }
+}
+
+/* generate_default_player_profile (0xe1080) */
+void generate_default_player_profile(void *profile)
+{
+  assert_halt_msg_at("profile", "c:\\halo\\SOURCE\\interface\\player_ui.c", 0x365, profile != NULL);
+  csmemset(profile, 0, 0x30);
+  *(int16_t *)((char *)profile + 0x18) = -1;
+  *(char *)((char *)profile + 0x28) = 0;
+  *(char *)((char *)profile + 0x29) = 0;
+}
+
+/* clear_profile_edit_data (0xe12d0) */
+void clear_profile_edit_data(void)
+{
+  *(int *)0x46c038 = -1;
+}
+
+/* reset_local_player_profile (0xe12e0) */
+void reset_local_player_profile(short local_player_index)
+{
+  char *profile = player_ui_globals + local_player_index * 0x38;
+  assert_halt_msg_at("profile", "c:\\halo\\SOURCE\\interface\\player_ui.c", 0x365, profile != NULL);
+  csmemset(profile, 0, 0x30);
+  *(int16_t *)(profile + 0x18) = -1;
+  *(char *)(profile + 0x28) = 0;
+  *(char *)(profile + 0x29) = 0;
+  *(int *)(profile + 0x30) = -1;
+  *(int16_t *)(word_46BFC4 + local_player_index) = -1;
 }
 
 void player_ui_initialize(void)

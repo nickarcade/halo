@@ -632,7 +632,7 @@ int decompress_ima_adpcm_audio_data(int *compressed, int compressed_size,
  * The one stack argument at [EBP+8] is proven by the binary; the kb.json
  * placeholder decl carried (void).  RET (no imm) => cdecl, caller cleans.
  * The record layout behind `data` is unknown here, so it stays void *. */
-void sound_is_active(void *data)
+void byte_swap_bungie_ima_adpcm_header(void *data)
 {
   FUN_00118be0((void *)0x32ecf4, data, 1);
 }
@@ -1115,6 +1115,12 @@ void sound_initialize_for_new_map(void)
 {
 }
 
+/* current_platform_definition (0x1cb800) */
+uint32_t current_platform_definition(void)
+{
+  return *(uint32_t *)0x4eaf48;
+}
+
 /* FUN_001cb820 (0x1cb820)
  *
  * Tear down the sound manager (called from shell_dispose, 0x191140).
@@ -1143,6 +1149,15 @@ void FUN_001cb820(void)
     data_dispose(*(data_t **)0x4fdba0);
   }
   FUN_001bde90();
+}
+
+/* sound_is_active (0x1cb880) */
+uint32_t sound_is_active(void)
+{
+  if (*(uint8_t *)0x4eaf40 != 0 && *(uint8_t *)0x4eaf41 != 0) {
+    return 1;
+  }
+  return 0;
 }
 
 /* Fade out all active sounds and then stop the sound manager for map unload.
@@ -5111,3 +5126,31 @@ void FUN_001cf820(void **out_data)
 {
   *out_data = (void *)0x32fce4;
 }
+
+/* sound_manager_master_gain (0x1cbba0) */
+float sound_manager_master_gain(int class_index)
+{
+  float class_gain = sound_class_get_gain(class_index);
+  if (class_index != 0x2c && class_index != 0x2e && class_index != 0x2f) {
+    class_gain = class_gain * *(float *)0x4eb0b0;
+  }
+  return class_gain;
+}
+
+/* sound_delete (0x1cbbd0) */
+void sound_delete(int sound_handle)
+{
+  char *verify = (char *)datum_get(*(data_t **)0x4fdba4, sound_handle);
+  if (*(short *)(verify + 0x8c) != -1) {
+    display_assert("sound_get(sound_index)->playing_channel_index==NONE",
+                   "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x4cf, 1);
+    system_exit(-1);
+  }
+  datum_delete(*(data_t **)0x4fdba4, sound_handle);
+}
+
+/* write_sound_preferences (0x1cf830) */
+void write_sound_preferences(void)
+{
+}
+

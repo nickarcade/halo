@@ -135,6 +135,18 @@ bool vehicle_causes_collision_damage(int vehicle_handle)
   return (bool)((*(uint32_t *)((char *)vehicle_tag + 0x2f0) >> 7) & 1);
 }
 
+/* vehicle_build_update (0x1b55f0) */
+char vehicle_build_update(void)
+{
+  return 1;
+}
+
+/* vehicle_parse_update (0x1b5600) */
+char vehicle_parse_update(void)
+{
+  return 1;
+}
+
 /* vehicle_hover (0x1b5610) */
 void vehicle_hover(int vehicle_handle, uint8_t param_2)
 {
@@ -149,6 +161,12 @@ void vehicle_hover(int vehicle_handle, uint8_t param_2)
     }
     *(uint8_t *)(vehicle + 0x424) &= 0xfd;
   }
+}
+
+/* update_turret_physics (0x1b5660) */
+void update_turret_physics(uint32_t a0, uint32_t a1, uint32_t a2)
+{
+  physics_update(a2, (void *)0, (void *)a0, (void *)0, (void *)0);
 }
 
 /* vehicle_is_flipped (0x1b5680) — reports whether a vehicle has rolled onto

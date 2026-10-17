@@ -43,7 +43,7 @@ void first_person_weapons_initialize_for_new_map(void)
 }
 
 /* Dispose first-person weapons from old map (0xdc7f0, stub). */
-void FUN_000dc7f0(void)
+void first_person_weapons_dispose_from_old_map(void)
 {
 }
 

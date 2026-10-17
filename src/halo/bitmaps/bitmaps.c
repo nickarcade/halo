@@ -1613,6 +1613,27 @@ int bitmap_get_pixel_data_size(void *bitmap_data)
   return total_bits / 8;
 }
 
+/* bitmap_byte_swap_pixels (0x7d2f0) */
+void bitmap_byte_swap_pixels(void)
+{
+}
+
+/* bitmap_format_type_valid_width (0x7d400) */
+uint32_t bitmap_format_type_valid_width(int16_t a0)
+{
+  if ((1 <= a0) && (a0 <= 30000))
+    return 1;
+  return 0;
+}
+
+/* bitmap_format_type_valid_height (0x7d420) */
+uint32_t bitmap_format_type_valid_height(int16_t a0)
+{
+  if ((1 <= a0) && (a0 <= 30000))
+    return 1;
+  return 0;
+}
+
 void *bitmap_2d_new(unsigned short width, unsigned short height,
                     unsigned short mipmap_count, unsigned short format)
 {
@@ -2357,4 +2378,18 @@ void FUN_0007f150(void *bitmap, short *bits_per_channel)
                0x73);
     debug_free(next, "c:\\halo\\SOURCE\\bitmaps\\bitmaps_quantitize.c", 0x74);
   }
+}
+
+/* row_copy (0x7ef60) */
+void row_copy(int16_t a0, char *a1, uint16_t *a2)
+{
+  int v1 = (int)a0 << 2;
+  if (v1 <= 0)
+    return;
+  do {
+    *a2 = (uint16_t)(uint8_t)*a1;
+    a2++;
+    a1++;
+    v1--;
+  } while (v1);
 }

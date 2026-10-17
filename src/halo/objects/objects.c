@@ -2541,6 +2541,18 @@ int light_mark(int light_index)
   return 0;
 }
 
+/* light_marker_begin (0x1398f0) */
+void light_marker_begin(void)
+{
+  if (lights_globals.marker_initialized) {
+    display_assert("!lights_globals.marker_initialized",
+                   "c:\\halo\\SOURCE\\objects\\object_lights.c", 0x664, 1);
+    system_exit(-1);
+  }
+  lights_globals.marker++;
+  lights_globals.marker_initialized = 1;
+}
+
 /* light_marker_end (0x1399f0)
  *
  * Closes the light marking pass: asserts the pass is open, then clears the
@@ -7756,6 +7768,29 @@ void objects_initialize(void)
                                              "noncollideable object");
 }
 
+/* object_name_list_allocate (0x13ef00) */
+void object_name_list_allocate(void)
+{
+  object_name_list =
+    ((void *(*)(const char *, int, int))0x1bfbf0)("object name list", 0, 0x800);
+  if (object_name_list == 0) {
+    display_assert("object_name_list", "c:\\halo\\SOURCE\\objects\\objects.c",
+                   0xfe8, 1);
+    system_exit(-1);
+  }
+}
+
+/* object_name_list_free (0x13ef40) */
+void object_name_list_free(void)
+{
+}
+
+/* object_name_list_clear (0x13ef50) */
+void object_name_list_clear(void)
+{
+  csmemset(object_name_list, 0xff, 0x800);
+}
+
 /*
  * objects_initialize_for_new_map — reset object subsystems when loading a map.
  *
@@ -8874,6 +8909,22 @@ int object_name_list_get_handle(int16_t index)
     return name_table[(int)index];
   }
   return 0xffffffff;
+}
+
+/* object_name_list_lookup (0x13f040) */
+uint32_t object_name_list_lookup(int16_t index)
+{
+  if (index >= 0 && index < 0x200) {
+    int *name_table = *(int **)0x46f07c;
+    return (uint32_t)name_table[(int)index];
+  }
+  return 0xffffffff;
+}
+
+/* build_collision_model_shadow (0x13c020) */
+void build_collision_model_shadow(uint32_t object_index)
+{
+  object_get_and_verify_type(object_index, 0xffffffff);
 }
 
 /*

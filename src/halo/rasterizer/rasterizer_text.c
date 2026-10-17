@@ -63,6 +63,11 @@ int rasterizer_geometry_get_vertex_size(short param_1)
   return (int)*(short *)(0x2afe14 + param_1 * 2);
 }
 
+/* rasterizer_geometry_byte_swap_vertices (0x1800a0) */
+void rasterizer_geometry_byte_swap_vertices(void)
+{
+}
+
 /*
  * rasterizer_geometry_vertex_decompress: decompress compressed vertex buffers
  * into their uncompressed forms (0x1800b0).
@@ -295,6 +300,12 @@ void FUN_001800b0(short param_1, int param_2, int param_3, int param_4,
     error(2, "### ERROR can't uncompress this type of vertex buffer");
     return;
   }
+}
+
+/* rasterizer_geometry_stripify (0x1804f0) */
+char rasterizer_geometry_stripify(void)
+{
+  return 1;
 }
 
 /* rasterizer_geometry_vertex_get_position: copy 3-float position from vertex
@@ -3085,6 +3096,16 @@ int rasterizer_xbox_bitmap_rebuild_hardware_format(int param_1)
   return 0;
 }
 
+/* lock_rasterizer_text_data (0x183630) */
+void lock_rasterizer_text_data(void)
+{
+}
+
+/* unlock_rasterizer_text_data (0x183640) */
+void unlock_rasterizer_text_data(void)
+{
+}
+
 /* rasterizer_text_cache_initialize: init hardware text cache (0x183650) */
 int rasterizer_text_cache_initialize(void)
 {
@@ -3822,6 +3843,12 @@ void *rasterizer_transparent_geometry_next_group(void *group)
     }
   }
   return (void *)0;
+}
+
+/* rasterizer_transparent_geometry_get_groups (0x184450) */
+unsigned int rasterizer_transparent_geometry_get_groups(void)
+{
+  return *(unsigned int *)0x4d0cec;
 }
 
 /* rasterizer_transparent_geometry_group_get: return group by presorted index

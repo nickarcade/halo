@@ -616,6 +616,12 @@ bool rasterizer_environment_fog_screen_is_active(void)
   return fog_globals.fog_screen_active[window_index];
 }
 
+/* local_random_boolean (0x165ff0) */
+bool local_random_boolean(void)
+{
+  return random_seed_step(random_math_get_local_seed_address()) > 0x8000;
+}
+
 /* 0x166210 rasterizer_environment_fog_screen_wind_update. PAL static; the
  * 2276 compiler passed screen in EBX and wind in ESI (kb.json @<reg>).
  * local_random_boolean (0x165ff0, uncalled) is inlined here. */

@@ -16,6 +16,11 @@ static double breakable_ceil(double x)
   return (double)((x > (double)i) ? (i + 1) : i);
 }
 
+/* placeholder_initialize (0x1454b0) */
+void placeholder_initialize(void)
+{
+}
+
 /* placeholder_initialize_for_new_map (0x1454c0)
  *
  * Confirmed: the body is a single RET (C3).
@@ -36,6 +41,16 @@ void placeholder_initialize_for_new_map(void)
  *   at 0x324568, slot +0x1c (dispose_from_old_map); name from PAL 2342 (T2).
  * Uncertain: TU attribution (see placeholder_initialize_for_new_map). */
 void placeholder_dispose_from_old_map(void)
+{
+}
+
+/* placeholder_dispose (0x1454e0) */
+void placeholder_dispose(void)
+{
+}
+
+/* placeholder_place (0x1454f0) */
+void placeholder_place(void)
 {
 }
 

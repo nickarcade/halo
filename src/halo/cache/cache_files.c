@@ -26,12 +26,26 @@ void scenario_tags_unload(void)
   tag_instances = 0;
 }
 
-/* 0x1b98c0: a lone tail jump (E9) into the cache-file IO initializer.
- * shell_initialize calls it during startup, so despite the kb name it opens
- * rather than closes. */
-void tag_files_close(void)
+/* tag_files_open (0x1b98c0) */
+void tag_files_open(void)
 {
   FUN_001bdb10();
+}
+
+/* tag_files_close (0x1b98d0) */
+void tag_files_close(void)
+{
+  cache_files_dispose();
+}
+
+/* tag_groups_checksum (0x1b98e0) */
+uint32_t tag_groups_checksum(void)
+{
+  if (!cache_tags_available) {
+    display_assert("cache_tags_available", "c:\\halo\\SOURCE\\cache\\cache_files.c", 0x114, 1);
+    system_exit(-1);
+  }
+  return *(uint32_t *)((char *)tags_header + 8);
 }
 
 /* Dword stamp compared against cache header field +0x128 when deciding whether
