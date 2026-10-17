@@ -60,7 +60,7 @@ uint32_t tag_groups_checksum(void)
 /* Body is exactly `MOV EAX,[0x4e4d68]; RET` -- no frame, no callees. */
 int FUN_001b9920(void)
 {
-  return global_4e4d68;
+  return *(int *)0x4e4d68;
 }
 
 /* ASCII 'head' / 'foot'. The two magic words bracket the 0x800-byte cache
