@@ -31,6 +31,7 @@ Do more research if these do not establish behavior and blast radius.
 | `kb.json` | `rtk jq` only; never Read or `python -c` | Large structured source of ABI truth |
 | `objects.c`, `units.c`, `sound_manager.c` | Ranged reads, at most 100 lines | Large source files |
 | `build/`, `build_debug/`, `node_modules/`, `.git/`, `halo-patched/`, `__pycache__/`, `dist/` | Never read or search unless explicitly asked | Generated/noisy content |
+| `halo-patched/cachebeta.xbe` | Never view, read, or disassemble directly; use `tools/extract_fn.py` | Pre-indexed corpus (`cachebeta.elf.c` & `cachebeta.elf.asm`) is authoritative |
 | `*.log` | Never read | Rerun producer with narrow output |
 
 ## Research Workflow

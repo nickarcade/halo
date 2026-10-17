@@ -18,7 +18,7 @@ The binary is the source of truth. The target executable is **Halo Xbox debug bu
 ## Tooling Standard
 
 - **Ghidra + `ghidra-xbe` extension** (`github.com/XboxDev/ghidra-xbe`) is the community standard for reverse engineering `cachebeta.xbe`.
-- Python + `capstone` (x86 32-bit) for quick command-line disassembly reads.
+- **`tools/extract_fn.py`** is the mandatory tool for querying decompiled C and x86 disassembly with stack frames from the pre-indexed corpus (`halo_decompiled/`). Never view, read, or disassemble `halo-patched/cachebeta.xbe` directly.
 
 ## Ground Rules
 

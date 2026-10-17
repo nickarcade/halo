@@ -46,7 +46,10 @@ scope is unclear.
 3. Never read `kb.json` directly. Query it with `rtk jq` only.
 4. Never read or search generated/noisy directories unless explicitly asked:
    `build/`, `build_debug/`, `node_modules/`, `.git/`, `halo-patched/`,
-   `__pycache__/`, and `dist/`.
+   `__pycache__/`, and `dist/`. Never view, read, or disassemble
+   `halo-patched/cachebeta.xbe` directly; always use
+   `python3 tools/extract_fn.py <0xaddr_or_symbol> [--asm]` instead, both
+   locally and on Google Colab.
 5. Never read `*.log`; rerun the producing command with narrow output.
 6. Scope first: identify exact paths, symbols, and line ranges. For source edits,
    inspect callers, target code, `kb.json` ABI, and current scoped diff first.
