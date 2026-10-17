@@ -36169,7 +36169,7 @@
         },
         {
           "addr": "0x1bef80",
-          "decl": "void render_inverse_transform_screen_point(void);",
+          "decl": "void render_inverse_transform_screen_point(float *a0, float *a1, float *a2);",
           "comment": "[NAME: render_inverse_transform_screen_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "ported": true
         },
@@ -38643,11 +38643,11 @@
         },
         {
           "addr": "0x1d19e7",
-          "decl": "void FUN_001d19e7(void);"
+          "decl": "int __stdcall FUN_001d19e7(void *file, void *buffer, unsigned int size, void *overlapped, void *completion_routine);"
         },
         {
           "addr": "0x1d1a38",
-          "decl": "void FUN_001d1a38(void);"
+          "decl": "int __stdcall FUN_001d1a38(void *file, void *buffer, unsigned int size, void *overlapped, void *completion_routine);"
         },
         {
           "addr": "0x1d1a89",
@@ -43934,7 +43934,7 @@
         },
         {
           "addr": "0x115430",
-          "decl": "int FUN_00115430(int z);",
+          "decl": "int FUN_00115430(void *z);",
           "ported": true
         },
         {
@@ -43944,7 +43944,7 @@
         },
         {
           "addr": "0x1155c0",
-          "decl": "int inflateInit_(int z, char *version, int stream_size);",
+          "decl": "int inflateInit_(void *z, const char *version, int stream_size);",
           "ported": true
         },
         {
@@ -45792,7 +45792,7 @@
         },
         {
           "addr": "0x1be6b0",
-          "decl": "void render_inverse_transform_screen_point_0(void);",
+          "decl": "void render_inverse_transform_screen_point_0(float *a0, float *a1, float *a2);",
           "comment": "[NAME: render_inverse_transform_screen_point_0 \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "ported": true,
           "name": "render_inverse_transform_screen_point_0"

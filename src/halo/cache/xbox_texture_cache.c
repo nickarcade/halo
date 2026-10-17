@@ -740,19 +740,6 @@ void *xbox_texture_cache_get_hardware_format(void *hardware_format, bool block,
   return result;
 }
 
-extern void D3DDevice_IsBusy(void);
-extern void D3DDevice_KickPushBuffer(void);
-extern void D3DResource_IsBusy(void *resource);
-extern void D3DResource_Register(void *resource, int offset);
-extern void lruv_cache_get_page_usage(void *cache, uint8_t *page_usage);
-extern void render_debug_line(char flag, float *point_a, float *point_b, void *color);
-extern void FUN_00091ef0(int *keys, int count, bool (*cmp)(void *, void *));
-extern int interface_get_tag_index(int interface_tag_index);
-extern void draw_string_set_tab_stops(void *stops, short count);
-extern void draw_string_set_font_tag(int font_tag_index);
-extern void draw_string_set_color(const void *color);
-extern void rasterizer_draw_string(void *screen_pos, short *bounds, const void *color, int flags, const char *text);
-extern bool lruv_block_touched(void *lruv, int block_index);
 
 /* 0x1becf0: IDirect3DDevice8_IsBusy */
 void __stdcall IDirect3DDevice8_IsBusy(int param_1)
@@ -778,7 +765,7 @@ void IDirect3DBaseTexture8_IsBusy(uint32_t a0)
 void IDirect3DBaseTexture8_Register_0(uint32_t a0, uint32_t a1, uint32_t a2)
 {
   (void)a2;
-  D3DResource_Register((void *)a0, (int)a1);
+  D3DResource_Register((void *)a0, (void *)a1);
 }
 
 /* 0x1bef80: render_inverse_transform_screen_point — unproject 2D screen coordinate to 3D ray */
@@ -822,7 +809,7 @@ void texture_cache_debug_render(void)
   float denom;
   float scale;
   int step;
-  data_iterator_t iterator;
+  data_iter_t iterator;
   void *datum;
   int count;
   int font;
@@ -891,7 +878,7 @@ void texture_cache_debug_render(void)
     datum = data_iterator_next(&iterator);
   }
 
-  FUN_00091ef0((int *)0x4e9378, count, FUN_001becc0);
+  FUN_00091ef0((int *)0x4e9378, count, (int (*)(int, int))FUN_001becc0);
 
   font = interface_get_tag_index(1);
   tab_stops[0] = *(int16_t *)0x32565e;

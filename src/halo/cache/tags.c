@@ -1334,7 +1334,6 @@ void FUN_001bb190(char *self /* @<edi> */, void *buffer, unsigned int size, int 
   int issued;
   uint32_t mask;
   uint32_t *flag_word;
-  int (__stdcall *read_fn)(void *, void *, unsigned int, void *, void *);
 
   QueryPerformanceCounter((void *)0x4e5640);
 
@@ -1357,11 +1356,10 @@ void FUN_001bb190(char *self /* @<edi> */, void *buffer, unsigned int size, int 
 
   QueryPerformanceCounter((void *)(self + 0xac8 + overlapped_index * 8));
 
-  read_fn = (int (__stdcall *)(void *, void *, unsigned int, void *, void *))FUN_001d19e7;
   do {
     SleepEx(0, 1);
     SetLastError(0);
-    issued = read_fn((void *)file, buffer, size, overlapped, (void *)FUN_001bafa0);
+    issued = FUN_001d19e7((void *)file, buffer, size, overlapped, (void *)FUN_001bafa0);
     error = xapi_GetLastError();
   } while (!issued && (error == 1784 || error == 8 || error == 1450));
 
@@ -1384,7 +1382,6 @@ void FUN_001bb2d0(char *self /* @<edi> */, void *buffer, unsigned int size, int 
   int issued;
   uint32_t mask;
   uint32_t *flag_word;
-  int (__stdcall *write_fn)(void *, void *, unsigned int, void *, void *);
 
   QueryPerformanceCounter((void *)0x4e5648);
 
@@ -1407,11 +1404,10 @@ void FUN_001bb2d0(char *self /* @<edi> */, void *buffer, unsigned int size, int 
 
   QueryPerformanceCounter((void *)(self + 0xac8 + overlapped_index * 8));
 
-  write_fn = (int (__stdcall *)(void *, void *, unsigned int, void *, void *))FUN_001d1a38;
   do {
     SleepEx(0, 1);
     SetLastError(0);
-    issued = write_fn((void *)file, buffer, size, overlapped, (void *)FUN_001bafa0);
+    issued = FUN_001d1a38((void *)file, buffer, size, overlapped, (void *)FUN_001bafa0);
     error = xapi_GetLastError();
   } while (!issued && (error == 1784 || error == 8 || error == 1450));
 
