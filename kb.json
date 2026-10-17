@@ -42792,32 +42792,32 @@
         },
         {
           "addr": "0x659c0",
-          "decl": "uint32_t OkToChangeTag(int32_t a0, uint32_t a1, int32_t a2);",
-          "ported": false,
+          "decl": "int OkToChangeTag(void *tif, int tag);",
+          "ported": true,
           "name": "OkToChangeTag"
         },
         {
           "addr": "0x66520",
-          "decl": "void MissingRequired(uint32_t a0, uint32_t a1, uint32_t *a2);",
-          "ported": false,
+          "decl": "void MissingRequired(void *tif, const char *tagname);",
+          "ported": true,
           "name": "MissingRequired"
         },
         {
           "addr": "0x66540",
-          "decl": "bool CheckDirCount(uint32_t a0, int32_t a1, int32_t a2);",
-          "ported": false,
+          "decl": "int CheckDirCount(void *tif, void *dir, unsigned int count);",
+          "ported": true,
           "name": "CheckDirCount"
         },
         {
           "addr": "0x669e0",
-          "decl": "bool TIFFFetchFloatArray(uint32_t a0);",
-          "ported": false,
+          "decl": "int TIFFFetchFloatArray(void *tif, void *dir, float *v);",
+          "ported": true,
           "name": "TIFFFetchFloatArray"
         },
         {
           "addr": "0x66e40",
-          "decl": "uint32_t TIFFFetchExtraSamples(uint32_t *a0, uint32_t a1, int32_t a2);",
-          "ported": false,
+          "decl": "int TIFFFetchExtraSamples(void *tif, void *dir);",
+          "ported": true,
           "name": "TIFFFetchExtraSamples"
         }
       ],

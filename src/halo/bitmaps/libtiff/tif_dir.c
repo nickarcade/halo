@@ -801,6 +801,20 @@ badvalue:
   return 0;
 }
 
+/* 0x659c0 -- upstream libtiff tif_dir.c OkToChangeTag */
+int OkToChangeTag(void *tif_, int tag)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_field_info_t *fip;
+
+  if (tag != TIFFTAG_IMAGELENGTH && (tif->field_0a & TIFF_BEENWRITING)) {
+    fip = (tiff_field_info_t *)TIFFFindFieldInfo(tag, TIFF_NOTYPE);
+    if (fip != 0 && fip->field_0e == 0)
+      return 0;
+  }
+  return 1;
+}
+
 /* ---------------------------------------------------------------------------
  * TIFFVSetField (0x65a70) -- upstream libtiff tif_dir.c.
  *
@@ -1417,6 +1431,24 @@ void EstimateStripByteCounts(int nDirEntries, void *tif_, void *dir_)
   }
 }
 
+/* 0x66520 -- upstream libtiff tif_dirread.c MissingRequired */
+void MissingRequired(void *tif_, const char *tagname)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+
+  FUN_00068a30(tif->tif_name,
+               "TIFF directory is missing required \"%s\" field",
+               tagname);
+}
+
+/* 0x66540 -- upstream libtiff tif_dirread.c CheckDirCount */
+int CheckDirCount(void *tif_, void *dir_, unsigned int count)
+{
+  tiff_dir_entry_t *dir = (tiff_dir_entry_t *)dir_;
+
+  return dir->tdir_count == count;
+}
+
 /* Directory-entry type codes, as the 0x665c1-0x665d0 jump table groups them:
  * `type - 3` bounded by `CMP EAX,0x8 / JA default`, so 3..11 only. The three
  * arms are byte-swap widths, which fixes the upstream libtiff identity of each
@@ -1856,4 +1888,23 @@ long TIFFFetchRationalArray(void *tif_, void *dp_, float *v)
   /* 0x669c2-0x669de. */
   debug_free(l, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c", 0x345);
   return ok;
+}
+
+/* 0x669e0 -- upstream libtiff tif_dirread.c TIFFFetchFloatArray */
+int TIFFFetchFloatArray(void *tif_, void *dir_, float *v)
+{
+  return TIFFFetchData(tif_, dir_, (char *)v) != 0;
+}
+
+/* 0x66e40 -- upstream libtiff tif_dirread.c TIFFFetchExtraSamples */
+int TIFFFetchExtraSamples(void *tif_, void *dir_)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+  tiff_dir_entry_t *dir = (tiff_dir_entry_t *)dir_;
+
+  if (dir->tdir_count != 1) {
+    FUN_00068a30(tif->tif_name, "Can not handle more than 1 extra sample/pixel");
+    return 0;
+  }
+  return TIFFSetField((int)tif_, 0x80e3, 1);
 }
