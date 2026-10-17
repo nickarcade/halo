@@ -47608,7 +47608,7 @@
         },
         {
           "addr": "0x001e9000",
-          "decl": "void D3DDevice_SetScissors(void);"
+          "decl": "void __stdcall D3DDevice_SetScissors(unsigned long count, int exclusive, const void *rects);"
         },
         {
           "addr": "0x001e92f0",

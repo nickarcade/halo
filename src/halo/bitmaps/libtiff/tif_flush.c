@@ -1233,12 +1233,7 @@ __declspec(noinline) int FUN_00069180(void *tif_ /* @<edx> */)
 /* One 6-byte run-length code table entry as putspan reads it: +0 goes to
  * FUN_00069200 in EAX, +2 is its stack argument, +4 is sign-extended
  * (movsx) and subtracted from the span. Shape matches upstream libtiff's
- * tableentry {length, code, runlen}; the field names stay mechanical. */
-typedef struct tiff_fax_span_entry_s {
-  unsigned short field_00;
-  unsigned short field_02;
-  short field_04;
-} tiff_fax_span_entry_t;
+ * tableentry {length, code, runlen}; defined in types.h. */
 
 /* 0x69300 -- upstream libtiff tif_fax3.c putcode */
 void putcode(void *tif, const tiff_fax_span_entry_t *te)
