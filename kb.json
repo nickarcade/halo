@@ -43380,14 +43380,14 @@
         },
         {
           "addr": "0x6c5d0",
-          "decl": "uint32_t TIFFInitJPEG(void);",
-          "ported": false,
+          "decl": "int TIFFInitJPEG(void);",
+          "ported": true,
           "name": "TIFFInitJPEG"
         },
         {
           "addr": "0x6d540",
-          "decl": "uint32_t getMode(uint32_t a0, char *a1);",
-          "ported": false,
+          "decl": "int getMode(const char *mode, const char *module);",
+          "ported": true,
           "name": "getMode"
         }
       ],

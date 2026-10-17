@@ -144,6 +144,12 @@ int TIFFReadRGBAImage(void *tif, unsigned long rwidth, unsigned long rheight,
   return (ok);
 }
 
+/* 0x6c5d0 -- upstream libtiff JPEG codec stub; returns 1 on this target */
+int TIFFInitJPEG(void)
+{
+  return 1;
+}
+
 /**
  * Predictor setup shared by the LZW decoder (0x6ce60) and encoder (0x6d1e0):
  * Bungie's form of libtiff's PredictorSetup, with the two horizontal
@@ -2650,11 +2656,8 @@ unsigned long TIFFCurrentTile(void *tif)
  * @return the TIFF handle from TIFFFdOpen, or 0 if the mode is bad or the
  *         file cannot be opened.
  */
-/* Upstream libtiff's mode-string decoder, kept as its own static function
- * because that is what the binary's block layout proves the source looked
- * like -- see the FUN_0006d8e0 comment below. It is inlined into its single
- * caller at /O2, so it contributes no call of its own. */
-static int _TIFFgetMode(const char *mode, const char *module)
+/* 0x6d540 -- upstream libtiff mode-string decoder */
+int getMode(const char *mode, const char *module)
 {
   int m = -1;
 
@@ -2685,7 +2688,7 @@ int FUN_0006d8e0(const char *path, const char *mode)
   int m;
   int fd;
 
-  m = _TIFFgetMode(mode, module);
+  m = getMode(mode, module);
   if (m == -1) {
     return 0;
   }
