@@ -8,7 +8,7 @@ The goal of this project is to study and create a free, open-source re-implement
 
 Fork Notes
 ----------
-This repository is a fork of the original [halo-re/halo](https://github.com/halo-re/halo) reimplementation effort,
+This repository is a fork of a fork [stianeklund/halo](https://github.com/stianeklund/halo) of the original [halo-re/halo](https://github.com/halo-re/halo) reimplementation effort,
 with the same long-term goals and binary-faithful methodology. Differences from the original:
 
 * **LLM-assisted lifting.** Most new decompilation work is produced with agent tooling (`/lift`, `/auto-lift`) and then validated against binary evidence. Every lift is untrusted until it passes build, ABI, and structural/behavioral verification. See [`AGENTS.md`](AGENTS.md) and [`docs/agent-instructions/`](docs/agent-instructions/README.md).
@@ -24,22 +24,22 @@ Game Code Progress
 [![Decompilation Progress](https://img.shields.io/badge/decompilation-95.46%25-brightgreen.svg)](https://stianeklund.github.io/halo/)
 [![Ported Functions](https://img.shields.io/badge/functions-6,704%2F7,023-blue.svg)](https://stianeklund.github.io/halo/)
 
-Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklund.github.io/halo/):
+Progress breakdown from the [Decompilation Progress Dashboard](https://nickarcade.github.io/halo/):
 
-* **Ported Functions:** `6,704 / 7,023` (`95.46%`)
-  `[██████████████████████████████████████░░] 95.46%`
+* **Ported Functions:** `7,170 / 7,574` (`94.7%`)
+  `[██████████████████████████████████████░░] 94.7%`
 * **Ported Code Bytes:** `1,494,233 / 1,729,914` (`86.38%`)
   `[███████████████████████████████████░░░░░] 86.38%`
 * **Average VC71 Mnemonic Match:** `95.50%` (`6,714` scored functions, size-weighted: `92.10%`; structural signal, not raw-byte accuracy)
 * **Equivalence Tests:** `5,738` functions tested (`2,072` high confidence)
 * **Translation Units:** `194` source units (`39` platform/SDK buckets tracked separately)
 
-> Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://stianeklund.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
+> Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://nickarcade.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
 <!-- GAME_CODE_PROGRESS_END -->
 
 Community
 ---------
-The homepage for this project is: https://stianeklund.github.io/halo/
+The homepage for this project is: https://nickarcade.github.io/halo/
 
 Current State
 -------------
