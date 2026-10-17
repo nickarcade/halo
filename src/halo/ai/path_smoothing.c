@@ -730,7 +730,7 @@ void FUN_000633b0(unsigned int param_1, int param_2, void *param_3, int *param_4
 
     for (raw_idx = curr_step; raw_idx < raw_count; raw_idx++) {
       unsigned int *step_data = &raw_steps[raw_idx * 4];
-      if (structure_test_pill2d(*(unsigned int *)(param_1 + 100), *(unsigned char *)(param_1 + 4), cur_pt, cur_surf, &step_data[1], step_data[0], 0.3f, 1, (unsigned int *)test_result)) {
+      if (structure_test_pill2d(*(unsigned int *)(param_1 + 100), *(unsigned char *)(param_1 + 4), (float *)cur_pt, cur_surf, (float *)&step_data[1], step_data[0], 0.3f, 1, (unsigned int *)test_result)) {
         if (!is_blocked) {
           blocked_step = raw_idx;
           is_blocked = 1;
@@ -812,8 +812,6 @@ int FUN_000639e0(int scenario, unsigned char bsp_idx, float *origin, int node_ha
   int vertex_count;
   char has_intersection;
   char reached_goal;
-  int i;
-  int next_edge;
   float *v1;
   float *v2;
   float edge_dx;
@@ -873,6 +871,7 @@ start_search:
     avg_y += v1[1];
     avg_z += v1[2];
     vertex_count++;
+    (void)avg_z;
 
     if ((*(float *)0x2533c0 < edge_dx * (target[1] - v1[1]) - (target[0] - v1[0]) * edge_dy) &&
         (has_intersection = 1, *(float *)0x2533c0 < d1_y * dx - dy * d1_x) &&

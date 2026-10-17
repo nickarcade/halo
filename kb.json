@@ -23998,7 +23998,7 @@
         },
         {
           "addr": "0x10c3c0",
-          "decl": "void signed_angle_between_vectors2d(void);",
+          "decl": "float signed_angle_between_vectors2d(float *a, float *b);",
           "comment": "[NAME: signed_angle_between_vectors2d \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]"
         },
         {
@@ -46599,25 +46599,25 @@
         },
         {
           "addr": "0x62ba0",
-          "decl": "void find_tangent_point(void);",
+          "decl": "void find_tangent_point(float radius, bool side_flag, float *point_a, float *point_b, float *out_tangent);",
           "comment": "[NAME: find_tangent_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "ported": true
         },
         {
           "addr": "0x62cf0",
-          "decl": "void find_avoidance_point(void);",
+          "decl": "void find_avoidance_point(float radius, float *tangents, float *center, float *out_point);",
           "comment": "[NAME: find_avoidance_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "ported": true
         },
         {
           "addr": "0x62e10",
-          "decl": "void choose_turning_point(void);",
+          "decl": "int choose_turning_point(float *turn_a, float *turn_b, float *start, float *dest, float *out_chosen);",
           "comment": "[NAME: choose_turning_point \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "ported": true
         },
         {
           "addr": "0x63030",
-          "decl": "void find_turning_point(void);",
+          "decl": "uint32_t find_turning_point(int scenario, float *origin, float radius, uint32_t edge_index, uint8_t side, char bsp_idx, unsigned int *out_pt);",
           "ported": true
         },
         {
