@@ -18,6 +18,7 @@
  *
  * Register-arg callees are reached through shims in camera_internal.h. */
 #include "camera_internal.h"
+#include "x87_math.h"
 
 /*
  * FUN_00085a40 (0x85a40) — is there another player whose player-record dword
@@ -815,7 +816,7 @@ int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3)
      * are type-only and do not change the pushed dwords. */
     FUN_00088c80(unit_handle, (float *)param_2, (float *)param_3);
   } else {
-    FUN_00089c00(unit_handle, param_2, param_3);
+    FUN_00089c00(unit_handle, (int)param_2, (int)param_3);
   }
 
   return result;
@@ -834,7 +835,7 @@ int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3)
  * are stored as their original entry addresses (the *_UPDATE_ENTRY enum)
  * because other director code compares the slot against those values; see
  * the note on the enum. */
-void director_choose_game_perspective(int16_t local_player_index, char force)
+void director_choose_game_perspective(int local_player_index, char force)
 {
   camera_director_t *director;
   int16_t following;

@@ -1034,7 +1034,7 @@ boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_in
         bin_vols[4] = sound_dsound_gain_to_volume(0.5f, 0);
         bin_vols[5] = sound_dsound_gain_to_volume(0.5f, 0);
         IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
-                                     (void *)0x1833);
+                                     0x1833);
         CDirectSoundStream_SetMixBinVolumes_12(
           *(void **)((char *)channel + 0x70), 0x1833, bin_vols);
       } else {
@@ -1042,7 +1042,7 @@ boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_in
         bin_vols[1] = sound_dsound_gain_to_volume(0.5f, 0);
         bin_vols[2] = sound_dsound_gain_to_volume(0.5f, 0);
         IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
-                                     (void *)7);
+                                     7);
         CDirectSoundStream_SetMixBinVolumes_12(
           *(void **)((char *)channel + 0x70), 7, bin_vols);
       }
@@ -1051,7 +1051,7 @@ boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_in
         bin_vols[0] = sound_dsound_gain_to_volume(0.5f, 0);
         bin_vols[1] = sound_dsound_gain_to_volume(0.5f, 0);
         IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
-                                     (void *)3);
+                                     3);
         CDirectSoundStream_SetMixBinVolumes_12(
           *(void **)((char *)channel + 0x70), 3, bin_vols);
       }

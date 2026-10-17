@@ -868,7 +868,7 @@ void texture_cache_debug_render(void)
     indicator = lruv_block_touched(*(void **)0x4ea980, *(int *)((char *)entry + 0x24)) ?
                 (char *)0x25386f : (char *)0x2686f4;
     tag_name = tag_get_name(*(uint32_t *)((char *)entry + 0x20));
-    size = rasterizer_xbox_bitmap_get_pixel_data_size(entry);
+    size = FUN_00183290(entry);
 
     csprintf(text_buf, (const char *)0x2b9874, size, indicator, tag_name);
 
@@ -878,7 +878,7 @@ void texture_cache_debug_render(void)
     bounds.right = (int16_t)0x7fff;
 
     draw_string_set_color(*(void **)0x2ee6e0);
-    rasterizer_draw_string(&bounds, NULL, NULL, 0, text_buf);
+    rasterizer_draw_string(&bounds, NULL, NULL, 0, (unsigned short *)text_buf);
   }
 }
 

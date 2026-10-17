@@ -5813,4 +5813,18 @@ typedef struct widget_stack_node_t {
 cs(widget_stack_node_t, 0x10);
 co(widget_stack_node_t, next, 0x0c);
 
+/* Upstream libtiff Fax3/Fax4 Huffman span table entry */
+#ifndef TIFF_FAX_SPAN_ENTRY_DEFINED
+#define TIFF_FAX_SPAN_ENTRY_DEFINED
+typedef struct tiff_fax_span_entry_s {
+  unsigned short field_00;
+  unsigned short field_02;
+  short field_04;
+} tiff_fax_span_entry_t;
+cs(tiff_fax_span_entry_t, 0x6);
+co(tiff_fax_span_entry_t, field_00, 0x0);
+co(tiff_fax_span_entry_t, field_02, 0x2);
+co(tiff_fax_span_entry_t, field_04, 0x4);
+#endif
+
 #endif /* TYPES_H */

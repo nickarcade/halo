@@ -393,7 +393,7 @@ void player_effect_update(void)
 }
 
 /* player_effect_continuous_refresh (0xa2d30) */
-void player_effect_continuous_refresh(uint32_t tag_index, void *position)
+void player_effect_continuous_refresh(int definition_index, float *position)
 {
   int16_t i;
   int player_index;
@@ -403,7 +403,7 @@ void player_effect_continuous_refresh(uint32_t tag_index, void *position)
   float *pos;
   float dx, dy, dz, dist;
 
-  pos = (float *)position;
+  pos = position;
   for (i = 0; i < 4; i++) {
     player_index = local_player_get_player_index(i);
     if (player_index != -1) {
@@ -415,7 +415,7 @@ void player_effect_continuous_refresh(uint32_t tag_index, void *position)
         dy = pos[1] - victim_pos.y;
         dz = pos[2] - victim_pos.z;
         dist = x87_sqrt(dx * dx + dy * dy + dz * dz);
-        player_effect_add_continuous_effect(i, tag_index, dist);
+        player_effect_add_continuous_effect(i, (uint32_t)definition_index, dist);
       }
     }
   }

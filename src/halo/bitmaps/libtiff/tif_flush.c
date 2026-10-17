@@ -1355,11 +1355,13 @@ void FUN_00069200(int value /* @<eax> */, int param_2, void *tif_ /* @<edi> */)
  * FUN_00069200 in EAX, +2 is its stack argument, +4 is sign-extended
  * (movsx) and subtracted from the span. Shape matches upstream libtiff's
  * tableentry {length, code, runlen}; the field names stay mechanical. */
+#ifndef TIFF_FAX_SPAN_ENTRY_DEFINED
 typedef struct tiff_fax_span_entry_s {
   unsigned short field_00;
   unsigned short field_02;
   short field_04;
 } tiff_fax_span_entry_t;
+#endif
 
 /**
  * Emit a run of `span` pixels using a run-length code table.
