@@ -1406,6 +1406,9 @@ def main():
     ap.add_argument('--retail64', action='store_true',
                     default=env_flag('HALO_RETAIL64') or env_flag('HALO_RETAIL64_XBE'),
                     help='Emit experimental retail-style 64MB XBE metadata.')
+    ap.add_argument('--retire-100pct-tus', action='store_true',
+                    default=env_flag('HALO_RETIRE_100PCT_TUS') or env_flag('HALO_RETIRE_TRAMPOLINES'),
+                    help='Deactivate detour trampolines and reverse thunks for 100% ported translation units.')
     args = ap.parse_args()
 
     if args.test_thunks:
@@ -1618,6 +1621,16 @@ def main():
     # First pass: build reverse thunks for implemented @<reg> functions. Each
     # rvthunk adapts the original register-arg ABI into cdecl before calling
     # the impl. Placed in a new .rvthunks XBE section after the EXE sections.
+    fully_ported_objects = set()
+    if getattr(args, 'retire_100pct_tus', False):
+        for obj_name, symbols in kb.object_to_symbols.items():
+            if not obj_name:
+                continue
+            funcs = [s for s in symbols if isinstance(s, Function)]
+            if funcs and all(getattr(s, 'ported', False) is True for s in funcs):
+                fully_ported_objects.add(obj_name)
+        log.info('Retirement mode: identified %d fully ported translation unit(s)', len(fully_ported_objects))
+
     rvthunks_base = round_up(
         max(s.header.virtual_addr + s.header.virtual_size for s in xbe.sections.values()),
         0x1000)
@@ -1634,6 +1647,10 @@ def main():
         if getattr(sym, 'ported', None) is False or is_dual_oracle_symbol(sym):
             # Deactivated by kb.json; no original→our_impl path needed because
             # the original-address redirect is also skipped below.
+            continue
+        obj = kb.symbol_to_object.get(sym)
+        if obj in fully_ported_objects:
+            log.info('Retiring reverse thunk for "%s" (100%% ported TU "%s")', n, obj)
             continue
         rvthunk_addr = rvthunks_base + len(rvthunks_bytes)
         rvthunks_bytes += generate_reverse_thunk(sym, impl_addr, rvthunk_addr)
@@ -1689,6 +1706,10 @@ def main():
                      n, addr_of_reimplementation, addr_of_original_in_xbe, len(redirect_bytes))
             write_to_vaddr(xbe, addr_of_reimplementation, redirect_bytes)
             deactivated_count += 1
+            continue
+        obj = kb.symbol_to_object.get(sym)
+        if obj in fully_ported_objects:
+            log.info('Retiring detour hook for "%s" (100%% ported TU "%s")', n, obj)
             continue
         hook_target = rvthunks_redirect.get(n, addr_of_reimplementation)
         if n not in rvthunks_redirect and is_self_forwarding_impl(
