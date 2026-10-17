@@ -9,6 +9,7 @@ option(HALO_TEST_HARNESS "Build with in-engine test harness enabled" OFF)
 option(HALO_RNG_TRACE "Build with the diagnostic RNG draw trace enabled (docs/rng-trace.md)" OFF)
 set(HALO_DUAL_ORACLE_TARGET "" CACHE STRING "Build one in-engine dual-oracle harness target")
 option(HALO_RETAIL64 "Build experimental 64MB retail-compatible runtime profile" OFF)
+option(HALO_RETIRE_100PCT_TUS "Deactivate detour trampolines and reverse thunks for 100% ported translation units" ON)
 
 find_package(Python3 COMPONENTS Interpreter)
 
@@ -284,7 +285,9 @@ add_custom_target(
 			"${Python3_EXECUTABLE}" -m unittest
 			tools.audit.test_patch.RegAnnotationBaselineTests
 	COMMAND
-		"${CMAKE_COMMAND}" -E env "HALO_RETAIL64_XBE=$<IF:$<BOOL:${HALO_RETAIL64}>,1,0>"
+		"${CMAKE_COMMAND}" -E env
+			"HALO_RETAIL64_XBE=$<IF:$<BOOL:${HALO_RETAIL64}>,1,0>"
+			"HALO_RETIRE_100PCT_TUS=$<IF:$<BOOL:${HALO_RETIRE_100PCT_TUS}>,1,0>"
 		"${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/tools/build/patch.py"
 			"${CMAKE_CURRENT_LIST_DIR}/halo-patched/cachebeta.xbe"
 			"$<TARGET_FILE:halo>"
