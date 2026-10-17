@@ -169,4 +169,15 @@ static const int _scenario_type_main_menu = 2;
         }                                                    \
     } while (0)
 
+#define bsp2d_test_point FUN_00146d40
+#define inflateEnd FUN_00115430
+#define cache_files_initialize FUN_001bdb10
+
+typedef struct rectangle2d {
+  int16_t top;
+  int16_t left;
+  int16_t bottom;
+  int16_t right;
+} rectangle2d;
+
 #endif
