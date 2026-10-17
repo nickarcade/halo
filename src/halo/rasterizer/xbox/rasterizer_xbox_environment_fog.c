@@ -1,4 +1,6 @@
 #include "x87_math.h"
+#include "common.h"
+#include "nv097.h"
 
 /* c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_environment_fog.c
  *
@@ -378,6 +380,59 @@ static const char kFogFile[] =
 #define FOG_LOCAL_RANDOM_REAL() \
   random_math_real(random_math_get_local_seed_address())
 
+/* 0x165780 — D3DDevice_SetRenderState_9 */
+void D3DDevice_SetRenderState_9(void)
+{
+}
+
+/* 0x165930 — D3DDevice_SetTextureStageState_9 */
+void D3DDevice_SetTextureStageState_9(uint32_t a0, int32_t a1, uint32_t a2)
+{
+  D3DDevice_SetTextureStageState(a0, a1, a2);
+}
+
+/* 0x165a30 — IDirect3DDevice8_SetRenderState_9 */
+uint32_t __stdcall IDirect3DDevice8_SetRenderState_9(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x165c50 — IDirect3DDevice8_SetTextureStageState_9 */
+uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_9(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x165dc0 — IDirect3DDevice8_SetVertexShaderConstant_9 */
+uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_9(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x165e70 — IDirect3DDevice8_SetVertexData2s_5 */
+uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_5(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x165e80 — IDirect3DDevice8_Begin_6 */
+uint32_t __stdcall IDirect3DDevice8_Begin_6(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x165e90 — IDirect3DDevice8_End_6 */
+uint32_t __stdcall IDirect3DDevice8_End_6(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
 /* 0x165980 -- dead out-of-line instantiation of the D3D8 inline
  * IDirect3DDevice8_Clear wrapper (no callers). RET 0x14: five stack dwords,
  * the first being the never-read device pointer; Color arrives in EDX and
@@ -549,6 +604,12 @@ float *set_real_vector4d(float *vector, float i, float j, float k, float l)
   vector[2] = k;
   vector[3] = l;
   return vector;
+}
+
+/* 0x165ff0 — local_random_boolean */
+bool local_random_boolean(void)
+{
+  return random_seed_step(random_math_get_local_seed_address()) > 0x8000;
 }
 
 /* 0x166010 rasterizer_environment_fog_screen_is_active (static in PAL as
