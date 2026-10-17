@@ -292,6 +292,24 @@ int TIFFStartTile(void *tif_, unsigned int tile)
   return (tif->tif_predecode == NULL || (*tif->tif_predecode)(tif));
 }
 
+/* 0x6ea00 -- upstream libtiff tif_read.c TIFFCheckRead */
+int TIFFCheckRead(void *tif_, int tiles)
+{
+  tiff_t *tif = (tiff_t *)tif_;
+
+  if (tif->tif_mode == O_WRONLY) {
+    FUN_00068a30(tif->tif_name, "File not open for reading");
+    return 0;
+  }
+  if (isTiled(tif) ^ (tiles != 0)) {
+    FUN_00068a30(tif->tif_name,
+                 tiles ? "Can not read tiles from a stripped image"
+                       : "Can not read scanlines from a tiled image");
+    return 0;
+  }
+  return 1;
+}
+
 /* 0x6ea50 -- upstream libtiff tif_read.c TIFFReadRawStrip, placed in this
  * kb.json bucket. cdecl: tif [ebp+8], strip [ebp+0xc], buf [ebp+0x10], size
  * [ebp+0x14]. Rejects write-only files (tif_mode == 1, string 0x2610f4),
@@ -1465,6 +1483,16 @@ void ColorToFcolor(unsigned char *color, float *out)
   out[2] = (float)color[2] * *(float *)0x2ed094 * *(float *)0x261518;
 }
 
+/* 0x70520 -- convert 3 floats back into a 3-byte color:
+ * color[i] = (unsigned char)(fcolor[i] / scale[i] * 255.0f).
+ * fcolor arrives in EDI, color in ESI. */
+void FcolorToColor(float *fcolor, unsigned char *color)
+{
+  color[0] = (unsigned char)(int)(fcolor[0] / *(float *)0x2ed08c * *(float *)0x2602c8);
+  color[1] = (unsigned char)(int)(fcolor[1] / *(float *)0x2ed090 * *(float *)0x2602c8);
+  color[2] = (unsigned char)(int)(fcolor[2] / *(float *)0x2ed094 * *(float *)0x2602c8);
+}
+
 /* 0x70570 -- pack a 3-byte color into a 16-bit 5:6:5 word: color[2] in
  * bits 11-15, color[1] in bits 5-10, color[0] in bits 0-4. color arrives in
  * EAX (read at entry, 0x70573-0x70580); out is the only stack arg ([EBP+8]). */
@@ -1474,6 +1502,21 @@ void ColorToRGB(unsigned char *color, unsigned short *out)
                             (unsigned short)(color[1] >> 2))
                            << 5) |
                           (unsigned short)(color[0] >> 3));
+}
+
+/* 0x705b0 -- unpack a 16-bit 5:6:5 word into a 3-byte color with bit replication:
+ * color[0] from bits 0-4, color[1] from bits 5-10, color[2] from bits 11-15.
+ * rgb arrives in EAX, color is [EBP+8]. */
+void RGBToColor(unsigned short *rgb /* @<eax> */, unsigned char *color)
+{
+  unsigned short v = *rgb;
+  unsigned char r = (unsigned char)(v & 0x1f);
+  unsigned char g = (unsigned char)((v >> 5) & 0x3f);
+  unsigned char b = (unsigned char)((v >> 11) & 0x1f);
+
+  color[0] = (unsigned char)((r << 3) | (r >> 2));
+  color[1] = (unsigned char)((g << 2) | (g >> 4));
+  color[2] = (unsigned char)((b << 3) | (b >> 2));
 }
 
 /* 0x70a00 -- fill a 4x4 color block whose pixels share one color. pixels
