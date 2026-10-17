@@ -5090,25 +5090,25 @@
         {
           "addr": "0x7d2f0",
           "decl": "void bitmap_byte_swap_pixels(void);",
-          "ported": false,
+          "ported": true,
           "name": "bitmap_byte_swap_pixels"
         },
         {
           "addr": "0x7d400",
           "decl": "uint32_t bitmap_format_type_valid_width(int16_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "bitmap_format_type_valid_width"
         },
         {
           "addr": "0x7d420",
           "decl": "uint32_t bitmap_format_type_valid_height(int16_t a0);",
-          "ported": false,
+          "ported": true,
           "name": "bitmap_format_type_valid_height"
         },
         {
           "addr": "0x7ef60",
           "decl": "void row_copy(int16_t a0, char *a1, uint16_t *a2);",
-          "ported": false,
+          "ported": true,
           "name": "row_copy"
         }
       ],

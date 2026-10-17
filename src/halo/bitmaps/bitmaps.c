@@ -2360,3 +2360,44 @@ void bitmap_quantitize(void *bitmap, short *bits_per_channel)
     debug_free(next, "c:\\halo\\SOURCE\\bitmaps\\bitmaps_quantitize.c", 0x74);
   }
 }
+
+void bitmap_byte_swap_pixels(void)
+{
+  return;
+}
+
+uint32_t bitmap_format_type_valid_width(int16_t a0)
+{
+  if ((1 <= a0) && (a0 <= 30000)) {
+    return 1;
+  }
+  return 0;
+}
+
+uint32_t bitmap_format_type_valid_height(int16_t a0)
+{
+  if ((1 <= a0) && (a0 <= 30000)) {
+    return 1;
+  }
+  return 0;
+}
+
+void row_copy(int16_t a0, char *a1, uint16_t *a2)
+{
+  int32_t v1;
+  uint8_t *src;
+  uint16_t *dst;
+
+  v1 = (int32_t)a0 << 2;
+  if (v1 <= 0) {
+    return;
+  }
+  src = (uint8_t *)a1;
+  dst = a2;
+  do {
+    *dst = (uint16_t)*src;
+    dst++;
+    src++;
+    v1--;
+  } while (v1 != 0);
+}
