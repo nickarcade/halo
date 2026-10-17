@@ -92,8 +92,12 @@ flowchart TD
    - Prefix every shell command with `rtk` (e.g., `rtk git status`).
    - Author all git commits as: `nickarcade <kabalabc@gmail.com>`.
    - Never read `kb.json` directly (`rtk jq` only).
-   - Never read or disassemble `cachebeta.xbe` directly; use `python3 tools/extract_fn.py <0xaddr_or_symbol> [--asm]`.
+   - Use modern CLI tools (`rg`, `bat --paging=never`, `eza`, `choose`, `sd`).
    - Run hazard scans before committing: `rtk python3 tools/audit/check_lift_hazards.py --changed-only`.
+3. **Mandatory Binary Inspection & Search Tooling (`tools/extract_fn.py`)**:
+   - For searching, querying, and analyzing any function, symbol, or address in the binary, **always query `python3 tools/extract_fn.py <0xaddr_or_symbol>`** for decompiled C, or add `--asm` for assembly and stack layout.
+   - Never view, read, hexdump, or disassemble `halo-patched/cachebeta.xbe` directly.
+   - Use `extract_fn.py` to confirm authentic function bodies, string references, callee context, and parameter signatures whenever diagnosing symbol name desyncs or inlined stubs.
 
 ---
 
@@ -111,9 +115,11 @@ We are resolving the remaining "318 cannot compare" functions in the Halo Combat
 2. Command & Git Rules:
    - Prefix every shell command with `rtk` (including chained commands).
    - Author all git commits as: `nickarcade <kabalabc@gmail.com>`.
-   - Never inspect or disassemble `cachebeta.xbe` directly; use `python3 tools/extract_fn.py <0xaddr_or_symbol> [--asm]`.
    - Never read `kb.json` directly (`rtk jq` only).
    - Use modern CLI tools (`rg`, `bat --paging=never`, `eza`, `choose`, `sd`).
+3. Binary Search & Function Inspection (`tools/extract_fn.py`):
+   - **Never inspect, view, read, or disassemble `cachebeta.xbe` directly.**
+   - **Mandatory Query Tool**: Always use `python3 tools/extract_fn.py <0xaddr_or_symbol>` for decompiled C, or add `--asm` for disassembly and stack frame layout. Use this tool for all function searching and signature verification as needed.
 
 ### Why Functions Are "Cannot Compare"
 A function is classified as `cannot_compare` by `generate_decomp_report.py` when it has a structural audit record but cannot be compared byte-for-byte. In our repo:
@@ -127,16 +133,17 @@ A function is classified as `cannot_compare` by `generate_decomp_report.py` when
 ### Execution Workflow Per Batch
 For each batch:
 1. Identify the batch's target functions and their parent translation units.
-2. Run a diagnostic script on Colab dumping the COFF symbols of the compiled `.obj` (`tools/verify/raw_xbe_structural.py` or `objdump`/`dumpbin`).
-3. Apply the appropriate fix:
+2. Query `python3 tools/extract_fn.py <0xaddr_or_symbol>` as needed to inspect authentic binary logic, string anchors, and signatures.
+3. Run a diagnostic script on Colab dumping the COFF symbols of the compiled `.obj` (`tools/verify/raw_xbe_structural.py` or `objdump`/`dumpbin`).
+4. Apply the appropriate fix:
    - If name mismatch: update `kb.json` or `.c` definition to match the authentic symbol name.
    - If `static` linkage: remove `static` to export the symbol in the `.obj`.
    - If `game_engine.obj`: map the source file or compile the stub unit.
    - If D3D wrapper: ensure the out-of-line wrapper function is emitted.
-4. Verify with `raw_xbe_structural.py` on Colab that the symbol is found and scores `structural exact` or `structural differ`.
-5. Run hazard review: `rtk python3 tools/audit/check_lift_hazards.py --changed-only`.
-6. Commit changes atomically and push to `origin/mainrevised2`.
-7. Sync the Colab working tree with `git pull origin mainrevised2`.
+5. Verify with `raw_xbe_structural.py` on Colab that the symbol is found and scores `structural exact` or `structural differ`.
+6. Run hazard review: `rtk python3 tools/audit/check_lift_hazards.py --changed-only`.
+7. Commit changes atomically and push to `origin/mainrevised2`.
+8. Sync the Colab working tree with `git pull origin mainrevised2`.
 
 ### Batch Roadmap
 - Batch 1: Automated Symbol Reconciliation (~80 functions with name desyncs across `ai`, `bitmaps`, `objects`, `tags`).
