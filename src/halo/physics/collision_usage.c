@@ -2354,11 +2354,8 @@ short FUN_0014f2c0(float *old_pos, float *old_vel, short *features,
   return (short)collision_count;
 }
 
-extern void real_matrix3x3_transform_point(const void *matrix, const void *in_point, void *out_point);
-extern void *tag_block_get_element(const void *block, int index, int element_size);
-
 /* 0x14ee30: clip_position_to_plane — project 3D position onto plane */
-void clip_position_to_plane(const float *plane, float *out_pos, const float *in_pos)
+void clip_position_to_plane(float *plane, float *out_pos, float *in_pos)
 {
   float dist;
   dist = -((plane[2] * in_pos[2] + (in_pos[1] * plane[1] + in_pos[0] * plane[0])) - plane[3]);
@@ -2368,7 +2365,7 @@ void clip_position_to_plane(const float *plane, float *out_pos, const float *in_
 }
 
 /* 0x14ee70: clip_velocity_to_plane — project 3D velocity onto plane */
-void clip_velocity_to_plane(const float *plane, float *out_vel, const float *in_vel)
+void clip_velocity_to_plane(float *plane, float *out_vel, float *in_vel)
 {
   float dot;
   dot = -(plane[2] * in_vel[2] + (in_vel[1] * plane[1] + in_vel[0] * plane[0]));
@@ -2408,7 +2405,7 @@ int FUN_00150550(void *out_point, float *direction, float *origin, int arg4,
   center[2] = origin[2] + direction[2] * 0.5f;
 
   if (FUN_0014ec30((int)out_point, center, search_radius, *(float *)&arg4, *(float *)&arg5, arg6, (void *)features)) {
-    result = (int)FUN_0014f2c0(origin, direction, features, out_point2, (float *)out_arg8, max_results, (void *)results);
+    result = (int)FUN_0014f2c0(origin, direction, features, out_point2, (float *)out_arg8, max_results, (int)results);
   } else {
     out_point2[0] = origin[0] + direction[0];
     out_point2[1] = origin[1] + direction[1];

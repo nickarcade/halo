@@ -833,8 +833,10 @@ bool collision_features_test_los(void *features, void *los_data, void *out_hit)
   return 1;
 }
 
-extern void point_from_line3d(const float *a0, const float *a1, float a2, float *a3);
-extern float dot_product3d(const float *a0, const float *a1);
+static __inline float dot_product3d(const float *a0, const float *a1)
+{
+  return a0[0] * a1[0] + a0[1] * a1[1] + a0[2] * a1[2];
+}
 
 /* 0x14bdb0 — Ray-sphere intersection test against collision sphere feature.
  * Tests ray (origin, vector) against sphere at feature + 0x0c, radius at feature + 0x18.

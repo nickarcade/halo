@@ -44817,17 +44817,17 @@
         },
         {
           "addr": "0x14bdb0",
-          "decl": "void collision_sphere_test_vector(void);",
+          "decl": "char collision_sphere_test_vector(void *feature, float *origin, float *vector, float *out_t, float *out_plane);",
           "ported": true
         },
         {
           "addr": "0x14bf30",
-          "decl": "void collision_cylinder_test_vector(void);",
+          "decl": "char collision_cylinder_test_vector(void *feature, float *origin, float *vector, float *out_t, float *out_plane);",
           "ported": true
         },
         {
           "addr": "0x14c220",
-          "decl": "void collision_prism_test_vector(void);",
+          "decl": "char collision_prism_test_vector(void *feature, float *origin, float *vector, float *out_t, float *out_plane);",
           "ported": true
         },
         {
