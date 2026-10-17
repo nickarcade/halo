@@ -44884,50 +44884,58 @@
         {
           "addr": "0x15f1a0",
           "decl": "void D3DDevice_SetTextureStageState_11(uint32_t a0, int32_t a1, uint32_t a2);",
-          "ported": false,
-          "name": "D3DDevice_SetTextureStageState_11"
+          "ported": true,
+          "name": "D3DDevice_SetTextureStageState_11",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_dynavobgeom.c"
         },
         {
           "addr": "0x15f320",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_11(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetRenderState_11"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetRenderState_11",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_dynavobgeom.c"
         },
         {
           "addr": "0x15f570",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_11(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetTextureStageState_11"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetTextureStageState_11",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_dynavobgeom.c"
         },
         {
           "addr": "0x15f5d0",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_11(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetVertexShaderConstant_11"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_11",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_dynavobgeom.c"
         },
         {
           "addr": "0x15f600",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor_1(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetVertexDataColor_1"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetVertexDataColor_1",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_dynavobgeom.c"
         },
         {
           "addr": "0x15f610",
           "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_7(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_Begin_7"
+          "ported": true,
+          "name": "IDirect3DDevice8_Begin_7",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_dynavobgeom.c"
         },
         {
           "addr": "0x15f620",
           "decl": "uint32_t __stdcall IDirect3DDevice8_End_7(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_End_7"
+          "ported": true,
+          "name": "IDirect3DDevice8_End_7",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_dynavobgeom.c"
         },
         {
           "addr": "0x15f8a0",
           "decl": "void submit_screen_vertex(void);",
-          "ported": false,
-          "name": "submit_screen_vertex"
+          "ported": true,
+          "name": "submit_screen_vertex",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_dynavobgeom.c"
         }
       ]
     },

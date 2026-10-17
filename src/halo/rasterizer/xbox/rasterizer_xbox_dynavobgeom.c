@@ -712,3 +712,56 @@ void __rasterizer_psuedo_dynamic_screen_quad_draw(void *parameters, void *vertic
   D3DDevice_End();
   D3DDevice_SetTextureStageState(0, 0x15, 0);
 }
+
+/* 0x15f1a0 — D3DDevice_SetTextureStageState_11 */
+void D3DDevice_SetTextureStageState_11(uint32_t a0, int32_t a1, uint32_t a2)
+{
+  D3DDevice_SetTextureStageState(a0, a1, a2);
+}
+
+/* 0x15f320 — IDirect3DDevice8_SetRenderState_11 */
+uint32_t __stdcall IDirect3DDevice8_SetRenderState_11(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x15f570 — IDirect3DDevice8_SetTextureStageState_11 */
+uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_11(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x15f5d0 — IDirect3DDevice8_SetVertexShaderConstant_11 */
+uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_11(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x15f600 — IDirect3DDevice8_SetVertexDataColor_1 */
+uint32_t __stdcall IDirect3DDevice8_SetVertexDataColor_1(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x15f610 — IDirect3DDevice8_Begin_7 */
+uint32_t __stdcall IDirect3DDevice8_Begin_7(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x15f620 — IDirect3DDevice8_End_7 */
+uint32_t __stdcall IDirect3DDevice8_End_7(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x15f8a0 — submit_screen_vertex */
+void submit_screen_vertex(void)
+{
+}
