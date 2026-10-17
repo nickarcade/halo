@@ -608,6 +608,14 @@ done:
   return vchannel[0];
 }
 
+/* dsound_virtual_update (0x1c9be0)
+ *
+ * Per-frame virtual channel update hook. */
+void dsound_virtual_update(void)
+{
+  return;
+}
+
 /* sound_dsound_channel_release (0x1c9bf0)
  *
  * Release the actual (hardware) channel currently bound to the virtual

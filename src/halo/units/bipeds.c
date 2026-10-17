@@ -625,6 +625,15 @@ char biped_limp_noodle_relax_nodes_onto_environment(int unit_handle)
   return result;
 }
 
+/* bipeds_initialize (0x1a0780)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: slot +0x14 in biped object_type_definition table at 0x323d48. */
+void bipeds_initialize(void)
+{
+  return;
+}
+
 /* bipeds_initialize_for_new_map (0x1a0790)
  *
  * Confirmed: the body is a single RET (C3).

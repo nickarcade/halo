@@ -64,6 +64,15 @@ void FUN_001b5500(int param_1)
   }
 }
 
+/* vehicles_initialize (0x1b5540)
+ *
+ * Confirmed: the body is a single RET (C3).
+ * Confirmed: slot +0x14 in vehicle object_type_definition table at 0x323de8. */
+void vehicles_initialize(void)
+{
+  return;
+}
+
 /* vehicles_initialize_for_new_map (0x1b5550)
  *
  * Confirmed: the body is a single RET (C3).
