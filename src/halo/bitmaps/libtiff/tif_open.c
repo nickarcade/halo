@@ -2159,7 +2159,7 @@ int FUN_0006d4d0(void *tif_)
  * The allocation is `strlen(name) + 0x13d` (0x6d5e2) while the memset clears
  * only 0x13c (0x6d621): the extra byte is the NUL of the name string, which is
  * copied into the tail at tif+0x13c and pointed at by tif_name.
- *
+ */
 /* 0x6d500 -- upstream libtiff's InitOrder.
  * Initializes byte-order flag and bit-fill order dispatch tables on an open
  * TIFF handle. Register ABI: EAX=tif, EDX=magic, ECX=bigendian. */
