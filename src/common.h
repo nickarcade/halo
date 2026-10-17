@@ -65,6 +65,11 @@ double __cdecl fabs(double);
 #define game_difficulty_get_team_value FUN_000b55b0
 #define breakable_surface_flags_get() ((int)breakable_surfaces_get_bsp_surface_data())
 #define structure_test_line2d FUN_000639e0
+#define delete_all_vehicles FUN_000b36f0
+#define create_race_vehicles FUN_000b4490
+#define game_engine_end_game game_engine_start_over
+#define build_player_speeds FUN_000b3cf0
+#define game_engine_play_multiplayer_sound game_engine_post_event
 #define global_structure_bsp_get scenario_get
 #define object_mark_function object_mark
 #define object_get_origin(handle, pos) object_get_world_position((handle), (vector3_t *)(pos))

@@ -10684,7 +10684,7 @@
         },
         {
           "addr": "0xa8650",
-          "decl": "uint32_t can_delete_item(void);",
+          "decl": "uint32_t can_delete_item(uint32_t object_handle);",
           "ported": true,
           "name": "can_delete_item"
         },

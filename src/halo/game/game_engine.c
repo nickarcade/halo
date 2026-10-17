@@ -9597,21 +9597,6 @@ char race_engine_display_score(int player_index, int event_type,
  * Campaign 5.2 lifts: remaining 99 functions in game_engine.obj
  * ========================================================================= */
 
-void delete_all_vehicles(void);
-void create_race_vehicles(void);
-bool race_team_can_win_game(void);
-void game_engine_end_game(void);
-void build_player_speeds(void);
-void oddball_add_score(void);
-void create_the_ball(void);
-void game_engine_state_message(void);
-void game_engine_set_goal_position(int a0, void *a1, int a2, const char *a3, int a4, int a5, int a6);
-void game_engine_clear_goal_position(int a0);
-int create_the_flag_at_position(void);
-int object_try_and_get_and_verify_type(void);
-int weapon_is_flag(void);
-void multiplayer_message(void);
-
 /* 0xa81e0 */
 void initialize_player_multiplayer_data(uint32_t a0)
 {
@@ -9665,10 +9650,10 @@ void get_selected_color(uint32_t *a0)
 }
 
 /* 0xa8650 */
-uint32_t can_delete_item(void)
+uint32_t can_delete_item(uint32_t object_handle)
 {
-  if (object_try_and_get_and_verify_type()) {
-    if (weapon_is_flag()) {
+  if (object_try_and_get_and_verify_type(object_handle, 4)) {
+    if (weapon_is_flag(object_handle)) {
       return 0;
     }
   }
@@ -9697,7 +9682,7 @@ uint32_t game_engine_get_type(void)
 void game_show_score_one_player(uint32_t a0, int32_t a1)
 {
   if (a1 != -1) {
-    multiplayer_message();
+    game_engine_hud_update_player((int)a0, (int)a1, 0);
   }
 }
 
@@ -9715,7 +9700,7 @@ void create_the_flag(void)
   if (*(int *)(0x456b74) == 0) {
     return;
   }
-  flag = create_the_flag_at_position();
+  flag = FUN_000afe50((float *)*(int *)0x456b74);
   if (flag != -1) {
     *(int16_t *)((char *)object_get_and_verify_type(flag, 4) + 0x68) = 0;
     *(int *)0x456b7c = flag;
@@ -9972,13 +9957,15 @@ void oddball_engine_post_rasterize(void)
 void oddball_add_time_with_ball(void)
 {
   char *player;
+  int ball_player;
 
-  player = (char *)datum_get(*(void **)0x5aa6d4, *(int *)0x456ecc);
+  ball_player = *(int *)0x456ecc;
+  player = (char *)datum_get(*(void **)0x5aa6d4, ball_player);
   if (*(int *)((char *)game_engine_get_variant() + 0x5c) == 0) {
-    game_engine_state_message();
+    game_engine_state_message(ball_player, 0, 0);
   }
   *(int16_t *)(player + 0xc0) += 1;
-  oddball_add_score();
+  FUN_000b2740(ball_player);
 }
 
 /* 0xb2850 */
@@ -10053,7 +10040,7 @@ bool oddball_engine_initialize_for_new_map(void)
   if (*(int *)((char *)variant + 0x5c) >= 1 && *(int *)((char *)variant + 0x5c) <= 2) {
     for (i = 0; i < max_balls; i++) {
       *(int *)(0x456e8c + i * 4) = 0;
-      create_the_ball();
+      FUN_000b2e70((int16_t)i);
     }
   } else {
     int timer;
@@ -10088,7 +10075,7 @@ void oddball_engine_update(void)
       *(int *)(0x456e8c + i * 4) = timer;
       if (timer == 0) {
         game_engine_play_multiplayer_sound(0);
-        create_the_ball();
+        FUN_000b2e70((int16_t)i);
       }
     }
   }
@@ -10104,10 +10091,10 @@ void oddball_engine_update(void)
         pl = (char *)datum_get(*(void **)0x5aa6d4, ball_player);
         obj_idx = *(int *)(pl + 0x34);
         if (obj_idx != -1) {
-          game_engine_set_goal_position(i, (char *)object_get_and_verify_type(obj_idx, 3) + 0x50, 0, (const char *)0x26d8b8, -1, -1, ball_player);
+          game_engine_set_goal_position(i, (int *)((char *)object_get_and_verify_type(obj_idx, 3) + 0x50), 0.0f, (char *)0x26d8b8, -1, -1, ball_player);
         }
       } else {
-        game_engine_clear_goal_position(i);
+        game_engine_clear_goal_position((short)i);
       }
     }
   }
@@ -10221,10 +10208,10 @@ void race_engine_update(void)
   }
 
   if (game_engine_has_teams()) {
-    if (!race_team_can_win_game()) {
+    if (!FUN_000b3c60(0)) {
       game_engine_end_game();
     }
-    if (!race_team_can_win_game()) {
+    if (!FUN_000b3c60(1)) {
       game_engine_end_game();
     }
   }
