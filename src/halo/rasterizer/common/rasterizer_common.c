@@ -66,3 +66,55 @@ void D3DDevice_GetTextureStageState(int stage /* @<eax> */, int sub_index /* @<e
 {
   *result = ((unsigned int *)0x1fb498)[stage * 32 + sub_index];
 }
+
+/* 0x1550a0 — Direct3D_Release
+ *
+ * D3D8 COM wrapper for Direct3D_Release. Returns 1.
+ */
+uint32_t Direct3D_Release(void)
+{
+  return 1;
+}
+
+/* 0x1550b0 — IDirect3D8_Release
+ *
+ * IDirect3D8 COM wrapper for Release. Takes device (param_1, ignored), returns 1.
+ */
+uint32_t __stdcall IDirect3D8_Release(int param_1)
+{
+  (void)param_1;
+  return 1;
+}
+
+/* 0x1550e0 — D3DDevice_BeginScene
+ *
+ * Inline no-op stub for BeginScene on Xbox hardware.
+ */
+void D3DDevice_BeginScene(void)
+{
+}
+
+/* 0x1550f0 — D3DDevice_EndScene
+ *
+ * Inline no-op stub for EndScene on Xbox hardware.
+ */
+void D3DDevice_EndScene(void)
+{
+}
+
+/* 0x155100 — D3DDevice_GetRenderState
+ *
+ * Reads one renderstate DWORD from D3D renderstate cache at 0x1fb698.
+ */
+void D3DDevice_GetRenderState(int32_t a0, uint32_t *a1)
+{
+  *a1 = *(uint32_t *)(a0 * 4 + 0x1fb698);
+}
+
+/* 0x155130 — D3DDevice_SetRenderState_16
+ *
+ * Dead inline-wrapper instantiation of D3DDevice_SetRenderState in rasterizer_common.
+ */
+void D3DDevice_SetRenderState_16(void)
+{
+}

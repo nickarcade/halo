@@ -25015,38 +25015,44 @@
         {
           "addr": "0x1550a0",
           "decl": "uint32_t Direct3D_Release(void);",
-          "ported": false,
-          "name": "Direct3D_Release"
+          "ported": true,
+          "name": "Direct3D_Release",
+          "src": "src/halo/rasterizer/common/rasterizer_common.c"
         },
         {
           "addr": "0x1550b0",
           "decl": "uint32_t __stdcall IDirect3D8_Release(int param_1);",
-          "ported": false,
-          "name": "IDirect3D8_Release"
+          "ported": true,
+          "name": "IDirect3D8_Release",
+          "src": "src/halo/rasterizer/common/rasterizer_common.c"
         },
         {
           "addr": "0x1550e0",
           "decl": "void D3DDevice_BeginScene(void);",
-          "ported": false,
-          "name": "D3DDevice_BeginScene"
+          "ported": true,
+          "name": "D3DDevice_BeginScene",
+          "src": "src/halo/rasterizer/common/rasterizer_common.c"
         },
         {
           "addr": "0x1550f0",
           "decl": "void D3DDevice_EndScene(void);",
-          "ported": false,
-          "name": "D3DDevice_EndScene"
+          "ported": true,
+          "name": "D3DDevice_EndScene",
+          "src": "src/halo/rasterizer/common/rasterizer_common.c"
         },
         {
           "addr": "0x155100",
           "decl": "void D3DDevice_GetRenderState(int32_t a0, uint32_t *a1);",
-          "ported": false,
-          "name": "D3DDevice_GetRenderState"
+          "ported": true,
+          "name": "D3DDevice_GetRenderState",
+          "src": "src/halo/rasterizer/common/rasterizer_common.c"
         },
         {
           "addr": "0x155130",
           "decl": "void D3DDevice_SetRenderState_16(void);",
-          "ported": false,
-          "name": "D3DDevice_SetRenderState_16"
+          "ported": true,
+          "name": "D3DDevice_SetRenderState_16",
+          "src": "src/halo/rasterizer/common/rasterizer_common.c"
         }
       ],
       "name": "rasterizer_common.obj",
