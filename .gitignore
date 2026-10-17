@@ -19,6 +19,7 @@ artifacts
 
 # Patched game output (contains copyrighted game assets)
 /halo-patched
+/halo-xbox-runtime/
 *.iso
 
 # Generated source files (created from kb.json by tools/knowledge.py)
