@@ -40371,7 +40371,7 @@
         },
         {
           "addr": "0x31850",
-          "decl": "uint32_t actor_audibility_at_point(uint32_t actor_handle, float *eye_pos, float *sound_pos, int sound_cluster, int16_t sound_type, uint32_t range_scale, int16_t blockage_res);",
+          "decl": "uint32_t actor_audibility_at_point(uint32_t actor_handle, void *sense_block, float *sound_pos, void *sound_location, int16_t sound_type, float range_scale, int16_t blockage_res);",
           "ported": true
         },
         {

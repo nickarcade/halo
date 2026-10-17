@@ -1373,12 +1373,12 @@ void actor_combat_update(int actor_handle)
       aim_cam[2] = *(float *)(actor + 0x128);
     }
 
-    if (!weapon_aim(weapon_handle, (char *)(actor + 0x603) != '\0', aim_cam, (float *)(actor + 0x67c), (float *)(actor + 0x68c), *(uint8_t *)(actor + 0x622), 0, 0, &fire_result)) {
+    if (!weapon_aim(weapon_handle, (int16_t)((*(char *)(actor + 0x603) != '\0') ? 1 : 0), aim_cam, (void *)(actor + 0x67c), (int)*(uint8_t *)(actor + 0x622), (float *)(actor + 0x63c), 0, (void *)(actor + 0x648), &fire_result)) {
       display_assert("weapon_aim()", "c:\\halo\\SOURCE\\ai\\actor_combat.c", 0x310, 1);
       system_exit(-1);
     }
-    if (!valid_real_normal3d((float *)(actor + 0x68c))) {
-      csprintf((char *)0x5ab100, "%s: assert_valid_real_normal3d(%f, %f, %f)", "aim_vector", (double)*(float *)(actor + 0x68c), (double)*(float *)(actor + 0x690), (double)*(float *)(actor + 0x694));
+    if (!valid_real_normal3d((float *)(actor + 0x63c))) {
+      csprintf((char *)0x5ab100, "%s: assert_valid_real_normal3d(%f, %f, %f)", "aim_vector", (double)*(float *)(actor + 0x63c), (double)*(float *)(actor + 0x640), (double)*(float *)(actor + 0x644));
       display_assert((char *)0x5ab100, "c:\\halo\\SOURCE\\ai\\actor_combat.c", 0x311, 1);
       system_exit(-1);
     }

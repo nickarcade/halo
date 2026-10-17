@@ -3280,8 +3280,10 @@ uint32_t actor_visibility_at_point(uint32_t actor_handle, float *eye_pos, float 
 
 /* 0x00031850 — actor_audibility_at_point
  * Tests audibility of sounds from a location towards an actor. */
-uint32_t actor_audibility_at_point(uint32_t actor_handle, float *eye_pos, float *sound_pos, int sound_cluster, int16_t sound_type, uint32_t range_scale, int16_t blockage_res)
+uint32_t actor_audibility_at_point(uint32_t actor_handle, void *sense_block, float *sound_pos, void *sound_location, int16_t sound_type, float range_scale, int16_t blockage_res)
 {
+  float *eye_pos;
+  char *sound_cluster;
   char *actor;
   char *tag;
   float max_range;
@@ -3294,6 +3296,9 @@ uint32_t actor_audibility_at_point(uint32_t actor_handle, float *eye_pos, float 
   float real_dist;
   uint8_t enc_byte;
   char *debug_entry;
+
+  eye_pos = (float *)sense_block;
+  sound_cluster = (char *)sound_location;
 
   if (sound_type == 0) {
     return 0;
