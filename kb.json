@@ -43934,7 +43934,7 @@
         },
         {
           "addr": "0x115430",
-          "decl": "int FUN_00115430(void *z);",
+          "decl": "int FUN_00115430(int z);",
           "ported": true
         },
         {
@@ -43944,7 +43944,7 @@
         },
         {
           "addr": "0x1155c0",
-          "decl": "int inflateInit_(void *z, const char *version, int stream_size);",
+          "decl": "int inflateInit_(int z, char *version, int stream_size);",
           "ported": true
         },
         {

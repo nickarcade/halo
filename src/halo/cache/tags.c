@@ -1226,7 +1226,7 @@ void cache_copy_initialize_zlib(int32_t a0)
   *(uint32_t *)(a0 + 0x90c) = 0;
   *(uint32_t *)(a0 + 0x914) = 0;
   *(uint32_t *)(a0 + 0x918) = 0;
-  inflateInit_((void *)(a0 + 0x908), (const char *)0x28ce40, 0x38);
+  inflateInit_(a0 + 0x908, (char *)0x28ce40, 0x38);
 }
 
 /* 0x1ba630 — cache_copy_dispose_zlib */
@@ -1236,7 +1236,7 @@ void cache_copy_dispose_zlib(void)
 
   self = *(unsigned char **)0x32ea98;
   if (self != NULL) {
-    inflateEnd((void *)(self + 0x908));
+    inflateEnd((int)(self + 0x908));
     *(uint32_t *)(self + 0x908) = 0;
     *(uint32_t *)(self + 0x90c) = 0;
     *(uint32_t *)(self + 0x914) = 0;
