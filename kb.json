@@ -54342,7 +54342,9 @@
         {
           "addr": "0x1686c0",
           "decl": "void rasterizer_bitmap_3d_changed(void *bitmap@<edi>);",
-          "comment": "[NAME: rasterizer_bitmap_3d_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14] [ABI: bitmap@<edi> \u2014 disasm at call site 0x168b90 (MOV EDI,ESI before CALL) plus callee prologue TEST EDI,EDI / [EDI+0x28]/[EDI+0x2c]/[EDI+0x14] reads, confirmed via ghidra disassemble_function 0x1686c0]"
+          "comment": "[NAME: rasterizer_bitmap_3d_changed \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14] [ABI: bitmap@<edi> \u2014 disasm at call site 0x168b90 (MOV EDI,ESI before CALL) plus callee prologue TEST EDI,EDI / [EDI+0x28]/[EDI+0x2c]/[EDI+0x14] reads, confirmed via ghidra disassemble_function 0x1686c0]",
+          "ported": true,
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x1688d0",
@@ -54388,86 +54390,100 @@
         {
           "addr": "0x1682a0",
           "decl": "void IDirect3DBaseTexture8_Release(uint32_t a0);",
-          "ported": false,
-          "name": "IDirect3DBaseTexture8_Release"
+          "ported": true,
+          "name": "IDirect3DBaseTexture8_Release",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x1682b0",
           "decl": "void __stdcall D3DTexture_UnlockRect_0(int param_1, int param_2);",
-          "ported": false,
-          "name": "D3DTexture_UnlockRect_0"
+          "ported": true,
+          "name": "D3DTexture_UnlockRect_0",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x1682e0",
           "decl": "uint32_t __stdcall IDirect3DTexture8_UnlockRect_0(int param_1, int param_2);",
-          "ported": false,
-          "name": "IDirect3DTexture8_UnlockRect_0"
+          "ported": true,
+          "name": "IDirect3DTexture8_UnlockRect_0",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x1682f0",
           "decl": "void __stdcall D3DVolumeTexture_UnlockBox(int param_1, int param_2);",
-          "ported": false,
-          "name": "D3DVolumeTexture_UnlockBox"
+          "ported": true,
+          "name": "D3DVolumeTexture_UnlockBox",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168320",
           "decl": "uint32_t __stdcall IDirect3DVolumeTexture8_UnlockBox(int param_1, int param_2);",
-          "ported": false,
-          "name": "IDirect3DVolumeTexture8_UnlockBox"
+          "ported": true,
+          "name": "IDirect3DVolumeTexture8_UnlockBox",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168330",
           "decl": "void __stdcall D3DCubeTexture_UnlockRect(int param_1, int param_2, int param_3);",
-          "ported": false,
-          "name": "D3DCubeTexture_UnlockRect"
+          "ported": true,
+          "name": "D3DCubeTexture_UnlockRect",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168360",
           "decl": "uint32_t __stdcall IDirect3DCubeTexture8_UnlockRect(int param_1, int param_2, int param_3);",
-          "ported": false,
-          "name": "IDirect3DCubeTexture8_UnlockRect"
+          "ported": true,
+          "name": "IDirect3DCubeTexture8_UnlockRect",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168c00",
           "decl": "void __stdcall D3DResource_MoveResourceMemory(int param_1, int param_2);",
-          "ported": false,
-          "name": "D3DResource_MoveResourceMemory"
+          "ported": true,
+          "name": "D3DResource_MoveResourceMemory",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168c10",
           "decl": "void __stdcall D3DVertexBuffer_MoveResourceMemory(int param_1, int param_2);",
-          "ported": false,
-          "name": "D3DVertexBuffer_MoveResourceMemory"
+          "ported": true,
+          "name": "D3DVertexBuffer_MoveResourceMemory",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168c20",
           "decl": "void __stdcall D3DVertexBuffer_Unlock_0(int param_1);",
-          "ported": false,
-          "name": "D3DVertexBuffer_Unlock_0"
+          "ported": true,
+          "name": "D3DVertexBuffer_Unlock_0",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168c30",
           "decl": "void IDirect3DVertexBuffer8_Release_0(uint32_t a0);",
-          "ported": false,
-          "name": "IDirect3DVertexBuffer8_Release_0"
+          "ported": true,
+          "name": "IDirect3DVertexBuffer8_Release_0",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168c60",
           "decl": "uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_0(int param_1);",
-          "ported": false,
-          "name": "IDirect3DVertexBuffer8_Unlock_0"
+          "ported": true,
+          "name": "IDirect3DVertexBuffer8_Unlock_0",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168c80",
           "decl": "void __stdcall D3DIndexBuffer_Unlock(int param_1);",
-          "ported": false,
-          "name": "D3DIndexBuffer_Unlock"
+          "ported": true,
+          "name": "D3DIndexBuffer_Unlock",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         },
         {
           "addr": "0x168c90",
           "decl": "void IDirect3DIndexBuffer8_Release(uint32_t a0);",
-          "ported": false,
-          "name": "IDirect3DIndexBuffer8_Release"
+          "ported": true,
+          "name": "IDirect3DIndexBuffer8_Release",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_bitmaps.c"
         }
       ]
     },

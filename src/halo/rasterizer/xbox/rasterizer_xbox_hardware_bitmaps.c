@@ -269,6 +269,93 @@ void rasterizer_bitmap_2d_changed(void *bitmap /* @<esi> */)
 }
 
 /*
+ * rasterizer_bitmap_3d_changed @ 0x1686c0 — re-upload every mip level of a
+ * 3D volume texture (bitmap->hardware_format at +0x28). The bitmap arrives in
+ * EDI (bitmap@<edi> per kb.json). Mip levels 0..[+0x14] are locked with
+ * D3DLOCK_NOOVERWRITE (0x20). Bitmaps with flag bit 1 at +0xe set are copied
+ * slice by slice with csmemcpy(pixel_data_size / depth); uncompressed are
+ * swizzled with rasterizer_xbox_bitmap_swizzle3d_*.
+ */
+/* 0x1686c0 */
+void rasterizer_bitmap_3d_changed(void *bitmap /* @<edi> */)
+{
+  char *bm;
+  char success;
+  short mipmap_index;
+  int locked_box[3];
+  char *dst;
+  char *src;
+  short width;
+  short height;
+  short depth;
+  short z;
+  int slice_size;
+
+  bm = (char *)bitmap;
+  success = 1;
+  if (bitmap == NULL) {
+    display_assert(
+      "bitmap",
+      "c:\\halo\\SOURCE\\rasterizer\\xbox\\rasterizer_xbox_hardware_bitmaps.c",
+      0xcb, true);
+    system_exit(-1);
+  }
+  if (*(void **)0x476ab0 != NULL && *(int *)(bm + 0x2c) != 0 &&
+      *(void **)(bm + 0x28) != NULL) {
+    for (mipmap_index = 0; success && mipmap_index <= *(short *)(bm + 0x14);
+         mipmap_index++) {
+      D3DVolumeTexture_LockBox(*(void **)(bm + 0x28), (uint32_t)mipmap_index,
+                               locked_box, NULL, 0x20);
+      if (success && (void *)locked_box[2] != NULL) {
+        src = (char *)bitmap_mipmap_address(bitmap, mipmap_index);
+        dst = (char *)locked_box[2];
+        width = bitmap_mipmap_get_width(bitmap, mipmap_index);
+        height = bitmap_mipmap_get_height(bitmap, mipmap_index);
+        depth = bitmap_mipmap_get_depth(bitmap, mipmap_index);
+        if ((*(unsigned char *)(bm + 0xe) & 2) != 0) {
+          if (depth >= 1) {
+            slice_size = bitmap_mipmap_get_pixel_data_size(bitmap, mipmap_index) / depth;
+            for (z = 0; z < depth; z++) {
+              csmemcpy(dst, src, slice_size);
+              src += slice_size;
+              dst += locked_box[1];
+            }
+          }
+        } else {
+          switch (bitmap_format_get_bits_per_pixel(*(unsigned short *)(bm + 0xc)) /
+                  8) {
+          case 1:
+            rasterizer_xbox_bitmap_swizzle3d_byte(dst, src, width, height, depth);
+            break;
+          case 2:
+            rasterizer_xbox_bitmap_swizzle3d_word(dst, src, width, height, depth);
+            break;
+          case 4:
+            rasterizer_xbox_bitmap_swizzle3d_long(dst, src, width, height, depth);
+            break;
+          default:
+            display_assert("### ERROR uncompressed bitmap format does not "
+                           "have 1,2 or 4 bytes per pixel",
+                           "c:\\halo\\SOURCE\\rasterizer\\xbox\\"
+                           "rasterizer_xbox_hardware_bitmaps.c",
+                           0xf9, true);
+            system_exit(-1);
+            break;
+          }
+        }
+        success = 1;
+      } else {
+        error(2, "### ERROR failed to lock surface");
+        success = 0;
+      }
+    }
+    if (!success) {
+      error(2, "### ERROR failed to change bitmap hardware format");
+    }
+  }
+}
+
+/*
  * rasterizer_bitmap_cm_changed @ 0x1688d0 — re-upload every mip level of
  * all six faces of a cube-map bitmap into its D3D cube texture
  * (bitmap->hardware_format at +0x28). The bitmap arrives in ESI (TEST
@@ -505,4 +592,102 @@ int IDirect3DIndexBuffer8_Lock(int base, int *result, int offset, int unused_1, 
   (void)unused_2;
   *result = *(int *)(base + 4) + offset;
   return 0;
+}
+
+/* 0x1682a0 — IDirect3DBaseTexture8_Release */
+void IDirect3DBaseTexture8_Release(uint32_t a0)
+{
+  D3DResource_Release((void *)a0);
+}
+
+/* 0x1682b0 — D3DTexture_UnlockRect_0 */
+void __stdcall D3DTexture_UnlockRect_0(int param_1, int param_2)
+{
+  (void)param_1;
+  (void)param_2;
+}
+
+/* 0x1682e0 — IDirect3DTexture8_UnlockRect_0 */
+uint32_t __stdcall IDirect3DTexture8_UnlockRect_0(int param_1, int param_2)
+{
+  (void)param_1;
+  (void)param_2;
+  return 0;
+}
+
+/* 0x1682f0 — D3DVolumeTexture_UnlockBox */
+void __stdcall D3DVolumeTexture_UnlockBox(int param_1, int param_2)
+{
+  (void)param_1;
+  (void)param_2;
+}
+
+/* 0x168320 — IDirect3DVolumeTexture8_UnlockBox */
+uint32_t __stdcall IDirect3DVolumeTexture8_UnlockBox(int param_1, int param_2)
+{
+  (void)param_1;
+  (void)param_2;
+  return 0;
+}
+
+/* 0x168330 — D3DCubeTexture_UnlockRect */
+void __stdcall D3DCubeTexture_UnlockRect(int param_1, int param_2, int param_3)
+{
+  (void)param_1;
+  (void)param_2;
+  (void)param_3;
+}
+
+/* 0x168360 — IDirect3DCubeTexture8_UnlockRect */
+uint32_t __stdcall IDirect3DCubeTexture8_UnlockRect(int param_1, int param_2, int param_3)
+{
+  (void)param_1;
+  (void)param_2;
+  (void)param_3;
+  return 0;
+}
+
+/* 0x168c00 — D3DResource_MoveResourceMemory */
+void __stdcall D3DResource_MoveResourceMemory(int param_1, int param_2)
+{
+  (void)param_1;
+  (void)param_2;
+}
+
+/* 0x168c10 — D3DVertexBuffer_MoveResourceMemory */
+void __stdcall D3DVertexBuffer_MoveResourceMemory(int param_1, int param_2)
+{
+  (void)param_1;
+  (void)param_2;
+}
+
+/* 0x168c20 — D3DVertexBuffer_Unlock_0 */
+void __stdcall D3DVertexBuffer_Unlock_0(int param_1)
+{
+  (void)param_1;
+}
+
+/* 0x168c30 — IDirect3DVertexBuffer8_Release_0 */
+void IDirect3DVertexBuffer8_Release_0(uint32_t a0)
+{
+  D3DResource_Release((void *)a0);
+}
+
+/* 0x168c60 — IDirect3DVertexBuffer8_Unlock_0 */
+uint32_t __stdcall IDirect3DVertexBuffer8_Unlock_0(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x168c80 — D3DIndexBuffer_Unlock */
+void __stdcall D3DIndexBuffer_Unlock(int param_1)
+{
+  (void)param_1;
+}
+
+/* 0x168c90 — IDirect3DIndexBuffer8_Release */
+void IDirect3DIndexBuffer8_Release(uint32_t a0)
+{
+  D3DResource_Release((void *)a0);
 }
