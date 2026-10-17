@@ -2075,7 +2075,7 @@ void actor_emotion_update(int actor_handle)
                 actor_handle, iter[0], (float *)&friend_position)) {
             blocked = actor_perception_aiming_vector_test_blockage(
               (float *)(prop + 0xbc), (float *)&friend_position,
-              (int)(actor + 0x12c), (int)&blockage_vector);
+              (float *)(actor + 0x12c), (float *)&blockage_vector);
             if (blocked >= 1) {
               *(char *)(actor + 0x35d) = 1;
               if (*(char *)(prop + 0x12e) != 0) {
@@ -2094,7 +2094,7 @@ void actor_emotion_update(int actor_handle)
                                    (float *)&scaled_position);
                 blocked2 = actor_perception_aiming_vector_test_blockage(
                   (float *)(prop + 0xbc), (float *)&friend_position,
-                  (int)&scaled_position, 0);
+                  (float *)&scaled_position, 0);
                 if (blocked2 <= blocked) {
                   blocked2 = blocked;
                 }
@@ -2118,7 +2118,7 @@ void actor_emotion_update(int actor_handle)
           if (check_target) {
             blocked = actor_perception_aiming_vector_test_blockage(
               (float *)(actor + 0x12c), (float *)&target_vector,
-              (int)(prop + 0xbc), 0);
+              (float *)(prop + 0xbc), 0);
             if (blocked >= 2) {
               *(char *)(actor + 0x35e) = 1;
             }
@@ -3480,7 +3480,7 @@ void prop_position_refresh(int actor_handle, int prop_handle, void *out_data, in
     if (!*(char *)(prop + 0x4e)) {
       bool v3 = false;
       if ((*(uint8_t *)(obj + 0xb6) & 4) && *(short *)(obj + 0x3d0) == 0 &&
-          (*(short *)(prop + 0x30) == 0 && magnitude_squared3d((float *)(obj + 0x18)) < 0.25f)) {
+          (*(short *)(prop + 0x30) == 0 && magnitude_squared3d((const real_vector3d *)(obj + 0x18)) < 0.25f)) {
         v3 = true;
       }
       if (*(int *)(actor + 0x270) != prop_handle || (*(char *)(prop + 0xb9) && *(char *)(prop + 0xba))) {

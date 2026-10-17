@@ -1,4 +1,5 @@
 #include "x87_math.h"
+#include "halo/math/real_math.h"
 
 /* 0x20f80 — Check whether an actor meets conditions for a given combat mode.
  * mode 1: actor.field_60c==1 and field_268>=8
@@ -984,14 +985,14 @@ uint32_t actor_get_grenade_definition(int16_t a0)
 {
   int elem;
 
-  elem = (int)tag_block_get_element_with_size((void *)(scenario_get_game_globals(a0, 0x44) + 0x128), 0, 0x44);
+  elem = (int)tag_block_get_element_with_size((char *)game_globals_get() + 0x128, a0, 0x44);
   if (!elem) {
     return 0;
   }
   if (*(int *)(elem + 0x40) == -1) {
     return 0;
   }
-  return tag_get(0x70726f6a, *(int *)(elem + 0x40)); /* 'proj' */
+  return (uint32_t)tag_get(0x70726f6a, *(int *)(elem + 0x40)); /* 'proj' */
 }
 
 /* 0x000218d0 — actor_combat_build_grenade_trajectory
@@ -1010,12 +1011,12 @@ char actor_combat_build_grenade_trajectory(float *position /* @<eax> */, float *
     system_exit(-1);
   }
 
-  globals_elem = (int)tag_block_get_element_with_size((void *)(scenario_get_game_globals(definition_index, 0x44) + 0x128), 0, 0x44);
+  globals_elem = (int)tag_block_get_element_with_size((char *)game_globals_get() + 0x128, definition_index, 0x44);
   if (globals_elem != 0 && *(int *)(globals_elem + 0x40) != -1) {
     proj_tag = (int)tag_get(0x70726f6a, *(int *)(globals_elem + 0x40)); /* 'proj' */
     if (proj_tag != 0) {
       flag_v9 = 0;
-      result = projectile_aim(proj_tag, (int)position, (int)point, (int *)&definition_field_190, 0, param_6, 0, 0);
+      result = projectile_aim(proj_tag, (int)position, (int)point, &definition_field_190, 0, param_6, 0, 0, (int)out_aim_direction, (int)out_speed, (int)out_target, param_7, &flag_v9);
       if (result) {
         if (out_impact_point) {
           spd = *out_speed;
@@ -1036,130 +1037,6 @@ char actor_combat_build_grenade_trajectory(float *position /* @<eax> */, float *
     }
   }
   return 0;
-}
-
-/* 0x00021ae0 — actor_combat_check_collateral_damage
- * Evaluates whether friendly units or allies would suffer collateral damage.
- */
-char actor_combat_check_collateral_damage(int actor_handle, float range, float param3, float *encounter_pos, short *out_count)
-{
-  char *actor;
-  int16_t hit_count;
-  char is_safe;
-  int prop;
-  char piter[8];
-  char aiter[4];
-  int other_actor;
-  float dx;
-  float dy;
-  float dz;
-  int friend_list[32];
-  int friend_count;
-  int i;
-
-  actor = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
-  tag_get(0x61637476, *(unsigned int *)(actor + 0x5c));
-  friend_count = 0;
-  is_safe = 1;
-  hit_count = 0;
-
-  prop_iterator_new(piter, actor_handle);
-  prop = (int)prop_iterator_next(piter);
-  while (prop != 0) {
-    char *p = (char *)prop;
-    int16_t pstate = *(int16_t *)(p + 0x24);
-    if ((pstate >= 2 && pstate <= 3) && (*(char *)(p + 0x127) == '\0')) {
-      if (*(char *)(p + 0x60) != '\0') {
-        dx = encounter_pos[0] - *(float *)(p + 0xbc);
-        dy = encounter_pos[1] - *(float *)(p + 0xc0);
-        dz = encounter_pos[2] - *(float *)(p + 0xc4);
-        if (dx * dx + dy * dy + dz * dz < range * range) {
-          if (*(char *)(p + 0x12e) != '\0') {
-            hit_count += 10;
-          } else if (*(int *)(p + 0x110) != -1) {
-            hit_count += 5;
-          } else {
-            int target_actor = *(int *)(p + 0x1c);
-            if (target_actor != -1) {
-              if (friend_count < 32) {
-                friend_list[friend_count++] = target_actor;
-              }
-              if (*(char *)(p + 0x14) != '\0') {
-                char *ta = (char *)datum_get(*(data_t **)0x6325a4, target_actor);
-                hit_count += *(int16_t *)(ta + 0x1e);
-              } else {
-                hit_count++;
-              }
-            }
-          }
-        }
-      } else if (param3 > *(float *)0x2533c0) {
-        dx = encounter_pos[0] - *(float *)(p + 0xbc);
-        dy = encounter_pos[1] - *(float *)(p + 0xc0);
-        dz = encounter_pos[2] - *(float *)(p + 0xc4);
-        if (dx * dx + dy * dy + dz * dz < param3 * param3) {
-          is_safe = 0;
-          break;
-        }
-      }
-    }
-    prop = (int)prop_iterator_next(piter);
-  }
-
-  if (range > *(float *)0x2533c0 && *(int *)(actor + 0x270) != -1) {
-    char *p270 = (char *)datum_get(*(data_t **)0x5ab23c, *(int *)(actor + 0x270));
-    if (*(int *)(p270 + 0x1c) != -1) {
-      char *act270 = (char *)datum_get(*(data_t **)0x6325a4, *(int *)(p270 + 0x1c));
-      if (*(int *)(act270 + 0x34) != -1) {
-        encounter_actor_iterator_new(aiter, *(int *)(act270 + 0x34));
-        other_actor = (int)encounter_actor_iterator_next(aiter);
-        while (other_actor != 0) {
-          char *oa = (char *)other_actor;
-          bool already_counted = 0;
-          for (i = 0; i < friend_count; i++) {
-            if (friend_list[i] == *(int *)piter) {
-              already_counted = 1;
-              break;
-            }
-          }
-          if (!already_counted) {
-            dx = encounter_pos[0] - *(float *)(oa + 300);
-            dy = encounter_pos[1] - *(float *)(oa + 0x130);
-            dz = encounter_pos[2] - *(float *)(oa + 0x134);
-            if (dx * dx + dy * dy + dz * dz < range * range) {
-              if (*(char *)(oa + 6) != '\0') {
-                hit_count += *(int16_t *)(oa + 0x1e);
-              } else {
-                hit_count++;
-              }
-            }
-          }
-          other_actor = (int)encounter_actor_iterator_next(aiter);
-        }
-      }
-    }
-  }
-
-  if (is_safe && *(int *)(actor + 0x34) != -1 && param3 > *(float *)0x2533c0) {
-    encounter_actor_iterator_new(aiter, *(int *)(actor + 0x34));
-    other_actor = (int)encounter_actor_iterator_next(aiter);
-    while (other_actor != 0) {
-      char *oa = (char *)other_actor;
-      dx = encounter_pos[0] - *(float *)(oa + 300);
-      dy = encounter_pos[1] - *(float *)(oa + 0x130);
-      dz = encounter_pos[2] - *(float *)(oa + 0x134);
-      if (dx * dx + dy * dy + dz * dz < param3 * param3) {
-        is_safe = 0;
-        break;
-      }
-      other_actor = (int)encounter_actor_iterator_next(aiter);
-    }
-  }
-
-  if (out_count) {
-    *out_count = hit_count;
-  }
-  return is_safe;
 }
 
 /* 0x000220c0 — actor_aim_projectile
@@ -1332,7 +1209,7 @@ void actor_combat_update(int actor_handle)
       blocker_handle = *(int *)(prop + 0x114);
       diff_val = game_difficulty_get_team_value(16, *(int16_t *)(actor + 0x3e));
       if ((diff_val + *(float *)(actv + 0xbc) > *(float *)0x2533c0) && (*(char *)(actor + 0x623) == '\0')) {
-        vector_from_points3d((float *)(actor + 0x64c), (float *)(prop + 200), offset);
+        vector_from_points3d((const real_point3d *)(actor + 0x64c), (const real_point3d *)(prop + 200), (real_vector3d *)offset);
         point_from_line3d(offset, (float *)(actor + 0x64c), *(float *)(actv + 0xbc), (float *)(actor + 0x65c));
       }
       *(float *)(combat_globals + 0x1c) = *(float *)(actor + 0x65c);

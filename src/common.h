@@ -61,7 +61,8 @@ double __cdecl fabs(double);
 #define FUN_00181670 rasterizer_lens_flare_submit
 #define scenario_fog_at_point FUN_0018e690
 #define fpatan(y, x) ((float)xbox_atan2((double)(y), (double)(x)))
-#define scenario_location_deafening FUN_0018e5c0
+#define scenario_location_deafening(loc) FUN_0018e5c0((int)(loc))
+#define game_difficulty_get_team_value FUN_000b55b0
 #define global_structure_bsp_get scenario_get
 #define object_mark_function object_mark
 #define object_get_origin(handle, pos) object_get_world_position((handle), (vector3_t *)(pos))
