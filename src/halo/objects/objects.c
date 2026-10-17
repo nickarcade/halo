@@ -14889,9 +14889,6 @@ void unit_get_center_of_mass(int object_handle, float *out_position)
  * Campaign 5.3 lifts: remaining 29 functions in objects.obj
  * ========================================================================= */
 
-void data_make_valid(void *data);
-void data_make_invalid(void *data);
-
 /* 0x85380 */
 uint16_t scripted_camera_next_camera_point(void)
 {
