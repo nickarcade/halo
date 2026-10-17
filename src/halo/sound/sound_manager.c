@@ -939,6 +939,132 @@ void dsound_virtual_set_location(int channel_index, char flag_0c,
   }
 }
 
+struct dsound_waveformat_ex {
+  unsigned short wFormatTag;
+  unsigned short nChannels;
+  uint32_t nSamplesPerSec;
+  uint32_t nAvgBytesPerSec;
+  unsigned short nBlockAlign;
+  unsigned short wBitsPerSample;
+  unsigned short cbSize;
+  unsigned short extra;
+};
+
+struct dsound_stream_desc {
+  uint32_t dwFlags;
+  uint32_t dwMaxAttachedPackets;
+  void *lpwfxFormat;
+  void *lpfnCallback;
+  void *lpvContext;
+  void *lpMixBinsOutput;
+};
+
+/* dsound_initialize_channel (0x1cb210)
+ *
+ * Configures an individual DirectSound channel stream, speaker mix bins,
+ * and location properties. */
+boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_index)
+{
+  void *channel;
+  struct dsound_stream_desc desc;
+  struct dsound_waveformat_ex wfx;
+  int result;
+  float loc_params[11];
+  uint32_t speaker_config;
+  long bin_vols[6];
+  float properties[8];
+
+  channel = sound_dsound_channel_get(channel_index);
+  *(short *)((char *)channel + 0x38) = type_flags;
+  *(unsigned short *)((char *)channel + 0x2) = 0xffff;
+  *((char *)channel + 0x6) = 0;
+  *(uint32_t *)((char *)channel + 0x68) = 0;
+  *(uint32_t *)((char *)channel + 0x6c) = 0;
+
+  csmemset(&wfx, 0, sizeof(wfx));
+  if (type_flags & 8) {
+    wfx.wFormatTag = 0x69;
+    wfx.wBitsPerSample = 4;
+    wfx.nChannels = (unsigned short)(((type_flags & 2) != 0) + 1);
+    wfx.nBlockAlign = (unsigned short)(wfx.nChannels * 0x24);
+    wfx.nSamplesPerSec = sound_dsound_get_sample_rate((type_flags >> 2) & 1);
+    wfx.nAvgBytesPerSec = (wfx.nSamplesPerSec >> 6) * (uint32_t)wfx.nBlockAlign;
+    wfx.cbSize = 2;
+    wfx.extra = 0x40;
+  } else {
+    wfx.wFormatTag = 1;
+    wfx.wBitsPerSample = 16;
+    wfx.nChannels = 2;
+    wfx.nBlockAlign = 4;
+    wfx.nSamplesPerSec = *(uint32_t *)0x2bcc1c;
+    wfx.nAvgBytesPerSec = *(uint32_t *)0x2bcc1c << 2;
+    wfx.cbSize = 0;
+  }
+
+  csmemset(&desc, 0, sizeof(desc));
+  desc.dwMaxAttachedPackets = 4;
+  desc.lpwfxFormat = &wfx;
+  desc.dwFlags = (type_flags & 1) ? 0x10 : 0;
+  desc.lpfnCallback = (void *)0x1ca970;
+  desc.lpvContext = (void *)(int)channel_index;
+
+  result = IDirectSound_CreateSoundStream(
+    *(void **)0x50545c, &desc,
+    (void **)((char *)channel + 0x70), NULL);
+  if (result < 0) {
+    sound_dsound_log_error(result, "couldn't create sound stream.");
+    return false;
+  }
+
+  if (type_flags & 1) {
+    csmemset(loc_params, 0, sizeof(loc_params));
+    loc_params[3] = (*(const float **)0x31fc3c)[0];
+    loc_params[4] = (*(const float **)0x31fc3c)[1];
+    loc_params[5] = (*(const float **)0x31fc3c)[2];
+    dsound_channel_set_location(channel_index, 0, loc_params, 0.0f, 0.0f, 0);
+  } else {
+    speaker_config = 0;
+    IDirectSound_GetSpeakerConfig(*(void **)0x50545c, &speaker_config);
+    if (speaker_config & 0x10000) {
+      if (type_flags & 2) {
+        bin_vols[0] = sound_dsound_gain_to_volume(1.0f, 0);
+        bin_vols[1] = sound_dsound_gain_to_volume(1.0f, 0);
+        bin_vols[2] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[3] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[4] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[5] = sound_dsound_gain_to_volume(0.5f, 0);
+        IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
+                                     (void *)0x1833);
+        CDirectSoundStream_SetMixBinVolumes_12(
+          *(void **)((char *)channel + 0x70), 0x1833, bin_vols);
+      } else {
+        bin_vols[0] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[1] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[2] = sound_dsound_gain_to_volume(0.5f, 0);
+        IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
+                                     (void *)7);
+        CDirectSoundStream_SetMixBinVolumes_12(
+          *(void **)((char *)channel + 0x70), 7, bin_vols);
+      }
+    } else {
+      if (!(type_flags & 2)) {
+        bin_vols[0] = sound_dsound_gain_to_volume(0.5f, 0);
+        bin_vols[1] = sound_dsound_gain_to_volume(0.5f, 0);
+        IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
+                                     (void *)3);
+        CDirectSoundStream_SetMixBinVolumes_12(
+          *(void **)((char *)channel + 0x70), 3, bin_vols);
+      }
+    }
+  }
+
+  csmemset(properties, 0, sizeof(properties));
+  properties[0] = 1.0f;
+  properties[1] = 1.0f;
+  sound_dsound_update_channel_properties(properties, channel_index, 0);
+  return true;
+}
+
 /* sound_valid_for_channel (0x1cb790)
  *
  * Check whether a sound definition's compression, encoding, sample_rate,

@@ -36,6 +36,52 @@ void player_effect_dispose_from_old_map(void)
 {
 }
 
+/* player_effect_add_continuous_effect (0xa27a0) */
+void player_effect_add_continuous_effect(short local_player_index, uint32_t tag_index, float current_distance)
+{
+  char *effect;
+  float *cdmg_tag;
+  real scale;
+  real factor;
+  real blend;
+  real val_a;
+  real val_b;
+
+  cdmg_tag = (float *)tag_get(0x63646d67, tag_index); /* 'cdmg' */
+  if (current_distance < cdmg_tag[1]) {
+    effect = player_effect_get(local_player_index);
+    scale = 1.0f - (current_distance - cdmg_tag[0]) / (cdmg_tag[0] - cdmg_tag[1]);
+    if (scale < 0.0f) {
+      scale = 0.0f;
+    } else if (scale > 1.0f) {
+      scale = 1.0f;
+    }
+
+    factor = (real)FUN_0010a5e0(*(uint16_t *)((char *)cdmg_tag + 0x58), (real)game_time_get() / cdmg_tag[0x17]);
+    blend = ((factor * cdmg_tag[0x18]) + (1.0f - cdmg_tag[0x18])) * scale;
+
+    if (*(int16_t *)(effect + 0xdc) >= 1) {
+      *(uint16_t *)(effect + 0xdc) = 0;
+      csmemset(effect + 0xcc, 0, 0x10);
+    }
+
+    val_a = blend * cdmg_tag[0x11];
+    if (val_a <= 0.0f) {
+      val_a = 0.0f;
+    }
+    *(float *)(effect + 0xd4) += val_a;
+
+    val_b = blend * cdmg_tag[0x12];
+    if (val_b <= 0.0f) {
+      val_b = 0.0f;
+    }
+    *(float *)(effect + 0xd8) += val_b;
+
+    *(float *)(effect + 0xcc) += scale * cdmg_tag[9];
+    *(float *)(effect + 0xd0) += scale * cdmg_tag[10];
+  }
+}
+
 /* scripted_player_effect_set_rotation -- store the three script-supplied
  * rotation components, each scaled by the constant at 0x253d4c
  * (0.017453292f, degrees to radians), into the player-effect globals.
@@ -343,6 +389,35 @@ void player_effect_update(void)
     csmemset(player_effect_get(local_player_index), 0, sizeof(player_effect_t));
     rumble_player_clear(local_player_index);
     local_player_index = (int16_t)local_player_get_next(local_player_index);
+  }
+}
+
+/* player_effect_continuous_refresh (0xa2d30) */
+void player_effect_continuous_refresh(uint32_t tag_index, void *position)
+{
+  int16_t i;
+  int player_index;
+  char *player;
+  int unit_index;
+  vector3_t victim_pos;
+  float *pos;
+  float dx, dy, dz, dist;
+
+  pos = (float *)position;
+  for (i = 0; i < 4; i++) {
+    player_index = local_player_get_player_index(i);
+    if (player_index != -1) {
+      player = (char *)datum_get(*(data_t **)0x5aa6d4, player_index);
+      unit_index = *(int *)(player + 0x34);
+      if (unit_index != -1) {
+        object_get_world_position(unit_index, &victim_pos);
+        dx = pos[0] - victim_pos.x;
+        dy = pos[1] - victim_pos.y;
+        dz = pos[2] - victim_pos.z;
+        dist = x87_sqrt(dx * dx + dy * dy + dz * dz);
+        player_effect_add_continuous_effect(i, tag_index, dist);
+      }
+    }
   }
 }
 
@@ -936,6 +1011,68 @@ void player_effect_get_camera_effect_matrix(int16_t local_player_index,
     effect->field_e2 -= game_time_get_elapsed();
     matrix4x3_multiply(matrix, (float *)&effect_matrix, matrix);
   }
+}
+
+/* player_effect_update_camera_impulse (0xa3890) */
+void player_effect_update_camera_impulse(int unit_index, float *rumble_def, void *direction, float damage_amount, float scale, float *effect /* @<eax> */)
+{
+  vector3_t dir_norm;
+  vector3_t facing;
+  vector3_t perp;
+  float *facing_angles;
+  float scale_ticks;
+  float scaled_intensity;
+  float current_timer;
+  float angle;
+  float impulse_rot;
+  vector3_t impulse_vec;
+
+  game_time_get();
+  scale_ticks = scale * 30.0f;
+  scaled_intensity = (1.0f - rumble_def[6]) * damage_amount + rumble_def[6];
+  current_timer = (float)*(int16_t *)((char *)effect + 0xe0);
+
+  if ((current_timer < effect[0x14]) || (effect[0x1a] < scaled_intensity) ||
+      (effect[0x1a] <= scaled_intensity && (current_timer < scale_ticks * rumble_def[0]))) {
+    dir_norm = *(vector3_t *)direction;
+    dir_norm.z = 0.0f;
+    normalize3d((float *)&dir_norm);
+
+    facing_angles = (float *)player_control_get_facing_angles(unit_index);
+    angles_to_vector((float *)&facing, facing_angles);
+    facing.z = 0.0f;
+    normalize3d((float *)&facing);
+
+    angle = ((float (*)(float *, float *))signed_angle_between_vectors2d)((float *)&facing, (float *)&dir_norm);
+
+    csmemcpy((char *)effect + 0x50, rumble_def, 0x34);
+    effect[0x14] *= scale_ticks;
+    effect[0x1a] = scaled_intensity;
+    *(int16_t *)((char *)effect + 0xe0) = (int16_t)effect[0x14];
+
+    effect[2] = 0.0f;
+    effect[0] = x87_fcos(angle);
+    effect[1] = x87_fsin(angle);
+
+    impulse_rot = random_real_range((int *)random_math_get_local_seed_address(), 0.0f, 6.2831853f);
+    cross_product3d((float *)0x31fc44, (float *)effect, (float *)&perp);
+    normalize3d((float *)&perp);
+
+    rotate_vector3d_by_sincos((float *)&perp, (float *)effect, x87_fsin(impulse_rot), x87_fcos(impulse_rot));
+    perp.x *= rumble_def[7];
+    perp.y *= rumble_def[7];
+    perp.z *= rumble_def[7];
+    *(vector3_t *)((char *)effect + 0x5c) = perp;
+    *(uint8_t *)((char *)effect + 0xe8) |= 2;
+  }
+
+  scaled_intensity = (1.0f - rumble_def[9]) * damage_amount + rumble_def[9];
+  player_control_get_facing_direction(unit_index, (float *)&facing);
+  cross_product3d((float *)&facing, (float *)direction, (float *)&impulse_vec);
+  impulse_vec.x *= rumble_def[8] * scaled_intensity;
+  impulse_vec.y *= rumble_def[8] * scaled_intensity;
+  impulse_vec.z *= rumble_def[8] * scaled_intensity;
+  player_control_permanent_impulse(unit_index, (float *)&impulse_vec);
 }
 
 /* player_effect_apply_damage (0xa3b80) — Apply damage-related effects to a

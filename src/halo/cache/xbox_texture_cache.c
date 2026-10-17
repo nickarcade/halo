@@ -739,3 +739,146 @@ void *xbox_texture_cache_get_hardware_format(void *hardware_format, bool block,
 
   return result;
 }
+
+extern void render_debug_line(char flag, float *point_a, float *point_b, void *color);
+extern void lruv_cache_get_page_usage(void *cache, uint8_t *page_usage);
+
+/* 0x1bef80: render_inverse_transform_screen_point — unproject 2D screen coordinate to 3D ray */
+void render_inverse_transform_screen_point(float *a0, float *a1, float *a2)
+{
+  float v1;
+  float v2;
+  float *v3;
+
+  v1 = a1[0] * *(float *)0x2a41b8;
+  v2 = *(float *)0x2533c8 - a1[1] * *(float *)0x2a41b4;
+  v3 = *(float **)0x31fc38;
+
+  a0[0] = *(float *)0x5066b4 + v3[0];
+  a0[1] = *(float *)0x5066b8 + v3[1];
+  a0[2] = *(float *)0x5066bc + v3[2];
+
+  a2[0] = ((*(float *)0x50669c - *(float *)0x506684) * v2 +
+           ((*(float *)0x506690 - *(float *)0x506684) * v1 + *(float *)0x506684)) - a0[0];
+  a2[1] = ((*(float *)0x5066a0 - *(float *)0x506688) * v2 +
+           ((*(float *)0x506694 - *(float *)0x506688) * v1 + *(float *)0x506688)) - a0[1];
+  a2[2] = ((*(float *)0x5066a4 - *(float *)0x50668c) * v2 +
+           ((*(float *)0x506698 - *(float *)0x50668c) * v1 + *(float *)0x50668c)) - a0[2];
+}
+
+/* 0x1bf260: texture_cache_debug_render — draw debug visualization and listing of texture cache */
+void texture_cache_debug_render(void)
+{
+  uint8_t page_usage[384];
+  void *colors[4];
+  short width_diff;
+  int col_x_step;
+  int i;
+  int bit;
+  float *ray_origin;
+  float ray_dir[3];
+  float point_screen[2];
+  float line_start[3];
+  float line_end[3];
+  float depth;
+  float denom;
+  float scale;
+  int step;
+  data_iter_t iterator;
+  void *datum;
+  int count;
+  int font;
+  int16_t tab_stops[2];
+  int j;
+  void *entry;
+  char *indicator;
+  const char *tag_name;
+  int size;
+  char text_buf[1024];
+  rectangle2d bounds;
+
+  if (*(uint8_t *)0x4ea988) {
+    width_diff = (short)(*(int16_t *)0x50658a - *(int16_t *)0x506586);
+    colors[0] = *(void **)0x2ee6d0;
+    colors[1] = *(void **)0x2ee6d4;
+    colors[2] = *(void **)0x2ee6d8;
+    colors[3] = NULL;
+
+    lruv_cache_get_page_usage(*(void **)0x4ea980, page_usage);
+
+    for (i = 0; i < 0x580; i++) {
+      col_x_step = (*(int *)0x506584 - *(int *)0x50657c) * 4;
+      for (bit = 0; bit < 3; bit++) {
+        if (page_usage[i] & (1 << bit)) {
+          int y_coord = col_x_step + (bit + (i / (int)width_diff) * 4) * 10;
+          point_screen[0] = (float)((*(int16_t *)0x506586 - *(int16_t *)0x50657e) + (i % (int)width_diff));
+          point_screen[1] = (float)y_coord;
+
+          depth = *(float *)0x50658c + *(float *)0x255ef8;
+
+          for (step = 0; step < 2; step++) {
+            if (step == 0) {
+              ray_origin = line_start;
+            } else {
+              ray_origin = line_end;
+              point_screen[1] = (float)(y_coord + 10);
+            }
+
+            render_inverse_transform_screen_point(ray_origin, point_screen, ray_dir);
+            denom = *(float *)0x50655c * ray_dir[0] + *(float *)0x506560 * ray_dir[1] + *(float *)0x506564 * ray_dir[2];
+            scale = depth / denom;
+            ray_origin[0] += ray_dir[0] * scale;
+            ray_origin[1] += ray_dir[1] * scale;
+            ray_origin[2] += ray_dir[2] * scale;
+          }
+
+          render_debug_line(1, line_start, line_end, colors[bit]);
+        }
+      }
+    }
+  }
+
+  if (!*(uint8_t *)0x4ea989)
+    return;
+
+  count = 0;
+  data_iterator_new(&iterator, *(data_t **)0x4ea978);
+  datum = data_iterator_next(&iterator);
+  while (datum != NULL) {
+    void *item = *(void **)((char *)datum + 8);
+    if (*(int *)((char *)item + 0x20) != -1) {
+      *(void **)(0x4e9378 + count * 4) = item;
+      count++;
+    }
+    datum = data_iterator_next(&iterator);
+  }
+
+  FUN_00091ef0((int *)0x4e9378, count, (int (*)(int, int))FUN_001becc0);
+
+  font = interface_get_tag_index(1);
+  tab_stops[0] = *(int16_t *)0x32565e;
+  tab_stops[1] = (int16_t)(tab_stops[0] + 0x6e);
+  draw_string_set_tab_stops(tab_stops, 2);
+
+  if (font != -1)
+    draw_string_set_font_tag(font);
+
+  for (j = count - 1; j >= 0; j--) {
+    entry = *(void **)(0x4e9378 + j * 4);
+    indicator = lruv_block_touched(*(void **)0x4ea980, *(int *)((char *)entry + 0x24)) ?
+                (char *)0x25386f : (char *)0x2686f4;
+    tag_name = tag_get_name(*(uint32_t *)((char *)entry + 0x20));
+    size = rasterizer_xbox_bitmap_get_pixel_data_size(entry);
+
+    csprintf(text_buf, (const char *)0x2b9874, size, indicator, tag_name);
+
+    bounds.top = (int16_t)((count - j) * 10 + 0x23);
+    bounds.bottom = (int16_t)(bounds.top + 10);
+    bounds.left = (int16_t)0x7fff;
+    bounds.right = (int16_t)0x7fff;
+
+    draw_string_set_color(*(void **)0x2ee6e0);
+    rasterizer_draw_string(&bounds, NULL, NULL, 0, text_buf);
+  }
+}
+

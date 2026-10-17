@@ -3772,3 +3772,10 @@ void player_profile_1wide_list_update(int *widget)
     *(short *)((char *)widget + 0x3c) = (short)clamped;
   }
 }
+
+/* 0xf0a90 */
+void widget_function_null(void)
+{
+  return;
+}
+

@@ -2544,6 +2544,37 @@ char FUN_00149c60(int *block_ptr, void *transformed_2c, void *transformed_20,
 
   return collision_bsp_test_pill(&data, 0);
 }
+
+/* 0x149ce0 - FUN_00149ce0 / collision_debug_render
+ *
+ * Debug render callback called from render_debug (0x18ac50).
+ */
+void FUN_00149ce0(void)
+{
+  short *depth_ptr;
+
+  depth_ptr = (short *)0x4761d8;
+  if (*depth_ptr >= 32) {
+    display_assert("stack_depth<MAXIMUM_DEBUG_RENDER_DEPTH",
+                   "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x4ea, 1);
+    system_exit(-1);
+  }
+
+  *(short *)(0x5a8c80 + *depth_ptr * 2) = 0x15;
+  *depth_ptr += 1;
+
+  if (*(char *)0x5a8d1f || *(char *)0x5a8d1e || *(char *)0x5a8d1d || *(char *)0x4761c0) {
+    /* Collision debug visualizers active */
+  }
+
+  if (*depth_ptr <= 0) {
+    display_assert("stack_depth>0",
+                   "c:\\halo\\SOURCE\\physics\\collision_bsp.c", 0x5a6, 1);
+    system_exit(-1);
+  }
+  *depth_ptr -= 1;
+}
+
 /* 0x14dc30 - Point-vs-world collision test. If any of the collision-type
  * flags (0xE0) are set, locate the BSP3D leaf containing `pos`; a leaf of -1
  * (point outside the BSP) reports a hit. When flag bit 7 (0x80) is set and the

@@ -2437,3 +2437,35 @@ int FUN_001506d0(void *out_point, float *direction, float *origin, float arg5,
   return FUN_00150550(out_point, direction, origin, 0, arg5, arg6, out_point2,
                       out_arg8, max_results, results);
 }
+
+/* 0x150ac0: FUN_00150ac0 / physics_test_point — test if 3D point is inside model collision spheres */
+char FUN_00150ac0(int *data, int *point)
+{
+  float local_point[3];
+  char *collision_model;
+  int count;
+  int i;
+  char *sphere;
+  float dx, dy, dz;
+  float dist_sq;
+  float radius_sq;
+
+  real_matrix3x3_transform_point((void *)(data + 2), (void *)point, local_point);
+  collision_model = *(char **)(data + 1);
+  count = *(int *)(collision_model + 0x74);
+
+  for (i = 0; i < count; i++) {
+    sphere = (char *)tag_block_get_element((void *)(collision_model + 0x74), i, 0x80);
+    dx = *(float *)(sphere + 0x38) - local_point[0];
+    dy = *(float *)(sphere + 0x3c) - local_point[1];
+    dz = *(float *)(sphere + 0x40) - local_point[2];
+    dist_sq = dx * dx + dy * dy + dz * dz;
+    radius_sq = *(float *)(sphere + 0x68) * *(float *)(sphere + 0x68);
+    if (dist_sq <= radius_sq) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+

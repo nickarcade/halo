@@ -92,11 +92,25 @@ void vehicles_dispose_from_old_map(void)
 {
 }
 
+/* vehicles_dispose (0x1b5570)
+ * Confirmed: single RET (C3), slot +0x20 in vehicle object_type_definition. */
+void vehicles_dispose(void)
+{
+  return;
+}
+
 /* FUN_001b5580 (0x1b5580) */
 void vehicle_causes_collision_damage(int param_1, void *param_2)
 {
   unit_place(param_1, (char *)param_2 + 0x48);
   object_add_scenario_permutation(param_1, (char *)param_2 + 0x28);
+}
+
+/* vehicle_delete (0x1b55b0)
+ * Confirmed: single RET (C3), slot +0x2c in vehicle object_type_definition. */
+void vehicle_delete(void)
+{
+  return;
 }
 
 /* vehicle_hover (0x1b55c0) — does this vehicle's definition mark it as a

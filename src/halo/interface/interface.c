@@ -465,3 +465,145 @@ void interface_draw_fullscreen_overlays(void)
   main_framerate_render();
   render_debug_profile();
 }
+
+/* 0xdf3d0 */
+void render_debug_profile_stall_tick(void)
+{
+}
+
+/* 0xdf4e0 */
+void render_debug_profile(void)
+{
+  if (*(int16_t *)0x306d20 <= 0) {
+    return;
+  }
+}
+
+/* 0xdff90 */
+void interface_draw_bitmap(int sprite_handle, short *offset_xy, void *uv_bounds, float scale_a, float rotation, float alpha_scale)
+{
+  float default_uv[4];
+  float quad_vertices[20];
+  uint32_t quad_desc[35];
+  int i;
+  int alpha_val;
+  float *uv;
+  float sin_r;
+  float cos_r;
+  short width;
+  short height;
+  short center_x;
+  short center_y;
+  char *sprite;
+
+  double __cdecl sin(double);
+  double __cdecl cos(double);
+
+  sin_r = (float)sin((double)rotation);
+  cos_r = (float)cos((double)rotation);
+  default_uv[0] = 0.0f;
+  default_uv[1] = 1.0f;
+  default_uv[2] = 0.0f;
+  default_uv[3] = 1.0f;
+
+  uv = (float *)uv_bounds;
+  if (!uv) {
+    uv = default_uv;
+  }
+  alpha_val = (int)(alpha_scale * 255.0f);
+  sprite = (char *)sprite_handle;
+  width = *(short *)(sprite + 4);
+  height = *(short *)(sprite + 6);
+  center_x = *(short *)(sprite + 0x10);
+  center_y = *(short *)(sprite + 0x12);
+
+  for (i = 0; i < 4; i++) {
+    float u = (i & 1) ? uv[1] : uv[0];
+    float v = (i >= 2) ? uv[3] : uv[2];
+    float dx = ((float)width * u - (float)center_x) * scale_a;
+    float dy = ((float)height * v - (float)center_y) * scale_a;
+
+    quad_vertices[i * 5 + 0] = (dx * cos_r + (float)offset_xy[0]) - dy * sin_r;
+    quad_vertices[i * 5 + 1] = dx * sin_r + dy * cos_r + (float)offset_xy[1];
+    quad_vertices[i * 5 + 2] = u;
+    quad_vertices[i * 5 + 3] = v;
+    *(uint32_t *)&quad_vertices[i * 5 + 4] = ((uint32_t)alpha_val << 24) | 0x00ffffff;
+  }
+
+  csmemset(quad_desc, 0, 0x8c);
+  *(float *)&quad_desc[0x60 / 4] = 1.0f;
+  *(float *)&quad_desc[0x64 / 4] = 1.0f;
+  *(float *)&quad_desc[0x78 / 4] = 1.0f;
+  *(float *)&quad_desc[0x7c / 4] = 1.0f;
+  *(uint16_t *)((char *)quad_desc + 0x6c) = 7;
+  *(int *)((char *)quad_desc + 0x70) = sprite_handle;
+  rasterizer_psuedo_dynamic_screen_quad_draw(quad_desc, quad_vertices);
+}
+
+/* 0xe0110 */
+void interface_draw_bitmap_modulated(int sprite_handle, short *offset_xy, void *uv_bounds, float scale_a, float rotation, float *color_argb, uint16_t render_mode)
+{
+  float default_uv[4];
+  float quad_vertices[20];
+  uint32_t quad_desc[35];
+  int i;
+  float *uv;
+  float sin_r;
+  float cos_r;
+  short width;
+  short height;
+  short center_x;
+  short center_y;
+  uint32_t color;
+  char *sprite;
+
+  double __cdecl sin(double);
+  double __cdecl cos(double);
+
+  default_uv[0] = 0.0f;
+  default_uv[1] = 0.0f;
+  default_uv[2] = 0.0f;
+  default_uv[3] = 0.0f;
+
+  sin_r = (float)sin((double)rotation);
+  cos_r = (float)cos((double)rotation);
+  uv = (float *)uv_bounds;
+  if (!uv) {
+    uv = default_uv;
+  }
+  color = (((uint32_t)(color_argb[0] * 255.0f) << 24) |
+           ((uint32_t)(color_argb[1] * 255.0f) << 16) |
+           ((uint32_t)(color_argb[2] * 255.0f) << 8) |
+           ((uint32_t)(color_argb[3] * 255.0f)));
+
+  sprite = (char *)sprite_handle;
+  width = *(short *)(sprite + 4);
+  height = *(short *)(sprite + 6);
+  (void)width;
+  (void)height;
+  center_x = *(short *)(sprite + 0x10);
+  center_y = *(short *)(sprite + 0x12);
+
+  for (i = 0; i < 4; i++) {
+    float u = (i & 1) ? uv[1] : uv[0];
+    float v = (i >= 2) ? uv[3] : uv[2];
+    float dx = (u - (float)center_x) * scale_a;
+    float dy = (v - (float)center_y) * scale_a;
+
+    quad_vertices[i * 5 + 0] = (dx * cos_r + (float)offset_xy[0]) - dy * sin_r;
+    quad_vertices[i * 5 + 1] = dx * sin_r + dy * cos_r + (float)offset_xy[1];
+    quad_vertices[i * 5 + 2] = u;
+    quad_vertices[i * 5 + 3] = v;
+    *(uint32_t *)&quad_vertices[i * 5 + 4] = color;
+  }
+
+  csmemset(quad_desc, 0, 0x8c);
+  *(float *)&quad_desc[0x60 / 4] = 1.0f;
+  *(float *)&quad_desc[0x64 / 4] = 1.0f;
+  *(float *)&quad_desc[0x78 / 4] = 1.0f;
+  *(float *)&quad_desc[0x7c / 4] = 1.0f;
+  *(uint16_t *)((char *)quad_desc + 0x70) = render_mode;
+  *(int *)((char *)quad_desc + 0x74) = sprite_handle;
+  rasterizer_psuedo_dynamic_screen_quad_draw(quad_desc, quad_vertices);
+}
+

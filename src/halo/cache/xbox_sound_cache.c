@@ -447,3 +447,93 @@ void FUN_001be2b0(char *request /* @<esi> */)
     *(unsigned int *)0x4e9374 = system_milliseconds();
   }
 }
+
+extern void render_debug_line(char flag, float *point_a, float *point_b, void *color);
+extern void lruv_cache_get_page_usage(void *cache, uint8_t *page_usage);
+
+/* 0x1be6b0: render_inverse_transform_screen_point_0 — unproject 2D screen coordinate to 3D ray */
+void render_inverse_transform_screen_point_0(float *a0, float *a1, float *a2)
+{
+  float v1;
+  float v2;
+  float *v3;
+
+  v1 = a1[0] * *(float *)0x2a41b8;
+  v2 = *(float *)0x2533c8 - a1[1] * *(float *)0x2a41b4;
+  v3 = *(float **)0x31fc38;
+
+  a0[0] = *(float *)0x5066b4 + v3[0];
+  a0[1] = *(float *)0x5066b8 + v3[1];
+  a0[2] = *(float *)0x5066bc + v3[2];
+
+  a2[0] = ((*(float *)0x50669c - *(float *)0x506684) * v2 +
+           ((*(float *)0x506690 - *(float *)0x506684) * v1 + *(float *)0x506684)) - a0[0];
+  a2[1] = ((*(float *)0x5066a0 - *(float *)0x506688) * v2 +
+           ((*(float *)0x506694 - *(float *)0x506688) * v1 + *(float *)0x506688)) - a0[1];
+  a2[2] = ((*(float *)0x5066a4 - *(float *)0x50668c) * v2 +
+           ((*(float *)0x506698 - *(float *)0x50668c) * v1 + *(float *)0x50668c)) - a0[2];
+}
+
+/* 0x1be7b0: sound_cache_debug_render — draw debug visualization of sound cache page allocation */
+void FUN_001be7b0(void)
+{
+  uint8_t page_usage[1024];
+  void *colors[4];
+  int column;
+  int bit;
+  uint8_t *usage_ptr;
+  float point_screen[2];
+  float ray_origin[3];
+  float ray_dir[3];
+  float line_start[3];
+  float line_end[3];
+  float depth;
+  float denom;
+  float scale;
+  int step;
+  int sub_index;
+
+  if (!*(uint8_t *)0x5054e9) {
+    return;
+  }
+
+  colors[0] = *(void **)0x2ee6d0;
+  colors[1] = *(void **)0x2ee6d4;
+  colors[2] = *(void **)0x2ee6d8;
+  colors[3] = *(void **)0x2ee6e0;
+
+  lruv_cache_get_page_usage(*(void **)0x4e9370, page_usage);
+
+  for (column = 0; column < 0x280; column++) {
+    usage_ptr = &page_usage[column];
+    for (bit = 0; bit < 4; bit++) {
+      if (*usage_ptr & (1u << bit)) {
+        sub_index = (bit + (column / 0x280) * 4) * 10;
+        point_screen[0] = (float)(column % 0x280);
+        point_screen[1] = (float)sub_index;
+
+        depth = *(float *)0x50658c + *(float *)0x255ef8;
+
+        for (step = 0; step < 2; step++) {
+          if (step == 1) {
+            point_screen[1] = (float)(sub_index + 10);
+          }
+          render_inverse_transform_screen_point_0(ray_origin, point_screen, ray_dir);
+          denom = *(float *)0x50655c * ray_dir[0] + *(float *)0x506560 * ray_dir[1] + *(float *)0x506564 * ray_dir[2];
+          scale = depth / denom;
+          if (step == 0) {
+            line_start[0] = ray_origin[0] + ray_dir[0] * scale;
+            line_start[1] = ray_origin[1] + ray_dir[1] * scale;
+            line_start[2] = ray_origin[2] + ray_dir[2] * scale;
+          } else {
+            line_end[0] = ray_origin[0] + ray_dir[0] * scale;
+            line_end[1] = ray_origin[1] + ray_dir[1] * scale;
+            line_end[2] = ray_origin[2] + ray_dir[2] * scale;
+          }
+        }
+        render_debug_line(1, line_start, line_end, colors[bit]);
+      }
+    }
+  }
+}
+

@@ -653,6 +653,13 @@ void bipeds_dispose_from_old_map(void)
 {
 }
 
+/* bipeds_dispose (0x1a07b0)
+ * Confirmed: single RET (C3), slot +0x20 in biped object_type_definition. */
+void bipeds_dispose(void)
+{
+  return;
+}
+
 /* biped_place (0x1a07c0)
  *
  * Places a biped unit at a placement location. Calls unit_place with the
@@ -670,6 +677,13 @@ void biped_place(int unit_handle, void *placement)
 {
   unit_place(unit_handle, (char *)placement + 0x48);
   object_add_scenario_permutation(unit_handle, (char *)placement + 0x28);
+}
+
+/* biped_delete (0x1a07f0)
+ * Confirmed: single RET (C3), slot +0x2c in biped object_type_definition. */
+void biped_delete(void)
+{
+  return;
 }
 
 /* biped_reset (0x1a0800)
