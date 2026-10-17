@@ -38483,7 +38483,7 @@
         {
           "addr": "0x76ba0",
           "decl": "char postprocess_bitmap(void);",
-          "ported": false,
+          "ported": true,
           "name": "postprocess_bitmap"
         }
       ],

@@ -863,6 +863,11 @@ char bitmaps_extract_from_plate(void *plate, void *group, int param_3)
   return 0;
 }
 
+char postprocess_bitmap(void)
+{
+  return 1;
+}
+
 /*
  * delete_bitmap -- bitmap tag_block element delete wrapper.
  *
