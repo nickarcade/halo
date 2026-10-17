@@ -16288,7 +16288,7 @@
       "score": 100.0,
       "source": "src/halo/units/bipeds.c"
     },
-    "FUN_001a1e70": {
+    "biped_falling_danger": {
       "addr": "0x1a1e70",
       "end": "0x1a1fa6",
       "kind": "auto",

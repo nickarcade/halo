@@ -34498,7 +34498,7 @@
     },
     {
      "addr": "0x1a1e70",
-     "decl": "void FUN_001a1e70(int unit_handle);",
+     "decl": "void biped_falling_danger(int unit_handle);",
      "ported": true
     },
     {

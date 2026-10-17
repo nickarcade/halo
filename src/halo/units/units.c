@@ -406,7 +406,7 @@ void biped_update_dead(int unit_handle, char *state_out)
  *   - FUN_001a4c50: turning, FUN_001a5300: moving
  *   - biped_update_airborne/biped_update_landing/FUN_001a2b10/biped_update_dead: death/air/land/slip
  *   - melee damage timer at +0x45d/+0x45e
- *   - biped_try_to_make_footsteps, FUN_001a1e70, FUN_001a0b30: footstep/marker events
+ *   - biped_try_to_make_footsteps, biped_falling_danger, FUN_001a0b30: footstep/marker events
  * If seated in a vehicle (parent +0xCC != -1), handles ejection and exit.
  * unit_update_animation runs at the end in both cases; tracks suspension ticks at +0x6C.
  * Always returns 1 (via CONCAT31).
@@ -625,7 +625,7 @@ char biped_update(int unit_handle)
     }
 
     biped_try_to_make_footsteps(unit_handle);
-    FUN_001a1e70(unit_handle);
+    biped_falling_danger(unit_handle);
     FUN_001a0b30(unit_handle);
   }
 

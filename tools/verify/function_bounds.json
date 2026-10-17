@@ -6283,7 +6283,7 @@
  "0x1a1b90": {"end": "0x1a1bb2", "kind": "auto", "name": "biped_approximate_surface_index"},
  "0x1a1bc0": {"end": "0x1a1d7e", "kind": "auto", "name": "biped_find_pathfinding_surface_index"},
  "0x1a1d80": {"end": "0x1a1e62", "kind": "auto", "name": "biped_exit_seat_end"},
- "0x1a1e70": {"end": "0x1a1fa6", "kind": "auto", "name": "FUN_001a1e70"},
+ "0x1a1e70": {"end": "0x1a1fa6", "kind": "auto", "name": "biped_falling_danger"},
  "0x1a1fb0": {"end": "0x1a215b", "kind": "auto", "name": "biped_vehicle_speech"},
  "0x1a2160": {"end": "0x1a228a", "kind": "auto", "name": "FUN_001a2160"},
  "0x1a2290": {"end": "0x1a243d", "kind": "auto", "name": "biped_jump"},

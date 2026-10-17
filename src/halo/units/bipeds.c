@@ -2153,7 +2153,7 @@ void biped_exit_seat_end(int unit_handle, int seat_handle)
   }
 }
 
-/* FUN_001a1e70 (0x1a1e70)
+/* biped_falling_danger (0x1a1e70)
  *
  * Per-tick "is this biped stuck falling / off a ledge?" check for AI bipeds.
  * After a battery of eligibility gates (not in a vehicle, tag flags clear,
@@ -2165,7 +2165,8 @@ void biped_exit_seat_end(int unit_handle, int seat_handle)
  * probe point exceeds the physics fall threshold (physics+0x94 squared), it
  * triggers the recovery path unit_scream(unit_handle, 0).
  *
- * Confirmed (disasm 0x1a1e70): cdecl unit_handle at [EBP+8] (caller 0x1a6350
+ * Confirmed (disasm 0x1a1e70, PDB/decompiled corpus `biped_falling_danger`):
+ * cdecl unit_handle at [EBP+8] (caller 0x1a6350
  * PUSH EDI; ADD ESP,4); object_get_and_verify_type(unit,1); tag_get('bipd');
  * game_time_get; tag_block_get_element(game_globals_get()+0x188, 0, 0x98);
  * keystone direction@<eax>=*(float**)0x31fc50, unit@<edi>, scale=6.0f
@@ -2176,7 +2177,7 @@ void biped_exit_seat_end(int unit_handle, int seat_handle)
  * threshold; DAT_0032512c gravity-related scalar. Probe hit point and world
  * position are separate 3-float stack buffers.
  */
-void FUN_001a1e70(int unit_handle)
+void biped_falling_danger(int unit_handle)
 {
   int *unit_obj;
   int tag;
@@ -2217,7 +2218,7 @@ void FUN_001a1e70(int unit_handle)
 
 /* biped_vehicle_speech (0x1a1fb0)
  *
- * Vehicle-rider variant of the stuck/ejection check (mirrors FUN_001a1e70 for a
+ * Vehicle-rider variant of the stuck/ejection check (mirrors biped_falling_danger for a
  * biped riding a vehicle seat). Gates on the vehicle tag flag (vehi+0x17c bit
  * 6), the biped having a seat (obj+0x1a4 != -1), not in scream state 0x1d, a
  * recheck throttle field (obj+0x2d2 > 'x'), the vehicle settle counter
