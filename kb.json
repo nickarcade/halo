@@ -5608,7 +5608,7 @@
         },
         {
           "addr": "0x1bc960",
-          "decl": "void scenario_name_to_cache_file_path(uint32_t a0, uint32_t a1, char *a2);",
+          "decl": "void scenario_name_to_cache_file_path(const char *name, uint32_t max_len, char *path);",
           "ported": true,
           "name": "scenario_name_to_cache_file_path",
           "status": "ported"

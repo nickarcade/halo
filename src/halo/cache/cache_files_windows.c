@@ -1337,7 +1337,7 @@ void FUN_001bc3b0(void *async_request_function, void *overlapped,
   SetLastError(0);
 
   while (!req_fn(handle, (void *)buffer, size, ov, completion_routine)) {
-    err = GetLastError();
+    err = xapi_GetLastError();
     if (err != 8 && err != 0x5aa && err != 0x6f8) {
       display_assert(
         csprintf(error_string_buffer, (const char *)0x2b8cc4, err,
@@ -1383,8 +1383,9 @@ int32_t cached_map_block_on_async_request(int32_t a0)
 /* scenario_name_to_cache_file_path (0x1bc960)
  * Formats "d:\\maps\\%s.map" with the given map name into path buffer.
  */
-void scenario_name_to_cache_file_path(const char *name, char *path)
+void scenario_name_to_cache_file_path(const char *name, uint32_t max_len, char *path)
 {
+  (void)max_len;
   crt_sprintf(path, "d:\\maps\\%s.map", name);
 }
 
@@ -1466,7 +1467,7 @@ void IDirect3DVertexBuffer8_BlockUntilNotBusy(uint32_t a0)
 void IDirect3DVertexBuffer8_Register(uint32_t a0, uint32_t a1, uint32_t a2)
 {
   (void)a1;
-  D3DResource_Register((void *)a2, a0);
+  D3DResource_Register((void *)a2, (void *)a0);
 }
 
 /* IDirect3DIndexBuffer8_IsBusy @ 0x1bc9a0 */
@@ -1712,6 +1713,16 @@ void FUN_001bcfb0(short map_file_index)
   SetFileTime(*(int *)entry, entry + 4, 0, 0);
 }
 
+typedef struct _FILETIME {
+  uint32_t dwLowDateTime;
+  uint32_t dwHighDateTime;
+} FILETIME;
+
+typedef void *HANDLE;
+
+#define GetFileTime(h, c, a, w) (((bool (__stdcall *)(void *, void *, void *, void *))0x1d18aa)((void *)(h), (void *)(c), (void *)(a), (void *)(w)))
+#define CompareFileTime(t1, t2) (((int (__stdcall *)(const void *, const void *))0x1d0669)((const void *)(t1), (const void *)(t2)))
+
 /* cached_map_file_read_header (0x1bd020)
  * Reads the 0x800-byte cache file header for slot map_file_index from z:\cacheNNN.map.
  * Verifies the header using cache_file_header_verify. If invalid, zeroes the header
@@ -1754,7 +1765,7 @@ void cached_map_file_read_header(short map_file_index)
   }
 
   if (!completion_flag) {
-    err = GetLastError();
+    err = xapi_GetLastError();
     display_assert(
       csprintf(error_string_buffer, (const char *)0x2b8f4c, err, path),
       "c:\\halo\\SOURCE\\cache\\cache_files_windows.c", 0x42e, 1);
