@@ -67,8 +67,8 @@ double __cdecl fabs(double);
 #define object_get_origin(handle, pos) object_get_world_position((handle), (vector3_t *)(pos))
 #define tag_block_get_element_with_size tag_block_get_element
 #define biped_accelerate FUN_001a4a70
-#define collision_test_vector FUN_0014df70
-#define collision_test_line FUN_000130d0
+#define collision_test_vector(flags, origin, dir, dist, res) FUN_0014df70((flags), (origin), (dir), (dist), (int16_t *)(res))
+#define collision_test_line(flags, p1, p2, dist, res) FUN_000130d0((flags), (p1), (p2), (dist), (int16_t *)(res))
 #define point_from_line3d vector3d_scale_add
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert.
