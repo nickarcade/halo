@@ -3369,7 +3369,8 @@ char vehicle_parse_update(void)
 /* 0x1b5660 */
 void update_turret_physics(uint32_t a0, uint32_t a1, uint32_t a2)
 {
-  physics_update(a2, NULL, a0, NULL, NULL);
+  (void)a1;
+  physics_update(a2, NULL, (void *)a0, NULL, NULL);
 }
 
 
