@@ -444,9 +444,9 @@ void following_camera_update(void *camera_data, void *control_data,
 }
 
 /* 0x8a300 */
-void *observer_get(void)
+int32_t observer_get(void)
 {
-  return (void *)0x33571c;
+  return (int32_t)0x33571c;
 }
 
 void observer_initialize(void)

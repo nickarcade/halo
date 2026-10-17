@@ -1323,7 +1323,7 @@ void initialize_timing(void)
 /* 0x1bac60 */
 void begin_timing(int32_t a0)
 {
-  QueryPerformanceCounter((LARGE_INTEGER *)(a0 * 8 + 0x4e5638));
+  QueryPerformanceCounter((void *)(a0 * 8 + 0x4e5638));
 }
 
 /* 0x1bada0 */

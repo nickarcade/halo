@@ -8156,7 +8156,7 @@ void encounterless_deactivate(int actor_handle)
     system_exit(-1);
   }
   *(uint16_t *)(v1 + 0x10) = 0;
-  actor_set_active(actor_handle);
+  actor_set_active(actor_handle, 0);
 }
 
 

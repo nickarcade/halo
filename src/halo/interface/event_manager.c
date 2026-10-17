@@ -1574,7 +1574,7 @@ void motion_sensor_blip_set_type_and_size(int object_handle)
 
   if (object_handle != -1 && object_try_and_get_and_verify_type(object_handle, 3) != NULL) {
     unit_data = (char *)object_get_and_verify_type(object_handle, 3);
-    blip_size = *(int16_t *)(tag_get(0x756e6974 /* 'unit' */, *(uint32_t *)unit_data) + 0x298);
+    blip_size = *(int16_t *)((char *)tag_get(0x756e6974 /* 'unit' */, *(uint32_t *)unit_data) + 0x298);
     if (blip_size < 0 || blip_size >= 3) {
       return;
     }
