@@ -939,7 +939,7 @@ done:
  * Confirmed: CALL 0x13d680 (object_get_and_verify_type) with type_mask=3;
  * CMP word ptr [EAX+0x338],CX (CX=0); SETG CL; MOV AL,CL.
  */
-int unit_is_speaking(int param_1)
+bool unit_is_speaking(int param_1)
 {
   char *unit;
 
@@ -1999,7 +1999,7 @@ void unit_scripting_impervious(int object_list_index, char impervious)
 
 /* unit_scripting_start_user_animation_list (0x1a7df0)
  * Returns true only if FUN_001ac180 returns true for ALL child units. */
-char unit_scripting_start_user_animation_list(int datum_handle, int param_2, int param_3, int param_4)
+char unit_scripting_start_user_animation_list(int datum_handle, int param_2, int param_3, uint8_t param_4)
 {
   char result;
   char cVar2;
@@ -2013,7 +2013,7 @@ char unit_scripting_start_user_animation_list(int datum_handle, int param_2, int
     unit = (char *)object_try_and_get_and_verify_type(child, 3);
     if (unit != NULL) {
       if (result &&
-          (cVar2 = FUN_001ac180(child, param_2, (void *)param_3, param_4),
+          (cVar2 = ((char (*)(int, int, void *, uint8_t))FUN_001ac180)(child, param_2, (void *)param_3, param_4),
            cVar2 != '\0')) {
         result = 1;
       } else {
@@ -2087,6 +2087,11 @@ void units_initialize_for_new_map(void)
  *   0x323ca8, slot +0x1c (dispose_from_old_map).
  */
 void units_dispose_from_old_map(void)
+{
+}
+
+/* units_dispose (0x1a7f70) */
+void units_dispose(void)
 {
 }
 
@@ -2412,7 +2417,7 @@ char unit_euler_axis_doplan(void *plan, float delta_time, float position,
   float current_velocity;
   float time;
   float remaining_time;
-  volatile float acceleration_delta;
+  float acceleration_delta;
 
   result = *(char *)plan;
   current_position = position;
@@ -5359,7 +5364,7 @@ int16_t unit_get_current_grenade_type(int unit_handle)
   unit = (char *)object_get_and_verify_type(unit_handle, 3);
   grenade_index = *(char *)(unit + 0x2cc);
 
-  if (grenade_index != -1 && (grenade_index < 0 || grenade_index > 1)) {
+  if (grenade_index != -1 && (grenade_index < 0 || grenade_index >= 2)) {
     display_assert(
       "unit->unit.current_grenade_index==NONE || "
       "(unit->unit.current_grenade_index>=0 && "
@@ -7849,8 +7854,8 @@ char unit_clip_to_aiming_bounds(int unit_handle, float *vector, char flag)
 
     /* left = cross(up, forward), written directly into matrix[4..6] */
     matrix[4] = matrix[8] * matrix[3] - matrix[2] * matrix[9];
-    matrix[5] = matrix[1] * matrix[9] - matrix[7] * matrix[3];
-    matrix[6] = matrix[7] * matrix[2] - matrix[1] * matrix[8];
+    matrix[5] = matrix[9] * matrix[1] - matrix[3] * matrix[7];
+    matrix[6] = matrix[2] * matrix[7] - matrix[8] * matrix[1];
 
     /* position row = global origin vector (pointer at 0x31fc1c),
        copied as one 12-byte vector */

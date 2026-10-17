@@ -34672,7 +34672,7 @@
         },
         {
           "addr": "0x1a6bc0",
-          "decl": "int unit_is_speaking(int param_1);",
+          "decl": "bool unit_is_speaking(int param_1);",
           "ported": true,
           "source_path": "units/units.c",
           "name": "unit_is_speaking"
@@ -34804,7 +34804,7 @@
         },
         {
           "addr": "0x1a7df0",
-          "decl": "char unit_scripting_start_user_animation_list(int datum_handle, int param_2, int param_3, int param_4);",
+          "decl": "char unit_scripting_start_user_animation_list(int datum_handle, int param_2, int param_3, uint8_t param_4);",
           "ported": true,
           "name": "unit_scripting_start_user_animation_list"
         },
