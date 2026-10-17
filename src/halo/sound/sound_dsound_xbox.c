@@ -1631,9 +1631,6 @@ void FUN_001ca970(void)
   return;
 }
 
-typedef int (__stdcall *dsound_stream_set_mode_fn)(void *stream, int mode, int deferred);
-typedef int (__stdcall *dsound_stream_set_vec_fn)(void *stream, float x, float y, float z, int deferred);
-
 /* dsound_channel_set_location (0x1cadd0)
  *
  * Set 3D spatial position, orientation, and velocity for a channel.
@@ -1665,7 +1662,7 @@ void dsound_channel_set_location(short channel_index, char flag_0c,
   stream = *(void **)(channel + 0x70);
 
   if (*(char *)(channel + 4) != flag_0c || *(char *)0x4fdbc0 == 0) {
-    result = ((dsound_stream_set_mode_fn)IDirectSoundStream_SetMode)(stream, flag_0c ? 0 : 2, 1);
+    result = IDirectSoundStream_SetMode(stream, flag_0c ? 0 : 2, 1);
     *(char *)(channel + 4) = flag_0c;
     spatialization_changed = true;
     if (result < 0) {
@@ -1678,7 +1675,7 @@ void dsound_channel_set_location(short channel_index, char flag_0c,
       fabsf(location[2] - *(float *)(channel + 0x14)) >= 0.05f ||
       *(char *)0x4fdbc0 == 0) {
     /* DirectSound is left-handed Y-up; Halo is right-handed Z-up: X, Z, Y */
-    result = ((dsound_stream_set_vec_fn)IDirectSoundStream_SetPosition)(stream, location[0], location[2], location[1], 1);
+    result = IDirectSoundStream_SetPosition(stream, location[0], location[2], location[1], 1);
     if (result < 0) {
       sound_dsound_log_error(result, "couldn't set channel position.");
     }
@@ -1696,7 +1693,7 @@ void dsound_channel_set_location(short channel_index, char flag_0c,
                      "c:\\halo\\SOURCE\\sound\\sound_dsound_xbox.c", 0x3a5, 1);
       system_exit(-1);
     }
-    result = ((dsound_stream_set_vec_fn)IDirectSoundStream_SetConeOrientation)(stream, location[3], location[5], location[4], 1);
+    result = IDirectSoundStream_SetConeOrientation(stream, location[3], location[5], location[4], 1);
     if (result < 0) {
       sound_dsound_log_error(result, "couldn't set channel orientation.");
     }
@@ -1709,7 +1706,7 @@ void dsound_channel_set_location(short channel_index, char flag_0c,
       fabsf(location[7] - *(float *)(channel + 0x28)) >= 0.01f ||
       fabsf(location[8] - *(float *)(channel + 0x2c)) >= 0.01f ||
       *(char *)0x4fdbc0 == 0) {
-    result = ((dsound_stream_set_vec_fn)IDirectSoundStream_SetVelocity)(stream, location[6], location[8], location[7], 1);
+    result = IDirectSoundStream_SetVelocity(stream, location[6], location[8], location[7], 1);
     if (result < 0) {
       sound_dsound_log_error(result, "couldn't set channel velocity.");
     }

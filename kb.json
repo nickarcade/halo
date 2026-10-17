@@ -48632,19 +48632,19 @@
         },
         {
           "addr": "0x002052ed",
-          "decl": "void IDirectSoundStream_SetConeOrientation(void);"
+          "decl": "int __stdcall IDirectSoundStream_SetConeOrientation(void *stream, float x, float y, float z, int deferred);"
         },
         {
           "addr": "0x0020534b",
-          "decl": "void IDirectSoundStream_SetMode(void);"
+          "decl": "int __stdcall IDirectSoundStream_SetMode(void *stream, int mode, int deferred);"
         },
         {
           "addr": "0x00205350",
-          "decl": "void IDirectSoundStream_SetPosition(void);"
+          "decl": "int __stdcall IDirectSoundStream_SetPosition(void *stream, float x, float y, float z, int deferred);"
         },
         {
           "addr": "0x00205379",
-          "decl": "void IDirectSoundStream_SetVelocity(void);"
+          "decl": "int __stdcall IDirectSoundStream_SetVelocity(void *stream, float x, float y, float z, int deferred);"
         },
         {
           "addr": "0x002053a2",
