@@ -43157,14 +43157,14 @@
         },
         {
           "addr": "0x69300",
-          "decl": "void putcode(void);",
-          "ported": false,
+          "decl": "void putcode(void *tif, const tiff_fax_span_entry_t *te);",
+          "ported": true,
           "name": "putcode"
         },
         {
           "addr": "0x6b8a0",
-          "decl": "void * pickTileSeparateCase(void);",
-          "ported": false,
+          "decl": "void * pickTileSeparateCase(void *img);",
+          "ported": true,
           "name": "pickTileSeparateCase"
         }
       ],

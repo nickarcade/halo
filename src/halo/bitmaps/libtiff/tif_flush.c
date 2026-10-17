@@ -1240,6 +1240,12 @@ typedef struct tiff_fax_span_entry_s {
   short field_04;
 } tiff_fax_span_entry_t;
 
+/* 0x69300 -- upstream libtiff tif_fax3.c putcode */
+void putcode(void *tif, const tiff_fax_span_entry_t *te)
+{
+  FUN_00069200(te->field_00, te->field_02, tif);
+}
+
 /**
  * Emit a run of `span` pixels using a run-length code table.
  *
@@ -4392,6 +4398,23 @@ void *FUN_0006b780(void *img)
     FUN_00068a30(filename, "Can not handle format");
 
   return (void *)put;
+}
+
+/* 0x6b8a0 -- upstream libtiff tif_getimage.c pickTileSeparateCase */
+void *pickTileSeparateCase(void *img)
+{
+  void *put = NULL;
+
+  if (photometric == PHOTOMETRIC_RGB) {
+    if (bitspersample == 8)
+      put = (void *)FUN_0006b190;
+    else
+      put = (void *)FUN_0006b2d0;
+  }
+  if (put == NULL)
+    FUN_00068a30(filename, "Can not handle format");
+
+  return put;
 }
 
 /* The abort-on-error flag, the same file static tif_open.c recovered from the
