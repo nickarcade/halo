@@ -1366,6 +1366,11 @@ void *FUN_001bc580(short request_index)
   return (void *)(*(int *)0x4e9250 + (int)request_index * 0x20);
 }
 
+int32_t cache_request_get(void)
+{
+  return (int32_t)FUN_001bc580(0);
+}
+
 /* cached_map_block_on_async_request @ 0x1bc550 — alertable wait for async request completion */
 int32_t cached_map_block_on_async_request(int32_t a0)
 {
@@ -1784,6 +1789,11 @@ void cached_map_file_read_header(short map_file_index)
     csmemset(header_buf, 0, 0x800);
     csmemset(time_ptr, 0, 8);
   }
+}
+
+void cache_file_read_header_into_slot(short map_file_index)
+{
+  cached_map_file_read_header(map_file_index);
 }
 
 /* FUN_001bd1b0 — find the cache slot index whose stored map name matches
