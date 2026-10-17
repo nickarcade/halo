@@ -1,4 +1,27 @@
 #include "x87_math.h"
+#include "nv097.h"
+
+/* 0x1695e0 — IDirect3DDevice8_SetTextureStageState_8
+ *
+ * Dead D3D8 COM wrapper for SetTextureStageState. Takes device (param_1, ignored),
+ * returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_8(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x169640 — IDirect3DDevice8_SetVertexShaderConstant_8
+ *
+ * Dead D3D8 COM wrapper for SetVertexShaderConstant. Takes device (param_1, ignored),
+ * returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_8(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
 
 /*
  * IDirect3DDevice8_SetVertexData2f_5 @ 0x169650 — D3D8 inline-wrapper instantiation of
@@ -71,6 +94,27 @@ int __stdcall IDirect3DDevice8_SetVertexData4f_1(void *device, uint32_t reg, flo
 {
   (void)device;
   D3DDevice_SetVertexData4f(reg, a, b, c, d);
+  return 0;
+}
+
+/* 0x1696a0 — IDirect3DDevice8_SetVertexData2s_4 */
+uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_4(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x1696b0 — IDirect3DDevice8_Begin_5 */
+uint32_t __stdcall IDirect3DDevice8_Begin_5(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x1696c0 — IDirect3DDevice8_End_5 */
+uint32_t __stdcall IDirect3DDevice8_End_5(int param_1)
+{
+  (void)param_1;
   return 0;
 }
 

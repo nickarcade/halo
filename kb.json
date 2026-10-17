@@ -54537,32 +54537,37 @@
         {
           "addr": "0x1695e0",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_8(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetTextureStageState_8"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetTextureStageState_8",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_lights.c"
         },
         {
           "addr": "0x169640",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_8(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetVertexShaderConstant_8"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_8",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_lights.c"
         },
         {
           "addr": "0x1696a0",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexData2s_4(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetVertexData2s_4"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetVertexData2s_4",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_lights.c"
         },
         {
           "addr": "0x1696b0",
           "decl": "uint32_t __stdcall IDirect3DDevice8_Begin_5(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_Begin_5"
+          "ported": true,
+          "name": "IDirect3DDevice8_Begin_5",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_lights.c"
         },
         {
           "addr": "0x1696c0",
           "decl": "uint32_t __stdcall IDirect3DDevice8_End_5(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_End_5"
+          "ported": true,
+          "name": "IDirect3DDevice8_End_5",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_lights.c"
         }
       ]
     },
