@@ -59,6 +59,13 @@ double __cdecl fabs(double);
 #define FUN_00180770 compress_real_to_int8
 #define FUN_00189540 render_debug_sphere
 #define FUN_00181670 rasterizer_lens_flare_submit
+#define scenario_fog_at_point FUN_0018e690
+#define fpatan(y, x) ((float)xbox_atan2((double)(y), (double)(x)))
+#define scenario_location_deafening FUN_0018e5c0
+#define global_structure_bsp_get scenario_get
+#define object_mark_function object_mark
+#define object_get_origin(handle, pos) object_get_world_position((handle), (vector3_t *)(pos))
+#define tag_block_get_element_with_size tag_block_get_element
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert.
  * assert_halt stamps OUR __FILE__/__LINE__, so the emitted .rdata path string

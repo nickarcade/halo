@@ -4695,7 +4695,7 @@
         },
         {
           "addr": "0x41250",
-          "decl": "void ai_consider_major_upgrade(void);",
+          "decl": "bool ai_consider_major_upgrade(int encounter_index, int squad_index, float chance);",
           "ported": true
         },
         {
@@ -40233,7 +40233,7 @@
         },
         {
           "addr": "0x2f470",
-          "decl": "void actor_get_vision_distances(void);",
+          "decl": "void actor_get_vision_distances(uint32_t actor_handle, float a1, float a2, float a3, float *a4, float *a5);",
           "ported": true
         },
         {
@@ -40333,7 +40333,7 @@
         },
         {
           "addr": "0x30b80",
-          "decl": "short actor_perception_aiming_vector_test_blockage(float *point, float *aiming_vector, int object_index, int param_4);",
+          "decl": "short actor_perception_aiming_vector_test_blockage(float *point, float *aiming_vector, float *target_pos, float *out_vec);",
           "ported": true
         },
         {
@@ -40353,7 +40353,7 @@
         {
           "addr": "0x30f50",
           "decl": "void actor_emotion_unopposable_retreat(int actor_handle);",
-          "comment": "[NAME: actor_emotion_unopposable_retreat \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "comment": "[NAME: actor_emotion_unopposable_retreat — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "name": "actor_emotion_unopposable_retreat",
           "ported": true
         },
@@ -40366,12 +40366,12 @@
         },
         {
           "addr": "0x314f0",
-          "decl": "void actor_visibility_at_point(void);",
+          "decl": "uint32_t actor_visibility_at_point(uint32_t actor_handle, float *eye_pos, float *target_pos, char crouch_flag, int16_t blockage_res, char check_facing, char record_debug, uint16_t knowledge_type);",
           "ported": true
         },
         {
           "addr": "0x31850",
-          "decl": "int actor_audibility_at_point(int actor_handle, void *input_block, float *position, void *location, short volume, int range_scale, short flags);",
+          "decl": "uint32_t actor_audibility_at_point(uint32_t actor_handle, float *eye_pos, float *sound_pos, int sound_cluster, int16_t sound_type, uint32_t range_scale, int16_t blockage_res);",
           "ported": true
         },
         {
@@ -40381,7 +40381,7 @@
         },
         {
           "addr": "0x31c00",
-          "decl": "void actor_perception_unit_from_swarm(void);",
+          "decl": "int actor_perception_unit_from_swarm(uint32_t actor_handle, uint32_t target_object, int swarm_hint, char mark_obj);",
           "ported": true
         },
         {
@@ -42412,7 +42412,7 @@
         },
         {
           "addr": "0x5a490",
-          "decl": "void encounterless_deactivate(void);",
+          "decl": "void encounterless_deactivate(int actor_handle);",
           "ported": true,
           "name": "encounterless_deactivate"
         }

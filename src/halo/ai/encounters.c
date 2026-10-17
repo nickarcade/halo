@@ -6455,9 +6455,9 @@ bool encounter_place_actor(int squad_index, int delay, int flag, int encounter_h
   char *variant_def;
   uint32_t variant_tag;
   char *tag_def;
-  uint32_t upgrade_unit;
+  char upgrade_unit;
   char upgrade_flag;
-  uint32_t upgrade_chance;
+  float upgrade_chance;
   int placed_actor;
 
   scenario = (scenario_t *)global_scenario_get();
@@ -6466,7 +6466,7 @@ bool encounter_place_actor(int squad_index, int delay, int flag, int encounter_h
   squad_def = (char *)tag_block_get_element_with_size(
     encounter_def + 0x80, (int)(int16_t)squad_index, 0xe8);
 
-  start_loc_idx = encounter_get_actor_starting_location();
+  start_loc_idx = encounter_get_actor_starting_location(encounter_handle, squad_index, flag);
   if ((int16_t)start_loc_idx != -1) {
     start_loc_def = (char *)tag_block_get_element_with_size(
       squad_def + 0xd0, (int)(int16_t)start_loc_idx, 0x1c);
@@ -6483,13 +6483,13 @@ bool encounter_place_actor(int squad_index, int delay, int flag, int encounter_h
         upgrade_unit = 0;
         if (*(int *)(tag_def + 0x30) != -1) {
           upgrade_flag = 0;
-          upgrade_chance = 0;
+          upgrade_chance = 0.0f;
           ai_get_major_upgrade_chance(*(uint16_t *)(squad_def + 0x80), &upgrade_unit, &upgrade_flag, &upgrade_chance);
           if (upgrade_flag) {
-            upgrade_unit = (uint32_t)ai_consider_major_upgrade();
+            upgrade_unit = (char)ai_consider_major_upgrade((int)(encounter_handle & 0xffff), (int)(int16_t)squad_index, upgrade_chance);
           }
         }
-        placed_actor = actor_place(*(uint32_t *)(variant_def + 0xc));
+        placed_actor = actor_place(*(uint32_t *)(variant_def + 0xc), encounter_handle, squad_index, start_loc_def, upgrade_unit, flag);
         return (placed_actor != -1);
       }
     } else {
@@ -7932,7 +7932,7 @@ void encounter_update_follow(int encounter_handle)
       int actor_handle = *(int *)(encounter + 100);
       char *rec;
       if (actor_handle == -1) return;
-      ai_index_actor_iterator_new(iter, actor_handle);
+      ai_index_actor_iterator_new(actor_handle, iter);
       rec = (char *)ai_index_actor_iterator_next(iter);
       while (rec != NULL) {
         if (target_count >= 8) break;
@@ -7943,16 +7943,16 @@ void encounter_update_follow(int encounter_handle)
       return;
     }
   } else {
-    char piter[8];
-    char *player_data = *(char **)0x5aa6d4;
+    data_iter_t piter;
+    data_t *player_data = *(data_t **)0x5aa6d4;
     char *prec;
-    data_iterator_new(piter, player_data);
-    prec = (char *)data_iterator_next(piter);
+    data_iterator_new(&piter, player_data);
+    prec = (char *)data_iterator_next(&piter);
     while (prec != NULL) {
       if (*(int *)(prec + 0x34) != -1 && target_count < 8) {
         targets[target_count++] = *(int *)(prec + 0x34);
       }
-      prec = (char *)data_iterator_next(piter);
+      prec = (char *)data_iterator_next(&piter);
     }
   }
 

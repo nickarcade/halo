@@ -1171,7 +1171,6 @@ int actor_aim_projectile(int actor_index, float *forward, float *target_dir, int
   char *ai_debug_actor;
   int target_obj;
   float wp_vec[3];
-  float perp[3];
   float rot_axis[3];
   float cos_angle;
   bool can_rotate;
@@ -1227,7 +1226,7 @@ int actor_aim_projectile(int actor_index, float *forward, float *target_dir, int
   *(float *)(ai_debug_actor + 0x74) = target_dir[1];
   *(float *)(ai_debug_actor + 0x78) = target_dir[2];
 
-  actor_get_weapon_vector(actor_index, wp_vec);
+  actor_combat_get_weapon_vector(actor_index, wp_vec);
   cos_angle = wp_vec[0] * target_dir[0] + wp_vec[1] * target_dir[1] + wp_vec[2] * target_dir[2];
   if (cos_angle >= *(float *)0x2533dc) {
     *(char *)(ai_debug_actor + 0x88) = 0;
@@ -1246,7 +1245,7 @@ int actor_aim_projectile(int actor_index, float *forward, float *target_dir, int
     target_dir[1] = wp_vec[1];
     target_dir[2] = wp_vec[2];
     if (can_rotate) {
-      rotate_vector_about_axis(target_dir, rot_axis, *(float *)0x254924);
+      rotate_vector3d_by_sincos(target_dir, rot_axis, 0.5f, *(float *)0x254924);
     }
     *(float *)(ai_debug_actor + 0x98) = wp_vec[0];
     *(float *)(ai_debug_actor + 0x9c) = wp_vec[1];

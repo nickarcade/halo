@@ -6,6 +6,7 @@
 
 #include "../../common.h"
 #include "../../x87_math.h"
+#include "../math/real_math.h"
 
 /* actor_move_halt: set actor movement destination or refresh path.
  *
@@ -3343,7 +3344,7 @@ uint32_t actor_audibility_at_point(uint32_t actor_handle, float *eye_pos, float 
   if (dist_sq < max_range * max_range) {
     uint16_t c1 = *(uint16_t *)&eye_pos[10];
     uint16_t c2 = *(uint16_t *)(sound_cluster + 4);
-    enc_byte = structure_bsp_get_cluster_encoded_sound_distance(global_structure_bsp_get(c2, c1));
+    enc_byte = structure_bsp_get_cluster_encoded_sound_distance(global_structure_bsp_get(), c2, c1);
     if ((int8_t)enc_byte >= 0) {
       enc_dist = (float)(enc_byte & 0x7f) * 2.015748f;
       real_dist = enc_dist + enc_dist;
