@@ -9,13 +9,13 @@ double __cdecl fmod(double, double);
 #else
 #define VEHICLE_FMOD(val, div) x87_fmod((val), (double)(div))
 #endif
-/* FUN_001b5400 (0x1b5400)
+/* vehicle_scripting_unload (0x1b5400)
  * Iterates objects with type mask 3. For each object whose +0xcc datum equals
  * vehicle_handle, copies and lowercases tag-block element (+0x2e4) name +4.
  * The current object's datum is iter.last_handle (+0x08), written by
  * object_iterator_next; do not replace it with the object pointer.
  */
-uint16_t FUN_001b5400(int vehicle_handle, const char *name_filter)
+uint16_t vehicle_scripting_unload(int vehicle_handle, const char *name_filter)
 {
   uint32_t exit_count;
   object_iter_t iter;
@@ -51,8 +51,8 @@ uint16_t FUN_001b5400(int vehicle_handle, const char *name_filter)
   return (uint16_t)exit_count;
 }
 
-/* FUN_001b5500 (0x1b5500) */
-void FUN_001b5500(int param_1)
+/* unit_scripting_exit_vehicle (0x1b5500) */
+void unit_scripting_exit_vehicle(int param_1)
 {
   char *unit;
 
@@ -99,8 +99,8 @@ void vehicles_dispose(void)
   return;
 }
 
-/* FUN_001b5580 (0x1b5580) */
-void vehicle_causes_collision_damage(int param_1, void *param_2)
+/* vehicle_place (0x1b5580) */
+void vehicle_place(int param_1, void *param_2)
 {
   unit_place(param_1, (char *)param_2 + 0x48);
   object_add_scenario_permutation(param_1, (char *)param_2 + 0x28);
@@ -113,8 +113,7 @@ void vehicle_delete(void)
   return;
 }
 
-/* vehicle_hover (0x1b55c0) — does this vehicle's definition mark it as a
- * hovering vehicle?
+/* vehicle_causes_collision_damage (0x1b55c0)
  *
  * Confirmed: MOV EAX,[EBP+0x8]; PUSH 0x2; PUSH EAX ->
  * object_get_and_verify_type(vehicle_handle, 2) (type mask 2 = vehicle).
@@ -125,10 +124,8 @@ void vehicle_delete(void)
  * & 0x100).
  * Confirmed: ADD ESP,0x10 -> both cdecl cleanups (2 calls x 2 args) coalesced.
  * Confirmed: plain RET (cdecl, caller cleans); result returned in EAX.
- * Inferred: name "vehicle_hover" from kb.json; the specific flag bit meaning
- * is unproven beyond "bit 7 of the vehi definition flags".
  */
-bool vehicle_hover(int vehicle_handle)
+bool vehicle_causes_collision_damage(int vehicle_handle)
 {
   void *vehicle;
   void *vehicle_tag;
@@ -138,8 +135,8 @@ bool vehicle_hover(int vehicle_handle)
   return (bool)((*(uint32_t *)((char *)vehicle_tag + 0x2f0) >> 7) & 1);
 }
 
-/* FUN_001b5610 (0x1b5610) */
-void FUN_001b5610(int vehicle_handle, uint8_t param_2)
+/* vehicle_hover (0x1b5610) */
+void vehicle_hover(int vehicle_handle, uint8_t param_2)
 {
   char *vehicle;
 
@@ -187,11 +184,11 @@ bool vehicle_is_flipped(int vehicle_handle)
   return (bool)result;
 }
 
-/* FUN_001b56b0 (0x1b56b0) — per-tick contact bookkeeping for a vehicle,
+/* compute_airborne_ticks (0x1b56b0) — per-tick contact bookkeeping for a vehicle,
  * driven by the caller's mass-point state array (passed in EDI).
  *
  * Confirmed: PUSH 0x2; PUSH EAX -> object_get_and_verify_type(handle@<eax>, 2)
- * (type mask 2 = vehicle, the same mask vehicle_hover uses).
+ * (type mask 2 = vehicle, the same mask vehicle_causes_collision_damage uses).
  * Confirmed: MOV ECX,[ESI]; PUSH ECX; PUSH 0x76656869 ->
  * tag_get('vehi', obj->tag_index).
  * Confirmed: MOV EDX,[EAX+0x8c]; PUSH EDX; PUSH 0x70687973 ->
@@ -211,7 +208,7 @@ bool vehicle_is_flipped(int vehicle_handle)
  * read here), which 'phys' tag_block owns the count at +0x74, and the meaning
  * of the two saturating byte counters at obj+0x428 / obj+0x42b.
  */
-void FUN_001b56b0(int vehicle_handle, void *state_array)
+void compute_airborne_ticks(int vehicle_handle, void *state_array)
 {
   char *vehicle;
   void *vehicle_tag;
@@ -3385,7 +3382,7 @@ bool vehicle_update(int vehicle_index)
       create_crashing_effects(vehicle_index, &previous_velocity.i,
                               mass_points);
     }
-    FUN_001b56b0(vehicle_index, mass_points);
+    compute_airborne_ticks(vehicle_index, mass_points);
     if ((*(uint32_t *)(vehicle + 4) & 0x20) != 0) {
       *(int16_t *)(vehicle + 0x426) = 15;
     }

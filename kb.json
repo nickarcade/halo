@@ -35808,17 +35808,17 @@
       "functions": [
         {
           "addr": "0x1b5400",
-          "decl": "uint16_t FUN_001b5400(int vehicle_handle, const char *name_filter);",
+          "decl": "uint16_t vehicle_scripting_unload(int vehicle_handle, const char *name_filter);",
           "ported": true
         },
         {
           "addr": "0x1b5500",
-          "decl": "void FUN_001b5500(int param_1);",
+          "decl": "void unit_scripting_exit_vehicle(int param_1);",
           "ported": true
         },
         {
           "addr": "0x1b5540",
-          "decl": "void FUN_001b5540(void);",
+          "decl": "void vehicles_initialize(void);",
           "ported": true,
           "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
         },
@@ -35844,7 +35844,7 @@
         },
         {
           "addr": "0x1b5580",
-          "decl": "void vehicle_causes_collision_damage(int param_1, void *param_2);",
+          "decl": "void vehicle_place(int param_1, void *param_2);",
           "ported": true
         },
         {
@@ -35856,7 +35856,7 @@
         },
         {
           "addr": "0x1b55c0",
-          "decl": "bool vehicle_hover(int vehicle_handle);",
+          "decl": "bool vehicle_causes_collision_damage(int vehicle_handle);",
           "ported": true
         },
         {
@@ -35867,13 +35867,13 @@
         },
         {
           "addr": "0x1b5600",
-          "decl": "char FUN_001b5600(void);",
+          "decl": "char vehicle_parse_update(void);",
           "ported": true,
-          "name": "FUN_001b5600"
+          "name": "vehicle_parse_update"
         },
         {
           "addr": "0x1b5610",
-          "decl": "void FUN_001b5610(int vehicle_handle, uint8_t param_2);",
+          "decl": "void vehicle_hover(int vehicle_handle, uint8_t param_2);",
           "ported": true
         },
         {
@@ -35889,7 +35889,7 @@
         },
         {
           "addr": "0x1b56b0",
-          "decl": "void FUN_001b56b0(int vehicle_handle@<eax>, void *state_array@<edi>);",
+          "decl": "void compute_airborne_ticks(int vehicle_handle@<eax>, void *state_array@<edi>);",
           "ported": true,
           "static_in_tu": true
         },

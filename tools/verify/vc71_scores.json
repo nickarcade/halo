@@ -16442,7 +16442,7 @@
       "score": 100.0,
       "source": "src/halo/sound/sound_manager.c"
     },
-    "FUN_001b5400": {
+    "vehicle_scripting_unload": {
       "addr": "0x1b5400",
       "end": "0x1b54fb",
       "kind": "auto",
@@ -16453,7 +16453,7 @@
       "score": 94.4,
       "source": "src/halo/units/vehicles.c"
     },
-    "FUN_001b5500": {
+    "unit_scripting_exit_vehicle": {
       "addr": "0x1b5500",
       "end": "0x1b5538",
       "kind": "auto",
@@ -16464,7 +16464,7 @@
       "score": 100.0,
       "source": "src/halo/units/vehicles.c"
     },
-    "FUN_001b5610": {
+    "vehicle_hover": {
       "addr": "0x1b5610",
       "end": "0x1b5657",
       "kind": "auto",
@@ -16475,7 +16475,7 @@
       "score": 96.8,
       "source": "src/halo/units/vehicles.c"
     },
-    "FUN_001b56b0": {
+    "compute_airborne_ticks": {
       "addr": "0x1b56b0",
       "end": "0x1b5747",
       "kind": "auto",
@@ -73169,7 +73169,7 @@
       "score": 95.0,
       "source": "src/halo/units/vehicles.c"
     },
-    "vehicle_causes_collision_damage": {
+    "vehicle_place": {
       "addr": "0x1b5580",
       "end": "0x1b55a6",
       "kind": "auto",
@@ -73202,7 +73202,7 @@
       "score": 96.9,
       "source": "src/halo/units/vehicles.c"
     },
-    "vehicle_hover": {
+    "vehicle_causes_collision_damage": {
       "addr": "0x1b55c0",
       "end": "0x1b55ec",
       "kind": "auto",

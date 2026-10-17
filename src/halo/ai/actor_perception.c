@@ -2354,7 +2354,7 @@ void prop_position_refresh(int actor_handle, int prop_handle, void *out_data,
         *(int *)(object + 0x2d8) == prop->unit_index || prop->type == 0xf;
       prop->dangerous_vehicle_driver =
         *(int *)(object + 0x2d4) == prop->unit_index &&
-        vehicle_hover(prop->vehicle_index);
+        vehicle_causes_collision_damage(prop->vehicle_index);
     } else if (((1 << *(char *)(object + 0x64)) & 3) != 0) {
       prop->attached_to_unit_index = *(int *)(unit + 0xcc);
     }

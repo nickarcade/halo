@@ -6985,7 +6985,7 @@ void unit_scripting_set_emotion_animation_evaluate(int16_t function_index, int t
  *
  * Callees (all cdecl, in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1b5500 = FUN_001b5500(int) -- UNPORTED, void, result discarded
+ *   0x1b5500 = unit_scripting_exit_vehicle(int) -- void, result discarded
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void unit_scripting_exit_vehicle_evaluate(int16_t function_index, int thread_datum, char init)
 {
@@ -6994,7 +6994,7 @@ void unit_scripting_exit_vehicle_evaluate(int16_t function_index, int thread_dat
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    FUN_001b5500(record[0]);
+    unit_scripting_exit_vehicle(record[0]);
     hs_return(thread_datum, 0);
   }
 }
@@ -7367,10 +7367,8 @@ void vehicle_scripting_load_magic_evaluate(int16_t function_index, int thread_da
  *
  * Callees (all cdecl, in kb.json, no @<reg> args anywhere):
  *   0xcc560  = hs_macro_function_evaluate(int16_t, int, char) -> record ptr
- *   0x1b5400 = FUN_001b5400(int, const char *) -> uint16_t in AX (now ported in
- *              units/vehicles.c; lives in the vehicle-scripting address
- *              neighbourhood alongside 0x1b3400/vehicle_* but its own
- *              semantics are unproven, so the mechanical FUN_ name is kept)
+ *   0x1b5400 = vehicle_scripting_unload(int, const char *) -> uint16_t in AX (ported in
+ *              units/vehicles.c)
  *   0xcbf80  = hs_return(int thread_handle, int value) */
 void vehicle_scripting_unload_evaluate(int16_t function_index, int thread_datum, char init)
 {
@@ -7384,7 +7382,7 @@ void vehicle_scripting_unload_evaluate(int16_t function_index, int thread_datum,
   record =
     (int *)hs_macro_function_evaluate(function_index, thread_datum, init);
   if (record != NULL) {
-    value.w = FUN_001b5400(record[0], (const char *)record[1]);
+    value.w = vehicle_scripting_unload(record[0], (const char *)record[1]);
     hs_return(thread_datum, value.i);
   }
 }
