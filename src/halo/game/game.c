@@ -359,7 +359,7 @@ void remove_quitting_players_from_game(void)
         player->quitting = 1;
         if (player->unit_handle != -1) {
           object_get_and_verify_type(player->unit_handle, 3);
-          unit_delete(player->unit_handle);
+          unit_kill_no_statistics(player->unit_handle);
         }
       } else if (quit_at < quit_tick) {
         error(2, "player %x failed to quit, wanted %d is %d", iter.datum_handle,

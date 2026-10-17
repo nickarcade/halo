@@ -2094,7 +2094,7 @@ void units_dispose_from_old_map(void)
  *
  * Sets bit 5 (0x20) of the byte at object_data_t+0xb6 (offset 182,
  * the byte just before unk_183) on the resolved unit object.
- * Distinct from unit_delete (0x1a7fc0) which sets the same bit at
+ * Distinct from unit_kill_no_statistics (0x1a7fc0) which sets the same bit at
  * offset 0xb7 (unk_183).
  *
  * Confirmed: CALL 0x13d680 with type_mask=3 (biped|vehicle).
@@ -2118,15 +2118,13 @@ void unit_kill_silent(int unit_handle)
   *(uint8_t *)(obj + 0xB6) |= 0x40;
 }
 
-/* unit_delete (0x1a7fc0)
+/* unit_kill_no_statistics (0x1a7fc0)
  *
- * Marks a unit object for deletion by setting bit 5 (0x20) of the
- * object flags byte at object_data_t.unk_183 (offset 0xB7). The
- * actual object destruction happens later during the object system's
- * garbage-collection pass. Resolves handle via
- * object_get_and_verify_type with type mask 3 (biped | vehicle).
+ * Marks a unit object for killing without statistics by setting bit 5 (0x20)
+ * of the object flags byte at object_data_t.unk_183 (offset 0xB7).
+ * Resolves handle via object_get_and_verify_type with type mask 3 (biped | vehicle).
  */
-void unit_delete(int datum_handle)
+void unit_kill_no_statistics(int datum_handle)
 {
   object_data_t *obj;
 
@@ -2134,12 +2132,12 @@ void unit_delete(int datum_handle)
   obj->unk_183 |= 0x20;
 }
 
-/* FUN_001a7fe0 (0x1a7fe0)
+/* unit_delete (0x1a7fe0)
  *
  * Confirmed: the body is a single RET (C3).
  * Confirmed: only reference is the unit object_type_definition table at
  *   0x323ca8, slot +0x2c (datum delete), called with the object handle. */
-void FUN_001a7fe0(int unit_handle)
+void unit_delete(int unit_handle)
 {
 }
 

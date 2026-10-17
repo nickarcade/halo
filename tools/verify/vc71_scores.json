@@ -16365,17 +16365,6 @@
       "score": 90.8,
       "source": "src/halo/units/bipeds.c"
     },
-    "FUN_001a7fe0": {
-      "addr": "0x1a7fe0",
-      "end": "0x1a7fe1",
-      "kind": "auto",
-      "n_r": 1,
-      "opnd_percent": 100.0,
-      "ref": "synth",
-      "ref_sha": "685e11c0b354c113",
-      "score": 100.0,
-      "source": "src/halo/units/units.c"
-    },
     "FUN_001ac030": {
       "addr": "0x1ac030",
       "end": "0x1ac06f",
@@ -69892,14 +69881,14 @@
       "source": "src/halo/units/units.c"
     },
     "unit_delete": {
-      "addr": "0x1a7fc0",
-      "end": "0x1a7fda",
+      "addr": "0x1a7fe0",
+      "end": "0x1a7fe1",
       "kind": "auto",
-      "n_r": 10,
-      "opnd_percent": 81.8,
+      "n_r": 1,
+      "opnd_percent": 100.0,
       "ref": "synth",
-      "ref_sha": "372ace4f7bc19592",
-      "score": 90.9,
+      "ref_sha": "685e11c0b354c113",
+      "score": 100.0,
       "source": "src/halo/units/units.c"
     },
     "unit_describe_speech": {
@@ -70671,6 +70660,17 @@
       "ref_sha": "77ecf1a1469f7851",
       "score": 100.0,
       "source": "src/halo/game/players.c"
+    },
+    "unit_kill_no_statistics": {
+      "addr": "0x1a7fc0",
+      "end": "0x1a7fda",
+      "kind": "auto",
+      "n_r": 10,
+      "opnd_percent": 81.8,
+      "ref": "synth",
+      "ref_sha": "372ace4f7bc19592",
+      "score": 90.9,
+      "source": "src/halo/units/units.c"
     },
     "unit_kill_silent": {
       "addr": "0x1a7fa0",

@@ -34855,13 +34855,15 @@
         },
         {
           "addr": "0x1a7fc0",
-          "decl": "void unit_delete(int datum_handle);",
-          "ported": true
+          "decl": "void unit_kill_no_statistics(int datum_handle);",
+          "ported": true,
+          "name": "unit_kill_no_statistics"
         },
         {
           "addr": "0x1a7fe0",
-          "decl": "void FUN_001a7fe0(int unit_handle);",
+          "decl": "void unit_delete(int unit_handle);",
           "ported": true,
+          "name": "unit_delete",
           "comment": "Added from Ghidra function list (missing from kb.json; found by standalone bring-up 2026-09-27). Stack pops 0 bytes (original ret N)."
         },
         {
