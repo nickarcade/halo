@@ -54476,26 +54476,30 @@
         {
           "addr": "0x168cc0",
           "decl": "uint32_t __stdcall IDirect3DIndexBuffer8_Unlock(int param_1);",
-          "ported": false,
-          "name": "IDirect3DIndexBuffer8_Unlock"
+          "ported": true,
+          "name": "IDirect3DIndexBuffer8_Unlock",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_geometry.c"
         },
         {
           "addr": "0x169000",
           "decl": "void D3DDevice_SetRenderState_8(void);",
-          "ported": false,
-          "name": "D3DDevice_SetRenderState_8"
+          "ported": true,
+          "name": "D3DDevice_SetRenderState_8",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_geometry.c"
         },
         {
           "addr": "0x1691b0",
           "decl": "void D3DDevice_SetTextureStageState_8(uint32_t a0, int32_t a1, uint32_t a2);",
-          "ported": false,
-          "name": "D3DDevice_SetTextureStageState_8"
+          "ported": true,
+          "name": "D3DDevice_SetTextureStageState_8",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_geometry.c"
         },
         {
           "addr": "0x1693c0",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_8(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetRenderState_8"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetRenderState_8",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_hardware_geometry.c"
         }
       ]
     },

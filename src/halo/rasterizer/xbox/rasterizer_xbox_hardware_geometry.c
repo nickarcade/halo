@@ -21,6 +21,17 @@
  * 0x476ab0 is global_d3d_device; 0x325652 is the word render-phase marker,
  * raised to 2 across the Lock and cleared afterwards (0x168db4/0x168dc9).
  */
+/* 0x168cc0 — IDirect3DIndexBuffer8_Unlock
+ *
+ * D3D8 COM wrapper for IDirect3DIndexBuffer8::Unlock. Takes index buffer (param_1, ignored),
+ * returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DIndexBuffer8_Unlock(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
 /* 0x168cd0 */
 bool rasterizer_vertex_buffer_new(void *vertex_buffer, int vertex_type,
                                   int vertex_count, void *vertices,
@@ -275,6 +286,23 @@ void rasterizer_triangle_buffer_delete(void *triangle_buffer)
   }
 }
 
+/* 0x169000 — D3DDevice_SetRenderState_8
+ *
+ * Dead inline-wrapper instantiation of D3DDevice_SetRenderState.
+ */
+void D3DDevice_SetRenderState_8(void)
+{
+}
+
+/* 0x1691b0 — D3DDevice_SetTextureStageState_8
+ *
+ * Dead inline-wrapper instantiation of D3DDevice_SetTextureStageState.
+ */
+void D3DDevice_SetTextureStageState_8(uint32_t a0, int32_t a1, uint32_t a2)
+{
+  D3DDevice_SetTextureStageState(a0, a1, a2);
+}
+
 /*
  * rasterizer_project_billboard @ 0x169200 — project a world-space point plus a radius into
  * screen space, returning whether it landed in front of the eye.
@@ -369,4 +397,15 @@ bool rasterizer_project_billboard(float *point, float radius, float *out_extent,
     }
   }
   return visible;
+}
+
+/* 0x1693c0 — IDirect3DDevice8_SetRenderState_8
+ *
+ * Dead D3D8 COM wrapper for SetRenderState. Takes device (param_1, ignored),
+ * returns S_OK (0).
+ */
+uint32_t __stdcall IDirect3DDevice8_SetRenderState_8(int param_1)
+{
+  (void)param_1;
+  return 0;
 }
