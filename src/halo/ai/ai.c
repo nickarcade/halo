@@ -2638,7 +2638,7 @@ void ai_handle_spatial_effect(int object_handle, float *position,
 int FUN_0003f350(int unit_handle, int spawn_tag, int16_t count, float radius)
 {
   int spawned_count;
-  int unit;
+  char *unit;
   int encounter_index;
   int squad_index;
   int actv_tag;
@@ -2651,7 +2651,7 @@ int FUN_0003f350(int unit_handle, int spawn_tag, int16_t count, float radius)
   float unit_origin[3];
   float spawn_pos[3];
   int new_obj;
-  int obj_type;
+  char *obj_type;
   int new_actor;
   float speed_mult;
   float speed_scale;
@@ -2659,9 +2659,9 @@ int FUN_0003f350(int unit_handle, int spawn_tag, int16_t count, float radius)
 
   spawned_count = 0;
   if ((spawn_tag != -1) && (count >= 1)) {
-    unit = object_get_and_verify_type(unit_handle, 3);
+    unit = (char *)object_get_and_verify_type(unit_handle, 3);
     if ((*(int *)(unit + 0x1a8) != -1) || (*(int *)(unit + 0x1a4) != -1)) {
-      unit = (int)datum_get(*(data_t **)0x6325a4, *(unsigned int *)(unit + 0x1a4));
+      unit = (char *)datum_get(*(data_t **)0x6325a4, *(unsigned int *)(unit + 0x1a4));
       encounter_index = *(int16_t *)(unit + 0x34);
       squad_index = *(int16_t *)(unit + 0x3a);
     } else {
@@ -2672,7 +2672,7 @@ int FUN_0003f350(int unit_handle, int spawn_tag, int16_t count, float radius)
       actv_tag = (int)tag_get(0x61637476, spawn_tag); /* 'actv' */
       actr_tag = (uint32_t *)tag_get(0x61637472, *(unsigned int *)(actv_tag + 0x10)); /* 'actr' */
       for (i = 0; i < (int)count; i++) {
-        random_angle = real_seed_random_range(get_global_random_seed_address(0, 0x40c90fdb));
+        random_angle = random_real_range(get_global_random_seed_address(), 0.0f, 6.2831855f);
         object_placement_data_new(&placement_data, *(unsigned int *)(actv_tag + 0x20), 0xffffffff);
         vector3d_from_angle(forward, random_angle);
         object_get_origin(unit_handle, unit_origin);
@@ -2681,18 +2681,18 @@ int FUN_0003f350(int unit_handle, int spawn_tag, int16_t count, float radius)
         spawn_pos[2] = forward[2] * *(float *)0x2533e4 + unit_origin[2] + *(float *)0x2533e4;
         new_obj = object_new(&placement_data);
         if (new_obj != -1) {
-          obj_type = object_get_and_verify_type(new_obj, 3);
+          obj_type = (char *)object_get_and_verify_type(new_obj, 3);
           if (*(int16_t *)(obj_type + 100) == 0) {
             biped_fix_position(new_obj, 0xffffffff, spawn_pos, 0, 1.0f, 1, 0, 0);
           }
           actor_customize_unit(spawn_tag, new_obj);
           actr_flags = (*actr_tag >> 0x1a) & 0xffffff01;
-          new_actor = actor_create_for_unit(actr_flags, new_obj, spawn_tag, encounter_index, squad_index, 0, 0xffffffff, 0, 2, 0, 0xffffffff, 0);
+          new_actor = actor_create_for_unit(actr_flags, new_obj, spawn_tag, encounter_index, squad_index, 0, -1, 0, 2, 0, -1, 0);
           if (new_actor != -1) {
             actor_verify_activation(new_actor);
             if (radius > *(float *)0x2533c0) {
-              speed_mult = real_seed_random_range(get_global_random_seed_address(0x3f000000, 0x3f800000));
-              speed_scale = real_seed_random_range(get_global_random_seed_address(0x3f4ccccd, 0x3fc00000));
+              speed_mult = random_real_range(get_global_random_seed_address(), 0.5f, 1.0f);
+              speed_scale = random_real_range(get_global_random_seed_address(), 0.8f, 1.5f);
               vel[0] = forward[0] * speed_mult * radius;
               vel[1] = forward[1] * speed_mult * radius;
               vel[2] = speed_scale * radius;
@@ -2740,7 +2740,7 @@ bool ai_consider_major_upgrade(int encounter_index, int squad_index, float chanc
   } else {
     effective_chance = global_factor;
   }
-  roll = real_seed_random(get_global_random_seed_address());
+  roll = random_math_real((unsigned int *)get_global_random_seed_address());
   effective_chance += chance;
   upgrade = (roll < effective_chance);
   delta = (float)(upgrade ? 1.0f : 0.0f) - chance;
@@ -2792,7 +2792,7 @@ int ai_test_line_of_sight(float *origin, int bsp, float *target, int param_4, sh
   *(short *)(0x5a8c80 + (int)depth * 2) = 2;
 
   result = 4;
-  if (((bsp == -1) || (param_4 == -1)) || scenario_test_pvs(bsp, param_4)) {
+  if (((bsp == -1) || (param_4 == -1)) || scenario_ensure_point_within_world(bsp, (int16_t)param_4)) {
     coll_flags = 0xc2a3;
     if (!game_connection() && *(char *)0x5ac9c4) {
       coll_flags = 0x23;
@@ -2831,7 +2831,7 @@ int ai_test_line_of_sight(float *origin, int bsp, float *target, int param_4, sh
             if (!hit) goto check_fog_dist;
             point_from_line3d(target, side_dir, 0.1f, p1);
             point_from_line3d(target, side_dir, -0.1f, p2);
-            point_from_line3d(target, (float *)0x31fc50, 0.1f, line_end);
+            point_from_line3d(target, *(float **)0x31fc50, 0.1f, line_end);
             *(int *)0x5ac5d4 += 1;
             if (!collision_test_line(coll_flags, p1, origin, param_7, coll_out)) {
               *(int *)0x5ac5d4 += 1;
@@ -2897,7 +2897,6 @@ char ai_test_ballistic_line_of_fire(int actor_handle, int param_2, int target, f
 {
   short depth;
   int pill_count;
-  char pill_buf[4];
   unsigned int pills[320];
   char coll_out[80];
   float *origin;
@@ -2923,7 +2922,7 @@ char ai_test_ballistic_line_of_fire(int actor_handle, int param_2, int target, f
   *(short *)0x4761d8 = depth + 1;
   *(short *)(0x5a8c80 + (int)depth * 2) = 4;
 
-  pill_count = ai_find_line_of_fire_friend_pills(actor_handle, 0x20, pill_buf);
+  pill_count = ai_find_line_of_fire_friend_pills(actor_handle, 0x20, (ai_firing_pos_entry_t *)pills);
   origin = (float *)param_2;
   target_dir = impact_point;
 

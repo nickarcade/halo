@@ -28912,7 +28912,7 @@
         },
         {
           "addr": "0x18e690",
-          "decl": "float FUN_0018e690(void);",
+          "decl": "float FUN_0018e690(void *fog_elem, void *origin, void *fog_out);",
           "ported": true
         },
         {
@@ -40353,7 +40353,7 @@
         {
           "addr": "0x30f50",
           "decl": "void actor_emotion_unopposable_retreat(int actor_handle);",
-          "comment": "[NAME: actor_emotion_unopposable_retreat — name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
+          "comment": "[NAME: actor_emotion_unopposable_retreat \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "name": "actor_emotion_unopposable_retreat",
           "ported": true
         },
@@ -41066,7 +41066,7 @@
         },
         {
           "addr": "0x4b770",
-          "decl": "void ai_debug_lineofsight(int param_1, int param_2, int param_3, int param_4);",
+          "decl": "void ai_debug_lineofsight(float *param_1, int param_2, float *param_3, int param_4);",
           "name": "ai_debug_lineofsight",
           "ported": false,
           "src": "src/halo/ai/ai_debug.c"

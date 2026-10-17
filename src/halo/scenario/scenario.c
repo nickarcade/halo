@@ -2708,8 +2708,11 @@ char FUN_0018e5c0(int location)
 }
 
 /* 0x18e690 — returns a constant float (0.0f at 0x2533c0). */
-float FUN_0018e690(void)
+float FUN_0018e690(void *fog_elem, void *origin, void *fog_out)
 {
+  (void)fog_elem;
+  (void)origin;
+  (void)fog_out;
   return 0.0f;
 }
 
