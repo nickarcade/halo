@@ -39,36 +39,36 @@
       "lane": "raw_xbe_structural",
       "population_scope": "implemented game functions",
       "implemented_functions": 7170,
-      "compared_functions": 6850,
+      "compared_functions": 6852,
       "cannot_compare_functions": 318,
-      "unchecked_functions": 2,
+      "unchecked_functions": 0,
       "totals": {
         "structural differ": {
           "functions": 3676,
           "original_bytes": 1320131
         },
         "structural exact": {
-          "functions": 3158,
-          "original_bytes": 281023
+          "functions": 3160,
+          "original_bytes": 281025
         },
         "not comparable": {
           "functions": 334,
           "original_bytes": 6193
         }
       },
-      "audited_functions": 7168,
-      "function_exact_rate": 0.4621012584138133,
-      "matching_non_relocation_bytes": 512103,
-      "non_relocation_bytes": 1503821,
-      "byte_accuracy": 0.34053454500236396,
-      "aligned_scored_functions": 6850,
-      "aligned_matching_bytes": 1099592,
-      "aligned_compared_bytes": 1470060,
+      "audited_functions": 7170,
+      "function_exact_rate": 0.46225863077823287,
+      "matching_non_relocation_bytes": 512105,
+      "non_relocation_bytes": 1503823,
+      "byte_accuracy": 0.3405354220543242,
+      "aligned_scored_functions": 6852,
+      "aligned_matching_bytes": 1099594,
+      "aligned_compared_bytes": 1470062,
       "aligned_uncertain_bytes": 1652,
       "aligned_mismatched_relocations": 1085,
       "aligned_mismatched_relocation_bytes": 4340,
-      "aligned_byte_accuracy_lower": 0.7479912384528523,
-      "aligned_byte_accuracy_upper": 0.7491150021087575,
+      "aligned_byte_accuracy_lower": 0.747991581307455,
+      "aligned_byte_accuracy_upper": 0.7491153434344946,
       "aligned_provisional_functions": 883
     },
     "platform": {
@@ -35252,45 +35252,81 @@
           "raw_byte_first_difference": null,
           "raw_byte_candidate_length": null,
           "raw_byte_reference_length": null,
-          "raw_xbe_structural_verdict": null,
-          "raw_xbe_structural_confidence": null,
+          "raw_xbe_structural_verdict": "structural exact",
+          "raw_xbe_structural_confidence": "high",
           "raw_xbe_structural_reason": null,
-          "raw_xbe_structural_artifact": null,
-          "raw_xbe_structural_audited_at": null,
+          "raw_xbe_structural_artifact": "artifacts/raw_xbe_structural/001a07b0-bipeds_dispose.json",
+          "raw_xbe_structural_audited_at": "2026-10-17T17:40:20.367397+00:00",
           "raw_xbe_structural_first_difference": null,
-          "raw_xbe_structural_reference_length": null,
-          "raw_xbe_structural_matching_non_relocation_bytes": null,
-          "raw_xbe_structural_non_relocation_bytes": null,
-          "raw_xbe_structural_byte_accuracy": null,
-          "raw_xbe_structural_masked_bytes": null,
-          "raw_xbe_structural_lower_bound": null,
-          "raw_xbe_structural_register_argument": null,
-          "raw_xbe_structural_unmasked_relocations": null,
-          "raw_xbe_verification": {},
-          "raw_xbe_verification_boundaries": null,
-          "raw_xbe_verification_compiler": null,
-          "raw_xbe_verification_behavior": null,
-          "raw_xbe_verification_instruction_operands": null,
-          "raw_xbe_verification_literal_bytes": null,
-          "raw_xbe_aligned_status": null,
-          "raw_xbe_aligned_method": null,
-          "raw_xbe_aligned_lower": null,
-          "raw_xbe_aligned_upper": null,
-          "raw_xbe_aligned_matching_bytes": null,
-          "raw_xbe_aligned_compared_bytes": null,
-          "raw_xbe_aligned_stable_bytes": null,
-          "raw_xbe_aligned_uncertain_bytes": null,
-          "raw_xbe_aligned_uncertain_relocations": null,
-          "raw_xbe_aligned_mismatched_relocations": null,
-          "raw_xbe_aligned_mismatched_relocation_bytes": null,
-          "raw_xbe_aligned_exact_instructions": null,
-          "raw_xbe_aligned_instruction_pairs": null,
-          "raw_xbe_aligned_candidate_only": null,
-          "raw_xbe_aligned_reference_only": null,
-          "raw_xbe_aligned_unresolved_relocations": null,
-          "raw_xbe_aligned_unpaired_relocations": null,
-          "raw_xbe_aligned_ambiguous_steps": null,
-          "raw_xbe_aligned_provisional": null
+          "raw_xbe_structural_reference_length": 1,
+          "raw_xbe_structural_matching_non_relocation_bytes": 1,
+          "raw_xbe_structural_non_relocation_bytes": 1,
+          "raw_xbe_structural_byte_accuracy": 1.0,
+          "raw_xbe_structural_masked_bytes": 0,
+          "raw_xbe_structural_lower_bound": false,
+          "raw_xbe_structural_register_argument": false,
+          "raw_xbe_structural_unmasked_relocations": 0,
+          "raw_xbe_verification": {
+            "behavior": {
+              "detail": "this static audit does not execute either function",
+              "status": "untested"
+            },
+            "boundaries": {
+              "detail": "kind=auto; provenance=table; no independent boundary review recorded",
+              "status": "inferred"
+            },
+            "compiler": {
+              "detail": "supplied object; original compiler and flags are unproven",
+              "status": "provisional"
+            },
+            "instruction_operands": {
+              "detail": "encoding and relocation targets within the selected span; no ABI or behavior proof",
+              "status": "exact"
+            },
+            "literal_bytes": {
+              "detail": "literal comparison within the selected span",
+              "status": "exact"
+            }
+          },
+          "raw_xbe_verification_boundaries": {
+            "detail": "kind=auto; provenance=table; no independent boundary review recorded",
+            "status": "inferred"
+          },
+          "raw_xbe_verification_compiler": {
+            "detail": "supplied object; original compiler and flags are unproven",
+            "status": "provisional"
+          },
+          "raw_xbe_verification_behavior": {
+            "detail": "this static audit does not execute either function",
+            "status": "untested"
+          },
+          "raw_xbe_verification_instruction_operands": {
+            "detail": "encoding and relocation targets within the selected span; no ABI or behavior proof",
+            "status": "exact"
+          },
+          "raw_xbe_verification_literal_bytes": {
+            "detail": "literal comparison within the selected span",
+            "status": "exact"
+          },
+          "raw_xbe_aligned_status": "scored",
+          "raw_xbe_aligned_method": "weighted_global_dp_v1",
+          "raw_xbe_aligned_lower": 1.0,
+          "raw_xbe_aligned_upper": 1.0,
+          "raw_xbe_aligned_matching_bytes": 1,
+          "raw_xbe_aligned_compared_bytes": 1,
+          "raw_xbe_aligned_stable_bytes": 1,
+          "raw_xbe_aligned_uncertain_bytes": 0,
+          "raw_xbe_aligned_uncertain_relocations": 0,
+          "raw_xbe_aligned_mismatched_relocations": 0,
+          "raw_xbe_aligned_mismatched_relocation_bytes": 0,
+          "raw_xbe_aligned_exact_instructions": 1,
+          "raw_xbe_aligned_instruction_pairs": 1,
+          "raw_xbe_aligned_candidate_only": 0,
+          "raw_xbe_aligned_reference_only": 0,
+          "raw_xbe_aligned_unresolved_relocations": 0,
+          "raw_xbe_aligned_unpaired_relocations": 0,
+          "raw_xbe_aligned_ambiguous_steps": 0,
+          "raw_xbe_aligned_provisional": false
         },
         {
           "address": "0x1a07c0",
@@ -40413,23 +40449,23 @@
             "original_bytes": 0
           },
           "structural exact": {
-            "functions": 10,
-            "original_bytes": 479
+            "functions": 11,
+            "original_bytes": 480
           }
         },
-        "audited_functions": 49,
-        "function_exact_rate": 0.20833333333333334,
-        "matching_non_relocation_bytes": 3806,
-        "non_relocation_bytes": 24129,
-        "byte_accuracy": 0.15773550499399064,
-        "aligned_scored_functions": 48,
-        "aligned_matching_bytes": 15852,
-        "aligned_compared_bytes": 24289,
+        "audited_functions": 50,
+        "function_exact_rate": 0.22448979591836735,
+        "matching_non_relocation_bytes": 3807,
+        "non_relocation_bytes": 24130,
+        "byte_accuracy": 0.15777041027766267,
+        "aligned_scored_functions": 49,
+        "aligned_matching_bytes": 15853,
+        "aligned_compared_bytes": 24290,
         "aligned_uncertain_bytes": 12,
         "aligned_mismatched_relocations": 3,
         "aligned_mismatched_relocation_bytes": 12,
-        "aligned_byte_accuracy_lower": 0.652641113261147,
-        "aligned_byte_accuracy_upper": 0.6531351640660381,
+        "aligned_byte_accuracy_lower": 0.6526554137505146,
+        "aligned_byte_accuracy_upper": 0.6531494442157266,
         "aligned_provisional_functions": 14
       },
       "runtime_oracle": {
@@ -531452,45 +531488,81 @@
           "raw_byte_first_difference": null,
           "raw_byte_candidate_length": null,
           "raw_byte_reference_length": null,
-          "raw_xbe_structural_verdict": null,
-          "raw_xbe_structural_confidence": null,
+          "raw_xbe_structural_verdict": "structural exact",
+          "raw_xbe_structural_confidence": "high",
           "raw_xbe_structural_reason": null,
-          "raw_xbe_structural_artifact": null,
-          "raw_xbe_structural_audited_at": null,
+          "raw_xbe_structural_artifact": "artifacts/raw_xbe_structural/001b5570-vehicles_dispose.json",
+          "raw_xbe_structural_audited_at": "2026-10-17T17:40:20.627127+00:00",
           "raw_xbe_structural_first_difference": null,
-          "raw_xbe_structural_reference_length": null,
-          "raw_xbe_structural_matching_non_relocation_bytes": null,
-          "raw_xbe_structural_non_relocation_bytes": null,
-          "raw_xbe_structural_byte_accuracy": null,
-          "raw_xbe_structural_masked_bytes": null,
-          "raw_xbe_structural_lower_bound": null,
-          "raw_xbe_structural_register_argument": null,
-          "raw_xbe_structural_unmasked_relocations": null,
-          "raw_xbe_verification": {},
-          "raw_xbe_verification_boundaries": null,
-          "raw_xbe_verification_compiler": null,
-          "raw_xbe_verification_behavior": null,
-          "raw_xbe_verification_instruction_operands": null,
-          "raw_xbe_verification_literal_bytes": null,
-          "raw_xbe_aligned_status": null,
-          "raw_xbe_aligned_method": null,
-          "raw_xbe_aligned_lower": null,
-          "raw_xbe_aligned_upper": null,
-          "raw_xbe_aligned_matching_bytes": null,
-          "raw_xbe_aligned_compared_bytes": null,
-          "raw_xbe_aligned_stable_bytes": null,
-          "raw_xbe_aligned_uncertain_bytes": null,
-          "raw_xbe_aligned_uncertain_relocations": null,
-          "raw_xbe_aligned_mismatched_relocations": null,
-          "raw_xbe_aligned_mismatched_relocation_bytes": null,
-          "raw_xbe_aligned_exact_instructions": null,
-          "raw_xbe_aligned_instruction_pairs": null,
-          "raw_xbe_aligned_candidate_only": null,
-          "raw_xbe_aligned_reference_only": null,
-          "raw_xbe_aligned_unresolved_relocations": null,
-          "raw_xbe_aligned_unpaired_relocations": null,
-          "raw_xbe_aligned_ambiguous_steps": null,
-          "raw_xbe_aligned_provisional": null
+          "raw_xbe_structural_reference_length": 1,
+          "raw_xbe_structural_matching_non_relocation_bytes": 1,
+          "raw_xbe_structural_non_relocation_bytes": 1,
+          "raw_xbe_structural_byte_accuracy": 1.0,
+          "raw_xbe_structural_masked_bytes": 0,
+          "raw_xbe_structural_lower_bound": false,
+          "raw_xbe_structural_register_argument": false,
+          "raw_xbe_structural_unmasked_relocations": 0,
+          "raw_xbe_verification": {
+            "behavior": {
+              "detail": "this static audit does not execute either function",
+              "status": "untested"
+            },
+            "boundaries": {
+              "detail": "kind=auto; provenance=table; no independent boundary review recorded",
+              "status": "inferred"
+            },
+            "compiler": {
+              "detail": "supplied object; original compiler and flags are unproven",
+              "status": "provisional"
+            },
+            "instruction_operands": {
+              "detail": "encoding and relocation targets within the selected span; no ABI or behavior proof",
+              "status": "exact"
+            },
+            "literal_bytes": {
+              "detail": "literal comparison within the selected span",
+              "status": "exact"
+            }
+          },
+          "raw_xbe_verification_boundaries": {
+            "detail": "kind=auto; provenance=table; no independent boundary review recorded",
+            "status": "inferred"
+          },
+          "raw_xbe_verification_compiler": {
+            "detail": "supplied object; original compiler and flags are unproven",
+            "status": "provisional"
+          },
+          "raw_xbe_verification_behavior": {
+            "detail": "this static audit does not execute either function",
+            "status": "untested"
+          },
+          "raw_xbe_verification_instruction_operands": {
+            "detail": "encoding and relocation targets within the selected span; no ABI or behavior proof",
+            "status": "exact"
+          },
+          "raw_xbe_verification_literal_bytes": {
+            "detail": "literal comparison within the selected span",
+            "status": "exact"
+          },
+          "raw_xbe_aligned_status": "scored",
+          "raw_xbe_aligned_method": "weighted_global_dp_v1",
+          "raw_xbe_aligned_lower": 1.0,
+          "raw_xbe_aligned_upper": 1.0,
+          "raw_xbe_aligned_matching_bytes": 1,
+          "raw_xbe_aligned_compared_bytes": 1,
+          "raw_xbe_aligned_stable_bytes": 1,
+          "raw_xbe_aligned_uncertain_bytes": 0,
+          "raw_xbe_aligned_uncertain_relocations": 0,
+          "raw_xbe_aligned_mismatched_relocations": 0,
+          "raw_xbe_aligned_mismatched_relocation_bytes": 0,
+          "raw_xbe_aligned_exact_instructions": 1,
+          "raw_xbe_aligned_instruction_pairs": 1,
+          "raw_xbe_aligned_candidate_only": 0,
+          "raw_xbe_aligned_reference_only": 0,
+          "raw_xbe_aligned_unresolved_relocations": 0,
+          "raw_xbe_aligned_unpaired_relocations": 0,
+          "raw_xbe_aligned_ambiguous_steps": 0,
+          "raw_xbe_aligned_provisional": false
         },
         {
           "address": "0x1b5580",
@@ -535666,27 +535738,27 @@
             "original_bytes": 16589
           },
           "structural exact": {
-            "functions": 10,
-            "original_bytes": 406
+            "functions": 11,
+            "original_bytes": 407
           },
           "not comparable": {
             "functions": 4,
             "original_bytes": 0
           }
         },
-        "audited_functions": 40,
-        "function_exact_rate": 0.2777777777777778,
-        "matching_non_relocation_bytes": 4713,
-        "non_relocation_bytes": 16421,
-        "byte_accuracy": 0.2870105352901772,
-        "aligned_scored_functions": 36,
-        "aligned_matching_bytes": 12612,
-        "aligned_compared_bytes": 16003,
+        "audited_functions": 41,
+        "function_exact_rate": 0.2972972972972973,
+        "matching_non_relocation_bytes": 4714,
+        "non_relocation_bytes": 16422,
+        "byte_accuracy": 0.28705395201558886,
+        "aligned_scored_functions": 37,
+        "aligned_matching_bytes": 12613,
+        "aligned_compared_bytes": 16004,
         "aligned_uncertain_bytes": 16,
         "aligned_mismatched_relocations": 5,
         "aligned_mismatched_relocation_bytes": 20,
-        "aligned_byte_accuracy_lower": 0.788102230831719,
-        "aligned_byte_accuracy_upper": 0.7891020433668687,
+        "aligned_byte_accuracy_lower": 0.7881154711322169,
+        "aligned_byte_accuracy_upper": 0.7891152211947013,
         "aligned_provisional_functions": 12
       },
       "runtime_oracle": {
