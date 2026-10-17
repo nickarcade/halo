@@ -150,6 +150,7 @@ static const int _scenario_type_main_menu = 2;
 #define network_game_server_reset_counter (*(int *)0x5a9514)
 #define network_game_server_loading_flag (*(char *)0x5a9599)
 #define network_game_server_all_loaded_time (*(int *)0x5a9564)
+#define bsp2d_test_point FUN_00146d40
 
 /* assert_halt_at(file, line, cond) — byte-match-faithful assert (see common.h). */
 #define assert_halt_at(file, line, cond)                       \

@@ -46243,7 +46243,7 @@
         },
         {
           "addr": "0x148910",
-          "decl": "void pill_test_vector(void);",
+          "decl": "char pill_test_vector(float *origin, float *ray_dir, float *v0, float radius, float *edge_dir, float *out_t, float *out_edge_t);",
           "comment": "[NAME: pill_test_vector \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "ported": true,
           "name": "pill_test_vector"
@@ -46290,7 +46290,7 @@
         },
         {
           "addr": "0x149570",
-          "decl": "void bsp2d_test_pill_recursive(void);",
+          "decl": "bool bsp2d_test_pill_recursive(void *state, int node_index);",
           "comment": "[NAME: bsp2d_test_pill_recursive \u2014 name_source=2276-symbol-dump method=exact_address tier=confirmed (T1), cea-apply-unified 2026-09-14]",
           "ported": true,
           "name": "bsp2d_test_pill_recursive"

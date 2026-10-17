@@ -692,6 +692,8 @@ int collision_surface_find_closest_point2d(int bsp, int surface_index, int param
     prev_after_end = after_end;
   } while (edge_index != first_edge);
 
+  (void)first_after_end;
+
   if (after_end && first_before_start) {
     edge = (int *)tag_block_get_element((void *)(bsp + 0x48), first_edge, 0x18);
     side = (edge[5] == surface_index);
