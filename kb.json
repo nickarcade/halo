@@ -54669,32 +54669,37 @@
         {
           "addr": "0x16a900",
           "decl": "void D3DDevice_SetRenderState_7(void);",
-          "ported": false,
-          "name": "D3DDevice_SetRenderState_7"
+          "ported": true,
+          "name": "D3DDevice_SetRenderState_7",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_models.c"
         },
         {
           "addr": "0x16aab0",
           "decl": "void D3DDevice_SetTextureStageState_7(uint32_t a0, int32_t a1, uint32_t a2);",
-          "ported": false,
-          "name": "D3DDevice_SetTextureStageState_7"
+          "ported": true,
+          "name": "D3DDevice_SetTextureStageState_7",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_models.c"
         },
         {
           "addr": "0x16aef0",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetRenderState_7(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetRenderState_7"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetRenderState_7",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_models.c"
         },
         {
           "addr": "0x16b110",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_7(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetTextureStageState_7"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetTextureStageState_7",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_models.c"
         },
         {
           "addr": "0x16b170",
           "decl": "uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_7(int param_1);",
-          "ported": false,
-          "name": "IDirect3DDevice8_SetVertexShaderConstant_7"
+          "ported": true,
+          "name": "IDirect3DDevice8_SetVertexShaderConstant_7",
+          "src": "src/halo/rasterizer/xbox/rasterizer_xbox_models.c"
         }
       ]
     },

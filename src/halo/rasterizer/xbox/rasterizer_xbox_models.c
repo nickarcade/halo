@@ -681,3 +681,35 @@ void *__rasterizer_model_transparent_geometry_submit(void *shader, short param_2
   }
   return result;
 }
+
+/* 0x16a900 — D3DDevice_SetRenderState_7 */
+void D3DDevice_SetRenderState_7(void)
+{
+}
+
+/* 0x16aab0 — D3DDevice_SetTextureStageState_7 */
+void D3DDevice_SetTextureStageState_7(uint32_t a0, int32_t a1, uint32_t a2)
+{
+  D3DDevice_SetTextureStageState(a0, a1, a2);
+}
+
+/* 0x16aef0 — IDirect3DDevice8_SetRenderState_7 */
+uint32_t __stdcall IDirect3DDevice8_SetRenderState_7(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x16b110 — IDirect3DDevice8_SetTextureStageState_7 */
+uint32_t __stdcall IDirect3DDevice8_SetTextureStageState_7(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
+
+/* 0x16b170 — IDirect3DDevice8_SetVertexShaderConstant_7 */
+uint32_t __stdcall IDirect3DDevice8_SetVertexShaderConstant_7(int param_1)
+{
+  (void)param_1;
+  return 0;
+}
