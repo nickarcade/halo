@@ -1103,6 +1103,26 @@ void dsound_virtual_set_location(int channel_index, char flag_0c,
   }
 }
 
+struct dsound_waveformat_ex {
+  unsigned short wFormatTag;
+  unsigned short nChannels;
+  uint32_t nSamplesPerSec;
+  uint32_t nAvgBytesPerSec;
+  unsigned short nBlockAlign;
+  unsigned short wBitsPerSample;
+  unsigned short cbSize;
+  unsigned short extra;
+};
+
+struct dsound_stream_desc {
+  uint32_t dwFlags;
+  uint32_t dwMaxAttachedPackets;
+  void *lpwfxFormat;
+  void *lpfnCallback;
+  void *lpvContext;
+  void *lpMixBinsOutput;
+};
+
 /* dsound_initialize_channel (0x1cb210)
  *
  * Configures an individual DirectSound channel stream, speaker mix bins,
@@ -1110,8 +1130,8 @@ void dsound_virtual_set_location(int channel_index, char flag_0c,
 boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_index)
 {
   void *channel;
-  struct DSSTREAMDESC desc;
-  struct tWAVEFORMATEX wfx;
+  struct dsound_stream_desc desc;
+  struct dsound_waveformat_ex wfx;
   int result;
   float loc_params[11];
   uint32_t speaker_config;
@@ -1134,7 +1154,7 @@ boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_in
     wfx.nSamplesPerSec = sound_dsound_get_sample_rate((type_flags >> 2) & 1);
     wfx.nAvgBytesPerSec = (wfx.nSamplesPerSec >> 6) * (uint32_t)wfx.nBlockAlign;
     wfx.cbSize = 2;
-    *(unsigned short *)((char *)&wfx + sizeof(struct tWAVEFORMATEX)) = 0x40;
+    wfx.extra = 0x40;
   } else {
     wfx.wFormatTag = 1;
     wfx.wBitsPerSample = 16;
@@ -1145,16 +1165,16 @@ boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_in
     wfx.cbSize = 0;
   }
 
-  csmemset(&desc, 0, 0x18);
+  csmemset(&desc, 0, sizeof(desc));
   desc.dwMaxAttachedPackets = 4;
-  desc.lpwfxFormat = (LPWAVEFORMATEX)&wfx;
+  desc.lpwfxFormat = &wfx;
   desc.dwFlags = (type_flags & 1) ? 0x10 : 0;
-  desc.lpfnCallback = (LPFNSTREAMCALLBACK)0x1ca970;
-  desc.lpvContext = (LPVOID)(int)channel_index;
+  desc.lpfnCallback = (void *)0x1ca970;
+  desc.lpvContext = (void *)(int)channel_index;
 
   result = IDirectSound_CreateSoundStream(
-    *(void **)0x50545c, (DSSTREAMDESC *)&desc,
-    (CDirectSoundStream **)((char *)channel + 0x70), NULL);
+    *(void **)0x50545c, &desc,
+    (void **)((char *)channel + 0x70), NULL);
   if (result < 0) {
     sound_dsound_log_error(result, "couldn't create sound stream.");
     return false;
@@ -1168,7 +1188,7 @@ boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_in
     dsound_channel_set_location(channel_index, 0, loc_params, 0.0f, 0.0f, 0);
   } else {
     speaker_config = 0;
-    IDirectSound_GetSpeakerConfig(*(void **)0x50545c, (DWORD *)&speaker_config);
+    IDirectSound_GetSpeakerConfig(*(void **)0x50545c, &speaker_config);
     if (speaker_config & 0x10000) {
       if (type_flags & 2) {
         bin_vols[0] = sound_dsound_gain_to_volume(1.0f, 0);
@@ -1178,7 +1198,7 @@ boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_in
         bin_vols[4] = sound_dsound_gain_to_volume(0.5f, 0);
         bin_vols[5] = sound_dsound_gain_to_volume(0.5f, 0);
         IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
-                                     (LPDSMIXBINS)(uintptr_t)0x1833);
+                                     (void *)0x1833);
         CDirectSoundStream_SetMixBinVolumes_12(
           *(void **)((char *)channel + 0x70), 0x1833, bin_vols);
       } else {
@@ -1186,7 +1206,7 @@ boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_in
         bin_vols[1] = sound_dsound_gain_to_volume(0.5f, 0);
         bin_vols[2] = sound_dsound_gain_to_volume(0.5f, 0);
         IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
-                                     (LPDSMIXBINS)(uintptr_t)7);
+                                     (void *)7);
         CDirectSoundStream_SetMixBinVolumes_12(
           *(void **)((char *)channel + 0x70), 7, bin_vols);
       }
@@ -1195,7 +1215,7 @@ boolean dsound_initialize_channel(short type_flags /* @<ax> */, short channel_in
         bin_vols[0] = sound_dsound_gain_to_volume(0.5f, 0);
         bin_vols[1] = sound_dsound_gain_to_volume(0.5f, 0);
         IDirectSoundStream_SetMixBins(*(void **)((char *)channel + 0x70),
-                                     (LPDSMIXBINS)(uintptr_t)3);
+                                     (void *)3);
         CDirectSoundStream_SetMixBinVolumes_12(
           *(void **)((char *)channel + 0x70), 3, bin_vols);
       }
@@ -3579,7 +3599,7 @@ void FUN_001cd690(void)
         goto next_sound;
       }
 
-      max_dist = sound_definition_get_maximum_distance(*(uint32_t *)(sound_entry + 8));
+      max_dist = sound_get_default_priority(*(uint32_t *)(sound_entry + 8));
       audible_best = sound_allocate_channel((void *)(sound_entry + 0x14), max_dist);
       FUN_001cc4f0(sound_index);
 
@@ -4378,7 +4398,7 @@ bool sound_refresh_looping(int sound_tag_index, int looping_sound_index,
   char *sound_entry;
 
   is_stop = ((short)param_4 == 2);
-  if (*(short *)source != 0 && !valid_real_normal3d((real_vector3d *)((char *)source + 0x18))) {
+  if (*(short *)source != 0 && !valid_real_normal3d((float *)((char *)source + 0x18))) {
     display_assert("valid_real_normal3d(&source->forward)",
                    "c:\\halo\\SOURCE\\sound\\sound_manager.c", 0x2f4, 1);
     system_exit(-1);

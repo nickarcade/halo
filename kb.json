@@ -48412,7 +48412,7 @@
         },
         {
           "addr": "0x00204adc",
-          "decl": "void CDirectSoundStream_SetMixBinVolumes_12(void);"
+          "decl": "int __stdcall CDirectSoundStream_SetMixBinVolumes_12(void *stream, uint32_t mix_bin_mask, const long *volumes);"
         },
         {
           "addr": "0x00204af4",
@@ -48460,7 +48460,7 @@
         },
         {
           "addr": "0x00204c79",
-          "decl": "void IDirectSound_GetSpeakerConfig(void);"
+          "decl": "int __stdcall IDirectSound_GetSpeakerConfig(void *dsound, uint32_t *speaker_config);"
         },
         {
           "addr": "0x00204c95",
@@ -48628,7 +48628,7 @@
         },
         {
           "addr": "0x002052de",
-          "decl": "void IDirectSoundStream_SetMixBinVolumes_12(void);"
+          "decl": "int __stdcall IDirectSoundStream_SetMixBinVolumes_12(void *stream, uint32_t mix_bin_mask, const long *volumes);"
         },
         {
           "addr": "0x002052ed",
@@ -48744,7 +48744,7 @@
         },
         {
           "addr": "0x00205bd8",
-          "decl": "void IDirectSoundStream_SetMixBins(void);"
+          "decl": "int __stdcall IDirectSoundStream_SetMixBins(void *stream, void *mix_bins);"
         },
         {
           "addr": "0x00205e69",
@@ -48764,7 +48764,7 @@
         },
         {
           "addr": "0x002060f8",
-          "decl": "void IDirectSound_CreateSoundStream(void);"
+          "decl": "int __stdcall IDirectSound_CreateSoundStream(void *dsound, void *desc, void **out_stream, void *unknown);"
         },
         {
           "addr": "0x00206232",
