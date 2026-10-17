@@ -276,3 +276,7 @@ host_snapshots/provenance-local/
 
 # Xbox launch-preset variant binaries; derivable from the hex in each preset.
 /tools/xbox/presets/**/*.bin
+
+# Local reference checkouts
+/halo-xbox-runtime/
+tools/references/
