@@ -437,11 +437,10 @@ void vehicle_preprocess_node_orientations(int vehicle_handle, void *node_data)
   if (*(int *)(elem + 0x5c) > 2) {
     if ((*(short **)(elem + 0x60))[2] != -1) {
       anim = (char *)tag_block_get_element(antr + 0x74, (*(short **)(elem + 0x60))[2], 0xb4);
-      v = *(float *)(object + 0x42c);
-      if (v < 0.0f) {
-        t = 0.5f - v / *(float *)(vehi + 0x2fc) * 0.5f;
+      if (*(float *)(object + 0x42c) < *(float *)0x2533c0) {
+        t = 0.5f - *(float *)(object + 0x42c) / *(float *)(vehi + 0x2fc) * 0.5f;
       } else {
-        t = (v / *(float *)(vehi + 0x2f8) + 1.0f) * 0.5f;
+        t = (*(float *)(object + 0x42c) / *(float *)(vehi + 0x2f8) + 1.0f) * 0.5f;
       }
       overlay_animation_apply_continuous(anim, (float)(*(short *)(anim + 0x22) - 1) * t, node_data);
     }
@@ -1818,12 +1817,15 @@ void create_ghost_effect(int vehicle_index)
 
       if (FUN_0014df70(0x61, (float *)&marker->matrix.position, &vector.i,
                        vehicle_index, (int16_t *)&collision)) {
-#define GHOST_WASH_SCALE \
-  (-marker->matrix.forward.z * (1.0f - collision.t) * vehicle->unit.seat_power[0])
-        scale = GHOST_WASH_SCALE < 0.0f   ? 0.0f
-                : GHOST_WASH_SCALE > 1.0f ? 1.0f
-                                          : GHOST_WASH_SCALE;
+        {
+          real neg_fwd_z = -marker->matrix.forward.z;
+          real wash = (1.0f - collision.t) * neg_fwd_z;
+#define GHOST_WASH_SCALE (wash * vehicle->unit.seat_power[0])
+          scale = GHOST_WASH_SCALE < 0.0f   ? 0.0f
+                  : GHOST_WASH_SCALE > 1.0f ? 1.0f
+                                            : GHOST_WASH_SCALE;
 #undef GHOST_WASH_SCALE
+        }
 
         if (scale > 0.0f) {
           midpoint.x = (collision.point.x + marker->matrix.position.x) * 0.5f;
@@ -2242,14 +2244,16 @@ void vehicle_export_function_values(int vehicle_handle)
         value = FUN_00012fe0((float *)(vehicle + 0x18)) / speed_max;
         break;
       case 15:
-        if (*(uint8_t *)(vehicle + 4) & 0x1c) {
-          value = FUN_00012fe0((float *)(vehicle + 0x18)) / speed_max;
+        if (!(*(uint8_t *)(vehicle + 4) & 0x1c)) {
+          goto clamp_zero;
         }
+        value = FUN_00012fe0((float *)(vehicle + 0x18)) / speed_max;
         break;
       case 16:
-        if (*(uint8_t *)(vehicle + 4) & 2) {
-          value = FUN_00012fe0((float *)(vehicle + 0x18)) / speed_max;
+        if (!(*(uint8_t *)(vehicle + 4) & 2)) {
+          goto clamp_zero;
         }
+        value = FUN_00012fe0((float *)(vehicle + 0x18)) / speed_max;
         break;
       case 17:
         value = (float)(fabs(vehicle_dot_product3d(
@@ -2317,23 +2321,23 @@ void vehicle_export_function_values(int vehicle_handle)
                 (1.0f - interpolation) * velocity_value;
         break;
       case 36:
-        value = (FUN_00012fe0((float *)(vehicle + 0x18)) /
-                   *(float *)(vehicle_tag + 0x2f8) *
-                   *(float *)(vehicle + 0x448) -
-                 *(float *)0x2533e8) *
+        value = FUN_00012fe0((float *)(vehicle + 0x18)) /
+                *(float *)(vehicle_tag + 0x2f8);
+        value = (value * *(float *)(vehicle + 0x448) - *(float *)0x2533e8) *
                 *(float *)0x2b7d40;
         break;
       }
       if (value < 0.0f) {
+      clamp_zero:
         value = 0.0f;
       } else if (value > 1.0f) {
         value = 1.0f;
       }
       *value_out = value;
     }
-    value_out = value_out + 1;
-    source = source + 1;
-    count = count - 1;
+    source++;
+    value_out++;
+    count--;
   } while (count != 0);
 }
 
@@ -2644,7 +2648,7 @@ void update_human_plane_physics(int vehicle_index, void *powered_mass_points,
              global_gravity;
       lift *= physics->mass;
 
-      force.i = lift * object->up.x + drive * object->forward.x;
+      force.i = object->up.x * lift + object->forward.x * drive;
       force.j = lift * object->up.y + drive * object->forward.y;
       force.k = lift * object->up.z + drive * object->forward.z;
     }
