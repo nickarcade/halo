@@ -32,13 +32,10 @@ void scenario_tags_unload(void)
  * build string, the scenario name and the difficulty). Whether the value is a
  * checksum, a map id or something else is NOT established by the binary, so the
  * name stays mechanical. No kb.json entry exists for this address. */
-extern void cache_files_initialize(void);
-extern void cache_files_dispose(void);
-
 /* 0x1b98c0: tag_files_open — initialize cache file system */
 void tag_files_open(void)
 {
-  cache_files_initialize();
+  FUN_001bdb10();
 }
 
 /* 0x1b98d0: tag_files_close — dispose cache file system */

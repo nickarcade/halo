@@ -2082,7 +2082,7 @@ char pill_test_vector(float *origin, float *ray_dir, float *v0, float radius,
 
     disc = b * b - c * cross_sq;
     if (disc >= 0.0f) {
-      sqrt_disc = (float)sqrt(disc);
+      sqrt_disc = sqrtf(disc);
       t = -(sqrt_disc + b) / cross_sq;
       if (t < 1.0f) {
         t2 = (sqrt_disc - b) / cross_sq;
@@ -2177,7 +2177,7 @@ bool collision_surface_test_pill(void *state /* @<esi> */, int surface_index)
       normal[1] = pt_ray[1] - pt_edge[1];
       normal[2] = pt_ray[2] - pt_edge[2];
 
-      norm_len = (float)sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+      norm_len = sqrtf(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
       if (norm_len >= 0.0001f) {
         normal[0] /= norm_len;
         normal[1] /= norm_len;

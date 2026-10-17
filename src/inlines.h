@@ -277,6 +277,7 @@ static inline size_t xbox_strlen(const char *s)
   #define sin     xbox_sin
   #define cos     xbox_cos
   #define sqrtf   xbox_sqrtf
+  #define sqrt    xbox_sqrtf
   #define fabsf   xbox_fabsf
   #define acosf   xbox_acosf
   #define asin    xbox_asin

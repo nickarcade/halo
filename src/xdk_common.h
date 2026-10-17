@@ -152,6 +152,7 @@ static const int _scenario_type_main_menu = 2;
 #define network_game_server_all_loaded_time (*(int *)0x5a9564)
 #define bsp2d_test_point FUN_00146d40
 #define inflateEnd FUN_00115430
+#define cache_files_initialize FUN_001bdb10
 
 typedef struct rectangle2d {
   int16_t top;
