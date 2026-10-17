@@ -83,6 +83,22 @@ int structure_surface_index_from_point(int scenario, unsigned char bsp_idx,
   return -1;
 }
 
+/* 0x63e90 */
+char structure_test_pill2d(
+  int scenario,
+  unsigned char bsp_idx,
+  float *origin,
+  int node_handle,
+  float *target,
+  int flags,
+  float param_7,
+  int param_8,
+  unsigned int *result)
+{
+  return 0;
+}
+
+
 /* 0x64100 — props_initialize.
  * Allocates the prop data table. Called from ai_initialize.
  * Asserts (halt=true) if allocation fails, then calls system_exit(-1). */
@@ -1253,3 +1269,16 @@ int TIFFGetFileSize(int file)
   rc = __fstat(file, stat_buf);
   return (rc < 0) ? 0 : stat_buf[5]; /* stat_buf[5] == +0x14 == st_size */
 }
+
+/* 0x64f80 */
+uint32_t findScheme(int scheme)
+{
+  uint32_t v1 = 0x2c9994;
+  do {
+    if (*(int *)(v1 + 4) == scheme)
+      return v1;
+    v1 += 0xc;
+  } while (v1 < 0x2c99c4);
+  return 0;
+}
+

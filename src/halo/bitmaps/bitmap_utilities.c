@@ -1136,6 +1136,12 @@ char FUN_00076a70(void *plate, void *group, int param_3)
   return 0;
 }
 
+/* postprocess_bitmap (0x76ba0) */
+char postprocess_bitmap(void)
+{
+  return 1;
+}
+
 /*
  * FUN_00076bb0 -- bitmap tag_block element delete wrapper.
  *

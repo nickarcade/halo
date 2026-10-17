@@ -341,6 +341,16 @@ have_track:
     (float)index * step, step, t);
 }
 
+/* 0x89c00 */
+void following_camera_deterministic(int unit_handle, int param_2, int param_3)
+{
+}
+
+void FUN_00089c00(int unit_handle, int param_2, int param_3)
+{
+  following_camera_deterministic(unit_handle, param_2, param_3);
+}
+
 /* following_camera_update (0x89cd0): restore the vehicle/following command,
  * including unit/seat transitions and the crouch and look blend channels. */
 void following_camera_update(void *camera_data, void *control_data,
@@ -431,6 +441,12 @@ void following_camera_update(void *camera_data, void *control_data,
     system_exit(-1);
   }
   camera->initialized = 1;
+}
+
+/* 0x8a300 */
+void *observer_get(void)
+{
+  return (void *)0x33571c;
 }
 
 void observer_initialize(void)

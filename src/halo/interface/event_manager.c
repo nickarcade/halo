@@ -1566,7 +1566,51 @@ void update_motion_sensor(int local_player_index)
   *(uint8_t *)(sensor + 0x80) -= (uint8_t)out_of_range_count;
 }
 
+/* 0xdb040 / event_manager.obj — motion_sensor_blip_set_type_and_size */
+void motion_sensor_blip_set_type_and_size(int object_handle)
+{
+  int16_t blip_size;
+  char *unit_data;
+
+  if (object_handle != -1 && object_try_and_get_and_verify_type(object_handle, 3) != NULL) {
+    unit_data = (char *)object_get_and_verify_type(object_handle, 3);
+    blip_size = *(int16_t *)(tag_get(0x756e6974 /* 'unit' */, *(uint32_t *)unit_data) + 0x298);
+    if (blip_size < 0 || blip_size >= 3) {
+      return;
+    }
+    return;
+  }
+}
+
+/* 0xdb0a0 / event_manager.obj — blip_size_get */
+float blip_size_get(char size_type)
+{
+  return *(float *)((char *)0x2f66f8 + (unsigned char)size_type * 4);
+}
+
+/* 0xdb1c0 / event_manager.obj — should_track_object */
+bool should_track_object(int object_handle)
+{
+  char *obj;
+  obj = (char *)object_try_and_get_and_verify_type(object_handle, 3);
+  if (obj != NULL && (*(uint8_t *)(obj + 0xb6) & 4) == 0) {
+    return true;
+  }
+  return false;
+}
+
 /* Conventional-ABI form of 0xdb330, used by the lifted history renderer. */
+static void render_motion_sensor_blip(char *sensor, char blip_type,
+                                      char blip_size_type, float *point,
+                                      float relative_scale, float fade,
+                                      float radius);
+
+/* 0xdb330 / event_manager.obj — render_blip */
+void render_blip(float *point, float center_dir, char type, float scale, unsigned int color, float blend)
+{
+  render_motion_sensor_blip((char *)&center_dir - 0x7c, type, (char)color, point, scale, blend, 0.0f);
+}
+
 static void render_motion_sensor_blip(char *sensor, char blip_type,
                                       char blip_size_type, float *point,
                                       float relative_scale, float fade,

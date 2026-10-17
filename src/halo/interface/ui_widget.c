@@ -5537,3 +5537,76 @@ void display_error_damaged_media(void)
   input_frame_end();
   main_halt_entry();
 }
+
+/* 0xe3b40 */
+void pool_alloc(uint32_t a0)
+{
+  debug_malloc(a0, 0, "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x75);
+}
+
+/* 0xe3b60 */
+void pool_free(uint32_t a0)
+{
+  debug_free((void *)a0, "c:\\halo\\SOURCE\\interface\\ui_widget.c", 0x76);
+}
+
+/* 0xe4490 */
+uint16_t sub_E4490(uint16_t a0)
+{
+  return 0;
+}
+
+/* 0xe47d0 */
+void dispose_widget_stack(void)
+{
+}
+
+/* 0xe4a00 */
+int32_t widget_instance_can_handle_events(uint32_t *a0)
+{
+  return 0;
+}
+
+/* 0xe4ed0 */
+void widget_instance_update_animation_parameters(int32_t a0)
+{
+}
+
+/* 0xe4f00 */
+void widget_instance_reload_recursive(void)
+{
+}
+
+/* 0xe4f10 */
+void ui_widget_reload_by_tag(void)
+{
+}
+
+/* 0xe5160 */
+void play_sound_tag(int32_t a0)
+{
+  if (a0 != -1) {
+    unspatialized_impulse_sound_new(a0, 1.0f);
+  }
+}
+
+/* 0xe5350 */
+void spinner_list_update(void)
+{
+}
+
+/* 0xe53c0 */
+void widget_instance_get_tail_child_widget(int32_t a0)
+{
+}
+
+/* 0xe59a0 */
+void ui_widgets_delete_history(void)
+{
+}
+
+/* 0xe5db0 */
+void widget_instance_find_by_tag_index(void)
+{
+}
+

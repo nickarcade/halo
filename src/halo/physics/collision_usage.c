@@ -1617,6 +1617,24 @@ check_result:
   return 1;
 }
 
+/* 0x14ee30 */
+void clip_position_to_plane(real *a0, real *a1, real *a2)
+{
+  real v1 = -((a0[2] * a2[2] + (a2[1] * a0[1] + a2[0] * a0[0])) - a0[3]);
+  a1[0] = v1 * a0[0] + a2[0];
+  a1[1] = v1 * a0[1] + a2[1];
+  a1[2] = v1 * a0[2] + a2[2];
+}
+
+/* 0x14ee70 */
+void clip_velocity_to_plane(real *a0, real *a1, real *a2)
+{
+  real v1 = -(a0[2] * a2[2] + (a2[1] * a0[1] + a2[0] * a0[0]));
+  a1[0] = v1 * a0[0] + a2[0];
+  a1[1] = v1 * a0[1] + a2[1];
+  a1[2] = v1 * a0[2] + a2[2];
+}
+
 /* 0x14eeb0 — Project point onto line: closest point on ray (origin + t*dir)
  * to target. Writes result to output.
  * origin @<ecx>, output @<edx>, dir @<eax>, target = stack. */

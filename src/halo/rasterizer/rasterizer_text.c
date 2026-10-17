@@ -3902,3 +3902,22 @@ short rasterizer_transparent_geometry_group_to_presorted_index(
   }
   return index;
 }
+
+/* 0x180ff0 */
+uint32_t screenshot_in_progress(void)
+{
+  if (*(int16_t *)0x46e008 <= 1 && (*(int16_t *)0x46e008 != 1 || *(int16_t *)0x31fa98 <= 1)) {
+    return 0;
+  }
+  return 1;
+}
+
+/* 0x183750 */
+uint32_t hardware_character_cache_get_bitmap(void)
+{
+  if (*(char *)0x4d04a0 != 0) {
+    return *(uint32_t *)0x4d04ac;
+  }
+  return 0;
+}
+

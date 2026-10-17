@@ -393,6 +393,15 @@ void dead_camera_update(void *camera_data, void *control_data, void *result_data
   }
 }
 
+/* director_get (0x86160) — get director state for a local player. */
+int32_t director_get(int16_t local_player_index /* @<si> */)
+{
+  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 && local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  return (int32_t)((char *)0x3352b0 + local_player_index * 0xf8);
+}
+
 /* Allocate director scripting state. */
 void director_initialize(void)
 {
@@ -746,6 +755,42 @@ void director_dispose_from_old_map(void)
     entry += 0xf8;
   }
   **(char **)0x5ab200 = 0;
+}
+
+/* director_load_camera (0x86900) — load saved camera state from file. */
+void director_load_camera(void)
+{
+  FILE *file;
+  float position[3];
+  float forward[3];
+  float up[3];
+  float reference_up[3];
+  float angle;
+  unsigned int mode;
+
+  file = fopen((const char *)0x267084, (const char *)0x2658a4);
+  if (!file)
+    return;
+  fscanf(file, (const char *)0x267078, &position[0], &position[1], &position[2]);
+  fscanf(file, (const char *)0x267078, &forward[0], &forward[1], &forward[2]);
+  fscanf(file, (const char *)0x267078, &up[0], &up[1], &up[2]);
+  fscanf(file, (const char *)0x267074, &mode);
+  fclose(file);
+
+  flying_camera_new_from_point_and_vector((flying_camera_t *)0x3352bc, position, forward);
+  observer_up_from_forward(forward, reference_up);
+  angle = (float)angle_between_vectors3d(up, reference_up);
+  if (*(float *)0x2533c0 < (reference_up[2] * up[1] - up[2] * reference_up[1]) * forward[0] +
+                           (forward[1] * (up[2] * reference_up[0] - reference_up[2] * up[0]) +
+                            forward[2] * (up[0] * reference_up[1] - reference_up[0] * up[1]))) {
+    angle = -angle;
+  }
+  *(float *)0x3352d0 = angle;
+  *(int32_t *)0x3352b0 = 2;
+  *(void (**)())0x3352b8 = (void (*)())flying_camera_update;
+  *(uint32_t *)0x3352d4 = mode;
+  *(int32_t *)0x335370 = 0;
+  *(float *)0x335374 = 1.0f;
 }
 
 /* FUN_00086a50: AX/EBX inputs and signed word table/count are retained in
@@ -1651,6 +1696,22 @@ void editor_camera_set_position(const uint32_t *point, const uint32_t *angles)
  *
  * When the new value is zero and the live camera-data pointer at 0x3356b0 is
  * non-NULL, the dword at camera_data+0x14 is cleared. */
+/* editor_camera_bump_speed (0x87a70) */
+void editor_camera_bump_speed(void)
+{
+  float speed;
+  editor_camera_globals.speed_step = (editor_camera_globals.speed_step + 1) % 5;
+  speed = *(float *)((char *)0x2670b4 + editor_camera_globals.speed_step * 4);
+  *(float *)0x2ee668 = speed;
+  terminal_printf(*(void **)0x2ee6c4, (const char *)0x267150, (double)speed);
+}
+
+/* editor_camera_get_speed (0x87ab0) */
+void editor_camera_get_speed(void)
+{
+  (void)(int16_t)*(float *)0x2ee668;
+}
+
 char FUN_00087ac0(char enabled)
 {
   char previous;
@@ -1667,6 +1728,12 @@ char FUN_00087ac0(char enabled)
   }
 
   return previous;
+}
+
+/* editor_camera_get_unit_focus (0x87af0) */
+uint32_t editor_camera_get_unit_focus(void)
+{
+  return *(uint32_t *)0x2ee66c;
 }
 
 /* editor_camera_set_mode (0x87b00) — switch the editor/flying camera mode,
@@ -1707,25 +1774,17 @@ void editor_camera_set_mode(int16_t mode)
   console_printf(0, editor_camera_mode_names[mode]);
 }
 
+/* editor_camera_get_mode (0x87be0) */
+int16_t editor_camera_get_mode(void)
+{
+  return editor_camera_globals.mode;
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/* editor_camera_get_scripted (0x87bf0) */
+char editor_camera_get_scripted(void)
+{
+  return *(char *)0x335698;
+}
 /* 28-byte camera state block exchanged by FUN_00087c00 (0x87c00).  The
  * reference only ever moves it as seven dwords (MOV ECX,0x7 / REP MOVSD) or
  * touches individual dwords, so every member is typed uint32_t; +0xc is the
@@ -1778,6 +1837,12 @@ void FUN_00087c00(void *state)
   block->field_08 = 0;
   vector_to_angles((float *)&block->field_0c,
                    (float *)(*(char **)0x2ee670 + 0x1c));
+}
+
+/* editor_camera_get_field_of_view (0x87c70) */
+float editor_camera_get_field_of_view(void)
+{
+  return *(float *)((char *)0x2670dc + editor_camera_globals.mode * 4);
 }
 
 /* editor_camera_move_to_point (0x87c80) — place the editor/flying camera so

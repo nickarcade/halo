@@ -2669,3 +2669,32 @@ bad:
   debug_free(dir, "c:\\halo\\SOURCE\\bitmaps\\libtiff\\tif_dirread.c", 0x212);
   return 0;
 }
+
+/* 0x66520 */
+void MissingRequired(void *tif, const char *tagname)
+{
+  TIFFError(*(const char **)tif, "TIFF directory is missing required \"%s\" field", tagname);
+}
+
+/* 0x66540 */
+int CheckDirCount(void *tif, void *dir, unsigned int count)
+{
+  return count == *(uint32_t *)((char *)dir + 4);
+}
+
+/* 0x669e0 */
+int TIFFFetchFloatArray(void *tif, void *dir, float *v)
+{
+  return TIFFFetchData(tif, dir, (char *)v) != 0;
+}
+
+/* 0x66e40 */
+int TIFFFetchExtraSamples(void *tif, void *dir)
+{
+  if (*(int *)((char *)dir + 4) != 1) {
+    TIFFError(*(const char **)tif, "Wrong count for ExtraSamples");
+    return 0;
+  }
+  return TIFFSetField(tif, 0x80e3, 1);
+}
+

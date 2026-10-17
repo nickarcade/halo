@@ -3294,3 +3294,23 @@ void FUN_000747d0(int *out_pages, short *out_page_count, int page_dimension,
   crt_fflush((void *)0x331050);
   *out_page_count = page_count;
 }
+
+/* 0x6ea00 */
+int TIFFCheckRead(void *tif, int tiles)
+{
+  char *t = (char *)tif;
+  if (*(short *)(t + 6) == 1) {
+    TIFFError(*(const char **)tif, "cannot read TIFF");
+    return 0;
+  }
+  return 1;
+}
+
+/* 0x70520 */
+void FcolorToColor(float *fcolor, unsigned char *color)
+{
+  color[0] = (unsigned char)(fcolor[0] * 255.0f);
+  color[1] = (unsigned char)(fcolor[1] * 255.0f);
+  color[2] = (unsigned char)(fcolor[2] * 255.0f);
+}
+

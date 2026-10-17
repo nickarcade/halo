@@ -349,6 +349,41 @@ void player_effect_update_screen_flash(int local_player_index, char *effect,
   }
 }
 
+/* player_effect_update_camera_shake (0xa2ba0)
+ *
+ * Updates active camera shake on a player effect from a jpt tag or telefrag block.
+ * ABI: effect_data in @<eax>, effect pointer in @<ebx>.
+ * unit_index is an unused stack param in the original binary. */
+void player_effect_update_camera_shake(int unit_index, float damage_amount,
+                                       float scale, float *effect_data /* @<eax> */,
+                                       void *effect /* @<ebx> */)
+{
+  float scale_ticks;
+  float scaled_intensity;
+  float current_timer;
+  player_effect_t *pe;
+
+  (void)unit_index;
+  game_time_get();
+  scale_ticks = scale * 30.0f;
+  scaled_intensity = (1.0f - effect_data[10]) * damage_amount + effect_data[10];
+  pe = (player_effect_t *)effect;
+  current_timer = (float)pe->field_e2;
+
+  if (scale_ticks * effect_data[0] <= current_timer &&
+      scaled_intensity <= pe->field_ac &&
+      (scaled_intensity < pe->field_ac || scale_ticks * effect_data[0] <= current_timer)) {
+    return;
+  }
+
+  csmemcpy(&pe->field_84, effect_data, 0x48);
+  pe->field_ac = scaled_intensity;
+  pe->field_84 *= scale_ticks;
+  pe->field_e2 = (int16_t)pe->field_84;
+  pe->field_e8 |= 4;
+  pe->field_a4 *= scale_ticks;
+}
+
 /* effect_scale_value -- evaluates a transition function at
  * t = 1.0f - param_2 / param_3 and scales the result by param_1.
  *

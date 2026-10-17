@@ -1376,6 +1376,12 @@ typedef struct tiff_fax_span_entry_s {
  * read at 0x6931e (`mov edi,ecx`) before any write and handed to every
  * FUN_00069200 call in EDI.
  */
+/* 0x69300: putcode */
+void putcode(void *tif, const tiff_fax_span_entry_t *te)
+{
+  FUN_00069200(te->field_00, te->field_02, tif);
+}
+
 void putspan(int span /* @<eax> */, void *tif /* @<ecx> */,
              void *table /* @<ebx> */)
 {

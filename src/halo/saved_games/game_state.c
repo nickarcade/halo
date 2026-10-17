@@ -52,6 +52,16 @@ void game_state_dispose_from_old_map(void)
 {
 }
 
+void game_state_call_before_save_procs(void)
+{
+  (*(void (**)(void))0x32eaa0)();
+}
+
+void game_state_call_before_load_procs(void)
+{
+  (*(void (**)(void))0x32eaa4)();
+}
+
 /* Save the current game state. Pauses rendering, writes the save file,
  * and records whether the save was successful. */
 void game_state_save(void)

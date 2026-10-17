@@ -166,6 +166,11 @@ typedef char
 #define debug_string_pool_count (*(short *)0x4d8228)
 #define debug_string_overflow_warned (*(char *)0x4d822b)
 
+/* 0x1474f0: add_feature */
+void add_feature(void)
+{
+}
+
 /* Draw one collision-BSP vertex as a debug point (0x147520, collision_bsp.obj).
  * Fetches collision vertex `vertex_index` (0x10-byte record) from the tag_block
  * at bsp+0x54, optionally transforms it through `matrix` into a local scratch
@@ -1579,6 +1584,17 @@ typedef struct {
   char pad_25[3]; /* 0x25 - never written by the builder */
   int field_28; /* 0x28 */
 } bsp3d_pill_test_data;
+
+/* 0x148440 */
+bool collision_bsp_test_pill_new_recursive(void *data, unsigned int node_index, float t_min, float t_max)
+{
+  return 0;
+}
+
+bool FUN_00148440(void *data, unsigned int node_index, float t_min, float t_max)
+{
+  return collision_bsp_test_pill_new_recursive(data, node_index, t_min, t_max);
+}
 
 /* noinline: the sole caller FUN_0014e940 (0x14e940) reaches this through a real
  * CALL at 0x14e989, so the original build did NOT inline it. Left to its own

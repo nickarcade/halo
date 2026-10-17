@@ -290,6 +290,12 @@ const char *FUN_001c0720(void)
   return "savegame.bin";
 }
 
+/* 0x1c0730 */
+uint32_t game_state_get_persistent_storage_path(uint32_t a0)
+{
+  return xbox_saved_game_get_path(0, (void *)a0) != 0;
+}
+
 /* 0x1c0750
  * Delete the local player's save game file. Gets the profile directory
  * path and, if valid, deletes the file at that path. */

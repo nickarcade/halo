@@ -2654,7 +2654,7 @@ unsigned long TIFFCurrentTile(void *tif)
  * because that is what the binary's block layout proves the source looked
  * like -- see the FUN_0006d8e0 comment below. It is inlined into its single
  * caller at /O2, so it contributes no call of its own. */
-static int _TIFFgetMode(const char *mode, const char *module)
+int getMode(const char *mode, const char *module)
 {
   int m = -1;
 
@@ -2677,6 +2677,39 @@ static int _TIFFgetMode(const char *mode, const char *module)
     break;
   }
   return m;
+}
+
+int _TIFFgetMode(const char *mode, const char *module)
+{
+  return getMode(mode, module);
+}
+
+/* 0x6c5d0: TIFFInitJPEG */
+int TIFFInitJPEG(void)
+{
+  return 1;
+}
+
+/* 0x6d500: TIFFInitOrder / FUN_0006d500 */
+void FUN_0006d500(void *tif, int magic, int bigendian)
+{
+  char *t = (char *)tif;
+  t[8] = 1;
+  *(uint32_t *)(t + 0xd0) = 0x2ec8f8;
+  if (magic != 0x4d4d) {
+    *(uint32_t *)(t + 0xcc) = 0x334100;
+    if (!bigendian) return;
+    t[10] |= 0x10;
+    return;
+  }
+  *(uint32_t *)(t + 0xcc) = 0x2ec92c;
+  if (bigendian) return;
+  t[10] |= 0x10;
+}
+
+void TIFFInitOrder(void *tif, int magic, int bigendian)
+{
+  FUN_0006d500(tif, magic, bigendian);
 }
 
 int FUN_0006d8e0(const char *path, const char *mode)

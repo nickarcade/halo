@@ -691,6 +691,20 @@ char race_team_can_win_game(int player_handle, int flag_index)
   return result;
 }
 
+/* count_bits_32 (0xb4150) */
+int count_bits_32(unsigned int mask, unsigned int value)
+{
+  int count = 0;
+  int i = 0;
+  do {
+    if (value & (1 << (i & 0x1f))) {
+      count++;
+    }
+    i++;
+  } while (i < 32);
+  return count;
+}
+
 /* FUN_000b4170 (0xb4170) — race/team score computation.
  * Given a player handle and a mode flag, computes a score:
  *   mode 1: returns a per-team value from the table at 0x456f98.
@@ -1287,6 +1301,11 @@ bool slayer_initialize_for_new_map(void)
   return true;
 }
 
+/* slayer_engine_dispose (0xb4ac0) */
+void slayer_engine_dispose(void)
+{
+}
+
 /* FUN_000b4b10 (0xb4b10) — invalidate a player's race timestamp
  *
  * Looks up the player record for the given handle and stores -1 into the
@@ -1303,6 +1322,11 @@ void FUN_000b4b10(unsigned int player_handle)
 
   player = (player_data_t *)datum_get(player_data, player_handle);
   player->target_player_index = -1;
+}
+
+/* slayer_engine_game_ending (0xb4b40) */
+void slayer_engine_game_ending(void)
+{
 }
 
 /* FUN_000b4b50 (0xb4b50) — "slayer" record slot +0x1c: posts the
@@ -1774,6 +1798,11 @@ void slayer_engine_display_score(int player_index)
   if (table_score >= variant->score_limit) {
     game_engine_start_over();
   }
+}
+
+/* stub_engine_dispose (0xb53a0) */
+void stub_engine_dispose(void)
+{
 }
 
 /* FUN_000b53b0 (0xb53b0) — "stub" record slot +0x0c

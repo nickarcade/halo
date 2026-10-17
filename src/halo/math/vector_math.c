@@ -1005,6 +1005,12 @@ float *FUN_00013090(float *a, float *b, float *out)
   return out;
 }
 
+/* 0x130c0: real_random */
+float real_random(void)
+{
+  return real_seed_random(get_global_random_seed_address());
+}
+
 /* 0x130d0 — Ray-cast between two points. Computes the direction vector
  * (point_b - point_a) and delegates to FUN_0014df70 for the actual
  * collision test along that direction from point_a. */

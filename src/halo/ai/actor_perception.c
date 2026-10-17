@@ -5191,3 +5191,22 @@ iterate_props:
   ((actor_t *)actor)->field_04e = awareness_slot;
   ((actor_t *)actor)->field_054 = best_prop;
 }
+
+/* 0x30ee0 */
+char actor_emotion_assess_unopposable_danger(uint32_t a0)
+{
+  char *v1 = (char *)datum_get(*(void **)0x5ab23c, a0);
+  if (*(int16_t *)(v1 + 0x24) <= 1 || *(int16_t *)(v1 + 0x24) >= 4)
+    return 0;
+  if (!v1[0xa4])
+    return 0;
+  if (!v1[0x74]) {
+    if (v1[0x12f])
+      return (v1[0x122] <= 1) + 2;
+    if (*(int16_t *)(v1 + 0x32) <= 1)
+      return 0;
+    return 1;
+  }
+  return 4;
+}
+

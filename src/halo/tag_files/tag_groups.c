@@ -245,6 +245,17 @@ int16_t tag_block_add_element(void *tag_block)
   return -1;
 }
 
+/* 0x1b9a00 */
+void cache_files_disable_writes(void)
+{
+}
+
+/* 0x1b9af0 */
+void tag_block_delete_element(void)
+{
+  error(2, "tag_block_delete_element() is not supported with a cache file active");
+}
+
 /* Stub: tag_load is not supported when running from a cache file.
  * Logs an error and returns an invalid tag handle (-1).
  * All three parameters are intentionally unused in this stub. */
@@ -255,6 +266,12 @@ int FUN_001b9b00(int tag_class, const char *name, int flags)
   (void)flags;
   error(2, "tag_load() is not supported with a cache file active");
   return -1;
+}
+
+/* 0x1b9b20 */
+void tag_unload(void)
+{
+  error(2, "tag_unload() is not supported with a cache file active");
 }
 
 /* Stub: tag_file_get_path is not supported when running from a cache file.

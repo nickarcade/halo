@@ -13448,3 +13448,37 @@ void unit_get_center_of_mass(int object_handle, float *out_position)
   out_position[1] = *(float *)(marker_buf + 0x64);
   out_position[2] = *(float *)(marker_buf + 0x68);
 }
+
+/* 0x85380 */
+uint16_t scripted_camera_next_camera_point(void)
+{
+  return *(uint16_t *)0x2ee5a4;
+}
+
+/* 0x85390 */
+uint32_t scripted_camera_object_relative_to(void)
+{
+  return *(uint32_t *)0x2ee5d4;
+}
+
+/* 0x135f50 */
+int32_t widget_type_definition_get(void)
+{
+  return 0;
+}
+
+/* 0x13e4f0 */
+void object_add_to_list(void)
+{
+}
+
+/* 0x140b50 */
+void object_create_attachments(void)
+{
+}
+
+/* 0x144730 */
+void object_delete_attachments(void)
+{
+}
+

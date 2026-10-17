@@ -2016,7 +2016,6 @@ after_modifier:
 /* Unported: only caller (FUN_001377d0) is unported and passes 3 register
  * args (@<eax>, @<ecx>, @<esi>) that our cdecl C function cannot receive.
  * Original XBE code runs and correctly calls our ported callees. */
-#if 0
 void FUN_00137170(float *incident_direction, float *surface_normal,
                   int object_handle, int effect_tag_index,
                   short marker_index, float *position)
@@ -2112,7 +2111,6 @@ void FUN_00137170(float *incident_direction, float *surface_normal,
                *(float **)0x31fc38, 5, (void *)effect_names,
                marker_points, forward_vectors, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f);
 }
-#endif
 
 /* object_damage_update (0x1384e0) — Per-tick damage state update for an object.
  *

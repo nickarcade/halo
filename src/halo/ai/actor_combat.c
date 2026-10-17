@@ -1818,3 +1818,27 @@ void actor_combat_update(int actor_handle)
 
   actor_debug_info->firing_decision = firing_decision;
 }
+
+/* 0x218d0 */
+char actor_combat_build_grenade_trajectory(
+  float *position /* @<eax> */,
+  float *out_aim_direction /* @<ebx> */,
+  int definition_index,
+  int definition_field_190,
+  float *point,
+  int param_6,
+  int param_7,
+  float *out_speed,
+  int *out_target,
+  float *out_impact_point,
+  float *out_acceleration)
+{
+  return 0;
+}
+
+/* 0x220c0 */
+int actor_aim_projectile(int actor_index, float *origin, float *forward, float *out_error_angle)
+{
+  return -1;
+}
+

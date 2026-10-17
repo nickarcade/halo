@@ -5677,3 +5677,12 @@ void ai_communication_event(short communication_type, int subject_unit_index,
     }
   }
 }
+
+/* 0x43cb0 */
+void ai_conversation_line_end(uint32_t a0)
+{
+  char *v2 = (char *)datum_get(*(void **)0x6324ec, a0);
+  int16_t v1 = *(int16_t *)(v2 + 2);
+  tag_block_get_element((char *)global_scenario_get() + 0x468, v1, 0x74);
+}
+

@@ -2249,6 +2249,11 @@ int FUN_0017e130(void *record_a, void *record_b)
   return result;
 }
 
+/* 0x17e120 */
+void rasterizer_debug_test(void)
+{
+}
+
 /* 0x17e190: flush the accumulated debug geometry -- sort the non-opaque
  * primitive list, then draw the opaque triangles, the opaque lines and finally
  * every non-opaque primitive, one dynamic vertex buffer at a time.

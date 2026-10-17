@@ -8146,6 +8146,20 @@ void paths_dispose_from_old_map(void)
 {
 }
 
+/* 0x5a490 */
+void encounterless_deactivate(int actor_handle)
+{
+  char *v1 = (char *)datum_get(*(data_t **)0x6325a4, actor_handle);
+  if (!v1[9]) {
+    display_assert("actor->encounterless",
+                   "c:\\halo\\SOURCE\\ai\\encounters.c", 0x72e, 1);
+    system_exit(-1);
+  }
+  *(uint16_t *)(v1 + 0x10) = 0;
+  actor_set_active(actor_handle);
+}
+
+
 /* Deferred functions (not yet ported — thunked from XBE):
  *   encounters_update  — encounter_update (needs encounter_update_timers @<eax>
  * audit) encounters_create_for_new_map  — encounter_tally_reset_pass (shared

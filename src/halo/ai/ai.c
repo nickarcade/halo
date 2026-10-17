@@ -2844,3 +2844,22 @@ void ai_handle_spatial_effect(int object_handle, float *position,
       object_handle, *entry, (float *)((char *)entry + 0x4), volume, entry[1]);
   }
 }
+
+/* 0x3f350 */
+int FUN_0003f350(int unit_handle, int spawn_tag, int16_t count, float radius)
+{
+  return 0;
+}
+
+/* 0x41250 */
+bool ai_consider_major_upgrade(int encounter_handle, int16_t squad_index, float random_chance)
+{
+  return false;
+}
+
+/* 0x41ad0 */
+char ai_test_ballistic_line_of_fire(int actor_handle, int param_2, int target, float *impact_point, float accel, int param_6, char param_7)
+{
+  return 0;
+}
+

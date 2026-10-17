@@ -3779,3 +3779,9 @@ void widget_function_null(void)
   return;
 }
 
+/* 0xf3990 */
+void filter_invalid_list_indices(void)
+{
+}
+
+

@@ -669,6 +669,12 @@ void FUN_0011cfe0(void *param_1)
   *(int *)param_1 = 0;
 }
 
+/* 0x11cff0: get_lru_cache_block_offset */
+int32_t get_lru_cache_block_offset(void)
+{
+  return 0;
+}
+
 /* LRU-V (Least Recently Used - Virtual) cache management.
  * Manages a block-based cache with linked list ordering, delete/query
  * callbacks, and page-granularity allocation tracking. Source:
@@ -1078,6 +1084,17 @@ bool lruv_cache_has_query_cb(void *cache)
   assert_halt_at("c:\\halo\\SOURCE\\memory\\lruv_cache.c", 0x277, cache);
   c = (lruv_cache_t *)cache;
   return c->query_cb != 0;
+}
+
+/* 0x11d530: lruv_cache_bytes_to_pages */
+int32_t lruv_cache_bytes_to_pages(int32_t a0, uint32_t a1)
+{
+  uint8_t shift = *(uint8_t *)(a0 + 0x2c);
+  int32_t pages = (int32_t)(a1 >> (shift & 0x1f));
+  if (a1 & ((1U << (shift & 0x1f)) - 1U)) {
+    pages++;
+  }
+  return pages;
 }
 
 /* 0x11d550: Verify the integrity of an lruv_cache.

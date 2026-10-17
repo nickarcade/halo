@@ -1744,6 +1744,16 @@ count_enumerated_profiles_in_mapfile(int16_t memory_unit_index)
   return 0;
 }
 
+void saved_game_files_take_mapfile_mutex(void)
+{
+  take_mutex(*(int **)0x4eacc0, 3600000);
+}
+
+void saved_game_files_release_mapfile_mutex(void)
+{
+  release_mutex(*(int **)0x4eacc0);
+}
+
 /* Pack a saved game file index out of three register-passed fields plus two
  * stack-passed flags.  The field widths come straight from the masks at
  * 0x1c3713/0x1c371b/0x1c3723: EAX keeps 12 bits, ECX 8 bits, EDX 4 bits, and
@@ -2964,6 +2974,12 @@ bool saved_game_file_get_path_to_enclosing_directory(int profile_index,
  * the wide save-game name at find_data+0x244.  The counter is never
  * incremented inside the loop; only the 16-bit sum of the two enumerators
  * is added to it afterwards (MOVSX ECX,AX / ADD EBX,ECX at 0x1c4ff0). */
+int32_t enumerate_default_profiles(void)
+{
+  int32_t playlist_count = enumerate_default_playlist_profiles();
+  return enumerate_default_player_profiles() + playlist_count;
+}
+
 void FUN_001c4f30(void)
 {
   int unit;
@@ -3476,4 +3492,14 @@ int32_t create_enumerated_saved_game_file(uint16_t saved_game_file_type,
   }
 
   return new_profile_index;
+}
+
+void FUN_001c58f0(void)
+{
+  FUN_001c5010();
+}
+
+void enumerate_memory_units_test(void)
+{
+  FUN_001c5010();
 }

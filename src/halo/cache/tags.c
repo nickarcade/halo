@@ -1233,3 +1233,104 @@ void FUN_001baf50(void)
     FUN_001baca0();
   }
 }
+
+int inflateInit_(int z, const char *version, int stream_size);
+int inflateEnd(int z);
+
+/* 0x1b99e0 */
+void cache_files_enable_writes(void)
+{
+}
+
+/* 0x1ba230 */
+bool copy_should_stop(void)
+{
+  int handle = *(int *)(*(unsigned char **)0x32ea98 + 0x950);
+  return WaitForSingleObject(handle, 0) == 0;
+}
+
+/* 0x1ba2d0 */
+bool cache_copy_compressed_file_complete(void)
+{
+  int handle = *(int *)(*(unsigned char **)0x32ea98 + 0x954);
+  return WaitForSingleObject(handle, 0) == 0;
+}
+
+/* 0x1ba600 */
+void cache_copy_initialize_zlib(int32_t a0)
+{
+  *(uint32_t *)(a0 + 0x908) = 0;
+  *(uint32_t *)(a0 + 0x90c) = 0;
+  *(uint32_t *)(a0 + 0x914) = 0;
+  *(uint32_t *)(a0 + 0x918) = 0;
+  inflateInit_(a0 + 0x908, "1.1.3", 0x38);
+}
+
+/* 0x1ba630 */
+void cache_copy_dispose_zlib(void)
+{
+  int32_t v1 = *(int32_t *)0x32ea98;
+  inflateEnd(v1 + 0x908);
+  *(uint32_t *)(v1 + 0x908) = 0;
+  *(uint32_t *)(v1 + 0x90c) = 0;
+  *(uint32_t *)(v1 + 0x914) = 0;
+  *(uint32_t *)(v1 + 0x918) = 0;
+}
+
+/* 0x1baa40 */
+uint32_t get_read_request_size(void)
+{
+  return 0x20000;
+}
+
+/* 0x1baaa0 */
+uint32_t get_write_buffer(void)
+{
+  int16_t write_buffer_index = 0;
+  int32_t self = *(int32_t *)0x32ea98;
+  return *(uint32_t *)(self + 0x984 + write_buffer_index * 4);
+}
+
+/* 0x1baaf0 */
+uint32_t get_write_buffer_size_1baaf0(int16_t a0)
+{
+  if (a0 == 0) {
+    return 0x400000;
+  }
+  display_assert("write_buffer_index>=0 && write_buffer_index<MAXIMUM_WRITE_BUFFERS",
+                 "c:\\halo\\SOURCE\\cache\\cache_files_decompress_windows.c", 0x66a, 1);
+  system_exit(-1);
+  return 0x400000;
+}
+
+/* 0x1bab30 */
+void any_bit_vector_flag_set(void)
+{
+}
+
+/* 0x1bac30 */
+uint32_t get_copy_error_flags(void)
+{
+  return *(uint32_t *)(*(uint32_t *)0x32ea98 + 0x904);
+}
+
+/* 0x1bac40 */
+void initialize_timing(void)
+{
+  csmemset((void *)0x4e5610, 0, 0x24);
+}
+
+/* 0x1bac60 */
+void begin_timing(int32_t a0)
+{
+  QueryPerformanceCounter((LARGE_INTEGER *)(a0 * 8 + 0x4e5638));
+}
+
+/* 0x1bada0 */
+void give_up_time_if_necessary(void)
+{
+  if (!*(char *)(*(uint32_t *)0x32ea98 + 0x988)) {
+    SwitchToThread();
+  }
+}
+

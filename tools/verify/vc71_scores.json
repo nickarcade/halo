@@ -34337,7 +34337,7 @@
       "ref": "synth",
       "ref_sha": "2f51f32e724d4647",
       "score": 91.6,
-      "source": "src/halo/sound/sound_dsound_xbox.c"
+      "source": "src/halo/sound/sound_manager.c"
     },
     "dsound_obstruction_from_obstruction": {
       "addr": "0x1c9270",
