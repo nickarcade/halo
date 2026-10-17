@@ -42607,7 +42607,7 @@
         },
         {
           "addr": "0x64f80",
-          "decl": "uint32_t findScheme(void);",
+          "decl": "uint32_t findScheme(int scheme);",
           "ported": true,
           "name": "findScheme"
         }

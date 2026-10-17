@@ -64,6 +64,7 @@ double __cdecl fabs(double);
 #define scenario_location_deafening(loc) FUN_0018e5c0((int)(loc))
 #define game_difficulty_get_team_value FUN_000b55b0
 #define breakable_surface_flags_get() ((int)breakable_surfaces_get_bsp_surface_data())
+#define structure_test_line2d FUN_000639e0
 #define global_structure_bsp_get scenario_get
 #define object_mark_function object_mark
 #define object_get_origin(handle, pos) object_get_world_position((handle), (vector3_t *)(pos))
