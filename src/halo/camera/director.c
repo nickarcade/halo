@@ -760,7 +760,7 @@ void director_dispose_from_old_map(void)
 /* director_load_camera (0x86900) — load saved camera state from file. */
 void director_load_camera(void)
 {
-  FILE *file;
+  void *file;
   float position[3];
   float forward[3];
   float up[3];
@@ -768,14 +768,14 @@ void director_load_camera(void)
   float angle;
   unsigned int mode;
 
-  file = fopen((const char *)0x267084, (const char *)0x2658a4);
+  file = crt_fopen((const char *)0x267084, (const char *)0x2658a4);
   if (!file)
     return;
-  fscanf(file, (const char *)0x267078, &position[0], &position[1], &position[2]);
-  fscanf(file, (const char *)0x267078, &forward[0], &forward[1], &forward[2]);
-  fscanf(file, (const char *)0x267078, &up[0], &up[1], &up[2]);
-  fscanf(file, (const char *)0x267074, &mode);
-  fclose(file);
+  _fscanf(file, (const char *)0x267078, &position[0], &position[1], &position[2]);
+  _fscanf(file, (const char *)0x267078, &forward[0], &forward[1], &forward[2]);
+  _fscanf(file, (const char *)0x267078, &up[0], &up[1], &up[2]);
+  _fscanf(file, (const char *)0x267074, &mode);
+  crt_fclose(file);
 
   flying_camera_new_from_point_and_vector((flying_camera_t *)0x3352bc, position, forward);
   observer_up_from_forward(forward, reference_up);
@@ -1703,7 +1703,7 @@ void editor_camera_bump_speed(void)
   editor_camera_globals.speed_step = (editor_camera_globals.speed_step + 1) % 5;
   speed = *(float *)((char *)0x2670b4 + editor_camera_globals.speed_step * 4);
   *(float *)0x2ee668 = speed;
-  terminal_printf(*(void **)0x2ee6c4, (const char *)0x267150, (double)speed);
+  ((void (*)(void *, const char *, ...))terminal_printf)(*(void **)0x2ee6c4, (const char *)0x267150, (double)speed);
 }
 
 /* editor_camera_get_speed (0x87ab0) */
