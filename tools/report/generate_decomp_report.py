@@ -582,6 +582,69 @@ def _load_raw_byte_audits(root_dir: str) -> dict:
     return latest
 
 
+def _load_audits_from_existing_report(report_path: Path) -> dict:
+    """Extract prior valid structural audit records from an existing report.json."""
+    audits = {}
+    if not report_path.is_file():
+        return audits
+    try:
+        with report_path.open(encoding='utf-8') as f:
+            doc = json.load(f)
+        for unit in doc.get('units', []):
+            for fn in unit.get('functions', []):
+                verdict = fn.get('raw_xbe_structural_verdict')
+                if not verdict:
+                    continue
+                addr = fn.get('address')
+                if not addr:
+                    continue
+                addr_key = f'0x{int(addr, 16):x}'
+                audits[addr_key] = {
+                    'address': addr,
+                    'verdict': verdict,
+                    'confidence': fn.get('raw_xbe_structural_confidence'),
+                    'reason': fn.get('raw_xbe_structural_reason'),
+                    'artifact': fn.get('raw_xbe_structural_artifact'),
+                    'generated_at': fn.get('raw_xbe_structural_audited_at'),
+                    'first_difference': fn.get('raw_xbe_structural_first_difference'),
+                    'reference': {'length': fn.get('raw_xbe_structural_reference_length')},
+                    'matching_non_relocation_bytes': fn.get('raw_xbe_structural_matching_non_relocation_bytes'),
+                    'byte_counts': {
+                        'non_relocation': fn.get('raw_xbe_structural_non_relocation_bytes'),
+                        'relocation_operand': fn.get('raw_xbe_structural_masked_bytes'),
+                    },
+                    'byte_accuracy': fn.get('raw_xbe_structural_byte_accuracy'),
+                    'accuracy_is_lower_bound': fn.get('raw_xbe_structural_lower_bound'),
+                    'register_argument': fn.get('raw_xbe_structural_register_argument'),
+                    'unmasked_relocations': fn.get('raw_xbe_structural_unmasked_relocations'),
+                    'verification': fn.get('raw_xbe_verification', {}),
+                    'aligned_byte_match': {
+                        'status': fn.get('raw_xbe_aligned_status'),
+                        'alignment_method': fn.get('raw_xbe_aligned_method'),
+                        'byte_accuracy_lower': fn.get('raw_xbe_aligned_lower'),
+                        'byte_accuracy_upper': fn.get('raw_xbe_aligned_upper'),
+                        'matching_bytes': fn.get('raw_xbe_aligned_matching_bytes'),
+                        'compared_bytes': fn.get('raw_xbe_aligned_compared_bytes'),
+                        'stable_candidate_bytes': fn.get('raw_xbe_aligned_stable_bytes'),
+                        'uncertain_relocation_bytes': fn.get('raw_xbe_aligned_uncertain_bytes'),
+                        'uncertain_relocations': fn.get('raw_xbe_aligned_uncertain_relocations'),
+                        'mismatched_relocations': fn.get('raw_xbe_aligned_mismatched_relocations'),
+                        'mismatched_relocation_bytes': fn.get('raw_xbe_aligned_mismatched_relocation_bytes'),
+                        'normalized_exact_instructions': fn.get('raw_xbe_aligned_exact_instructions'),
+                        'aligned_instruction_pairs': fn.get('raw_xbe_aligned_instruction_pairs'),
+                        'candidate_only_instructions': fn.get('raw_xbe_aligned_candidate_only'),
+                        'reference_only_instructions': fn.get('raw_xbe_aligned_reference_only'),
+                        'unresolved_relocations': fn.get('raw_xbe_aligned_unresolved_relocations'),
+                        'unpaired_relocations': fn.get('raw_xbe_aligned_unpaired_relocations'),
+                        'alignment_ambiguous_steps': fn.get('raw_xbe_aligned_ambiguous_steps'),
+                        'accuracy_is_provisional': fn.get('raw_xbe_aligned_provisional'),
+                    }
+                }
+    except (OSError, json.JSONDecodeError):
+        pass
+    return audits
+
+
 def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
     """Load fresh relocation-masked structural records keyed by XBE address.
 
@@ -591,16 +654,19 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
     The bound is checked per function (start/end), not by hashing the whole
     bounds file: a rename or new entry elsewhere must not hide every record.
     """
+    existing_report = Path(root_dir) / 'docs' / 'report.json'
+    fallback_audits = _load_audits_from_existing_report(existing_report)
+
     audit_dir = Path(root_dir) / 'artifacts' / 'raw_xbe_structural'
     bounds_path = Path(root_dir) / 'tools' / 'verify' / 'function_bounds.json'
     xbe_path = Path(root_dir) / 'halo-patched' / 'cachebeta.xbe'
     if not audit_dir.is_dir() or not bounds_path.is_file() or not xbe_path.is_file():
-        return {}
+        return fallback_audits
     try:
         with bounds_path.open(encoding='utf-8') as f:
             bounds = json.load(f)
     except (OSError, json.JSONDecodeError):
-        return {}
+        return fallback_audits
 
     xbe_sha256 = _file_hash(str(xbe_path), 'sha256')
     latest = {}
@@ -685,6 +751,9 @@ def _load_raw_xbe_structural_audits(root_dir: str) -> dict:
         if current is None or current.get('generated_at', '') < timestamp:
             audit['artifact'] = os.path.relpath(audit_path, root_dir).replace(os.sep, '/')
             latest[address_key] = audit
+    for k, v in fallback_audits.items():
+        if k not in latest:
+            latest[k] = v
     return latest
 
 
@@ -4433,11 +4502,22 @@ def update_readme_progress(report: dict, readme_path: str = 'README.md') -> bool
     func_bar = make_bar(func_pct)
     bytes_bar = make_bar(bytes_pct)
 
+    dashboard_url = 'https://nickarcade.github.io/halo/'
+    try:
+        res = subprocess.run(['git', 'remote', 'get-url', 'origin'],
+                             capture_output=True, text=True, cwd=os.path.dirname(target_path) or '.')
+        if 'stianeklund' in res.stdout:
+            dashboard_url = 'https://stianeklund.github.io/halo/'
+        elif 'nickarcade' in res.stdout:
+            dashboard_url = 'https://nickarcade.github.io/halo/'
+    except Exception:
+        pass
+
     progress_content = (
         "<!-- GAME_CODE_PROGRESS_START -->\n"
-        f"[![Decompilation Progress](https://img.shields.io/badge/decompilation-{func_pct:.2f}%25-{badge_color}.svg)](https://stianeklund.github.io/halo/)\n"
-        f"[![Ported Functions](https://img.shields.io/badge/functions-{func_ported:,}%2F{func_total:,}-blue.svg)](https://stianeklund.github.io/halo/)\n\n"
-        "Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklund.github.io/halo/):\n\n"
+        f"[![Decompilation Progress](https://img.shields.io/badge/decompilation-{func_pct:.2f}%25-{badge_color}.svg)]({dashboard_url})\n"
+        f"[![Ported Functions](https://img.shields.io/badge/functions-{func_ported:,}%2F{func_total:,}-blue.svg)]({dashboard_url})\n\n"
+        f"Progress breakdown from the [Decompilation Progress Dashboard]({dashboard_url}):\n\n"
         f"* **Ported Functions:** `{func_ported:,} / {func_total:,}` (`{func_pct:.2f}%`)\n"
         f"  `[{func_bar}] {func_pct:.2f}%`\n"
         f"* **Ported Code Bytes:** `{bytes_ported:,} / {bytes_total:,}` (`{bytes_pct:.2f}%`)\n"
@@ -4445,7 +4525,7 @@ def update_readme_progress(report: dict, readme_path: str = 'README.md') -> bool
         f"* **Average VC71 Mnemonic Match:** `{match_avg:.2f}%` (`{scored_cnt:,}` scored functions, size-weighted: `{match_weighted:.2f}%`; structural signal, not raw-byte accuracy)\n"
         f"* **Equivalence Tests:** `{equiv_tested:,}` functions tested (`{equiv_hc:,}` high confidence)\n"
         f"* **Translation Units:** `{progress_units_cnt}` source units (`{platform_units_cnt}` platform/SDK buckets tracked separately)\n\n"
-        "> Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://stianeklund.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))\n"
+        f"> Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard]({dashboard_url})** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))\n"
         "<!-- GAME_CODE_PROGRESS_END -->"
     )
 
@@ -4496,6 +4576,16 @@ def main():
     if args.html:
         generate_html(report, args.html, args.history)
         print(f'\n✓ HTML dashboard written to: {args.html}')
+
+    badge_path = os.path.join(os.path.dirname(args.output) if os.path.dirname(args.output) else '.', 'badge.json')
+    func_pct = report['summary']['functions']['percent']
+    badge_data = {'schemaVersion': 1, 'label': 'progress', 'message': f'{func_pct:.1f}%', 'color': 'blue'}
+    try:
+        with open(badge_path, 'w', encoding='utf-8') as f:
+            json.dump(badge_data, f)
+        print(f'✓ Badge written to: {badge_path}')
+    except Exception:
+        pass
 
     if not args.no_readme:
         if update_readme_progress(report, args.readme):

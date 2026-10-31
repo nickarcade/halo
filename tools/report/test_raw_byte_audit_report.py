@@ -349,6 +349,27 @@ class TestRawByteAuditLoading(unittest.TestCase):
         (root / "artifacts/raw_byte_audit/target.json").write_text(json.dumps(record), encoding="utf-8")
         self.assertEqual(report._load_raw_byte_audits(str(root)), {})
 
+    def test_falls_back_to_existing_report_json(self):
+        temp, root, source, xbe = self._make_root()
+        self.addCleanup(temp.cleanup)
+        (root / "docs").mkdir()
+        dummy_report = {
+            "units": [{
+                "functions": [{
+                    "address": "0x1000",
+                    "raw_xbe_structural_verdict": "structural exact",
+                    "raw_xbe_structural_byte_accuracy": 1.0,
+                    "raw_xbe_structural_matching_non_relocation_bytes": 10,
+                    "raw_xbe_structural_non_relocation_bytes": 10,
+                }]
+            }]
+        }
+        (root / "docs/report.json").write_text(json.dumps(dummy_report), encoding="utf-8")
+        audits = report._load_raw_xbe_structural_audits(str(root))
+        self.assertIn("0x1000", audits)
+        self.assertEqual(audits["0x1000"]["verdict"], "structural exact")
+        self.assertEqual(audits["0x1000"]["byte_accuracy"], 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

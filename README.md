@@ -21,25 +21,25 @@ with the same long-term goals and binary-faithful methodology. Differences from 
 Game Code Progress
 ------------------
 <!-- GAME_CODE_PROGRESS_START -->
-[![Decompilation Progress](https://img.shields.io/badge/decompilation-96.16%25-brightgreen.svg)](https://stianeklund.github.io/halo/)
-[![Ported Functions](https://img.shields.io/badge/functions-6,753%2F7,023-blue.svg)](https://stianeklund.github.io/halo/)
+[![Decompilation Progress](https://img.shields.io/badge/decompilation-94.96%25-brightgreen.svg)](https://nickarcade.github.io/halo/)
+[![Ported Functions](https://img.shields.io/badge/functions-7,192%2F7,574-blue.svg)](https://nickarcade.github.io/halo/)
 
-Progress breakdown from the [Decompilation Progress Dashboard](https://stianeklund.github.io/halo/):
+Progress breakdown from the [Decompilation Progress Dashboard](https://nickarcade.github.io/halo/):
 
-* **Ported Functions:** `6,753 / 7,023` (`96.16%`)
-  `[██████████████████████████████████████░░] 96.16%`
-* **Ported Code Bytes:** `1,523,098 / 1,729,914` (`88.04%`)
-  `[███████████████████████████████████░░░░░] 88.04%`
-* **Average VC71 Mnemonic Match:** `95.50%` (`6,715` scored functions, size-weighted: `92.10%`; structural signal, not raw-byte accuracy)
-* **Equivalence Tests:** `5,736` functions tested (`2,072` high confidence)
+* **Ported Functions:** `7,192 / 7,574` (`94.96%`)
+  `[██████████████████████████████████████░░] 94.96%`
+* **Ported Code Bytes:** `1,658,456 / 1,777,532` (`93.30%`)
+  `[█████████████████████████████████████░░░] 93.30%`
+* **Average VC71 Mnemonic Match:** `95.20%` (`6,791` scored functions, size-weighted: `91.50%`; structural signal, not raw-byte accuracy)
+* **Equivalence Tests:** `573` functions tested (`193` high confidence)
 * **Translation Units:** `194` source units (`39` platform/SDK buckets tracked separately)
 
-> Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://stianeklund.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
+> Explore the interactive call graph and unit breakdown: **[Decompilation Progress Dashboard](https://nickarcade.github.io/halo/)** (or locally at [`artifacts/progress/index.html`](artifacts/progress/index.html))
 <!-- GAME_CODE_PROGRESS_END -->
 
 Community
 ---------
-The homepage for this project is: https://stianeklund.github.io/halo/
+The homepage for this project is: https://nickarcade.github.io/halo/
 
 Current State
 -------------
