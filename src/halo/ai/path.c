@@ -17,6 +17,7 @@
  */
 
 #include "../../common.h"
+#include "../../x87_math.h"
 
 /* All callees (csmemset, csmemcpy, scenario_get,
  * global_structure_bsp_index_get) declared via decl.h / generated header */
@@ -1064,6 +1065,110 @@ LAB_0005ef13:
   return *(char *)nav_state_out;
 }
 
+/* 0x005ef80 — FUN_0005ef80
+ * Register-arg: path_buf in EDI (read at entry with no prior definition).
+ * Seeds the path search with the start node (node list entry 0x44 bytes at
+ * +0x84) and pushes it onto the open heap via path_heap_insert. Returns 0 when
+ * the start surface is NONE, the start z is <= [0x25ddb8], or the straight-line
+ * distance quantizes to >= 0x7fff.
+ */
+char FUN_0005ef80(unsigned int *path_buf)
+{
+  char *state;
+  char *bsp;
+  char *node;
+  short node_index;
+  float distance;
+  int quantized_distance;
+
+  state = (char *)path_buf;
+  if (*(int *)(state + 0x20) == -1 ||
+      !(*(float *)(state + 0x1c) > *(float *)0x25ddb8)) {
+    return 0;
+  }
+
+  bsp = (char *)tag_block_get_element(*(char **)(state + 0x64) + 0xb0, 0, 0x60);
+  if (!(*(int *)(state + 0x20) >= 0 &&
+        *(int *)(state + 0x20) < *(int *)(bsp + 0x3c))) {
+    display_assert("(state->input.start_surface_index >= 0) && "
+                   "(state->input.start_surface_index < bsp->surfaces.count)",
+                   "c:\\halo\\SOURCE\\ai\\path.c", 0x2b1, 1);
+    system_exit(-1);
+  }
+
+  if (*(char *)(state + 0x4c) != 0) {
+    float dx;
+    float dy;
+    float dz;
+
+    dx = *(float *)(state + 0x50) - *(float *)(state + 0x14);
+    dy = *(float *)(state + 0x54) - *(float *)(state + 0x18);
+    dz = *(float *)(state + 0x58) - *(float *)(state + 0x1c);
+    distance = sqrtf(dx * dx + dy * dy + dz * dz);
+    quantized_distance = (int)(distance * *(float *)0x253f34);
+    if (quantized_distance >= 0x7fff) {
+      error(2,
+            "pathfinding: attempted to build path from (%.1f %.1f %.1f) to "
+            "(%.1f %.1f %.1f) ... distance %.1f > maximum allowed %.1f",
+            (double)*(float *)(state + 0x14), (double)*(float *)(state + 0x18),
+            (double)*(float *)(state + 0x1c), (double)*(float *)(state + 0x50),
+            (double)*(float *)(state + 0x54), (double)*(float *)(state + 0x58),
+            (double)distance, (double)3276.7f);
+      return 0;
+    }
+  } else {
+    distance = 0.0f;
+    quantized_distance = 0;
+  }
+
+  if (*(short *)(state + 0x80) != 0) {
+    display_assert("state->node_count == 0", "c:\\halo\\SOURCE\\ai\\path.c",
+                   0x2cc, 1);
+    system_exit(-1);
+  }
+
+  node_index = *(short *)(state + 0x80);
+  node = state + 0x84 + (int)node_index * 0x44;
+  *(short *)(state + 0x80) = node_index + 1;
+  *(short *)(node + 0x2) = -1;
+  *(int *)(node + 0x4) = -1;
+  *(int *)(node + 0x8) = *(int *)(state + 0x20);
+  *(unsigned int *)(node + 0xc) = *(unsigned int *)(state + 0x14);
+  *(unsigned int *)(node + 0x10) = *(unsigned int *)(state + 0x18);
+  *(unsigned int *)(node + 0x14) = *(unsigned int *)(state + 0x1c);
+  *(int *)(node + 0x18) = 0;
+  *(unsigned int *)(node + 0x1c) = 0x7f7fffff;
+  *(int *)(node + 0x20) = 0;
+  *(int *)(node + 0x24) = 0;
+  *(float *)(node + 0x28) = distance;
+  *(short *)(node + 0x2c) = (short)quantized_distance;
+  *(short *)(node + 0x2e) = 0;
+  *(short *)(node + 0x32) = -1;
+
+  bsp = (char *)tag_block_get_element(*(char **)(state + 0x64) + 0xb0, 0, 0x60);
+  if (!(*(int *)(node + 0x8) >= 0 &&
+        *(int *)(node + 0x8) < *(int *)(bsp + 0x3c))) {
+    display_assert("(initial_node->surface_index >= 0) && "
+                   "(initial_node->surface_index < bsp->surfaces.count)",
+                   "c:\\halo\\SOURCE\\ai\\path.c", 0x2e3, 1);
+    system_exit(-1);
+  }
+
+  if (*(char *)(state + 0x4c) != 0) {
+    *(float *)(state + 0x6c) = distance;
+    *(unsigned int *)(state + 0x74) = *(unsigned int *)(state + 0x14);
+    *(unsigned int *)(state + 0x78) = *(unsigned int *)(state + 0x18);
+    *(unsigned int *)(state + 0x7c) = *(unsigned int *)(state + 0x1c);
+    *(short *)(state + 0x68) = node_index;
+    *(float *)(state + 0x70) = distance;
+  }
+
+  *(short *)(state + 0x1208a + (*(int *)(node + 0x8) & 0x1ff) * 0x10) =
+    node_index;
+  path_heap_insert(state, node_index, (short)quantized_distance);
+  return 1;
+}
+
 /* 0x005f1d0 — closest_available_point_on_surface
  * Register-args (read at entry with no prior definition): structure_bsp in
  * EAX (`ADD EAX,0xb0` at 0x5f1d9), point in EDI (pushed at 0x5f1ed),
@@ -1195,6 +1300,143 @@ short build_path_edges_for_surface(void *structure_bsp, int surface_index,
   }
 
   return edge_count;
+}
+
+/* 0x005f490 — path_attractor_weight
+ * attractor uses the path_input_set_attractor layout: +0x28 point[3],
+ * +0x38 radius, +0x3c weight. Squared distance is summed
+ * (dz*dz + dx*dx) + dy*dy (0x5f4d2-0x5f4e0). The distance_reference
+ * assert runs after the computation (0x5f514).
+ */
+float path_attractor_weight(void *attractor, float *segment_start,
+                            float *segment_end, float *distance_reference)
+{
+  float closest_point[3];
+  float weight;
+  float distance;
+  float dx;
+  float dy;
+  float dz;
+  float distance_squared;
+  float radius;
+
+  weight = 0.0f;
+  distance = 3.4028235e+38f;
+  closest_point_to_attractor(segment_start, segment_end,
+                             (float *)((char *)attractor + 0x28),
+                             closest_point);
+  dx = closest_point[0] - *(float *)((char *)attractor + 0x28);
+  dy = closest_point[1] - *(float *)((char *)attractor + 0x2c);
+  dz = closest_point[2] - *(float *)((char *)attractor + 0x30);
+  distance_squared = dz * dz + dx * dx + dy * dy;
+  radius = *(float *)((char *)attractor + 0x38);
+  if (distance_squared < radius * radius) {
+    distance = sqrtf(distance_squared);
+    weight = (1.0f - distance / *(float *)((char *)attractor + 0x38)) *
+             *(float *)((char *)attractor + 0x3c);
+  }
+  if (!distance_reference) {
+    display_assert("distance_reference", "c:\\halo\\SOURCE\\ai\\path.c", 0x65f,
+                   1);
+    system_exit(-1);
+  }
+  *distance_reference = distance;
+  return weight;
+}
+
+/* 0x005f550 — path_state_estimated_distance
+ * Node fields are offset-addressed like the rest of this file (no path node
+ * struct recovered): +0x00 short previous (rewritten here), +0x02 short next,
+ * +0x0c point[3], +0x18 float segment length, +0x1c float clearance cap,
+ * +0x20 float cost. path_state +0x14 point[3] is the start point, +0x24 the
+ * attractor flag and +0x28 the attractor point (path_input_set_attractor).
+ */
+char path_state_estimated_distance(void *path_state, void *fp_element,
+                                   int surface_index, float *result,
+                                   float *opt_min_clearance, float *opt_out_vec)
+{
+  short node_index;
+  short previous_index;
+  char success;
+  char *node;
+  float *point;
+  float *target;
+  float closest_point[3];
+  float distance;
+  float clearance;
+  float path_distance;
+  float dx;
+  float dy;
+  float dz;
+
+  node_index = path_node_from_hash_table((char *)path_state, surface_index);
+  if (!result) {
+    display_assert("distance_reference", "c:\\halo\\SOURCE\\ai\\path.c", 0x14e,
+                   1);
+    system_exit(-1);
+  }
+  if (node_index != NONE) {
+    node = path_get_node((char *)path_state, node_index);
+    point = (float *)fp_element;
+    dx = point[0] - *(float *)(node + 0xc);
+    dy = point[1] - *(float *)(node + 0x10);
+    dz = point[2] - *(float *)(node + 0x14);
+    distance = sqrtf(dz * dz + dx * dx + dy * dy) + *(float *)(node + 0x20);
+    if (*((char *)path_state + 0x24)) {
+      closest_point_to_attractor((float *)(node + 0xc), point,
+                                 (float *)((char *)path_state + 0x28),
+                                 closest_point);
+      dx = closest_point[0] - *(float *)((char *)path_state + 0x28);
+      dy = closest_point[1] - *(float *)((char *)path_state + 0x2c);
+      dz = closest_point[2] - *(float *)((char *)path_state + 0x30);
+      clearance = sqrtf(dz * dz + dy * dy + dx * dx);
+      if (clearance > *(float *)(node + 0x1c)) {
+        clearance = *(float *)(node + 0x1c);
+      }
+    } else {
+      clearance = 0.0f;
+    }
+    if (opt_min_clearance) {
+      *opt_min_clearance = clearance;
+    }
+    *result = distance;
+    success = 1;
+    if (opt_out_vec) {
+      previous_index = NONE;
+      path_distance = 0.0f;
+      do {
+        node = path_get_node((char *)path_state, node_index);
+        *(short *)node = previous_index;
+        previous_index = node_index;
+        node_index = *(short *)(node + 0x2);
+      } while (node_index != NONE);
+      node_index = previous_index;
+      while (node_index != NONE && path_distance < 0.8f) {
+        node = path_get_node((char *)path_state, node_index);
+        path_distance += *(float *)(node + 0x18);
+        node_index = *(short *)node;
+      }
+      target = point;
+      if (node_index != NONE) {
+        target = (float *)(node + 0xc);
+      }
+      opt_out_vec[0] = target[0] - *(float *)((char *)path_state + 0x14);
+      opt_out_vec[1] = target[1] - *(float *)((char *)path_state + 0x18);
+      opt_out_vec[2] = target[2] - *(float *)((char *)path_state + 0x1c);
+      normalize3d(opt_out_vec);
+    }
+  } else {
+    if (opt_min_clearance) {
+      *opt_min_clearance = 3.4028235e+38f;
+    }
+    if (opt_out_vec) {
+      *(real_vector3d *)opt_out_vec =
+          *(real_vector3d *)halo_global_zero_vector_ptr;
+    }
+    *result = 3.4028235e+38f;
+    success = 0;
+  }
+  return success;
 }
 
 /* 0x005ff70 — path traverse and debug snapshot

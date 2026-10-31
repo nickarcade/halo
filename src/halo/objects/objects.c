@@ -1986,11 +1986,11 @@ short tag_group_to_widget_type(int group_tag)
  *   0x13aed0  light_reconnect_to_map (object_lights.c)
  *   0x13d640  object_try_and_get_and_verify_type
  *   0x13d680  object_get_and_verify_type
- *   0x13d920  object_set_garbage_flag
+ *   0x13d920  object_set_garbage
  *   0x13dfc0  object_header_block_reference_get
  *   0x13e510  object_child_list_remove
  *   0x13eb70  object_reset_markers
- *   0x13ee60  object_propagate_flag_to_children
+ *   0x13ee60  object_connect_lights
  *   0x13eff0  object_remove_from_name_list
  *   0x13f060  objects_place
  *   0x13f810  objects_initialize
@@ -2003,7 +2003,7 @@ short tag_group_to_widget_type(int group_tag)
  *   0x13fd00  object_disconnect_from_map
  *   0x13fef0  object_has_node
  *   0x13ff50  object_set_automatic_deactivation (object set/clear hidden)
- *   0x13ffc0  object_set_garbage
+ *   0x13ffc0  object_set_visibility
  *   0x140160  object_set_region_count
  *   0x140230  object_adjust_interpolation_position
  *   0x140420  object_find_in_cluster
@@ -5660,7 +5660,7 @@ void *object_iterator_next(void *iter)
 }
 
 /*
- * object_set_garbage_flag — add or remove an object from the garbage
+ * object_set_garbage — add or remove an object from the garbage
  * collection linked list.
  *
  * The garbage list is a singly-linked list threaded through
@@ -5807,111 +5807,111 @@ void objects_fix_for_deleted_object(int object_handle)
   }
 }
 
-void object_set_garbage_flag(int object_handle, int is_garbage)
+void object_set_garbage(int object_handle, int is_garbage)
 {
   object_data_t *obj =
     (object_data_t *)object_get_and_verify_type(object_handle, -1);
-  object_globals_t *og = object_globals;
+  object_data_t *garbage_object;
+  object_globals_t *og;
+  int handle;
+
+  /*
+   * Garbage objects form a singly linked list threaded through object
+   * +0xC0 (unk_192) and headed by object_globals->unk_8.  Adding requires
+   * that neither 0x10000 (garbage) nor 0x20000 is set; removing requires
+   * 0x10000.
+   */
 
   /* Pre-validation: walk the garbage list and assert integrity */
-  {
-    int handle = og->unk_8.value;
-    while (handle != -1) {
-      object_header_data_t *hdr =
-        (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, handle);
-      object_data_t *gobj = hdr->object;
-      int16_t type = gobj->type;
-      if ((1 << (type & 0x1f)) == 0) {
-        char *msg = csprintf(
-          (char *)0x5ab100,
-          "got an object type we didn't expect (expected one of 0x%08x but "
-          "got #%d).",
-          -1, (int)type);
-        display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
-        system_exit(-1);
-      }
-      if ((gobj->flags & 0x10000) == 0) {
-        display_assert(
-          "TEST_FLAG(garbage_object->object.flags, _object_garbage_bit)",
-          "c:\\halo\\SOURCE\\objects\\objects.c", 0x7a0, 1);
-        system_exit(-1);
-      }
-      handle = gobj->unk_192;
+  for (handle = object_globals->unk_8.value; handle != -1;
+       handle = garbage_object->unk_192) {
+    garbage_object = ((object_header_data_t *)datum_get(*(data_t **)0x5a8d50, handle))
+             ->object;
+    if ((1 << (garbage_object->type & 0x1f)) == 0) {
+      display_assert(
+        csprintf((char *)0x5ab100,
+                 "got an object type we didn't expect (expected one of 0x%08x "
+                 "but got #%d).",
+                 -1, (int)garbage_object->type),
+        "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+      system_exit(-1);
     }
-    og = object_globals;
+
+    if ((garbage_object->flags & 0x10000) == 0) {
+      display_assert(
+        "TEST_FLAG(garbage_object->object.flags, _object_garbage_bit)",
+        "c:\\halo\\SOURCE\\objects\\objects.c", 0x7a0, 1);
+      system_exit(-1);
+    }
   }
+  /*
+   * The type check above is the inlined object_get_and_verify_type assert.
+   */
+  og = object_globals;
 
   if ((char)is_garbage != 0) {
     /* Add to garbage list */
-    if ((obj->flags & 0x30000) != 0)
-      goto done;
-
-    obj->unk_192 = og->unk_8.value;
-    og->unk_8.value = object_handle;
-    obj->flags |= 0x10000;
-  } else {
+    if ((obj->flags & 0x30000) == 0) {
+      obj->unk_192 = og->unk_8.value;
+      og->unk_8.value = object_handle;
+      obj->flags |= 0x10000;
+    }
+  } else if (obj->flags & 0x10000) {
     /* Remove from garbage list */
     uint32_t *prev_ptr;
-    int cur;
-
-    if ((obj->flags & 0x10000) == 0)
-      goto done;
-
-    /* Walk the list to find the previous pointer */
-    prev_ptr = (uint32_t *)&og->unk_8.value;
-    cur = og->unk_8.value;
-
-    while (cur != object_handle) {
-      object_header_data_t *hdr =
-        (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, *prev_ptr);
-      object_data_t *gobj = hdr->object;
-      int16_t type = gobj->type;
-      if ((1 << (type & 0x1f)) == 0) {
-        char *msg = csprintf(
-          (char *)0x5ab100,
-          "got an object type we didn't expect (expected one of 0x%08x but "
-          "got #%d).",
-          -1, (int)type);
-        display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+    /* Walk the list to find the link that points at this object */
+    for (prev_ptr = (uint32_t *)&og->unk_8.value;
+         *prev_ptr != (uint32_t)object_handle;
+         prev_ptr = &garbage_object->unk_192) {
+      garbage_object = ((object_header_data_t *)datum_get(*(data_t **)0x5a8d50,
+                                                *prev_ptr))
+               ->object;
+      if ((1 << (garbage_object->type & 0x1f)) == 0) {
+        display_assert(
+          csprintf((char *)0x5ab100,
+                   "got an object type we didn't expect (expected one of "
+                   "0x%08x but got #%d).",
+                   -1, (int)garbage_object->type),
+          "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
         system_exit(-1);
       }
-      prev_ptr = &gobj->unk_192;
-      cur = gobj->unk_192;
     }
-
+    /*
+     * prev_ptr now addresses the list head or the previous next link.
+     */
+    og = object_globals;
     /* Unlink: *prev_ptr = obj->next; obj->next = NONE */
     *prev_ptr = obj->unk_192;
     obj->unk_192 = 0xffffffff;
     obj->flags &= ~(uint32_t)0x10000;
   }
 
-done:
   /* Post-validation: walk the garbage list again */
-  {
-    int handle = og->unk_8.value;
-    while (handle != -1) {
-      object_header_data_t *hdr =
-        (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, handle);
-      object_data_t *gobj = hdr->object;
-      int16_t type = gobj->type;
-      if ((1 << (type & 0x1f)) == 0) {
-        char *msg = csprintf(
-          (char *)0x5ab100,
-          "got an object type we didn't expect (expected one of 0x%08x but "
-          "got #%d).",
-          -1, (int)type);
-        display_assert(msg, "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
-        system_exit(-1);
-      }
-      if ((gobj->flags & 0x10000) == 0) {
-        display_assert(
-          "TEST_FLAG(garbage_object->object.flags, _object_garbage_bit)",
-          "c:\\halo\\SOURCE\\objects\\objects.c", 0x7d6, 1);
-        system_exit(-1);
-      }
-      handle = gobj->unk_192;
+  for (handle = og->unk_8.value; handle != -1;
+       handle = garbage_object->unk_192) {
+    garbage_object = ((object_header_data_t *)datum_get(*(data_t **)0x5a8d50, handle))
+             ->object;
+    if ((1 << (garbage_object->type & 0x1f)) == 0) {
+      display_assert(
+        csprintf((char *)0x5ab100,
+                 "got an object type we didn't expect (expected one of 0x%08x "
+                 "but got #%d).",
+                 -1, (int)garbage_object->type),
+        "c:\\halo\\SOURCE\\objects\\objects.c", 0x69a, 1);
+      system_exit(-1);
+    }
+
+    if ((garbage_object->flags & 0x10000) == 0) {
+      display_assert(
+        "TEST_FLAG(garbage_object->object.flags, _object_garbage_bit)",
+        "c:\\halo\\SOURCE\\objects\\objects.c", 0x7d6, 1);
+      system_exit(-1);
     }
   }
+  /*
+   * Both validation walks are debug-build integrity checks: every object
+   * on the list must carry the garbage flag.
+   */
 }
 
 void garbage_collect_now(void)
@@ -7172,11 +7172,11 @@ void attachments_new(int object_handle)
   }
 }
 
-/* Propagate flags to all children of an object. For each child slot where
- * the "created" flag at obj+0xf4+i is clear and the child handle is valid,
- * optionally calls light_disconnect_from_map (param_1) and/or light_reconnect_to_map (param_2).
+/* Connect/disconnect an object's attached lights. Gated on obj flag 0x100 (set
+ * by attachment creation when light_new succeeds); for each attachment slot of
+ * type 0 (light) with a valid handle, optionally calls light_disconnect_from_map (param_1) and/or light_reconnect_to_map (param_2).
  * object_handle in EAX (register arg). */
-void object_propagate_flag_to_children(int object_handle /* @<eax> */,
+void object_connect_lights(int object_handle /* @<eax> */,
                                        int param_1, int param_2)
 {
   int *obj;
@@ -7554,12 +7554,11 @@ void objects_dump_memory(void)
 {
   struct dump_datum dumps[1024];
   struct dump_datum dumps_by_type[12];
-  object_iter_t dump_iter;
+  object_iter_t iterator;
   object_header_data_t *header;
   object_data_t *object;
-  void *stream;
+  void *file;
   char *name;
-  struct objects_information info;
   struct dump_datum *dump;
   int16_t object_type;
   int16_t object_num;
@@ -7568,7 +7567,6 @@ void objects_dump_memory(void)
 
   dump_count = 0;
   overflowed_count = 0;
-
   csmemset(dumps, 0, sizeof(dumps));
   csmemset(dumps_by_type, 0, sizeof(dumps_by_type));
 
@@ -7578,12 +7576,12 @@ void objects_dump_memory(void)
   }
 
   data_verify(*(data_t **)0x5a8d50);
-  dump_iter.cookie = 0x86868686;
-  dump_iter.type_mask = -1;
-  dump_iter.flags = 0;
-  dump_iter.current_index = 0;
-  dump_iter.last_handle = NONE;
-  while ((object = (object_data_t *)object_iterator_next(&dump_iter)) != NULL) {
+  iterator.cookie = 0x86868686;
+  iterator.type_mask = -1;
+  iterator.flags = 0;
+  iterator.current_index = 0;
+  iterator.last_handle = NONE;
+  while ((object = (object_data_t *)object_iterator_next(&iterator)) != NULL) {
     int16_t index = -1;
 
     for (object_num = 0; object_num < dump_count; ++object_num) {
@@ -7605,13 +7603,13 @@ void objects_dump_memory(void)
     }
 
     header = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50,
-                                               dump_iter.last_handle);
+                                               iterator.last_handle);
     if (index != -1) {
-      object_add_to_dump(dump_iter.last_handle, &dumps[index]);
+      object_add_to_dump(iterator.last_handle, &dumps[index]);
     }
 
-    assert_halt_msg_at("(header->type >= 0) && (header->type < NUMBER_OF_OBJECT_TYPES)", __FILE__, 4905, header->type >= 0 && header->type < 12);
-    object_add_to_dump(dump_iter.last_handle, &dumps_by_type[header->type]);
+    assert_halt_msg_at("(header->type >= 0) && (header->type < NUMBER_OF_OBJECT_TYPES)", "c:\\halo\\SOURCE\\objects\\objects.c", 4905, header->type >= 0 && header->type < 12);
+    object_add_to_dump(iterator.last_handle, &dumps_by_type[header->type]);
   }
 
   qsort(dumps, (size_t)dump_count, sizeof(struct dump_datum),
@@ -7619,18 +7617,20 @@ void objects_dump_memory(void)
   qsort(dumps_by_type, 12, sizeof(struct dump_datum),
         (int (*)(const void *, const void *))sort_dumps);
 
-  stream = (void *)crt_fopen("d:\\object_memory.txt", "wt");
-  if (stream != NULL) {
-    objects_information_get(&info);
+  file = (void *)crt_fopen("d:\\object_memory.txt", "a+b");
+  if (file != NULL) {
+    {
+      struct objects_information info;
 
+      objects_information_get(&info);
+      crt_fprintf(
+        file, "#%d objects (#%d active) using %3.2f%% of available memory\n\n",
+        info.object_count, info.active_object_count,
+        (double)(100.0f * info.used_memory));
+    }
+    crt_fprintf(file, "OBJECTS BY TYPE\n");
     crt_fprintf(
-      stream, "#%d objects (#%d active) using %3.2f%% of available memory\n\n",
-      info.object_count, info.active_object_count,
-      (double)(100.0f * info.used_memory));
-
-    crt_fprintf(stream, "OBJECTS BY TYPE\n");
-    crt_fprintf(
-      stream,
+      file,
       "number (active) [garbage/   dead/outside/at-rest] maxsize totsize\n");
     dump = dumps_by_type;
     for (object_type = 0; object_type < 12; object_type++) {
@@ -7640,7 +7640,7 @@ void objects_dump_memory(void)
       } else if (dump->object_type != -1) {
         name = (char *)object_type_get_name(dump->object_type);
       }
-      crt_fprintf(stream, "% 6d (% 6d) [% 7d/% 7d/% 7d/% 7d] % 7d % 7d %s\r\n",
+      crt_fprintf(file, "% 6d (% 6d) [% 7d/% 7d/% 7d/% 7d] % 7d % 7d %s\r\n",
                   (int)dump->count, (int)dump->active_count,
                   (int)dump->garbage_count, (int)dump->dead_count,
                   (int)dump->outside_map_count, (int)dump->at_rest_count,
@@ -7648,10 +7648,10 @@ void objects_dump_memory(void)
       dump++;
     }
 
-    crt_fprintf(stream, "\n");
-    crt_fprintf(stream, "OBJECTS BY DEFINITION\n");
+    crt_fprintf(file, "\n");
+    crt_fprintf(file, "OBJECTS BY DEFINITION\n");
     crt_fprintf(
-      stream,
+      file,
       "number (active) [garbage/   dead/outside/at-rest] maxsize totsize\n");
     dump = dumps;
     for (object_num = 0; object_num < dump_count; object_num++) {
@@ -7661,7 +7661,7 @@ void objects_dump_memory(void)
       } else if (dump->object_type != -1) {
         name = (char *)object_type_get_name(dump->object_type);
       }
-      crt_fprintf(stream, "% 6d (% 6d) [% 7d/% 7d/% 7d/% 7d] % 7d % 7d %s\r\n",
+      crt_fprintf(file, "% 6d (% 6d) [% 7d/% 7d/% 7d/% 7d] % 7d % 7d %s\r\n",
                   (int)dump->count, (int)dump->active_count,
                   (int)dump->garbage_count, (int)dump->dead_count,
                   (int)dump->outside_map_count, (int)dump->at_rest_count,
@@ -7669,15 +7669,15 @@ void objects_dump_memory(void)
       dump++;
     }
 
-    crt_fprintf(stream, "\n");
+    crt_fprintf(file, "\n");
     if (overflowed_count > 0) {
-      crt_fprintf(stream,
+      crt_fprintf(file,
                   "WARNING: overflowed MAXIMUM_DUMPS (%d), this dump does not "
                   "include %d objects that would not fit!\n",
                   1024, (int)overflowed_count);
     }
-    crt_fprintf(stream, "\n");
-    crt_fclose(stream);
+    crt_fprintf(file, "\n");
+    crt_fclose(file);
   }
 }
 
@@ -8163,10 +8163,10 @@ void object_disconnect_from_map(int object_handle)
   obj = header->object;
 
   /* assert: identifier portion of handle must be nonzero */
-  assert_halt_at(__FILE__, 9962, object_handle & 0xffff0000);
+  assert_halt_msg_at("DATUM_INDEX_TO_IDENTIFIER(object_index)", "c:\\halo\\SOURCE\\objects\\objects.c", 957, object_handle & 0xffff0000);
 
   /* assert: object must be connected to map */
-  assert_halt_at(__FILE__, 9965, obj->flags & 0x800);
+  assert_halt_msg_at("TEST_FLAG(object->object.flags, _object_connected_to_map_bit)", "c:\\halo\\SOURCE\\objects\\objects.c", 958, obj->flags & 0x800);
 
   if (obj->parent_object_index.value != NONE) {
     /* Object has a parent: unlink from parent's child chain.
@@ -8175,7 +8175,7 @@ void object_disconnect_from_map(int object_handle)
      * and EBX = object_handle to unlink. */
     object_data_t *parent_obj = (object_data_t *)object_get_and_verify_type(
       obj->parent_object_index.value, -1);
-    object_child_list_remove((void *)((char *)parent_obj + 0xc8),
+    object_child_list_remove((void *)&parent_obj->unk_200,
                              object_handle);
   } else {
     /* No parent: remove from cluster partition. */
@@ -8188,7 +8188,7 @@ void object_disconnect_from_map(int object_handle)
       partition = (void *)0x5a8d30;
 
     cluster_partition_remove_object(partition, object_handle,
-                                    (void *)((char *)obj + 0xbc));
+                                    (void *)&obj->unk_188);
 
     /* If header bit 0x40 is set, re-fetch header and clear bit 0x1 */
     if (header->unk_2 & 0x40) {
@@ -8372,42 +8372,70 @@ void object_set_automatic_deactivation(int object_handle, char param_2)
 }
 
 /*
- * object_set_garbage — set or clear the "garbage" activation state for
- * an object and its attached children.
+ * object_set_visibility (0x13ffc0) - sets object visibility: flag == 0 hides
+ * the object, flag != 0 shows it.
  *
- * param flag: 0 = mark object as garbage (deactivate); non-zero = unmark.
+ * tag_def + 0x34 is the 'obje' definition's model tag index (the
+ * tag_reference at +0x28 ends with its index dword at +0x34); NONE means the
+ * definition has no render model. The caller in this TU passes
+ * (model index != NONE) as flag.
  *
- * Reads the object's tag definition via tag_get to check whether the tag
- * has a children block (tag[0x34] != -1). If it does, and the object's
- * bit 0 of obj->flags (active/inactive state) is out of sync with the
- * requested flag, calls object_propagate_flag_to_children (via EAX register
- * arg) to propagate the state change to child objects before committing the
- * datum update.
+ * obj->flags bit 0 is the hidden bit. When a model exists and that bit
+ * disagrees with the request, object_connect_lights (0x13ee60,
+ * object_handle @<eax>) is called with (0,1) when showing and (1,0) when
+ * hiding.
  *
- * object_propagate_flag_to_children (0x13ee60) takes (int object_handle @EAX,
- * char param_1, char param_2) — 2 stack args, object_handle in EAX register.
- * Uses args-array inline asm pattern to avoid EAX aliasing.
+ * The new state is committed only when hiding, or when showing an object
+ * that has a model:
+ *   hide: obj->flags |= 1;  hdr->unk_2 &= ~0x02
+ *   show: obj->flags &= ~1; hdr->unk_2 |= 0x02
  *
- * Final datum update:
- *   flag==0: set obj->flags bit 0; clear datum byte[2] bit 1 (0x02).
- *   flag!=0: clear obj->flags bit 0; set datum byte[2] bit 1 (0x02).
- *
- * Confirmed: MOV EAX,EDI before CALL 0x13ee60 — EAX = object_handle.
- * Confirmed: ADD ESP,0x8 after CALL 0x13ee60 — 2 stack args.
- * Confirmed: ADD ESP,0x10 after tag_get (cleans 4 args: 2 for tag_get +
- *   2 pre-pushed for object_get_and_verify_type).
- * Confirmed: OR dword [ESI+4],1 — obj->flags |= 1 for flag==0 path.
- * Confirmed: AND byte [EAX+2],0xfd — hdr->unk_2 &= ~2 for flag==0 path.
- * Confirmed: AND dword [ESI+4],~1 — obj->flags &= ~1 for flag!=0 path.
- * Confirmed: OR byte [EAX+2],2 — hdr->unk_2 |= 2 for flag!=0 path.
+ * Confirmed: MOV EAX,EDI before both CALL 0x13ee60; ADD ESP,0x8 after each.
+ * Confirmed: ADD ESP,0x10 after tag_get (cleans tag_get + get_and_verify).
+ * Confirmed: CMP [EBX+0x34],-1 is re-read before the commit (0x140011).
+ * Confirmed: only the low byte of flag ([EBP+0xc]) is tested.
  * Confirmed: DAT_005a8d50 as datum_get first arg.
- * Confirmed: CMP dword ptr [EBX+0x34],-1 — children block presence check.
+ *
+ * Binary block map (0x13ffc0):
+ *   0x13ffe2  model index == NONE -> 0x14000a
+ *   0x13ffed  hidden && flag      -> propagate(0,1), then 0x14000a
+ *   0x14003b  hidden              -> 0x14000a
+ *   0x14003f  flag                -> 0x140011
+ *             else                -> propagate(1,0), then 0x140017
+ *   0x14000a  !flag               -> 0x140017
+ *   0x140011  model index == NONE -> return
+ *   0x140017  datum_get header; commit both flag words
+ *
+ * Padding: the blank comment lines below keep the line count of this
+ * block unchanged, so later assert __LINE__ values in this file stay fixed.
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
  */
-void object_set_garbage(int object_handle, int flag)
+void object_set_visibility(int object_handle, int flag)
 {
-  /* ESI = object_data_t*, EBX = tag_def, EAX = flags_bit / hdr. Fields are
-   * re-read inline (not cached in a bool) to mirror the original's repeated
-   * CMP [EBX+0x34],-1 and its reuse of (flags & 1) in EAX. */
   object_data_t *obj;
   object_header_data_t *hdr;
   void *tag_def;
@@ -8415,48 +8443,20 @@ void object_set_garbage(int object_handle, int flag)
   obj = (object_data_t *)object_get_and_verify_type(object_handle, -1);
   tag_def = tag_get(0x6f626a65, (int)obj->tag_index);
 
-  /* Children block present at tag+0x34 (!= -1)? */
-  if (*(int *)((char *)tag_def + 0x34) != -1) {
+  /* Definition has a render model (model tag index at +0x34). */
+  if (*(int *)((char *)tag_def + 0x34) != NONE) {
     if ((obj->flags & 1) != 0 && (char)flag != 0)
-      /* bit0 set && flag!=0: propagate (0,1), then fall through to
-       * lab_0014000a. */
-      object_propagate_flag_to_children(object_handle, 0, 1);
-    else
-      goto lab_0014003b;
+      object_connect_lights(object_handle, 0, 1);
+    else if ((obj->flags & 1) == 0 && (char)flag == 0)
+      object_connect_lights(object_handle, 1, 0);
   }
 
-lab_0014000a:
-  if ((char)flag == 0)
-    goto lab_00140017;
-lab_00140011:
-  if (*(int *)((char *)tag_def + 0x34) == -1)
-    return;
-  goto lab_00140017;
-
-lab_00140017:
-  /* Commit the datum-level flags. */
-  hdr = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
-  if ((char)flag == 0) {
-    /* Mark as garbage: set bit 0 of obj->flags, clear hdr->unk_2 bit 1. */
-    obj->flags |= 1;
-    hdr->unk_2 &= (uint8_t)~0x02;
-    return;
+  if ((char)flag == 0 || *(int *)((char *)tag_def + 0x34) != NONE) {
+    hdr = (object_header_data_t *)datum_get(*(data_t **)0x5a8d50, object_handle);
+    /* hidden bit = !flag; header bit 0x02 = flag */
+    (char)flag == 0 ? (obj->flags |= 1) : (obj->flags &= ~(uint32_t)1);
+    (char)flag != 0 ? (hdr->unk_2 |= 0x02) : (hdr->unk_2 &= (uint8_t)~0x02);
   }
-  goto lab_00140056;
-
-lab_0014003b:
-  if ((obj->flags & 1) != 0)
-    goto lab_0014000a;
-  if ((char)flag != 0)
-    goto lab_00140011;
-  /* bit0 clear && flag==0: propagate (1,0), then commit. */
-  object_propagate_flag_to_children(object_handle, 1, 0);
-  goto lab_00140017;
-
-lab_00140056:
-  /* Unmark garbage: clear bit 0 of obj->flags, set hdr->unk_2 bit 1. */
-  obj->flags &= ~(uint32_t)1;
-  hdr->unk_2 |= 0x02;
 }
 
 /* Walk the parent chain to the root object and copy its position and
@@ -9262,9 +9262,9 @@ void objects_scripting_set_scale(int param_1, int param_2, int16_t param_3)
  *      asserts that it is not a flag (CTF flag weapon).
  *   2. Recursively deletes children and optionally siblings.
  *   3. Sets datum header bit 0x08 (pending deletion).
- *   4. If the object's tag definition has a children block (tag+0x34 != -1)
- *      and obj->flags bit 0 is clear, propagates deletion to attached
- *      children via object_propagate_flag_to_children (EAX=handle, args 1,0).
+ *   4. If the object's tag definition has a model (tag+0x34 != -1)
+ *      and obj->flags bit 0 (hidden) is clear, disconnects attached
+ *      lights via object_connect_lights (EAX=handle, args 1,0).
  *   5. Sets obj->flags bit 0 (deleted/inactive).
  *   6. Clears datum header bit 0x02 (active).
  *   7. Removes the object from the name list via object_remove_from_name_list
@@ -9281,7 +9281,7 @@ void objects_scripting_set_scale(int param_1, int param_2, int16_t param_3)
  * Confirmed: [ESI+0xC4] — sibling object handle (conditional on
  * delete_sibling). Confirmed: OR AL,0x8 / MOV [EBX+0x2],AL — sets datum header
  * bit 0x08. Confirmed: MOV EAX,EDI before CALL 0x0013ee60 — EAX register arg =
- * handle. Confirmed: PUSH 0x0 / PUSH 0x1 — object_propagate_flag_to_children
+ * handle. Confirmed: PUSH 0x0 / PUSH 0x1 — object_connect_lights
  * stack args (1, 0). Confirmed: TEST byte ptr [ESI+0x4],0x1 — checks obj->flags
  * bit 0. Confirmed: OR dword ptr [ESI+0x4],0x1 — sets obj->flags bit 0.
  * Confirmed: AND CL,0xfd / MOV [EAX+0x2],CL — clears datum header bit 0x02.
@@ -9325,7 +9325,7 @@ void object_delete_internal(int object_handle, int delete_sibling)
     void *tag_def = tag_get(0x6f626a65, (int)obj->tag_index);
     if (*(int *)((char *)tag_def + 0x34) != -1 && (obj->flags & 1) == 0) {
       /* Propagate deletion to attached children. */
-      object_propagate_flag_to_children(object_handle, 1, 0);
+      object_connect_lights(object_handle, 1, 0);
     }
   }
 
@@ -9628,10 +9628,10 @@ void object_compute_child_marker_position(void *object, void *child_marker,
   float up_x, up_y, up_z;
   x87_wide_t left_x, left_y, left_z; /* 0x14113e-0x14118d: kept in ST(1..3) */
 
-  assert_halt_at(__FILE__, 11414, object != NULL);
-  assert_halt_at(__FILE__, 11415, child_marker != NULL);
-  assert_halt_at(__FILE__, 11416, dest_matrix != NULL);
-  assert_halt_at(__FILE__, 11417, valid_real_matrix4x3((float *)dest_matrix));
+  assert_halt_msg_at("object", "c:\\halo\\SOURCE\\objects\\objects.c", 1173, object != NULL);
+  assert_halt_msg_at("child_marker", "c:\\halo\\SOURCE\\objects\\objects.c", 1174, child_marker != NULL);
+  assert_halt_msg_at("destination_matrix", "c:\\halo\\SOURCE\\objects\\objects.c", 1175, dest_matrix != NULL);
+  assert_halt_msg_at("valid_real_matrix4x3(destination_matrix)", "c:\\halo\\SOURCE\\objects\\objects.c", 1177, valid_real_matrix4x3((float *)dest_matrix));
 
   obj_position = (float *)((char *)object + 0xc);
   obj_forward = (float *)((char *)object + 0x24);
@@ -11920,7 +11920,7 @@ int object_new(void *placement)
   }
 
   /* --- Set garbage flag (1 if model tag exists, 0 if not) --- */
-  object_set_garbage(object_handle, (uint8_t)(*(int *)(tag_data + 0x34) != -1));
+  object_set_visibility(object_handle, (uint8_t)(*(int *)(tag_data + 0x34) != -1));
 
   /* --- Copy remaining placement fields --- */
   *(int16_t *)(obj + 0x68) = *(int16_t *)(p + 0x14);
@@ -12332,7 +12332,7 @@ bool object_update(int object_handle)
       if ((obj->flags & 1) == 0 ||
           *(int *)((char *)tag_get(0x6f626a65, (int)obj->tag_index) + 0x34) ==
             -1) {
-        object_propagate_flag_to_children(object_handle, 1, 1);
+        object_connect_lights(object_handle, 1, 1);
       }
     }
 
@@ -12606,7 +12606,7 @@ void object_new_by_name(short param_1)
  *
  * Steps:
  *   1. If object has flag 0x10000, clear garbage flag via
- * object_set_garbage_flag.
+ * object_set_garbage.
  *   2. Call deletion callbacks via FUN_00138eb0 (dispatch through function
  * table).
  *   3. Recursively deactivate child object (obj+0xC8).
@@ -12645,7 +12645,7 @@ void object_delete_recursive(int object_handle, int delete_sibling)
 
   /* If object has flag 0x10000, clear the garbage flag. */
   if (obj->flags & 0x10000) {
-    object_set_garbage_flag(object_handle, 0);
+    object_set_garbage(object_handle, 0);
   }
 
   /* Dispatch deletion callbacks. */
@@ -12928,7 +12928,7 @@ pop_next:
     }
     if (hdr->unk_2 & 1)
       (*(int16_t *)((char *)object_globals + 4))--;
-    object_set_garbage_flag(handle, 0);
+    object_set_garbage(handle, 0);
     object_delete_internal(handle, 0);
     object_delete_recursive(handle, 0);
   }

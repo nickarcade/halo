@@ -1,5 +1,5 @@
-#include "x87_math.h"
 #include "player_effects.h"
+#include "x87_math.h"
 __declspec(noinline) char *player_effect_get(int16_t local_player_index)
 {
   assert_halt_msg_at("local_player_index>=0 && "
@@ -35,52 +35,43 @@ void player_effect_initialize_for_new_map(void)
 void player_effect_dispose_from_old_map(void)
 {
 }
-
-/* player_effect_add_continuous_effect (0xa27a0) */
-void player_effect_add_continuous_effect(short local_player_index, uint32_t tag_index, float current_distance)
+/* 0xa27a0 / player_effects.obj.  definition is the 'cdmg' tag; field
+ * meanings at +0x00..+0x60 are unproven, accessed positionally. */
+void player_effect_add_continuous_effect(int16_t local_player_index,
+                                         int definition_index, float distance)
 {
-  char *effect;
-  float *cdmg_tag;
-  real scale;
-  real factor;
-  real blend;
-  real val_a;
-  real val_b;
+  float *definition;
+  player_effect_t *effect;
+  real *continuous;
+  float scale;
+  float magnitude;
+  float shake;
 
-  cdmg_tag = (float *)tag_get(0x63646d67, tag_index); /* 'cdmg' */
-  if (current_distance < cdmg_tag[1]) {
-    effect = player_effect_get(local_player_index);
-    scale = 1.0f - (current_distance - cdmg_tag[0]) / (cdmg_tag[0] - cdmg_tag[1]);
-    if (scale < 0.0f) {
-      scale = 0.0f;
-    } else if (scale > 1.0f) {
-      scale = 1.0f;
+  definition = (float *)tag_get(0x63646d67, definition_index);
+  if (distance < definition[1]) {
+    effect = (player_effect_t *)player_effect_get(local_player_index);
+    continuous = effect->field_cc;
+    scale = 1.0f - (distance - definition[0]) / (definition[0] - definition[1]);
+    scale = scale < 0.0f ? 0.0f : (scale > 1.0f ? 1.0f : scale);
+    magnitude = ((1.0f - definition[0x18]) +
+                 FUN_0010a5e0(*(int16_t *)&definition[0x16],
+                              game_time_get() / definition[0x17]) *
+                   definition[0x18]) *
+                scale;
+    if (effect->field_dc > 0) {
+      effect->field_dc = 0;
+      csmemset(continuous, 0, 0x10);
     }
-
-    factor = (real)FUN_0010a5e0(*(uint16_t *)((char *)cdmg_tag + 0x58), (real)game_time_get() / cdmg_tag[0x17]);
-    blend = ((factor * cdmg_tag[0x18]) + (1.0f - cdmg_tag[0x18])) * scale;
-
-    if (*(int16_t *)(effect + 0xdc) >= 1) {
-      *(uint16_t *)(effect + 0xdc) = 0;
-      csmemset(effect + 0xcc, 0, 0x10);
-    }
-
-    val_a = blend * cdmg_tag[0x11];
-    if (val_a <= 0.0f) {
-      val_a = 0.0f;
-    }
-    *(float *)(effect + 0xd4) += val_a;
-
-    val_b = blend * cdmg_tag[0x12];
-    if (val_b <= 0.0f) {
-      val_b = 0.0f;
-    }
-    *(float *)(effect + 0xd8) += val_b;
-
-    *(float *)(effect + 0xcc) += scale * cdmg_tag[9];
-    *(float *)(effect + 0xd0) += scale * cdmg_tag[10];
+    shake = magnitude * definition[0x11];
+    continuous[2] += shake > 0.0f ? shake : 0.0f;
+    shake = magnitude * definition[0x12];
+    continuous[3] += shake > 0.0f ? shake : 0.0f;
+    continuous[0] += scale * definition[9];
+    continuous[1] += scale * definition[10];
   }
 }
+
+
 
 /* scripted_player_effect_set_rotation -- store the three script-supplied
  * rotation components, each scaled by the constant at 0x253d4c
@@ -427,33 +418,36 @@ void player_effect_update(void)
   }
 }
 
-/* player_effect_continuous_refresh (0xa2d30) */
+/* 0xa2d30 / player_effects.obj.  0xa27a0 takes three stack args (word
+ * local player index, 'cdmg' tag index, float distance); the float slot
+ * is the dword left on the stack by the ADD ESP,4 after the 0x1412f0 call. */
 void player_effect_continuous_refresh(int definition_index, float *position)
 {
-  int16_t i;
-  int player_index;
-  char *player;
-  int unit_index;
-  vector3_t victim_pos;
-  float *pos;
-  float dx, dy, dz, dist;
+  int16_t local_player_index;
+  void *player;
+  vector3_t world_position;
+  float dx;
+  float dy;
+  float dz;
 
-  pos = position;
-  for (i = 0; i < 4; i++) {
-    player_index = local_player_get_player_index(i);
-    if (player_index != -1) {
-      player = (char *)datum_get(*(data_t **)0x5aa6d4, player_index);
-      unit_index = *(int *)(player + 0x34);
-      if (unit_index != -1) {
-        object_get_world_position(unit_index, &victim_pos);
-        dx = pos[0] - victim_pos.x;
-        dy = pos[1] - victim_pos.y;
-        dz = pos[2] - victim_pos.z;
-        dist = x87_sqrt(dx * dx + dy * dy + dz * dz);
-        player_effect_add_continuous_effect(i, (uint32_t)definition_index, dist);
+  local_player_index = 0;
+  do {
+    if (local_player_get_player_index(local_player_index) != -1) {
+      player = datum_get(player_data,
+                         local_player_get_player_index(local_player_index));
+      if (*(int *)((char *)player + 0x34) != -1) {
+        object_get_world_position(*(int *)((char *)player + 0x34),
+                                  &world_position);
+        dx = position[0] - world_position.x;
+        dy = position[1] - world_position.y;
+        dz = position[2] - world_position.z;
+        player_effect_add_continuous_effect(local_player_index,
+                                            definition_index,
+                                            sqrtf(dx * dx + dy * dy + dz * dz));
       }
     }
-  }
+    local_player_index++;
+  } while (local_player_index < 4);
 }
 
 /* scripted_player_effect_set_translation -- store the three script-supplied

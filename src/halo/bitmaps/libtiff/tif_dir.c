@@ -2673,7 +2673,7 @@ bad:
 /* 0x66520 */
 void MissingRequired(void *tif, const char *tagname)
 {
-  TIFFError(*(const char **)tif, "TIFF directory is missing required \"%s\" field", tagname);
+  FUN_00068a30(*(const char **)tif, "TIFF directory is missing required \"%s\" field", tagname);
 }
 
 /* 0x66540 */
@@ -2692,9 +2692,9 @@ int TIFFFetchFloatArray(void *tif, void *dir, float *v)
 int TIFFFetchExtraSamples(void *tif, void *dir)
 {
   if (*(int *)((char *)dir + 4) != 1) {
-    TIFFError(*(const char **)tif, "Wrong count for ExtraSamples");
+    FUN_00068a30(*(const char **)tif, "Wrong count for ExtraSamples");
     return 0;
   }
-  return TIFFSetField(tif, 0x80e3, 1);
+  return TIFFSetField((int)tif, 0x80e3, 1);
 }
 

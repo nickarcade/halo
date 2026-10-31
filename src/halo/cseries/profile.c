@@ -221,6 +221,115 @@ void profile_exit_private(void *section)
   }
 }
 
+/* FUN_0008fb60 (0x8fb60) -- format one profile ring entry into out_buf.
+ * buf_size is read as a word (MOVSX [EBP+8]). Ring-entry fields are
+ * unnamed offsets; +0x8 is printed with %I64d. */
+void FUN_0008fb60(void *ring_entry /* @<eax> */, char *out_buf /* @<esi> */,
+                  int buf_size)
+{
+  char *entry = (char *)ring_entry;
+  int16_t max_size = (int16_t)buf_size;
+  int16_t game_count;
+  int16_t render_count;
+  int16_t i;
+
+  csstrcpy(out_buf, "");
+  snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+           "frame %5d vbl %5I64d tot%6.2f", *(int32_t *)(entry + 0x4),
+           *(int64_t *)(entry + 0x8), (double)*(float *)(entry + 0x28));
+
+  if (*(int16_t *)(entry + 0xf04) > 0) {
+    if (*(uint8_t *)0x31fa96 != 0) {
+      snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+               "(lost%3d)", (int)*(int16_t *)(entry + 0xf04));
+    } else {
+      snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+               "(free%3d)", (int)*(int16_t *)(entry + 0xf04));
+    }
+  } else if (*(int32_t *)(entry + 0xf08) > 0) {
+    if (*(uint8_t *)0x31fa96 != 0) {
+      snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+               "(l.%3dms)", *(int32_t *)(entry + 0xf08));
+    } else {
+      snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+               "(f.%3dms)", *(int32_t *)(entry + 0xf08));
+    }
+  } else if (*(uint8_t *)(entry + 0xf0c) != 0) {
+    snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+             "(slowed) ");
+  } else {
+    snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+             "(synced) ");
+  }
+
+  if (*(float *)(entry + 0xefc) > REAL_ZERO_POOL) {
+    snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+             "idle%6.2f ", (double)*(float *)(entry + 0xefc));
+  } else {
+    snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+             "           ", (double)*(float *)(entry + 0xefc));
+  }
+
+  game_count = *(int16_t *)(entry + 0x10);
+  if (game_count <= 8) {
+    game_count = 8;
+  }
+  snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+           "game%2d ", (int)*(int16_t *)(entry + 0x10));
+  snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf), " (");
+  for (i = 0; i < game_count; i++) {
+    if (i < *(int16_t *)(entry + 0x10)) {
+      snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+               "%6.2f%s", (double)*(float *)(entry + 0x44 + i * 0x18),
+               (i < game_count - 1) ? " " : "");
+    } else {
+      snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+               "      %s", (i < game_count - 1) ? " " : "");
+    }
+  }
+  snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf), ")");
+
+  render_count = (*(int16_t *)(entry + 0x12) > local_player_count() + 1) ?
+                   *(int16_t *)(entry + 0x12) :
+                   local_player_count() + 1;
+  snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+           " render%6.2f", (double)*(float *)(entry + 0xeb0));
+  snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf), " (");
+  for (i = 0; i < render_count; i++) {
+    if (i < *(int16_t *)(entry + 0x12)) {
+      snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+               "%s%6.2f%s", (*(uint8_t *)(entry + 0x14 + i) != 0) ? "p" : "n",
+               (double)*(float *)(entry + 0xe54 + i * 0x18),
+               (i < render_count - 1) ? " " : "");
+    } else {
+      snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+               "       %s", (i < render_count - 1) ? " " : "");
+    }
+  }
+  snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf), ")");
+
+  if (*(float *)(entry + 0xecc) > REAL_ZERO_POOL) {
+    snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+             "stall%6.2f ", (double)*(float *)(entry + 0xecc));
+  } else {
+    snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+             "            ", (double)*(float *)(entry + 0xecc));
+  }
+  if (*(float *)(entry + 0xee4) > REAL_ZERO_POOL) {
+    snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+             "tex%6.2f ", (double)*(float *)(entry + 0xee4));
+  } else {
+    snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+             "          ", (double)*(float *)(entry + 0xee4));
+  }
+  snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+           "r-misc %6.2f ", (double)*(float *)(entry + 0xeb4));
+  snprintf(out_buf + csstrlen(out_buf), max_size - csstrlen(out_buf),
+           "f-misc %6.2f ", (double)*(float *)(entry + 0x2c));
+  csstrncat(out_buf + csstrlen(out_buf), entry + 0xf0d,
+            max_size - csstrlen(out_buf));
+}
+
 /* FUN_00090170 (0x90170) — store a pair of dwords at offsets 0x0/0x4 of a
  * caller-supplied destination. dest arrives in EAX (not a stack arg);
  * value0/value1 are ordinary cdecl stack args copied verbatim, no further
@@ -334,6 +443,129 @@ int compare_profile_sections(void **a, void **b)
   }
 
   return 0;
+}
+
+/* profile_dump (0x902f0) -- sorts a copy of profile_globals.sections[]
+ * (count at 0x3361b0) with compare_profile_sections under sort_mode
+ * (stored to 0x3365b8), then writes a header and one row per run of
+ * equally-named active sections into buffer. Header/row format tables are
+ * the pointer arrays at 0x2ee770/0x2ee778, indexed by format_mode.
+ * Section fields +0x5c8..+0x5f0 are raw offsets observed only here and in
+ * compare_profile_sections. Constants: 0x2602c0 double (sample-count-zero
+ * fallback), 0x268628 double scale, 0x253398 float bias before _ftol2. */
+void profile_dump(const char *substring, int16_t sort_mode, int16_t format_mode,
+                  int16_t maximum_section_count, char *buffer)
+{
+  void *sections[0x100];
+  char *section;
+  char *entry;
+  double sample_total;
+  int32_t format;
+  int32_t value_5d8;
+  int32_t value_5c8;
+  int32_t sum_5d8;
+  int32_t sum_5cc;
+  int32_t sum_5e8;
+  int16_t dumped;
+  int16_t section_index;
+  float sum_5e0_seconds;
+  float sum_5d8_per_5c8;
+  float sum_average_msec;
+  float sum_5f0_msec;
+  float sum_5d0_msec;
+
+  dumped = 0;
+  if (sort_mode < 0 || sort_mode >= 3) {
+    display_assert("sort_mode>=0 && sort_mode<NUMBER_OF_PROFILE_SORT_MODES",
+                   "c:\\halo\\SOURCE\\cseries\\profile.c", 0x36f, 1);
+    system_exit(-1);
+  }
+  if (format_mode < 0 || format_mode >= 2) {
+    display_assert(
+      "format_mode>=0 && format_mode<NUMBER_OF_PROFILE_DUMP_FORMAT_MODES",
+      "c:\\halo\\SOURCE\\cseries\\profile.c", 0x370, 1);
+    system_exit(-1);
+  }
+  if (maximum_section_count <= 0) {
+    display_assert("maximum_section_count>0",
+                   "c:\\halo\\SOURCE\\cseries\\profile.c", 0x371, 1);
+    system_exit(-1);
+  }
+  if (buffer == NULL) {
+    display_assert("buffer", "c:\\halo\\SOURCE\\cseries\\profile.c", 0x372, 1);
+    system_exit(-1);
+  }
+
+  *(int16_t *)0x3365b8 = sort_mode;
+  csmemcpy(sections, (void *)0x3361b4, *(int16_t *)0x3361b0 * sizeof(void *));
+  qsort(sections, *(int16_t *)0x3361b0, sizeof(void *),
+        (qsort_compar_proc)compare_profile_sections);
+
+  if (*(int16_t *)0x3361b0 != 0 && *(uint8_t *)((char *)sections[0] + 8) != 0) {
+    format = format_mode;
+    crt_sprintf(buffer, ((const char **)0x2ee770)[format]);
+
+    for (section_index = 0; section_index < *(int16_t *)0x3361b0;
+         section_index++) {
+      if (dumped >= maximum_section_count) {
+        return;
+      }
+      section = (char *)sections[section_index];
+      sum_5e8 = 0;
+      sum_5d8 = 0;
+      sum_5e0_seconds = 0.0f;
+      sum_5d8_per_5c8 = 0.0f;
+      sum_average_msec = 0.0f;
+      sum_5f0_msec = 0.0f;
+      sum_5cc = 0;
+      sum_5d0_msec = 0.0f;
+
+      if (*(uint8_t *)(section + 8) != 0 &&
+          (substring == NULL ||
+           crt_strstr(*(char **)section, substring) != NULL)) {
+        do {
+          entry = (char *)sections[section_index];
+          sample_total = (double)*(int64_t *)(entry + 0x5e0);
+          value_5d8 = *(int32_t *)(entry + 0x5d8);
+          sum_5d8 += value_5d8;
+          value_5c8 = *(int32_t *)(entry + 0x5c8);
+          sum_5e0_seconds += sample_total / (double)*(int64_t *)0x3361a0;
+          sum_5d8_per_5c8 += (float)value_5d8 / value_5c8;
+          sum_average_msec +=
+            (value_5c8 == 0 ? *(double *)0x2602c0 : sample_total / value_5c8) *
+            *(double *)0x268628 / (double)*(int64_t *)0x3361a0;
+          sum_5e8 += *(int32_t *)(entry + 0x5e8);
+          sum_5cc += *(int32_t *)(entry + 0x5cc);
+          section_index++;
+          sum_5f0_msec += (double)*(int64_t *)(entry + 0x5f0) *
+                          *(double *)0x268628 / (double)*(int64_t *)0x3361a0;
+          sum_5d0_msec += (double)*(int64_t *)(entry + 0x5d0) *
+                          *(double *)0x268628 / (double)*(int64_t *)0x3361a0;
+        } while (
+          section_index < *(int16_t *)0x3361b0 &&
+          csstrcmp(*(char **)sections[section_index], *(char **)section) == 0);
+
+        switch (format) {
+        case 0:
+          crt_sprintf(buffer + csstrlen(buffer),
+                      ((const char **)0x2ee778)[format], *(char **)section,
+                      sum_5d8, (double)sum_5e0_seconds, (double)sum_5d8_per_5c8,
+                      (double)sum_average_msec, sum_5e8, (double)sum_5f0_msec);
+          break;
+        case 1:
+          crt_sprintf(buffer + csstrlen(buffer),
+                      ((const char **)0x2ee778)[format], *(char **)section,
+                      (double)sum_5d0_msec, sum_5cc, (double)sum_average_msec,
+                      (int)(sum_5d8_per_5c8 + *(float *)0x253398),
+                      (double)sum_5f0_msec, sum_5e8, (double)sum_5e0_seconds,
+                      sum_5d8);
+          break;
+        }
+        section_index--;
+        dumped++;
+      }
+    }
+  }
 }
 
 /* profile_dump_to_file (0x90650) — HaloScript "profile_dump" builtin

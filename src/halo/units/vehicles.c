@@ -411,7 +411,6 @@ void vehicle_preprocess_node_orientations(int vehicle_handle, void *node_data)
   short i;
   unsigned char scale_byte;
   float t;
-  float v;
 
   object = (char *)object_get_and_verify_type(vehicle_handle, 2);
   vehi = (char *)tag_get(0x76656869 /* 'vehi' */, *(int *)object);

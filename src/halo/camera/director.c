@@ -251,43 +251,19 @@ void dead_camera_new(void *camera, int16_t local_player_index, int handle)
  * section 54.  Every camera_proc store and test in director.obj must switch
  * to the function symbols together, once all of them are active lifts. */
 enum {
-  SCRIPTED_CAMERA_UPDATE_ENTRY = 0x853c0,     /* scripted_camera_update */
-  DEAD_CAMERA_UPDATE_ENTRY = 0x85c80,         /* dead_camera_update */
+  SCRIPTED_CAMERA_UPDATE_ENTRY = 0x853c0, /* scripted_camera_update */
+  DEAD_CAMERA_UPDATE_ENTRY = 0x85c80, /* dead_camera_update */
   FIRST_PERSON_CAMERA_UPDATE_ENTRY = 0x89270, /* first_person_camera_update */
-  FLYING_CAMERA_UPDATE_ENTRY = 0x893a0,       /* flying_camera_update */
-  FOLLOWING_CAMERA_UPDATE_ENTRY = 0x89cd0,    /* following_camera_update */
-  ORBITING_CAMERA_UPDATE_ENTRY = 0x8cf30      /* orbiting_camera_update */
+  FLYING_CAMERA_UPDATE_ENTRY = 0x893a0, /* flying_camera_update */
+  FOLLOWING_CAMERA_UPDATE_ENTRY = 0x89cd0, /* following_camera_update */
+  ORBITING_CAMERA_UPDATE_ENTRY = 0x8cf30 /* orbiting_camera_update */
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 /* dead_camera_update (0x85c80). Preserve the original no-player fallback
  * (the command pointer), which is also present in PAL 2342. */
-void dead_camera_update(void *camera_data, void *control_data, void *result_data)
+void dead_camera_update(void *camera_data, void *control_data,
+                        void *result_data)
 {
   dead_camera_t *camera;
   camera_control_t *controls;
@@ -301,9 +277,11 @@ void dead_camera_update(void *camera_data, void *control_data, void *result_data
   camera = (dead_camera_t *)camera_data;
   controls = (camera_control_t *)control_data;
   result = (camera_command_t *)result_data;
-  unit = camera->unit_index == -1 ? NULL :
-    (char *)object_try_and_get_and_verify_type(camera->unit_index, -1);
-  result->position = unit != NULL ? *(real_point3d *)(unit + 0x50) : camera->position;
+  unit = camera->unit_index == -1 ?
+           NULL :
+           (char *)object_try_and_get_and_verify_type(camera->unit_index, -1);
+  result->position =
+    unit != NULL ? *(real_point3d *)(unit + 0x50) : camera->position;
   result->depth = camera->distance;
   angles_to_vector((float *)&result->forward, (float *)&camera->facing);
   observer_up_from_forward((float *)&result->forward, (float *)&result->up);
@@ -321,11 +299,12 @@ void dead_camera_update(void *camera_data, void *control_data, void *result_data
   }
   camera->timer -= controls->seconds_elapsed;
   camera->switch_timer -= controls->seconds_elapsed;
-  camera->switch_timer = 0.0f > camera->switch_timer ? 0.0f : camera->switch_timer;
+  camera->switch_timer =
+    0.0f > camera->switch_timer ? 0.0f : camera->switch_timer;
   if (camera->switch_timer == 0.0f && !game_time_get_paused()) {
     match_team = FUN_00085a40(camera->player_index);
     next_player = FUN_00085ab0((char)match_team, camera->player_index,
-                              camera->current_player_index);
+                               camera->current_player_index);
     camera->current_player_index = next_player;
     if (next_player != -1) {
       player = (char *)datum_get(player_data, next_player);
@@ -337,8 +316,8 @@ void dead_camera_update(void *camera_data, void *control_data, void *result_data
       camera->timer = *(real *)0x266f38;
       camera->unit_index = next_unit;
     }
-    camera->switch_timer = game_engine_running() ?
-      *(real *)0x266f3c : *(real *)0x266f40;
+    camera->switch_timer =
+      game_engine_running() ? *(real *)0x266f3c : *(real *)0x266f40;
   }
   if ((result->flags & 1) &&
       (!valid_real_normal3d_perpendicular((float *)&result->forward,
@@ -371,24 +350,22 @@ void dead_camera_update(void *camera_data, void *control_data, void *result_data
        (*(uint32_t *)&result->timer & 0x7f800000) == 0x7f800000 ||
        !(result->timer >= *(float *)0x2533c0) ||
        !(result->timer <= *(float *)0x266e90))) {
-    char *msg = csprintf(
-      (char *)0x5ab100,
-      "Invalid camera command.\n"
-      "F: (%f, %f, %f) U: (%f, %f, %f)\n"
-      "P: (%f, %f, %f) O: (%f, %f, %f)\n"
-      "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
-      (double)result->forward.i, (double)result->forward.j,
-      (double)result->forward.k, (double)result->up.i,
-      (double)result->up.j, (double)result->up.k,
-      (double)result->position.x, (double)result->position.y,
-      (double)result->position.z, (double)result->offset.i,
-      (double)result->offset.j, (double)result->offset.k,
-      (double)result->depth, (double)result->velocity.i,
-      (double)result->velocity.j, (double)result->velocity.k,
-      (double)result->field_of_view, (double)result->timer,
-      result->flags);
-    display_assert(msg, "c:\\halo\\SOURCE\\camera\\dead_camera.c",
-                   0x9e, 1);
+    char *msg = csprintf((char *)0x5ab100,
+                         "Invalid camera command.\n"
+                         "F: (%f, %f, %f) U: (%f, %f, %f)\n"
+                         "P: (%f, %f, %f) O: (%f, %f, %f)\n"
+                         "D: %f V: (%f, %f, %f), FOV: %f, T: %f, FL: %ld",
+                         (double)result->forward.i, (double)result->forward.j,
+                         (double)result->forward.k, (double)result->up.i,
+                         (double)result->up.j, (double)result->up.k,
+                         (double)result->position.x, (double)result->position.y,
+                         (double)result->position.z, (double)result->offset.i,
+                         (double)result->offset.j, (double)result->offset.k,
+                         (double)result->depth, (double)result->velocity.i,
+                         (double)result->velocity.j, (double)result->velocity.k,
+                         (double)result->field_of_view, (double)result->timer,
+                         result->flags);
+    display_assert(msg, "c:\\halo\\SOURCE\\camera\\dead_camera.c", 0x9e, 1);
     system_exit(-1);
   }
 }
@@ -419,8 +396,11 @@ void director_dispose(void)
  * (base 0x3352b4 + local_player_index * 0xf8). */
 void director_inhibit_facing(int16_t local_player_index)
 {
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   ((char *)0x335301)[(int)local_player_index * 0xf8] = 1;
 }
 
@@ -428,8 +408,11 @@ void director_inhibit_facing(int16_t local_player_index)
  * Writes 1 to the per-player director state byte at struct offset +0x4e. */
 void director_set_local_player_context(int16_t player_index)
 {
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, player_index >= 0 &&
-              player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     player_index >= 0 &&
+                       player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   ((char *)0x335302)[(int)player_index * 0xf8] = 1;
 }
 
@@ -439,8 +422,11 @@ void director_set_local_player_context(int16_t player_index)
  * Reference returns the raw byte in AL (no test), so the load is typed bool. */
 bool director_inhibited_facing(short local_player_index)
 {
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   return ((bool *)0x335301)[(int)local_player_index * 0xf8];
 }
 
@@ -450,8 +436,11 @@ bool director_inhibited_facing(short local_player_index)
  * Reference returns the raw byte in AL (no test), so the load is typed bool. */
 bool director_inhibited_input(short local_player_index)
 {
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
   return ((bool *)0x335302)[(int)local_player_index * 0xf8];
 }
 
@@ -463,7 +452,9 @@ bool director_inhibited_input(short local_player_index)
  * flag byte at 0x3352ae so the next update re-dispatches the camera. */
 void director_set_mode(int16_t mode)
 {
-  assert_halt_msg_at("mode>=0 && mode<NUMBER_OF_DIRECTOR_GAME_MODES", "c:\\halo\\SOURCE\\camera\\director.c", 0x180, mode >= 0 && mode < NUMBER_OF_DIRECTOR_GAME_MODES);
+  assert_halt_msg_at("mode>=0 && mode<NUMBER_OF_DIRECTOR_GAME_MODES",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0x180,
+                     mode >= 0 && mode < NUMBER_OF_DIRECTOR_GAME_MODES);
   if (*(int16_t *)0x3352ac != mode) {
     *(int16_t *)0x3352ac = mode;
     *(uint8_t *)0x3352ae = 1;
@@ -527,19 +518,20 @@ int16_t director_get_perspective(int16_t local_player_index)
     system_exit(-1);
   }
 
-  director = (camera_director_t *)((char *)0x3352b0 + local_player_index * 0xf8);
+  director =
+    (camera_director_t *)((char *)0x3352b0 + local_player_index * 0xf8);
 
 
   if (director->camera_proc == FIRST_PERSON_CAMERA_UPDATE_ENTRY) {
     if (director->camera_change_pause == 0.0f) {
       director->perspective = 0;
-
     }
   } else if (director->camera_proc == FOLLOWING_CAMERA_UPDATE_ENTRY) {
     director->perspective = 1;
 
   } else {
-    director->perspective = (int16_t)((director->camera_proc != SCRIPTED_CAMERA_UPDATE_ENTRY) + 2);
+    director->perspective =
+      (int16_t)((director->camera_proc != SCRIPTED_CAMERA_UPDATE_ENTRY) + 2);
   }
 
   return director->perspective;
@@ -564,12 +556,13 @@ int16_t director_desired_perspective(int unit_handle, int16_t *perspective)
 
   *perspective = 0;
   if (unit_handle != -1) {
-    unit_data_t *unit = (unit_data_t *)object_get_and_verify_type(
-      unit_handle, _object_mask_unit);
+    unit_data_t *unit =
+      (unit_data_t *)object_get_and_verify_type(unit_handle, _object_mask_unit);
 
     if (unit->object.parent_object_index.value != -1) {
-      object_data_t *parent_object = (object_data_t *)object_get_and_verify_type(
-        unit->object.parent_object_index.value, _object_mask_all);
+      object_data_t *parent_object =
+        (object_data_t *)object_get_and_verify_type(
+          unit->object.parent_object_index.value, _object_mask_all);
 
       if ((FLAG(parent_object->type) & _object_mask_unit) != 0) {
         bool third_person_on_enter;
@@ -607,26 +600,6 @@ int16_t director_desired_perspective(int unit_handle, int16_t *perspective)
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /*
  * FUN_000865a0 — set player director mode entry fields.
  * Writes param_1 to [base+0x8], 1.0f to [base+0xc4], clears [base+0xc0],
@@ -655,7 +628,6 @@ void FUN_000865a0(int16_t local_player_index, int param_1, bool param_2)
 }
 
 
-
 /* Per-player default-state init (0x86600). Fills four 12-byte slots at
  * struct offset 0x194/0x1a0/0x1ac/0x1b8 (relative to 0x3352b4 + player*0xf8).
  * Each slot's first dword is seeded from a const table at 0x2ee604 (0x1c
@@ -670,8 +642,11 @@ void director_init_player_cameras(int16_t local_player_index)
   char *dst;
   int i;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   src = (uint32_t *)0x2ee604;
   dst = (char *)0x3352b0 + (int)local_player_index * 0xf8 + 0xd0;
@@ -703,29 +678,42 @@ void FUN_00086670(int16_t local_player_index, int mode_flags, float fwd)
   bool reset;
   int i;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
-    "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
-    local_player_index >= 0 && local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
-  director = (camera_director_t *)((char *)0x3352b0 + local_player_index * 0xf8);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  director =
+    (camera_director_t *)((char *)0x3352b0 + local_player_index * 0xf8);
   director->debug_input_scale *= (real)pow(*(real *)0x266f84, fwd);
-  director->debug_input_scale = director->debug_input_scale < *(real *)0x25bb10 ?
-    *(real *)0x25bb10 : (director->debug_input_scale > *(real *)0x25acf0 ?
-    *(real *)0x25acf0 : director->debug_input_scale);
+  director->debug_input_scale =
+    director->debug_input_scale < *(real *)0x25bb10 ?
+      *(real *)0x25bb10 :
+      (director->debug_input_scale > *(real *)0x25acf0 ?
+         *(real *)0x25acf0 :
+         director->debug_input_scale);
   for (i = 0; i < 4; ++i) {
     definition = (director_variable_definition_t *)0x2ee5f8 + i;
     instance = &director->debug_variables[i];
     hyper_scale = *(uint8_t *)0x2ee610 ? director->debug_input_scale : 1.0f;
     velocity_scale = *(real *)0x3352a8 * *(real *)0x266f7c;
-    velocity_scale = velocity_scale < 0.0f ? 0.0f : (velocity_scale > 1.0f ? 1.0f : velocity_scale);
+    velocity_scale = velocity_scale < 0.0f ?
+                       0.0f :
+                       (velocity_scale > 1.0f ? 1.0f : velocity_scale);
     velocity_scale = 1.0f - velocity_scale;
-    negative = definition->negative_bit != -1 && (mode_flags & (1U << definition->negative_bit)) != 0;
-    positive = definition->positive_bit != -1 && (mode_flags & (1U << definition->positive_bit)) != 0;
-    reset = definition->reset_bit != -1 && (mode_flags & (1U << definition->reset_bit)) != 0;
+    negative = definition->negative_bit != -1 &&
+               (mode_flags & (1U << definition->negative_bit)) != 0;
+    positive = definition->positive_bit != -1 &&
+               (mode_flags & (1U << definition->positive_bit)) != 0;
+    reset = definition->reset_bit != -1 &&
+            (mode_flags & (1U << definition->reset_bit)) != 0;
     instance->velocity *= velocity_scale;
     if (negative && !positive)
-      instance->velocity -= *(real *)0x266f80 * definition->scale * *(real *)0x3352a8 * hyper_scale;
+      instance->velocity -=
+        *(real *)0x266f80 * definition->scale * *(real *)0x3352a8 * hyper_scale;
     else if (positive && !negative)
-      instance->velocity += *(real *)0x266f80 * definition->scale * *(real *)0x3352a8 * hyper_scale;
+      instance->velocity +=
+        *(real *)0x266f80 * definition->scale * *(real *)0x3352a8 * hyper_scale;
     else if (game_in_editor())
       instance->velocity = 0.0f;
     delta = *(real *)0x3352a8 * instance->velocity;
@@ -734,8 +722,11 @@ void FUN_00086670(int16_t local_player_index, int mode_flags, float fwd)
       instance->value = definition->initial_value;
     else
       instance->value += delta;
-    instance->value = instance->value < definition->minimum ? definition->minimum :
-      (instance->value > definition->maximum ? definition->maximum : instance->value);
+    instance->value =
+      instance->value < definition->minimum ?
+        definition->minimum :
+        (instance->value > definition->maximum ? definition->maximum :
+                                                 instance->value);
   }
 }
 
@@ -748,7 +739,10 @@ void director_dispose_from_old_map(void)
   char *entry = (char *)0x335374;
 
   for (i = 0; i < 4; i++) {
-    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+    assert_halt_msg_at("local_player_index>=0 && "
+                       "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                       "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                       i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
     *(int *)(entry - 0xbc) = 0;
     *(float *)entry = 1.0f;
     *(uint8_t *)(entry - 4) = 0;
@@ -757,40 +751,50 @@ void director_dispose_from_old_map(void)
   **(char **)0x5ab200 = 0;
 }
 
-/* director_load_camera (0x86900) — load saved camera state from file. */
+/* director_load_camera (0x86900) — debug helper that reads "d:\camera.txt"
+ * (the director_save_camera format) back into local player 0's director as a
+ * flying camera. The cross/dot product is inline: the reference keeps it on
+ * the x87 stack (0x34-byte frame holds only the 13 scanned/derived floats).
+ * camera_data +0x14/+0x18 are flying-camera fields (unnamed). The proc slot
+ * gets the ORIGINAL entry address (see the enum above). */
 void director_load_camera(void)
 {
   void *file;
-  float position[3];
-  float forward[3];
-  float up[3];
-  float reference_up[3];
-  float angle;
-  unsigned int mode;
+  real position[3];
+  real forward[3];
+  real derived_up[3];
+  real stored_up[3];
+  real field_of_view;
 
-  file = crt_fopen((const char *)0x267084, (const char *)0x2658a4);
-  if (!file)
-    return;
-  _fscanf(file, (const char *)0x267078, &position[0], &position[1], &position[2]);
-  _fscanf(file, (const char *)0x267078, &forward[0], &forward[1], &forward[2]);
-  _fscanf(file, (const char *)0x267078, &up[0], &up[1], &up[2]);
-  _fscanf(file, (const char *)0x267074, &mode);
-  crt_fclose(file);
-
-  flying_camera_new_from_point_and_vector((flying_camera_t *)0x3352bc, position, forward);
-  observer_up_from_forward(forward, reference_up);
-  angle = (float)angle_between_vectors3d(up, reference_up);
-  if (*(float *)0x2533c0 < (reference_up[2] * up[1] - up[2] * reference_up[1]) * forward[0] +
-                           (forward[1] * (up[2] * reference_up[0] - reference_up[2] * up[0]) +
-                            forward[2] * (up[0] * reference_up[1] - reference_up[0] * up[1]))) {
-    angle = -angle;
+  file = crt_fopen("d:\\camera.txt", "r");
+  if (file) {
+    _fscanf(file, "%f %f %f\n", &position[0], &position[1], &position[2]);
+    _fscanf(file, "%f %f %f\n", &forward[0], &forward[1], &forward[2]);
+    _fscanf(file, "%f %f %f\n", &stored_up[0], &stored_up[1], &stored_up[2]);
+    _fscanf(file, "%f\n", &field_of_view);
+    crt_fclose(file);
+    FUN_00089350(((camera_director_t *)0x3352b0)->camera_data, position,
+                 forward);
+    observer_up_from_forward(forward, derived_up);
+    *(real *)(((camera_director_t *)0x3352b0)->camera_data + 0x14) =
+      FUN_0010c510(stored_up, derived_up);
+    if ((derived_up[2] * stored_up[1] - stored_up[2] * derived_up[1]) *
+            forward[0] +
+          (forward[1] *
+             (stored_up[2] * derived_up[0] - derived_up[2] * stored_up[0]) +
+           forward[2] *
+             (stored_up[0] * derived_up[1] - derived_up[0] * stored_up[1])) >
+        REAL_ZERO_POOL) {
+      *(real *)(((camera_director_t *)0x3352b0)->camera_data + 0x14) =
+        -*(real *)(((camera_director_t *)0x3352b0)->camera_data + 0x14);
+    }
+    *(real *)(((camera_director_t *)0x3352b0)->camera_data + 0x18) =
+      field_of_view;
+    ((camera_director_t *)0x3352b0)->camera_proc = FLYING_CAMERA_UPDATE_ENTRY;
+    ((camera_director_t *)0x3352b0)->debug_input_scale = 1.0f;
+    ((camera_director_t *)0x3352b0)->debug_controls = 0;
+    ((camera_director_t *)0x3352b0)->camera_mode_index = 2;
   }
-  *(float *)0x3352d0 = angle;
-  *(int32_t *)0x3352b0 = 2;
-  *(void (**)())0x3352b8 = (void (*)())flying_camera_update;
-  *(uint32_t *)0x3352d4 = mode;
-  *(int32_t *)0x335370 = 0;
-  *(float *)0x335374 = 1.0f;
 }
 
 /* FUN_00086a50: AX/EBX inputs and signed word table/count are retained in
@@ -800,10 +804,14 @@ void FUN_00086a50(int local_player_index, int16_t *mode_table, int16_t count)
   camera_director_t *director;
   int16_t camera_mode;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
-    "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
-    (int16_t)local_player_index >= 0 && (int16_t)local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
-  director = (camera_director_t *)((char *)0x3352b0 + (int16_t)local_player_index * 0xf8);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     (int16_t)local_player_index >= 0 &&
+                       (int16_t)local_player_index <
+                         MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  director = (camera_director_t *)((char *)0x3352b0 +
+                                   (int16_t)local_player_index * 0xf8);
   director->camera_mode_index = (director->camera_mode_index + 1) % count;
   camera_mode = mode_table[director->camera_mode_index];
   switch (camera_mode) {
@@ -832,7 +840,8 @@ void FUN_00086a50(int local_player_index, int16_t *mode_table, int16_t count)
     system_exit(-1);
     break;
   }
-  console_printf(0, "%s camera", ((char **)0x2ee5e0)[mode_table[director->camera_mode_index]]);
+  console_printf(0, "%s camera",
+                 ((char **)0x2ee5e0)[mode_table[director->camera_mode_index]]);
 }
 
 /* director_camera_deterministic (0x86b80) — deterministic camera dispatch.
@@ -880,15 +889,18 @@ int16_t director_camera_deterministic(int unit_handle, int param_2, int param_3)
  * are stored as their original entry addresses (the *_UPDATE_ENTRY enum)
  * because other director code compares the slot against those values; see
  * the note on the enum. */
-void director_choose_game_perspective(int local_player_index, char force)
+void director_choose_game_perspective(int16_t local_player_index, char force)
 {
   camera_director_t *director;
   int16_t following;
   int16_t perspective;
   int unit_index;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   director = &director_globals.local_players[local_player_index];
   unit_index = player_control_get_unit_index(local_player_index);
@@ -899,9 +911,11 @@ void director_choose_game_perspective(int local_player_index, char force)
         following_camera_new(director->camera_data);
         FUN_000865a0(local_player_index, FOLLOWING_CAMERA_UPDATE_ENTRY, !force);
       }
-    } else if (force || director->camera_proc == FOLLOWING_CAMERA_UPDATE_ENTRY) {
+    } else if (force ||
+               director->camera_proc == FOLLOWING_CAMERA_UPDATE_ENTRY) {
       first_person_camera_new(director->camera_data);
-      FUN_000865a0(local_player_index, FIRST_PERSON_CAMERA_UPDATE_ENTRY, !force);
+      FUN_000865a0(local_player_index, FIRST_PERSON_CAMERA_UPDATE_ENTRY,
+                   !force);
     }
     director->seat_state = perspective;
   }
@@ -957,7 +971,8 @@ void director_script_camera(unsigned char value)
 
   director_camera_scripted->camera_scripted = value;
   for (i = 0; i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS; i++) {
-    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+    assert_halt_msg_at("local_player_index>=0 && "
+                       "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
                        "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
                        i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
@@ -1014,8 +1029,11 @@ void director_set_player_camera_normal(int16_t local_player_index,
   int16_t local_word;
   int16_t result;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   base = (char *)0x3352b4 + (int)local_player_index * 0xf8;
 
@@ -1023,8 +1041,11 @@ void director_set_player_camera_normal(int16_t local_player_index,
     /* 0x88c40: zero camera-data first dword. */
     ((void (*)(void *))0x88c40)((void *)(base + 8));
 
-    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-                local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+    assert_halt_msg_at("local_player_index>=0 && "
+                       "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                       "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                       local_player_index >= 0 &&
+                         local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     *(uint8_t *)(base + 0xbc) = 0;
     *(uint32_t *)(base + 4) = 0x89270;
@@ -1068,8 +1089,11 @@ void director_set_player_camera_normal(int16_t local_player_index,
   if (current_camera != (void *)0x85c80)
     return;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   /* 0xb6870: lookup player's unit handle. */
   unit_handle = ((int (*)(int16_t))0xb6870)(local_player_index);
@@ -1105,8 +1129,11 @@ void director_set_player_camera_scripted(int16_t local_player_index,
 {
   char *base;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-              local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     local_player_index >= 0 &&
+                       local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   base = (char *)0x3352b4 + (int)local_player_index * 0xf8;
 
@@ -1115,8 +1142,11 @@ void director_set_player_camera_scripted(int16_t local_player_index,
     ((void (*)(void *, int16_t))0x87800)((void *)(base + 8),
                                          local_player_index);
 
-    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-                local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+    assert_halt_msg_at("local_player_index>=0 && "
+                       "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                       "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                       local_player_index >= 0 &&
+                         local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     *(uint32_t *)(base + 4) = 0x87f20;
     *(float *)(base + 0xc0) = 1.0f;
@@ -1143,16 +1173,22 @@ void director_apply_replay_mode_for_player(char reset_flag,
   char *base;
 
   if (reset_flag != 0) {
-    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-                local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+    assert_halt_msg_at("local_player_index>=0 && "
+                       "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                       "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                       local_player_index >= 0 &&
+                         local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     base = (char *)0x3352b4 + (int)local_player_index * 0xf8;
 
     /* 0x88c40: camera-data init helper (cdecl: camera_data_ptr). */
     ((void (*)(void *))0x88c40)((void *)(base + 8));
 
-    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, local_player_index >= 0 &&
-                local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+    assert_halt_msg_at("local_player_index>=0 && "
+                       "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                       "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                       local_player_index >= 0 &&
+                         local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     *(uint32_t *)(base + 4) = 0x89270;
     *(float *)(base + 0xc0) = 1.0f;
@@ -1197,7 +1233,11 @@ bool director_compute_camera_input(short *out_buf, int local_player_index)
   void *current_camera;
   char *base;
 
-  assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, player16 >= 0 && player16 < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+  assert_halt_msg_at("local_player_index>=0 && "
+                     "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                     "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                     player16 >= 0 &&
+                       player16 < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
   csmemset(out_buf, 0, 0x24);
   *out_buf = player16;
@@ -1374,7 +1414,10 @@ void director_initialize_for_new_map(void)
   /* p points into the per-player array at offset 0x48 from the struct base */
   p = (char *)0x3352fc;
   for (i = 0; i < 4; i++) {
-    assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+    assert_halt_msg_at("local_player_index>=0 && "
+                       "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                       "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                       i >= 0 && i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
     /* zero offset-0x48 field (dword), offset-0x4c field (byte), and the
      * timer at offset-0x00 (= p - 0x48) */
@@ -1425,8 +1468,11 @@ void director_update(float delta_time)
 
   do {
     if (local_player_get_player_index((int16_t)i) != -1) {
-      assert_halt_msg_at("local_player_index>=0 && local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS", "c:\\halo\\SOURCE\\camera\\director.c", 0xb3, (int16_t)i >= 0 &&
-                  (int16_t)i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
+      assert_halt_msg_at("local_player_index>=0 && "
+                         "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
+                         "c:\\halo\\SOURCE\\camera\\director.c", 0xb3,
+                         (int16_t)i >= 0 &&
+                           (int16_t)i < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
       ps[0x4d] = 0;
       ps[0x4e] = 0;
@@ -1671,8 +1717,10 @@ void editor_camera_set_position(const uint32_t *point, const uint32_t *angles)
 {
   flying_camera_t *camera;
 
-  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x94, point);
-  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x95, angles);
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x94,
+                 point);
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x95,
+                 angles);
 
   camera = editor_camera_globals.camera;
   if (camera == 0) {
@@ -1755,10 +1803,10 @@ void editor_camera_set_mode(int16_t mode)
 {
   if (editor_camera_globals.camera && editor_camera_globals.mode != mode) {
     if (editor_camera_globals.mode) {
-      assert_halt_msg_at("translate_funcs[camera_mode][_translate_from]",
-                         "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c",
-                         0x12e,
-                         translate_funcs[editor_camera_globals.mode][_translate_from]);
+      assert_halt_msg_at(
+        "translate_funcs[camera_mode][_translate_from]",
+        "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0x12e,
+        translate_funcs[editor_camera_globals.mode][_translate_from]);
       translate_funcs[editor_camera_globals.mode][_translate_from](
         editor_camera_globals.camera);
     }
@@ -1775,9 +1823,9 @@ void editor_camera_set_mode(int16_t mode)
 }
 
 /* editor_camera_get_mode (0x87be0) */
-int16_t editor_camera_get_mode(void)
+uint16_t editor_camera_get_mode(void)
 {
-  return editor_camera_globals.mode;
+  return (uint16_t)editor_camera_globals.mode;
 }
 
 /* editor_camera_get_scripted (0x87bf0) */
@@ -1872,67 +1920,55 @@ void editor_camera_move_to_point(const float *point)
   camera_data[2] = point[2] - forward[2] * *(float *)0x254e04;
 }
 
-/*
- * editor_camera_set_position_and_roll (0x87d00) — update editor camera position
- * and roll angles.
- */
-void editor_camera_set_position_and_roll(const float *point, const float *angles)
+/* editor_camera_set_position_and_roll (0x87d00) — like
+ * editor_camera_set_position, but angles is {yaw, pitch, roll}: the facing is
+ * re-derived from the yaw/pitch/roll matrix and the roll is recomputed from
+ * the matrix up vector.  The dword at 0x2ee66c is the editor camera target
+ * handle stored by FUN_00087eb0. */
+void editor_camera_set_position_and_roll(const uint32_t *point,
+                                         const float *angles)
 {
-  float matrix[16];
-  float forward[3];
-  float up[3];
-  float diff[3];
-  float hack_angles[2];
-  float *camera;
-  float dot;
+  real_matrix4x3 matrix;
+  real_vector3d forward;
+  real_vector3d cross;
+  real_vector3d pitched;
+  real_euler_angles2d facing;
+  real dot;
 
-  if (point == NULL) {
-    display_assert("point", "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0xa9, 1);
-    system_exit(-1);
-  }
-  if (angles == NULL) {
-    display_assert("angles", "c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0xaa, 1);
-    system_exit(-1);
-  }
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0xa9,
+                 point);
+  assert_halt_at("c:\\halo\\SOURCE\\camera\\editor_flying_camera.c", 0xaa,
+                 angles);
 
-  camera = *(float **)0x3356b0;
-  if (camera == NULL) {
-    editor_camera_set_focus((const uint32_t *)point, (const uint32_t *)angles);
-    *(char *)0x33569a = 1;
-    *(char *)0x3356b4 = 1;
+  if (editor_camera_globals.camera == 0) {
+    editor_camera_set_focus(point, (const uint32_t *)angles);
+    editor_camera_globals.initialized = 1;
+    editor_camera_globals.reset_all = 1;
     return;
   }
 
-  camera[0] = point[0];
-  camera[1] = point[1];
-  camera[2] = point[2];
-
-  FUN_00109e90(matrix, angles[0], angles[1], angles[2]);
-  vector_to_angles(&camera[3], matrix);
-  angles_to_vector(forward, &camera[3]);
-
-  hack_angles[0] = camera[3];
-  hack_angles[1] = camera[4] + *(float *)0x2568bc; /* _pi / 2.0f */
-  angles_to_vector(up, hack_angles);
-
-  normalize3d(forward);
-  normalize3d(up);
-
-  /* diff = up x matrix.up */
-  diff[0] = up[1] * matrix[8] - up[2] * matrix[7];
-  diff[1] = up[2] * matrix[6] - up[0] * matrix[8];
-  diff[2] = up[0] * matrix[7] - up[1] * matrix[6];
-  normalize3d(diff);
-
-  dot = forward[0] * diff[0] + forward[1] * diff[1] + forward[2] * diff[2];
-  camera[5] = FUN_0010c510(up, &matrix[6]) * dot;
-
-  if (*(int *)0x2ee66c != -1) {
-    *(float *)0x3356b8 = point[0];
-    *(float *)0x3356bc = point[1];
-    *(float *)0x3356c0 = point[2];
+  editor_camera_globals.camera->position = *(const real_point3d *)point;
+  FUN_00109e90((float *)&matrix, angles[0], angles[1], angles[2]);
+  vector_to_angles((float *)&editor_camera_globals.camera->facing,
+                   (float *)&matrix.forward);
+  angles_to_vector((float *)&forward,
+                   (float *)&editor_camera_globals.camera->facing);
+  facing = editor_camera_globals.camera->facing;
+  facing.pitch = facing.pitch + REAL_HALF_PI_POOL;
+  angles_to_vector((float *)&pitched, (float *)&facing);
+  normalize3d((float *)&forward);
+  normalize3d((float *)&pitched);
+  cross.i = matrix.up.z * pitched.j - matrix.up.y * pitched.k;
+  cross.j = pitched.k * matrix.up.x - matrix.up.z * pitched.i;
+  cross.k = matrix.up.y * pitched.i - pitched.j * matrix.up.x;
+  normalize3d((float *)&cross);
+  dot = cross.k * forward.k + cross.j * forward.j + cross.i * forward.i;
+  editor_camera_globals.camera->roll =
+    FUN_0010c510((float *)&pitched, (float *)&matrix.up) * dot;
+  if (*(int32_t *)0x2ee66c != NONE) {
+    editor_camera_globals.unit_offset = *(const real_vector3d *)point;
   }
-  *(char *)0x3356b4 = 1;
+  editor_camera_globals.reset_all = 1;
 }
 
 /* FUN_00087eb0 (0x87eb0) — record the editor camera target handle and derive
@@ -2124,8 +2160,7 @@ void editor_camera_set_scripted(unsigned char enable)
     /* ADD EAX,0x10 / MOV ECX,EAX at 0x8813a: globals + 0x10 is held in one
      * register and the three dwords are read through it. */
     camera_data = *(uint32_t **)0x3356b0;
-    *(real_point3d *)camera_data =
-      *(real_point3d *)(*(char **)0x2ee670 + 0x10);
+    *(real_point3d *)camera_data = *(real_point3d *)(*(char **)0x2ee670 + 0x10);
 
 
     vector_to_angles((float *)(camera_data + 3),
@@ -2297,61 +2332,106 @@ void editor_camera_flying_update(void *camera, const void *controls, void *resul
   *(uint32_t *)res = 1;
 }
 
-/*
- * editor_camera_orbiting_update (0x887e0) — tick update for editor orbiting camera.
- */
-void editor_camera_orbiting_update(void *camera, const void *controls, void *result)
+/* editor_camera_orbiting_update (0x887e0) — orbiting-mode entry of the
+ * editor camera update_funcs table; cdecl (camera_data [EBP+8],
+ * control_data [EBP+0xc], result_data [EBP+0x10]).
+ *
+ * The validator reads field_of_view and timer back from the globals at
+ * 0x2670c8 / 0x2670d0 (FLD [0x2670c8] at 0x88b0c, [0x2670d0] at 0x88b49),
+ * not from the result block, so those reads are kept on the globals.  The
+ * distance clamp (JZ at 0x88882) also clamps NaN; the pitch clamp (JP at
+ * 0x88839, JNZ at 0x88850) leaves NaN unclamped. */
+void editor_camera_orbiting_update(void *camera_data, void *control_data,
+                                   void *result_data)
 {
-  float *cam;
-  const unsigned short *ctrl;
-  float *res;
-  int unit_index;
-  int camera_info[6];
-  float facing_pitch;
-  float new_y;
+  char *camera;
+  char *controls;
+  camera_command_t *result;
+  player_control_unit_camera_info_t info;
+  real pitch;
+  real distance;
+  char *msg;
 
-  cam = (float *)camera;
-  ctrl = (const unsigned short *)controls;
-  res = (float *)result;
+  camera = (char *)camera_data;
+  controls = (char *)control_data;
+  result = (camera_command_t *)result_data;
 
-  player_control_get_unit_camera_info((int16_t)ctrl[0], (void *)camera_info);
-  res[1] = *(float *)&camera_info[3];
-  res[2] = *(float *)&camera_info[4];
-  res[3] = *(float *)&camera_info[5];
-
-  if (*((const char *)ctrl + 2) != 0) {
-    cam[3] += *(const float *)(ctrl + 4);
-    facing_pitch = cam[4] + *(const float *)(ctrl + 6);
-    if (facing_pitch < *(float *)0x267208) {
-      facing_pitch = *(float *)0x267208;
-    } else if (facing_pitch > *(float *)0x267204) {
-      facing_pitch = *(float *)0x267204;
+  player_control_get_unit_camera_info(*(int16_t *)controls, &info);
+  result->position = info.position;
+  if (controls[2] != 0) {
+    *(real *)(camera + 0xc) =
+      *(real *)(controls + 0x8) + *(real *)(camera + 0xc);
+    pitch = *(real *)(controls + 0xc) + *(real *)(camera + 0x10);
+    if (pitch < *(real *)0x267208) {
+      pitch = *(real *)0x267208;
+    } else if (pitch > *(real *)0x267204) {
+      pitch = *(real *)0x267204;
     }
-    cam[4] = facing_pitch;
-
-    director_set_local_player_context((int16_t)ctrl[0]);
+    *(real *)(camera + 0x10) = pitch;
+    director_set_local_player_context(*(int16_t *)controls);
   }
 
-  new_y = cam[1] - *(const float *)(ctrl + 16) * *(float *)0x259ec0;
-  if (new_y < *(float *)0x253f3c) {
-    new_y = *(float *)0x253f3c;
+  distance =
+    *(real *)(camera + 0x4) - *(real *)(controls + 0x20) * *(real *)0x259ec0;
+  if (!(distance > *(real *)0x253f3c)) {
+    distance = *(real *)0x253f3c;
   }
-  cam[1] = new_y;
+  *(real *)(camera + 0x4) = distance;
 
-  unit_index = camera_info[0];
-  if (unit_index != -1) {
-    angles_to_vector(&res[9], &cam[3]);
-    observer_up_from_forward(&res[9], &res[12]);
-    object_get_root_location(unit_index, (float *)&res[15], NULL);
-    *(uint32_t *)res = 1;
+  if (info.unit_index != -1) {
+    angles_to_vector((float *)&result->forward, (float *)(camera + 0xc));
+    observer_up_from_forward((float *)&result->forward, (float *)&result->up);
+    object_get_root_location(info.unit_index, (float *)&result->velocity, NULL);
+    result->flags = 1;
   }
 
-  res[4] = (*(float **)0x31fc38)[0];
-  res[5] = (*(float **)0x31fc38)[1];
-  res[6] = (*(float **)0x31fc38)[2];
+  result->offset = **(real_vector3d **)0x31fc38;
+  result->depth = *(real *)(camera + 0x4);
+  result->field_of_view = *(real *)0x2670c8;
+  result->timer = *(real *)0x2670d0;
 
-  res[7] = cam[1];
-  res[8] = *(float *)0x2670c8;
-  res[18] = *(float *)0x2670d0;
+  if ((result->flags & 1) &&
+      (!valid_real_normal3d_perpendicular((float *)&result->forward,
+                                          (float *)&result->up) ||
+       (*(uint32_t *)&result->position.x & 0x7f800000) == 0x7f800000 ||
+       !(result->position.x >= *(float *)0x266e98) ||
+       !(result->position.x <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->position.y & 0x7f800000) == 0x7f800000 ||
+       !(result->position.y >= *(float *)0x266e98) ||
+       !(result->position.y <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->position.z & 0x7f800000) == 0x7f800000 ||
+       !(result->position.z >= *(float *)0x266e98) ||
+       !(result->position.z <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.i & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.i >= *(float *)0x266e98) ||
+       !(result->offset.i <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.j & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.j >= *(float *)0x266e98) ||
+       !(result->offset.j <= *(float *)0x266e94) ||
+       (*(uint32_t *)&result->offset.k & 0x7f800000) == 0x7f800000 ||
+       !(result->offset.k >= *(float *)0x266e98) ||
+       !(result->offset.k <= *(float *)0x266e94) ||
+       !real_vector3d_valid((float *)&result->velocity) ||
+       (*(uint32_t *)&result->depth & 0x7f800000) == 0x7f800000 ||
+       !(result->depth >= *(float *)0x2533c0) ||
+       !(result->depth <= *(float *)0x266e94) ||
+       (*(uint32_t *)0x2670c8 & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)0x2670c8 >= *(float *)0x255ef8) ||
+       !(*(float *)0x2670c8 <= *(float *)0x2568bc) ||
+       (*(uint32_t *)0x2670d0 & 0x7f800000) == 0x7f800000 ||
+       !(*(float *)0x2670d0 >= *(float *)0x2533c0) ||
+       !(*(float *)0x2670d0 <= *(float *)0x266e90))) {
+    msg = csprintf(
+      (char *)0x5ab100, (const char *)0x266e08, (double)result->forward.i,
+      (double)result->forward.j, (double)result->forward.k,
+      (double)result->up.i, (double)result->up.j, (double)result->up.k,
+      (double)result->position.x, (double)result->position.y,
+      (double)result->position.z, (double)result->offset.i,
+      (double)result->offset.j, (double)result->offset.k, (double)result->depth,
+      (double)result->velocity.i, (double)result->velocity.j,
+      (double)result->velocity.k, (double)*(float *)0x2670c8,
+      (double)*(float *)0x2670d0, result->flags);
+    display_assert(msg, (const char *)0x267120, 0x23b, 1);
+    system_exit(-1);
+  }
 }
-

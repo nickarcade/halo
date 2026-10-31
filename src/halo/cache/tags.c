@@ -1234,7 +1234,7 @@ void FUN_001baf50(void)
   }
 }
 
-int inflateInit_(int z, const char *version, int stream_size);
+int inflateInit_(int z, char *version, int stream_size);
 int inflateEnd(int z);
 
 /* 0x1b99e0 */

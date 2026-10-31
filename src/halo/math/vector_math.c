@@ -1008,7 +1008,7 @@ float *FUN_00013090(float *a, float *b, float *out)
 /* 0x130c0: real_random */
 float real_random(void)
 {
-  return real_seed_random(get_global_random_seed_address());
+  return random_math_real((unsigned int *)get_global_random_seed_address());
 }
 
 /* 0x130d0 — Ray-cast between two points. Computes the direction vector

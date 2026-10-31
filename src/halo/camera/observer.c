@@ -101,33 +101,33 @@ void flying_camera_update(void *camera_data, void *control_data,
       (!valid_real_normal3d_perpendicular((float *)&result->forward,
                                           (float *)&result->up) ||
        (*(uint32_t *)&result->position.x & 0x7f800000) == 0x7f800000 ||
-       !(result->position.x >= *(float *)0x266e98) ||
-       !(result->position.x <= *(float *)0x266e94) ||
+       !(result->position.x >= REAL_NEG_5000_POOL) ||
+       !(result->position.x <= REAL_5000_POOL) ||
        (*(uint32_t *)&result->position.y & 0x7f800000) == 0x7f800000 ||
-       !(result->position.y >= *(float *)0x266e98) ||
-       !(result->position.y <= *(float *)0x266e94) ||
+       !(result->position.y >= REAL_NEG_5000_POOL) ||
+       !(result->position.y <= REAL_5000_POOL) ||
        (*(uint32_t *)&result->position.z & 0x7f800000) == 0x7f800000 ||
-       !(result->position.z >= *(float *)0x266e98) ||
-       !(result->position.z <= *(float *)0x266e94) ||
+       !(result->position.z >= REAL_NEG_5000_POOL) ||
+       !(result->position.z <= REAL_5000_POOL) ||
        (*(uint32_t *)&result->offset.i & 0x7f800000) == 0x7f800000 ||
-       !(result->offset.i >= *(float *)0x266e98) ||
-       !(result->offset.i <= *(float *)0x266e94) ||
+       !(result->offset.i >= REAL_NEG_5000_POOL) ||
+       !(result->offset.i <= REAL_5000_POOL) ||
        (*(uint32_t *)&result->offset.j & 0x7f800000) == 0x7f800000 ||
-       !(result->offset.j >= *(float *)0x266e98) ||
-       !(result->offset.j <= *(float *)0x266e94) ||
+       !(result->offset.j >= REAL_NEG_5000_POOL) ||
+       !(result->offset.j <= REAL_5000_POOL) ||
        (*(uint32_t *)&result->offset.k & 0x7f800000) == 0x7f800000 ||
-       !(result->offset.k >= *(float *)0x266e98) ||
-       !(result->offset.k <= *(float *)0x266e94) ||
+       !(result->offset.k >= REAL_NEG_5000_POOL) ||
+       !(result->offset.k <= REAL_5000_POOL) ||
        !real_vector3d_valid((float *)&result->velocity) ||
        (*(uint32_t *)&result->depth & 0x7f800000) == 0x7f800000 ||
-       !(result->depth >= *(float *)0x2533c0) ||
-       !(result->depth <= *(float *)0x266e94) ||
+       !(result->depth >= REAL_ZERO_POOL) ||
+       !(result->depth <= REAL_5000_POOL) ||
        (*(uint32_t *)&result->field_of_view & 0x7f800000) == 0x7f800000 ||
-       !(result->field_of_view >= *(float *)0x255ef8) ||
-       !(result->field_of_view <= *(float *)0x2568bc) ||
+       !(result->field_of_view >= REAL_0_001_POOL) ||
+       !(result->field_of_view <= REAL_HALF_PI_POOL) ||
        (*(uint32_t *)&result->timer & 0x7f800000) == 0x7f800000 ||
-       !(result->timer >= *(float *)0x2533c0) ||
-       !(result->timer <= *(float *)0x266e90))) {
+       !(result->timer >= REAL_ZERO_POOL) ||
+       !(result->timer <= REAL_3600_POOL))) {
     char *msg = csprintf((char *)0x5ab100,
                          "Invalid camera command.\n"
                          "F: (%f, %f, %f) U: (%f, %f, %f)\n"
@@ -235,7 +235,7 @@ float uniform_cubic_spline(float f0, float f1, float f2, float f3, float t0,
                            float h, float t)
 {
   assert_halt_msg_at("h > 0.0f", "..\\math\\real_math.h", 0x5e4,
-                     h > *(float *)0x2533c0);
+                     h > REAL_ZERO_POOL);
   assert_halt_msg_at("t >= t0 && t <= t0 + 3.0f*h", "..\\math\\real_math.h",
                      0x5e5, t >= t0 && t <= t0 + 3.0f * h);
 
@@ -341,14 +341,41 @@ have_track:
     (float)index * step, step, t);
 }
 
-/* 0x89c00 */
-void following_camera_deterministic(int unit_handle, int param_2, int param_3)
-{
-}
-
+/* 0x89c00: unit camera position plus the camera-track offset rotated into the
+ * unit's planar facing. The track parameter is asin(facing.k) (inline CRT
+ * _CIasin at 0x1da0cc). 0x2533d0 is a double threshold, 0x2533c8 a float
+ * numerator for the planar normalize. */
 void FUN_00089c00(int unit_handle, int param_2, int param_3)
 {
-  following_camera_deterministic(unit_handle, param_2, param_3);
+  float *position;
+  float *forward;
+  char *unit;
+  void *camera_track;
+  float offset[3];
+  float i;
+  float j;
+  float length;
+  double asin(double x);
+  double fabs(double x);
+
+  position = (float *)param_2;
+  unit = (char *)object_get_and_verify_type(unit_handle, 3);
+  camera_track = unit_camera_get(unit_handle);
+  unit_get_camera_position(unit_handle, position);
+  forward = (float *)param_3;
+  *(real_vector3d *)forward = *(real_vector3d *)(unit + 0x1ec);
+  camera_track_splut(camera_track, (float)asin((double)forward[2]), offset);
+  i = forward[0];
+  j = forward[1];
+  length = x87_sqrt(i * i + j * j);
+  if (!(fabs(length) < *(double *)0x2533d0)) {
+    length = *(float *)0x2533c8 / length;
+    i = length * i;
+    j = length * j;
+  }
+  position[0] = offset[1] * j + offset[0] * i + position[0];
+  position[1] = offset[0] * j - offset[1] * i + position[1];
+  position[2] = offset[2] + position[2];
 }
 
 /* following_camera_update (0x89cd0): restore the vehicle/following command,
@@ -936,12 +963,13 @@ void observer_set_camera(int16_t local_player_index, void *camera_command)
  * struct (0x68 bytes) into the observer at offset +0x8. */
 void observer_update_command(int16_t local_player_index)
 {
-  char *observer;
+  observer_t *observer;
   char *command;
   float *timer_out;
   uint8_t *mode_bytes;
   float *obs_timers;
   int i;
+  float value;
 
   assert_halt_msg_at("local_player_index>=0 && "
                      "local_player_index<MAXIMUM_NUMBER_OF_LOCAL_PLAYERS",
@@ -949,45 +977,54 @@ void observer_update_command(int16_t local_player_index)
                      local_player_index >= 0 &&
                        local_player_index < MAXIMUM_NUMBER_OF_LOCAL_PLAYERS);
 
-  observer = (char *)0x33571c + (int)local_player_index * 0x29c;
-  command = *(char **)(observer + 0x4);
-  timer_out = (float *)(command + 0x54);
-  mode_bytes = (uint8_t *)(command + 0x4c);
-  obs_timers = (float *)(observer + 0x5c);
+  observer = (observer_t *)((char *)0x33571c + (int)local_player_index * 0x29c);
+  command = (char *)observer->pending_command;
+  timer_out = ((camera_command_t *)command)->field_54;
+  obs_timers = observer->last_command.field_54;
+  mode_bytes = ((camera_command_t *)command)->field_4c;
 
   if (command == NULL ||
       ((*(uint8_t *)command & 1) &&
-       (!valid_real_normal3d_perpendicular((float *)(command + 0x24),
-                                           (float *)(command + 0x30)) ||
-        (*(uint32_t *)(command + 0x4) & 0x7f800000) == 0x7f800000 ||
+       (!valid_real_normal3d_perpendicular((float *)&((camera_command_t *)command)->forward,
+                                           (float *)&((camera_command_t *)command)->up) ||
+        ((value = ((camera_command_t *)command)->position.x),
+         (*(uint32_t *)&value & 0x7f800000) == 0x7f800000) ||
         !(((camera_command_t *)command)->position.x >= REAL_NEG_5000_POOL) ||
         !(((camera_command_t *)command)->position.x <= REAL_5000_POOL) ||
-        (*(uint32_t *)(command + 0x8) & 0x7f800000) == 0x7f800000 ||
+        ((value = ((camera_command_t *)command)->position.y),
+         (*(uint32_t *)&value & 0x7f800000) == 0x7f800000) ||
         !(((camera_command_t *)command)->position.y >= REAL_NEG_5000_POOL) ||
         !(((camera_command_t *)command)->position.y <= REAL_5000_POOL) ||
-        (*(uint32_t *)(command + 0xc) & 0x7f800000) == 0x7f800000 ||
+        ((value = ((camera_command_t *)command)->position.z),
+         (*(uint32_t *)&value & 0x7f800000) == 0x7f800000) ||
         !(((camera_command_t *)command)->position.z >= REAL_NEG_5000_POOL) ||
         !(((camera_command_t *)command)->position.z <= REAL_5000_POOL) ||
-        (*(uint32_t *)(command + 0x10) & 0x7f800000) == 0x7f800000 ||
+        ((value = ((camera_command_t *)command)->offset.i),
+         (*(uint32_t *)&value & 0x7f800000) == 0x7f800000) ||
         !(((camera_command_t *)command)->offset.i >= REAL_NEG_5000_POOL) ||
         !(((camera_command_t *)command)->offset.i <= REAL_5000_POOL) ||
-        (*(uint32_t *)(command + 0x14) & 0x7f800000) == 0x7f800000 ||
+        ((value = ((camera_command_t *)command)->offset.j),
+         (*(uint32_t *)&value & 0x7f800000) == 0x7f800000) ||
         !(((camera_command_t *)command)->offset.j >= REAL_NEG_5000_POOL) ||
         !(((camera_command_t *)command)->offset.j <= REAL_5000_POOL) ||
-        (*(uint32_t *)(command + 0x18) & 0x7f800000) == 0x7f800000 ||
+        ((value = ((camera_command_t *)command)->offset.k),
+         (*(uint32_t *)&value & 0x7f800000) == 0x7f800000) ||
         !(((camera_command_t *)command)->offset.k >= REAL_NEG_5000_POOL) ||
         !(((camera_command_t *)command)->offset.k <= REAL_5000_POOL) ||
-        !real_vector3d_valid((float *)(command + 0x3c)) ||
-        (*(uint32_t *)(command + 0x1c) & 0x7f800000) == 0x7f800000 ||
+        !real_vector3d_valid((float *)&((camera_command_t *)command)->velocity) ||
+        ((value = ((camera_command_t *)command)->depth),
+         (*(uint32_t *)&value & 0x7f800000) == 0x7f800000) ||
         !(((camera_command_t *)command)->depth >= REAL_ZERO_POOL) ||
         !(((camera_command_t *)command)->depth <= REAL_5000_POOL) ||
-        (*(uint32_t *)(command + 0x20) & 0x7f800000) == 0x7f800000 ||
+        ((value = ((camera_command_t *)command)->field_of_view),
+         (*(uint32_t *)&value & 0x7f800000) == 0x7f800000) ||
         !(((camera_command_t *)command)->field_of_view >= REAL_0_001_POOL) ||
         !(((camera_command_t *)command)->field_of_view <= REAL_HALF_PI_POOL) ||
-        (*(uint32_t *)(command + 0x48) & 0x7f800000) == 0x7f800000 ||
+        ((value = ((camera_command_t *)command)->timer),
+         (*(uint32_t *)&value & 0x7f800000) == 0x7f800000) ||
         !(((camera_command_t *)command)->timer >= REAL_ZERO_POOL) ||
         !(((camera_command_t *)command)->timer <= REAL_3600_POOL)))) {
-    char *msg = csprintf((char *)0x5ab100,
+    display_assert(csprintf((char *)0x5ab100,
                          "Invalid camera command.\n"
                          "F: (%f, %f, %f) U: (%f, %f, %f)\n"
                          "P: (%f, %f, %f) O: (%f, %f, %f)\n"
@@ -1010,25 +1047,23 @@ void observer_update_command(int16_t local_player_index)
                          (double)((camera_command_t *)command)->velocity.k,
                          (double)((camera_command_t *)command)->field_of_view,
                          (double)((camera_command_t *)command)->timer,
-                         *(uint32_t *)command);
-    display_assert(msg, "c:\\halo\\SOURCE\\camera\\observer.c", 0x172, 1);
+                         ((camera_command_t *)command)->flags),
+                   "c:\\halo\\SOURCE\\camera\\observer.c", 0x172, 1);
     system_exit(-1);
   }
 
-  if (*(uint8_t *)(*(char **)(observer + 0x4)) & 1) {
+  if (*(uint8_t *)observer->pending_command & 1) {
     for (i = 5; i != 0; i--) {
-      if ((*mode_bytes & 1) == 0) {
-        command = *(char **)(observer + 0x4);
+      if ((*mode_bytes & 1) != 0) {
+        if ((*mode_bytes & 2) == 0 && *timer_out < *obs_timers)
+          *timer_out = *obs_timers > REAL_2_0_POOL ? REAL_2_0_POOL : *obs_timers;
+      } else {
+        command = (char *)observer->pending_command;
         if (((camera_command_t *)command)->timer < *obs_timers &&
             (*(uint8_t *)command & 8) == 0)
-          goto clamp_timer;
-        *timer_out = ((camera_command_t *)command)->timer;
-      } else if ((*mode_bytes & 2) == 0 && *timer_out < *obs_timers) {
-      clamp_timer:
-        if (*obs_timers <= REAL_2_0_POOL)
-          *timer_out = *obs_timers;
+          *timer_out = *obs_timers > REAL_2_0_POOL ? REAL_2_0_POOL : *obs_timers;
         else
-          *timer_out = REAL_2_0_POOL;
+          *timer_out = ((camera_command_t *)command)->timer;
       }
 
       timer_out++;
@@ -1036,12 +1071,7 @@ void observer_update_command(int16_t local_player_index)
       mode_bytes++;
     }
 
-    {
-      uint32_t *src = (uint32_t *)*(char **)(observer + 0x4);
-      uint32_t *dst = (uint32_t *)(observer + 0x8);
-      for (i = 0x1a; i != 0; i--)
-        *dst++ = *src++;
-    }
+    observer->last_command = *observer->pending_command;
   }
 }
 

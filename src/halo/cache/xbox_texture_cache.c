@@ -740,7 +740,7 @@ void *xbox_texture_cache_get_hardware_format(void *hardware_format, bool block,
   return result;
 }
 
-extern void render_debug_line(char flag, float *point_a, float *point_b, void *color);
+extern void FUN_00189270(char flag, float *point_a, float *point_b, void *color);
 extern void lruv_cache_get_page_usage(void *cache, uint8_t *page_usage);
 
 /* 0x1bef80: render_inverse_transform_screen_point — unproject 2D screen coordinate to 3D ray */
@@ -832,7 +832,7 @@ void texture_cache_debug_render(void)
             ray_origin[2] += ray_dir[2] * scale;
           }
 
-          render_debug_line(1, line_start, line_end, colors[bit]);
+          FUN_00189270(1, line_start, line_end, colors[bit]);
         }
       }
     }

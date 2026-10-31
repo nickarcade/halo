@@ -5586,7 +5586,7 @@ void ui_widget_reload_by_tag(void)
 void play_sound_tag(int32_t a0)
 {
   if (a0 != -1) {
-    unspatialized_impulse_sound_new(a0, 1.0f);
+    sound_impulse_start(a0, 1.0f);
   }
 }
 

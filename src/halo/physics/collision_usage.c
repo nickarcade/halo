@@ -2456,34 +2456,29 @@ int FUN_001506d0(void *out_point, float *direction, float *origin, float arg5,
                       out_arg8, max_results, results);
 }
 
-/* 0x150ac0: FUN_00150ac0 / physics_test_point — test if 3D point is inside model collision spheres */
+/* Returns 1 if the transformed point lies within any 0x80-byte element's
+ * radius (+0x68) around its center (+0x38) in the tag block at data[1]+0x74.
+ * x87 sum order from the binary: dz*dz + dx*dx, then + dy*dy.
+ * 0x150ac0 / collision_usage.obj
+ */
 char FUN_00150ac0(int *data, int *point)
 {
-  float local_point[3];
-  char *collision_model;
-  int count;
-  int i;
-  char *sphere;
-  float dx, dy, dz;
-  float dist_sq;
-  float radius_sq;
+  float local[3];
+  float dx;
+  float dy;
+  float dz;
+  float *element;
+  short i;
 
-  real_matrix3x3_transform_point((void *)(data + 2), (void *)point, local_point);
-  collision_model = *(char **)(data + 1);
-  count = *(int *)(collision_model + 0x74);
-
-  for (i = 0; i < count; i++) {
-    sphere = (char *)tag_block_get_element((void *)(collision_model + 0x74), i, 0x80);
-    dx = *(float *)(sphere + 0x38) - local_point[0];
-    dy = *(float *)(sphere + 0x3c) - local_point[1];
-    dz = *(float *)(sphere + 0x40) - local_point[2];
-    dist_sq = dx * dx + dy * dy + dz * dz;
-    radius_sq = *(float *)(sphere + 0x68) * *(float *)(sphere + 0x68);
-    if (dist_sq <= radius_sq) {
+  real_matrix3x3_transform_point(data + 2, (float *)point, local);
+  for (i = 0; i < *(int *)(data[1] + 0x74); i++) {
+    element = (float *)tag_block_get_element((void *)(data[1] + 0x74), i, 0x80);
+    dx = element[0x38 / 4] - local[0];
+    dy = element[0x3c / 4] - local[1];
+    dz = element[0x40 / 4] - local[2];
+    if (dz * dz + dx * dx + dy * dy <= element[0x68 / 4] * element[0x68 / 4]) {
       return 1;
     }
   }
-
   return 0;
 }
-
